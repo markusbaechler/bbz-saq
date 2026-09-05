@@ -117,22 +117,35 @@ test('tables.rankingTables: Top-Listen je Profil mit Rang, Name, Bank, Wert, Ver
   assertEqual(r.oral[0].rows.map((x) => x.name), ['A Test', 'B Test']);
 });
 
-test('tables.plannedTables: Übersicht je Tag und Ort, Details mit Zeit, Name, Bank, Profil, Sprache', () => {
+test('tables.plannedTables: schriftlich und mündlich getrennt – je Art Übersicht je Tag und Ort (Teilprüfungen mit Anzahl, Wiederholung) und Teilnehmende', () => {
   const a = simple({ lastName: 'Alpha', firstName: 'Anna', profil: 'PK', sprache: 'DE', employerCanon: 'Testbank AG', we: { 3: [{ date: new Date(2026, 9, 1, 9, 0), location: 'Bern', planned: true }] } });
   const b = makePerson({ lastName: 'Beta', firstName: 'Ben', profil: 'IK', sprache: 'FR', employerCanon: 'Musterbank', we: { 1: [{ date: new Date(2026, 9, 1, 13, 30), location: 'Bern', planned: true }] }, oe: { 1: [{ date: new Date(2026, 10, 5, 8, 0), location: null, planned: true }] } });
-  const t = plannedTables([a, b]);
-  assertEqual(t.summary.columns.map((c) => c.label), ['Datum', 'Ort', 'Prüfungen', 'Anzahl']);
-  assertEqual(t.summary.rows, [
-    { datum: '01.10.2026', ort: 'Bern', pruefungen: 'WE1 RUN1, WE3 RUN1', anzahl: 2 },
-    { datum: '05.11.2026', ort: 'unbekannt', pruefungen: 'OE1 RUN1', anzahl: 1 },
-  ]);
-  assertEqual(t.details.columns.map((c) => c.label), ['Datum', 'Zeit', 'Ort', 'Prüfung', 'Name', 'Bank', 'Profil', 'Sprache']);
-  assertEqual(t.details.rows[0], { datum: '01.10.2026', zeit: '09:00', ort: 'Bern', pruefung: 'WE3 RUN1', name: 'Alpha Anna', bank: 'Testbank AG', profil: 'PK', sprache: 'DE' });
-  assertEqual(t.details.rows[1].name, 'Beta Ben');
-  assertEqual(t.details.rows[2], { datum: '05.11.2026', zeit: '08:00', ort: 'unbekannt', pruefung: 'OE1 RUN1', name: 'Beta Ben', bank: 'Musterbank', profil: 'IK', sprache: 'FR' });
-  assertEqual(t.total, 3);
-  assertEqual(t.personen, 2, 'Menschen mit geplanten Terminen');
-  assertEqual(plannedTables([]).total, 0);
+  // Wiederholung: WE1 RUN1 nicht bestanden, RUN2 geplant am selben Tag wie Beta
+  const c = makePerson({ lastName: 'Gamma', firstName: 'Gia', profil: 'PK', sprache: 'DE', employerCanon: 'Testbank AG', we: { 1: [{ passed: false, date: '2026-01-10', result: 0.3 }, { date: new Date(2026, 9, 1, 13, 30), location: 'Bern', planned: true }] } });
+  const t = plannedTables([a, b, c]);
+  assertEqual([t.total, t.we.total, t.oe.total, t.tage, t.personen], [4, 3, 1, 2, 3]);
+  assertEqual([t.we.tage, t.we.personen, t.oe.tage, t.oe.personen], [1, 3, 1, 1]);
+  // schriftlich
+  assertEqual(t.we.summary.title, 'Schriftliche Prüfungen je Tag und Ort');
+  assertEqual(t.we.summary.columns.map((x) => x.label), ['Datum', 'Ort', 'Teilprüfungen (Anzahl)', 'Anzahl', 'davon Wiederholung']);
+  assertEqual(t.we.summary.rows, [{ datum: '01.10.2026', ort: 'Bern', teile: 'WE1 (2), WE3 (1)', anzahl: 3, wiederholung: 1 }]);
+  assertEqual(t.we.details.title, 'Schriftliche Prüfungen – Teilnehmende');
+  assertEqual(t.we.details.columns.map((x) => x.label), ['Datum', 'Zeit', 'Ort', 'Teilprüfung', 'Versuch', 'Name', 'Bank', 'Profil', 'Sprache']);
+  assertEqual(t.we.details.rows[0], { datum: '01.10.2026', zeit: '09:00', ort: 'Bern', teil: 'WE3', versuch: 1, name: 'Alpha Anna', bank: 'Testbank AG', profil: 'PK', sprache: 'DE' });
+  assertEqual(t.we.details.rows.slice(1).map((r) => [r.zeit, r.teil, r.versuch, r.name]), [['13:30', 'WE1', 1, 'Beta Ben'], ['13:30', 'WE1', 2, 'Gamma Gia']], 'gleiche Zeit: Versuch 1 vor Versuch 2');
+  assert(t.we.details.rows.every((r) => r.teil.startsWith('WE')), 'keine mündlichen Termine in der schriftlichen Liste');
+  // mündlich
+  assertEqual(t.oe.summary.title, 'Mündliche Prüfungen je Tag und Ort');
+  assertEqual(t.oe.summary.rows, [{ datum: '05.11.2026', ort: 'unbekannt', teile: 'OE1 (1)', anzahl: 1, wiederholung: 0 }]);
+  assertEqual(t.oe.details.rows, [{ datum: '05.11.2026', zeit: '08:00', ort: 'unbekannt', teil: 'OE1', versuch: 1, name: 'Beta Ben', bank: 'Musterbank', profil: 'IK', sprache: 'FR' }]);
+  // leer
+  const leer = plannedTables([]);
+  assertEqual([leer.total, leer.we.total, leer.oe.total, leer.tage, leer.personen], [0, 0, 0, 0, 0]);
+  assertEqual([leer.we.summary.rows, leer.oe.details.rows], [[], []]);
+  assertEqual(leer.oe.summary.empty, 'Keine geplanten mündlichen Prüfungen im aktiven Filter.');
+  // Datum ohne Uhrzeit (Excel-Datum = Mitternacht) → keine Zeit statt «00:00»
+  const dateOnly = makePerson({ lastName: 'Zeta', we: { 1: [{ date: '2026-12-01', location: 'Bern', planned: true }] } });
+  assertEqual(plannedTables([dateOnly]).we.details.rows[0].zeit, '');
 });
 
 test('tables.overviewModel: KPIs mit n und Kennzeichnung, Tabelle je Profil', () => {
@@ -443,13 +456,15 @@ test('tables.plannedTables: Kapazität und Auslastung nur, wenn Plätze je Ort h
   const a = makePerson({ lastName: 'Alpha', we: { 1: [{ date: new Date(2026, 9, 1, 9, 0), location: 'Bern', planned: true }] } });
   const b = makePerson({ lastName: 'Beta', we: { 1: [{ date: new Date(2026, 9, 1, 13, 0), location: 'Bern', planned: true }] } });
   const c = makePerson({ lastName: 'Gamma', we: { 1: [{ date: new Date(2026, 9, 2, 9, 0), location: 'Zürich', planned: true }] } });
-  assertEqual(plannedTables([a, b, c]).summary.columns.map((x) => x.label), ['Datum', 'Ort', 'Prüfungen', 'Anzahl'], 'ohne Kapazitätsdaten keine Spalten');
+  assertEqual(plannedTables([a, b, c]).we.summary.columns.map((x) => x.label), ['Datum', 'Ort', 'Teilprüfungen (Anzahl)', 'Anzahl', 'davon Wiederholung'], 'ohne Kapazitätsdaten keine Spalten');
+  assert(!plannedTables([a, b, c]).we.summary.note.includes('LOCATION_CAPACITY'));
   LOCATION_CAPACITY.Bern = 8;
   try {
     const t = plannedTables([a, b, c]);
-    assertEqual(t.summary.columns.map((x) => x.label), ['Datum', 'Ort', 'Prüfungen', 'Anzahl', 'Kapazität', 'Auslastung']);
-    assertEqual(t.summary.rows.map((r) => [r.ort, r.anzahl, r.kapazitaet, r.auslastung]), [['Bern', 2, 8, '25.0 %'], ['Zürich', 1, '', '']]);
-    assert(t.summary.note.includes('LOCATION_CAPACITY'));
+    assertEqual(t.we.summary.columns.map((x) => x.label), ['Datum', 'Ort', 'Teilprüfungen (Anzahl)', 'Anzahl', 'davon Wiederholung', 'Kapazität', 'Auslastung']);
+    assertEqual(t.we.summary.rows.map((r) => [r.ort, r.anzahl, r.kapazitaet, r.auslastung]), [['Bern', 2, 8, '25.0 %'], ['Zürich', 1, '', '']]);
+    assert(t.we.summary.note.includes('LOCATION_CAPACITY'));
+    assert(t.oe.summary.note.includes('LOCATION_CAPACITY'), 'Kapazität gilt für beide Arten');
   } finally {
     delete LOCATION_CAPACITY.Bern;
   }

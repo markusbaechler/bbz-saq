@@ -636,7 +636,7 @@ function personName(p) {
   return (p.lastName || '') + ' ' + (p.firstName || '');
 }
 
-// Alle geplanten Runs (run.planned) als flache Liste, sortiert nach Datum, Ort, Name
+// Alle geplanten Runs (run.planned) als flache Liste, sortiert nach Datum (mit Zeit), Ort, Teilprüfung, Name
 export function plannedRuns(persons) {
   const out = [];
   for (const p of persons) {
@@ -649,25 +649,35 @@ export function plannedRuns(persons) {
       }
     }
   }
-  return out.sort((a, b) => a.date - b.date || collator.compare(a.location || '', b.location || '') || collator.compare(personName(a.person), personName(b.person)));
+  return out.sort((a, b) => a.date - b.date || collator.compare(a.location || '', b.location || '') || collator.compare(a.label, b.label) || collator.compare(personName(a.person), personName(b.person)));
 }
 
-// Gruppen je Tag und Ort: [{ dayKey, day, location, count, exams, entries }]
+// Geplante Runs nach Art getrennt: { we: schriftlich (WE1–WE6), oe: mündlich (OE1–OE2) }, Reihenfolge wie plannedRuns
+export function plannedByKind(runs) {
+  return { we: runs.filter((r) => r.kind === 'we'), oe: runs.filter((r) => r.kind === 'oe') };
+}
+
+// Gruppen je Tag und Ort: [{ dayKey, day, location, count, exams, parts, repeats, entries }]
+// parts = Teilprüfungen mit Anzahl Termine [{ label: 'WE1', count }], repeats = Termine mit Versuch 2 oder 3 (Wiederholung)
 export function plannedGroups(runs) {
   const groups = new Map();
   for (const r of runs) {
     const key = dayKey(r.date) + '|' + (r.location || '');
     let g = groups.get(key);
     if (!g) {
-      g = { dayKey: dayKey(r.date), day: new Date(r.date.getFullYear(), r.date.getMonth(), r.date.getDate()), location: r.location, count: 0, exams: [], entries: [] };
+      g = { dayKey: dayKey(r.date), day: new Date(r.date.getFullYear(), r.date.getMonth(), r.date.getDate()), location: r.location, count: 0, exams: [], parts: [], repeats: 0, entries: [] };
       groups.set(key, g);
     }
     g.count += 1;
     g.entries.push(r);
     if (!g.exams.includes(r.label)) g.exams.push(r.label);
+    const partLabel = r.kind.toUpperCase() + r.part;
+    const part = g.parts.find((x) => x.label === partLabel);
+    if (part) part.count += 1; else g.parts.push({ label: partLabel, count: 1 });
+    if (r.run >= 2) g.repeats += 1;
   }
   return [...groups.values()]
-    .map((g) => ({ ...g, exams: g.exams.slice().sort(collator.compare) }))
+    .map((g) => ({ ...g, exams: g.exams.slice().sort(collator.compare), parts: g.parts.slice().sort((a, b) => collator.compare(a.label, b.label)) }))
     .sort((a, b) => a.day - b.day || collator.compare(a.location || '', b.location || ''));
 }
 

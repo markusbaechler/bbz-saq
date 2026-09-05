@@ -5,7 +5,7 @@
 
 import {
   MODE, SMALL_N, formatPct, writtenPassRates, writtenPerformance, partFirstAttempt, oralPassRates, oralPerformance,
-  byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups,
+  byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, plannedByKind, dayKey,
   multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
   timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
   earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS,
@@ -290,18 +290,45 @@ export function vorgangExportTables(persons) {
 // Geplante Prüfungen
 // ---------------------------------------------------------------------------
 
+// Geplante Prüfungen, getrennt nach schriftlich (WE) und mündlich (OE): je Art eine Übersicht je Tag und Ort
+// (Teilprüfungen mit Anzahl, Wiederholungen = Versuch 2 oder 3) und die Teilnehmenden. Kapazität/Auslastung nur, wenn
+// LOCATION_CAPACITY gefüllt ist (b4 vorbereitet). Namen erscheinen hier bewusst (Einteilung ist Zweck der Ansicht).
 export function plannedTables(persons) {
   const runs = plannedRuns(persons);
+  const byKind = plannedByKind(runs);
+  return {
+    total: runs.length,
+    tage: new Set(runs.map((r) => dayKey(r.date))).size,
+    personen: new Set(runs.map((r) => r.person.personKey)).size, // Menschen mit geplanten Terminen
+    we: plannedKindTables(byKind.we, 'we'),
+    oe: plannedKindTables(byKind.oe, 'oe'),
+  };
+}
+
+// Excel-Datum ohne Uhrzeit = Mitternacht; dann keine Zeit anzeigen statt «00:00»
+function hasTime(date) {
+  return date.getHours() !== 0 || date.getMinutes() !== 0;
+}
+
+const PLANNED_KIND = {
+  we: { titel: 'Schriftliche Prüfungen', leer: 'Keine geplanten schriftlichen Prüfungen im aktiven Filter.' },
+  oe: { titel: 'Mündliche Prüfungen', leer: 'Keine geplanten mündlichen Prüfungen im aktiven Filter.' },
+};
+
+function plannedKindTables(runs, kind) {
+  const k = PLANNED_KIND[kind];
   const groups = plannedGroups(runs);
   const hasCapacity = Object.keys(LOCATION_CAPACITY).length > 0;
   return {
     total: runs.length,
+    tage: new Set(runs.map((r) => dayKey(r.date))).size,
+    personen: new Set(runs.map((r) => r.person.personKey)).size,
     summary: {
-      title: 'Geplante Prüfungen je Tag und Ort',
-      columns: [col('datum', 'Datum'), col('ort', 'Ort'), col('pruefungen', 'Prüfungen'), col('anzahl', 'Anzahl')]
+      title: k.titel + ' je Tag und Ort',
+      columns: [col('datum', 'Datum'), col('ort', 'Ort'), col('teile', 'Teilprüfungen (Anzahl)'), col('anzahl', 'Anzahl'), col('wiederholung', 'davon Wiederholung')]
         .concat(hasCapacity ? [col('kapazitaet', 'Kapazität'), col('auslastung', 'Auslastung')] : []),
       rows: groups.map((g) => {
-        const row = { datum: fmtDate(g.day), ort: groupLabel(g.location), pruefungen: g.exams.join(', '), anzahl: g.count };
+        const row = { datum: fmtDate(g.day), ort: groupLabel(g.location), teile: g.parts.map((p) => p.label + ' (' + p.count + ')').join(', '), anzahl: g.count, wiederholung: g.repeats };
         if (hasCapacity) {
           const cap = g.location ? LOCATION_CAPACITY[g.location] : undefined;
           row.kapazitaet = cap === undefined ? '' : cap;
@@ -309,17 +336,19 @@ export function plannedTables(persons) {
         }
         return row;
       }),
-      note: hasCapacity ? 'Kapazität = Plätze je Prüfungstag und Ort (config.js, LOCATION_CAPACITY); Auslastung = geplante Termine ÷ Kapazität' : null,
+      empty: k.leer,
+      note: 'Wiederholung = Termin für Versuch 2 oder 3 (RUN2/RUN3).' + (hasCapacity ? ' Kapazität = Plätze je Prüfungstag und Ort (config.js, LOCATION_CAPACITY); Auslastung = geplante Termine ÷ Kapazität.' : ''),
     },
     details: {
-      title: 'Geplante Prüfungen – Teilnehmende',
-      columns: [col('datum', 'Datum'), col('zeit', 'Zeit'), col('ort', 'Ort'), col('pruefung', 'Prüfung'), col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache')],
+      title: k.titel + ' – Teilnehmende',
+      columns: [col('datum', 'Datum'), col('zeit', 'Zeit'), col('ort', 'Ort'), col('teil', 'Teilprüfung'), col('versuch', 'Versuch'), col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache')],
       rows: runs.map((r) => ({
-        datum: fmtDate(r.date), zeit: fmtTime(r.date), ort: groupLabel(r.location), pruefung: r.label,
+        datum: fmtDate(r.date), zeit: hasTime(r.date) ? fmtTime(r.date) : '', ort: groupLabel(r.location), teil: r.kind.toUpperCase() + r.part, versuch: r.run,
         name: personName(r.person), bank: r.person.employerCanon || '', profil: groupLabel(r.person.profil), sprache: groupLabel(r.person.sprache),
       })),
+      empty: k.leer,
+      note: 'Sortiert nach Datum und Zeit, Ort, Teilprüfung, Name. Ohne Zeit = Termin ohne Uhrzeit in der Datei.',
     },
-    personen: new Set(runs.map((r) => r.person.personKey)).size, // Menschen mit geplanten Terminen
   };
 }
 
