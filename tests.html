@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bbz-saq – Tests</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; margin: 2rem; color: #222; }
+    h1 { font-size: 1.3rem; }
+    #summary { font-weight: 600; margin: 1rem 0; }
+    #summary.ok { color: #1a7f37; }
+    #summary.fail { color: #b3261e; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { border-bottom: 1px solid #ddd; padding: .3rem .5rem; text-align: left; vertical-align: top; }
+    tr.fail td { background: #fdecea; }
+    tr.ok td.status { color: #1a7f37; }
+    td.status { width: 4rem; font-weight: 600; }
+    pre { margin: 0; white-space: pre-wrap; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>bbz-saq – Tests (config, store-Normalisierung, metrics)</h1>
+  <p>Synthetische Testdaten, keine Personendaten. Alle Tests müssen grün sein, bevor Views geändert werden.</p>
+  <div id="summary">Laufen…</div>
+  <table>
+    <thead><tr><th>Status</th><th>Test</th><th>Details</th></tr></thead>
+    <tbody id="results"></tbody>
+  </table>
+  <script type="module">
+    import { runAll } from './tests/runner.js';
+    import './tests/all.js';
+
+    const { results, total, failed, passed } = await runAll();
+    const tbody = document.getElementById('results');
+    for (const r of results) {
+      const tr = document.createElement('tr');
+      tr.className = r.ok ? 'ok' : 'fail';
+      const status = document.createElement('td');
+      status.className = 'status';
+      status.textContent = r.ok ? 'ok' : 'FAIL';
+      const name = document.createElement('td');
+      name.textContent = r.name;
+      const details = document.createElement('td');
+      if (!r.ok) {
+        const pre = document.createElement('pre');
+        pre.textContent = (r.error && (r.error.stack || r.error.message)) || String(r.error);
+        details.appendChild(pre);
+      }
+      tr.append(status, name, details);
+      tbody.appendChild(tr);
+    }
+    const summary = document.getElementById('summary');
+    summary.className = failed ? 'fail' : 'ok';
+    summary.textContent = passed + '/' + total + ' Tests grün, ' + failed + ' rot.';
+  </script>
+</body>
+</html>
