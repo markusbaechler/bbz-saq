@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>bbz Zertifizierungs-Cockpit – Reporting KUBA</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>bbz Zertifizierungs-Cockpit</h1>
+      <span class="subtitle">Reporting KUBA · Phase 1 (nur lesen)</span>
+    </div>
+    <div class="session">
+      <span id="account" class="account"></span>
+      <button id="btn-signin" type="button" hidden>Anmelden</button>
+      <button id="btn-signout" type="button" class="secondary" hidden>Abmelden</button>
+    </div>
+  </header>
+
+  <section class="databar" aria-label="Datenquelle">
+    <button id="btn-load" type="button" disabled>Daten von SharePoint laden</button>
+    <label class="file-label" title="Excel-Datei lokal prüfen – bleibt im Browser, wird nirgends hochgeladen">
+      <span>Lokale Excel-Datei prüfen</span>
+      <input id="file-input" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+    </label>
+    <span id="status" class="status" aria-live="polite">Keine Daten geladen.</span>
+  </section>
+
+  <div id="error" class="error" role="alert" hidden></div>
+
+  <nav id="nav" class="views" aria-label="Ansichten"></nav>
+  <section id="filterbar" class="filterbar" hidden></section>
+  <main id="view" class="view"></main>
+
+  <footer class="app-footer">
+    <span>Datenquelle: Reporting_KUBA.xlsx (SharePoint bbz-Zertifizierung). Daten werden nur im Browser-Speicher gehalten.</span>
+  </footer>
+
+  <!-- Bibliotheken lokal (kein CDN), vor den Modulen -->
+  <script src="lib/msal-browser.min.js"></script>
+  <script src="lib/xlsx.full.min.js"></script>
+  <script src="lib/fflate.umd.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -99,3 +99,18 @@ test('createStore: Kennzahlen laufen auf gefilterten Personen (End-to-End synthe
   assertEqual(o.issued, 1);
   assertEqual(o.vss, 1);
 });
+
+test('createStore.clear: entfernt Personen, DQ und Meta aus dem Memory (z. B. beim Abmelden)', () => {
+  const store = createStore();
+  let calls = 0;
+  store.subscribe(() => { calls += 1; });
+  store.setData(loadResult());
+  store.setFilter({ profil: ['PK'] });
+  store.clear();
+  const s = store.getState();
+  assertEqual([s.persons, s.dq, s.meta], [[], [], null]);
+  assertEqual(s.filter.profil, ['PK'], 'Filter bleibt erhalten');
+  assertEqual(store.getFilteredPersons(), []);
+  assertEqual(store.getFilterOptions(), { profil: [], sprache: [], bank: [] });
+  assertEqual(calls, 3);
+});

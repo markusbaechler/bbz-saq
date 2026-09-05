@@ -387,6 +387,14 @@ export function createStore() {
       notify();
     },
 
+    // Daten aus dem Memory entfernen (z. B. beim Abmelden); Filter bleibt
+    clear() {
+      state.persons = [];
+      state.dq = [];
+      state.meta = null;
+      notify();
+    },
+
     resetFilter() {
       state.filter = { ...DEFAULT_FILTER };
       notify();

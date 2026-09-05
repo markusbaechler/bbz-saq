@@ -3,3 +3,8 @@ import './config.test.js';
 import './store.test.js';
 import './store-state.test.js';
 import './metrics.test.js';
+import './graph.test.js';
+import './auth.test.js';
+import './threadedComments.test.js';
+import './fileAdapter.test.js';
+import './dataQuality.test.js';
