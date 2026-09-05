@@ -315,6 +315,14 @@ const PLANNED_KIND = {
   oe: { titel: 'Mündliche Prüfungen', leer: 'Keine geplanten mündlichen Prüfungen im aktiven Filter.' },
 };
 
+// Eine Zeile je geplantem Run für Teilnehmendenlisten
+function plannedRow(r) {
+  return {
+    datum: fmtDate(r.date), zeit: hasTime(r.date) ? fmtTime(r.date) : '', ort: groupLabel(r.location), teil: r.kind.toUpperCase() + r.part, versuch: r.run,
+    name: personName(r.person), bank: r.person.employerCanon || '', profil: groupLabel(r.person.profil), sprache: groupLabel(r.person.sprache),
+  };
+}
+
 function plannedKindTables(runs, kind) {
   const k = PLANNED_KIND[kind];
   const groups = plannedGroups(runs);
@@ -342,13 +350,20 @@ function plannedKindTables(runs, kind) {
     details: {
       title: k.titel + ' – Teilnehmende',
       columns: [col('datum', 'Datum'), col('zeit', 'Zeit'), col('ort', 'Ort'), col('teil', 'Teilprüfung'), col('versuch', 'Versuch'), col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache')],
-      rows: runs.map((r) => ({
-        datum: fmtDate(r.date), zeit: hasTime(r.date) ? fmtTime(r.date) : '', ort: groupLabel(r.location), teil: r.kind.toUpperCase() + r.part, versuch: r.run,
-        name: personName(r.person), bank: r.person.employerCanon || '', profil: groupLabel(r.person.profil), sprache: groupLabel(r.person.sprache),
-      })),
+      rows: runs.map(plannedRow),
       empty: k.leer,
       note: 'Sortiert nach Datum und Zeit, Ort, Teilprüfung, Name. Ohne Zeit = Termin ohne Uhrzeit in der Datei.',
     },
+    // Prüfungsereignisse (Tag × Ort), parallel zu summary.rows: zugeteilte Personen je Ereignis (zum Aufklappen in der Ansicht)
+    events: groups.map((g) => ({
+      key: g.dayKey + '|' + (g.location || ''),
+      label: fmtDate(g.day) + ', ' + groupLabel(g.location),
+      teilnehmende: {
+        title: 'Zugeteilte Personen: ' + fmtDate(g.day) + ', ' + groupLabel(g.location) + ' (' + g.count + ')',
+        columns: [col('zeit', 'Zeit'), col('teil', 'Teilprüfung'), col('versuch', 'Versuch'), col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache')],
+        rows: g.entries.map(plannedRow),
+      },
+    })),
   };
 }
 

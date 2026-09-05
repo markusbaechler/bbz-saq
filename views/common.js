@@ -38,6 +38,49 @@ export function renderTable(table, { caption = true } = {}) {
   return wrap;
 }
 
+// Tabelle mit aufklappbaren Zeilen: detail(row, i) liefert den Inhalt unter der Zeile (oder null → nicht aufklappbar).
+// Die Zeile ist ein Button (Klick, Enter, Leertaste) mit aria-expanded/aria-controls; die Detailzeile ist bis zum Aufklappen hidden.
+let expandableSeq = 0;
+export function renderExpandableTable(table, { detail, hint = null } = {}) {
+  const numeric = numericColumns(table);
+  const cols = table.columns;
+  const thead = el('thead', {}, [el('tr', {}, [el('th', { scope: 'col', class: 'toggle', 'aria-label': 'Aufklappen' })]
+    .concat(cols.map((c) => el('th', { scope: 'col', class: numeric.has(c.key) ? 'num' : null, text: c.label }))))]);
+  const tbody = el('tbody');
+  table.rows.forEach((row, i) => {
+    const content = detail ? detail(row, i) : null;
+    const id = 'xp-' + (++expandableSeq);
+    const tr = el('tr', {
+      class: 'expandable' + (row.small ? ' small' : ''),
+      role: content ? 'button' : null, tabindex: content ? '0' : null, 'aria-expanded': content ? 'false' : null, 'aria-controls': content ? id : null,
+    }, [el('td', { class: 'toggle' })].concat(cols.map((c) => el('td', { class: numeric.has(c.key) ? 'num' : null, text: cellText(row[c.key]) }))));
+    tbody.appendChild(tr);
+    if (!content) return;
+    const detailRow = el('tr', { class: 'event-detail', id, hidden: true }, [el('td', { colspan: String(cols.length + 1) }, [content])]);
+    tbody.appendChild(detailRow);
+    const toggle = () => {
+      const open = detailRow.hidden;
+      detailRow.hidden = !open;
+      tr.setAttribute('aria-expanded', String(open));
+    };
+    tr.addEventListener('click', toggle);
+    tr.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
+  });
+  const children = [];
+  if (table.title) children.push(el('caption', { text: table.title }));
+  children.push(thead, tbody);
+  const wrap = el('div', { class: 'table-wrap' }, [el('table', { class: 'data expandable-table' }, children)]);
+  if (!table.rows.length) wrap.appendChild(el('p', { class: 'empty', text: table.empty || 'Keine Daten für den aktiven Filter.' }));
+  const note = [table.rows.length && hint ? hint : null, table.note].filter(Boolean).join(' ');
+  if (note) wrap.appendChild(el('p', { class: 'note', text: note }));
+  return wrap;
+}
+
+// Einklappbarer Block (<details>). printOpen: wird für den Druck automatisch geöffnet (app.js, beforeprint).
+export function renderCollapsible(summaryText, nodes, { open = false, printOpen = true } = {}) {
+  return el('details', { class: 'fold' + (printOpen ? ' print-open' : ''), open: open ? '' : null }, [el('summary', { text: summaryText })].concat(nodes));
+}
+
 // KPI-Kacheln: [{ label, value, n, small }]
 export function renderKpis(kpis) {
   return el('div', { class: 'kpis' }, kpis.map((k) => el('div', { class: 'kpi' + (k.small ? ' small' : ''), title: k.hint || null }, [

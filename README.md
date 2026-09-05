@@ -22,7 +22,7 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 | Bestenlisten | Je Profil: bbz-Award, beste schriftliche, beste mündliche Prüfung (mit Namen); Mindestgruppengrösse 5, Liste höchstens halbe Gruppe (maximal 5); Award-Dossier mit Begründung je Rang |
 | Bank-Report | Kennzahlen einer gewählten Bank gegen den anonymen Benchmark «alle Banken», je Profil und je Jahr; ohne Namen; Druck/PDF |
 | Offene Vorgänge | Laufende Zertifizierungsprozesse (Gesamtergebnis leer) je Profil und mit Teilnehmenden: fehlende Teile, letzte Prüfung, nächster Termin, Versuche (mit Namen); Teilprüfungen je Profil; Frühwarnung «zweiter Fehlversuch»; passiv seit über 365 Tagen |
-| Geplante Prüfungen | Termine in der Zukunft ohne Ergebnis, getrennt nach schriftlich (WE) und mündlich (OE): je Art eine Übersicht je Tag und Ort (Teilprüfungen mit Anzahl, Wiederholungen) und die Teilnehmenden mit Bank, Profil, Sprache (mit Namen); Kapazität/Auslastung, sobald Plätze je Ort in `config.js` hinterlegt sind |
+| Geplante Prüfungen | Termine in der Zukunft ohne Ergebnis, zuerst schriftlich (WE), dann mündlich (OE): je Art die Prüfungsereignisse je Tag und Ort (Teilprüfungen mit Anzahl, Wiederholungen; Zeile anklicken → zugeteilte Personen) und die vollständige Teilnehmendenliste zum Aufklappen (mit Namen, Bank, Profil, Sprache); Kapazität/Auslastung, sobald Plätze je Ort in `config.js` hinterlegt sind |
 | Datenqualität | «Nicht in den Kennzahlen» mit Grund je Zeile; jede nicht interpretierbare oder auffällige Zelle mit Wirkung auf die Kennzahlen, Stufe, Sheet, Zeile, Header, Rohwert, Grund; nach Wirkung priorisiert, sortier- und filterbar |
 | Glossar | Begriffe und Kennzahl-Definitionen (Definition, Nenner, Grenzfälle), auch ohne geladene Daten |
 

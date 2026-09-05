@@ -138,9 +138,17 @@ test('tables.plannedTables: schriftlich und mündlich getrennt – je Art Übers
   assertEqual(t.oe.summary.title, 'Mündliche Prüfungen je Tag und Ort');
   assertEqual(t.oe.summary.rows, [{ datum: '05.11.2026', ort: 'unbekannt', teile: 'OE1 (1)', anzahl: 1, wiederholung: 0 }]);
   assertEqual(t.oe.details.rows, [{ datum: '05.11.2026', zeit: '08:00', ort: 'unbekannt', teil: 'OE1', versuch: 1, name: 'Beta Ben', bank: 'Musterbank', profil: 'IK', sprache: 'FR' }]);
+  // Prüfungsereignisse (Tag × Ort) mit zugeteilten Personen, parallel zu summary.rows
+  assertEqual(t.we.events.map((e) => [e.key, e.label]), [['2026-10-01|Bern', '01.10.2026, Bern']]);
+  assertEqual(t.we.events.length, t.we.summary.rows.length);
+  assertEqual(t.we.events[0].teilnehmende.title, 'Zugeteilte Personen: 01.10.2026, Bern (3)');
+  assertEqual(t.we.events[0].teilnehmende.columns.map((x) => x.label), ['Zeit', 'Teilprüfung', 'Versuch', 'Name', 'Bank', 'Profil', 'Sprache']);
+  assertEqual(t.we.events[0].teilnehmende.rows.map((r) => [r.zeit, r.teil, r.versuch, r.name]), [['09:00', 'WE3', 1, 'Alpha Anna'], ['13:30', 'WE1', 1, 'Beta Ben'], ['13:30', 'WE1', 2, 'Gamma Gia']]);
+  assertEqual(t.oe.events.map((e) => [e.key, e.teilnehmende.rows.map((r) => r.name)]), [['2026-11-05|', ['Beta Ben']]], 'ohne Ort: leerer Ortsteil im Schlüssel');
   // leer
   const leer = plannedTables([]);
   assertEqual([leer.total, leer.we.total, leer.oe.total, leer.tage, leer.personen], [0, 0, 0, 0, 0]);
+  assertEqual([leer.we.events, leer.oe.events], [[], []]);
   assertEqual([leer.we.summary.rows, leer.oe.details.rows], [[], []]);
   assertEqual(leer.oe.summary.empty, 'Keine geplanten mündlichen Prüfungen im aktiven Filter.');
   // Datum ohne Uhrzeit (Excel-Datum = Mitternacht) → keine Zeit statt «00:00»
