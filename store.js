@@ -38,7 +38,7 @@ import {
   CONFIG, HEADER_FIELDS, PROFILES, PROFILE_ALIASES, LANGUAGES, LANGUAGE_ALIASES, PROFILE_LANGUAGE_HINTS,
   PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, BIRTH_DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
 } from './config.js';
-import { DEFAULT_FILTER, STATUS, filterPersons, eligible, groupBy, groupByPerson, dayKey } from './metrics.js';
+import { DEFAULT_FILTER, STATUS, PASSIVE_DAYS, filterPersons, eligible, groupBy, groupByPerson, dayKey, partsByProfile, missingParts } from './metrics.js';
 import { DEFAULT_UI } from './urlState.js';
 
 export const LEVEL = Object.freeze({ FEHLER: 'fehler', HINWEIS: 'hinweis', NICHT_AUSGEWERTET: 'nicht-ausgewertet' });
@@ -169,12 +169,12 @@ export function parseResult(raw) {
   return bad(null, 'Result hat unerwarteten Typ (' + typeName(raw) + ')');
 }
 
-// Score (Header «WE{n} RUN{r} Score» / «OE{n} RUN{r} Score») fliesst in keine Kennzahl; Entscheid E6 offen.
-// Nicht interpretierbare Werte deshalb auf Stufe «nicht ausgewertet» statt Fehler.
+// Score (Header «WE{n} RUN{r} Score» / «OE{n} RUN{r} Score») fliesst in keine Kennzahl (Entscheid E6, 05.09.2026: Result ist
+// massgebend). Geparst wird weiterhin, damit unlesbare Werte – am File meist verrutschte Zellen – sichtbar bleiben: Stufe «nicht ausgewertet».
 export function parseScore(raw) {
   if (isBlank(raw)) return ok(null);
   if (typeof raw === 'number' && Number.isInteger(raw) && raw >= 0) return ok(raw);
-  return { value: null, reason: 'Score ist keine ganze Zahl ≥ 0 – Feld wird nicht ausgewertet (Entscheid E6 offen)', level: LEVEL.NICHT_AUSGEWERTET, impact: IMPACT.KEINE };
+  return { value: null, reason: 'Score ist keine ganze Zahl ≥ 0 – Feld wird nicht ausgewertet (Entscheid 05.09.2026: Result ist massgebend; Eintrag zeigt vermutlich verrutschte Zellen)', level: LEVEL.NICHT_AUSGEWERTET, impact: IMPACT.KEINE };
 }
 
 // dd.mm.yy(yy) [ / hh.mm | hh:mm ] [h | Uhr]; Trenner Punkt oder Komma
@@ -465,6 +465,9 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
       weStatus: null,           // E4: bestanden | nicht bestanden | offen | nicht erfasst
       oeStatus: null,
       status: null,
+      passiv: false,            // offen, letzte Prüfung > PASSIVE_DAYS Tage zurück, kein Termin (Stichtag options.today)
+      weAllHeader: headerNameOf('weAllPassed'),
+      oeAllHeader: headerNameOf('oeAllPassed'),
       refDate: null,
       refDateSource: null,
       firstExamDate: null,
@@ -525,7 +528,7 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
     person.oeStatus = statusOf(person.oeAllPassed, oeAllRaw);
     person.personKey = personKeyOf(person);
     person.personKeyLevel = person.birthDate ? 'full' : 'name-only';
-    deriveFields(person);
+    deriveFields(person, horizon);
 
     persons.push(person);
   }
@@ -533,8 +536,9 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
   return { persons, dq, headers: { birthDate: map.birthDate === undefined ? null : String(headerRow[map.birthDate]).trim() } };
 }
 
-// Abgeleitete Felder eines Vorgangs (nach Normalisierung und nach jeder Zusammenführung neu berechnet)
-export function deriveFields(person) {
+// Abgeleitete Felder eines Vorgangs (nach Normalisierung und nach jeder Zusammenführung neu berechnet);
+// today = Stichtag für «passiv» (Tagesende)
+export function deriveFields(person, today = new Date()) {
   const weRuns = person.we.flatMap((part) => part.runs);
   const oeRuns = person.oe.flatMap((part) => part.runs);
   const takenRuns = weRuns.concat(oeRuns).filter((r) => r.taken);
@@ -555,6 +559,11 @@ export function deriveFields(person) {
     person.refDateSource = lastExam ? 'lastExam' : null;
   }
   person.status = combineStatus(person.weStatus, person.oeStatus);
+  // Passiv (Entscheid 05.09.2026): offen, letzte Prüfung > PASSIVE_DAYS Tage vor dem Stichtag, kein geplanter Termin
+  const lastExam = latest(dated);
+  const hasPlanned = weRuns.concat(oeRuns).some((r) => r.planned);
+  person.passiv = person.status === STATUS.OFFEN && lastExam !== null && !hasPlanned
+    && (today.getTime() - lastExam.getTime()) / 86400000 > PASSIVE_DAYS;
   return person;
 }
 
@@ -595,7 +604,7 @@ function fillRun(target, sourceRun) {
 }
 
 // Lücken des behaltenen Vorgangs aus dem Duplikat auffüllen – nie überschreiben (Widersprüche wurden vorher ausgeschlossen).
-export function mergeVorgang(keep, dup) {
+export function mergeVorgang(keep, dup, today = new Date()) {
   for (const kind of ['we', 'oe']) {
     keep[kind].forEach((part, i) => {
       const otherPart = dup[kind][i];
@@ -620,7 +629,7 @@ export function mergeVorgang(keep, dup) {
   keep.issued = keep.issued || dup.issued;
   keep.duplicates.push({ sheet: dup.sheetName, row: dup.row });
   dup.duplicateOf = { sheet: keep.sheetName, row: keep.row };
-  deriveFields(keep);
+  deriveFields(keep, today);
   return keep;
 }
 
@@ -628,7 +637,7 @@ export function mergeVorgang(keep, dup) {
 // (keine widersprüchlichen Prüfungsdaten) werden zusammengeführt: behalten wird die Zeile mit den meisten absolvierten
 // Runs, bei Gleichstand die aus «Ausgestellte Zertifikate», sonst die frühere. Widersprüchliche Zeilen bleiben eigene
 // Vorgänge (z. B. Wiederholung desselben Profils) und erhalten einen Hinweis.
-export function linkPersons(persons, dq) {
+export function linkPersons(persons, dq, today = new Date()) {
   const byKey = new Map();
   persons.forEach((p, index) => {
     p.duplicateOf = null;
@@ -672,7 +681,7 @@ export function linkPersons(persons, dq) {
         const sorted = cluster.slice().sort((a, b) => (b.p.attemptsTotal - a.p.attemptsTotal) || ((b.p.source === 'issued') - (a.p.source === 'issued')) || (a.index - b.index));
         const keep = sorted[0].p;
         for (const { p: dup } of sorted.slice(1)) {
-          mergeVorgang(keep, dup);
+          mergeVorgang(keep, dup, today);
           duplikate += 1;
           dq.push({
             level: LEVEL.HINWEIS, impact: IMPACT.KENNZAHL, sheet: dup.sheetName, row: dup.row, header: 'Last Name', field: 'duplikat', raw: null,
@@ -720,9 +729,28 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
     counts[sheet.source] += result.persons.length;
     birthDateHeaders[sheet.source] = result.headers.birthDate;
   }
-  const { duplikate, profilKonflikte } = linkPersons(persons, dq);
-  classifyDq(dq, persons);
+  const horizon = endOfDay(options.today || new Date());
+  const { duplikate, profilKonflikte } = linkPersons(persons, dq, horizon);
   const vorgaenge = persons.filter((p) => !p.duplicateOf);
+  // Hinweis (Entscheid 3): alle Teilprüfungen des Profils bestanden, aber Gesamtergebnis leer → bleibt offen (E4), vermutlich fehlt «yes».
+  // Teilprüfungen je Profil werden aus den Daten abgeleitet (metrics.partsByProfile).
+  const profileParts = partsByProfile(vorgaenge);
+  let vollstaendigOhneGesamtergebnis = 0;
+  for (const p of vorgaenge) {
+    const missing = missingParts(p, profileParts);
+    if (missing === null) continue;
+    for (const [kind, status, flag, header] of [['we', 'weStatus', 'weAllPassed', p.weAllHeader], ['oe', 'oeStatus', 'oeAllPassed', p.oeAllHeader]]) {
+      const def = profileParts.find((x) => x.profil === p.profil);
+      if (!def || !def[kind].length || p[status] !== STATUS.OFFEN) continue;
+      if (missing.some((m) => m.startsWith(kind.toUpperCase()))) continue;
+      vollstaendigOhneGesamtergebnis += 1;
+      dq.push({
+        level: LEVEL.HINWEIS, impact: IMPACT.KENNZAHL, sheet: p.sheetName, row: p.row, header, field: flag, raw: null,
+        reason: 'Alle Teilprüfungen des Profils (' + def[kind].map((n) => kind.toUpperCase() + n).join(', ') + ') bestanden, aber Gesamtergebnis leer – Vorgang gilt als offen (E4); vermutlich fehlt «yes»',
+      });
+    }
+  }
+  classifyDq(dq, persons);
   const people = groupByPerson(vorgaenge);
   const byStatus = (st) => vorgaenge.filter((p) => p.status === st).length;
   Object.assign(counts, {
@@ -735,7 +763,9 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
     bestanden: byStatus(STATUS.BESTANDEN),
     nichtBestanden: byStatus(STATUS.NICHT_BESTANDEN),
     offen: byStatus(STATUS.OFFEN),
+    passiv: vorgaenge.filter((p) => p.passiv).length,
     nichtErfasst: byStatus(STATUS.NICHT_ERFASST),
+    vollstaendigOhneGesamtergebnis,
     schluesselOhneGeburtsdatum: vorgaenge.filter((p) => p.personKeyLevel !== 'full').length,
     dq: dq.length,
     fehler: dq.filter((e) => e.level === LEVEL.FEHLER).length,

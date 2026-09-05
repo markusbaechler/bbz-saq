@@ -29,6 +29,11 @@ export const MODE = Object.freeze({ ERSTVERSUCH: 'erstversuch', BESTANDEN: 'best
 // Status eines Vorgangs bzw. seiner Teile (E4)
 export const STATUS = Object.freeze({ BESTANDEN: 'bestanden', NICHT_BESTANDEN: 'nicht bestanden', OFFEN: 'offen', NICHT_ERFASST: 'nicht erfasst' });
 
+// Passiv (Entscheid Auftraggeber 05.09.2026): offener Vorgang, dessen letzte Prüfung mehr als PASSIVE_DAYS Tage zurückliegt
+// und der keinen geplanten Termin hat. Eigene Kategorie neben «offen», nie «nicht bestanden». Das Kennzeichen p.passiv
+// setzt store.js beim Laden (Stichtag options.today), wie run.planned.
+export const PASSIVE_DAYS = 365;
+
 export const SMALL_N = 5; // Gruppen mit n < 5 kennzeichnen
 
 export const DEFAULT_FILTER = Object.freeze({
@@ -190,9 +195,10 @@ export function throughputStats(persons) {
   return { pruefung: quantiles(persons.map(durationDays)), zertifikat: quantiles(persons.map(certificateDays)) };
 }
 
-// Abbruch-Kandidaten (b5): offene Vorgänge mit letzter Prüfung vor mehr als thresholdDays Tagen und ohne geplanten Termin
-export function dropoutCandidates(persons, today = new Date(), thresholdDays = 365) {
-  return openCases(persons, today).filter((c) => c.lastExam && !c.nextPlanned && c.daysSinceLastExam > thresholdDays);
+// Passive Vorgänge (b5, Entscheid 05.09.2026): offen, letzte Prüfung vor mehr als PASSIVE_DAYS Tagen, kein geplanter Termin.
+// Das Kennzeichen p.passiv stammt aus store.js (Stichtag beim Laden); today dient nur den Tagesangaben.
+export function passiveCases(persons, today = new Date()) {
+  return openCases(persons, today).filter((c) => c.person.passiv);
 }
 
 // [{ person, ...openCaseState }] – nur Vorgänge (keine Duplikate) mit Status offen; älteste letzte Prüfung zuerst,
@@ -204,18 +210,53 @@ export function openCases(persons, today = new Date()) {
     .sort((a, b) => (a.lastExam ? a.lastExam.getTime() : Infinity) - (b.lastExam ? b.lastExam.getTime() : Infinity) || a.person.row - b.person.row);
 }
 
-// Status-Zähler über ein Statusfeld ('status' | 'weStatus' | 'oeStatus'); abgeschlossen = bestanden + nicht bestanden
+// Status-Zähler über ein Statusfeld ('status' | 'weStatus' | 'oeStatus'); abgeschlossen = bestanden + nicht bestanden;
+// passiv = offene Vorgänge mit Kennzeichen passiv (Teilmenge von offen)
 export function statusCounts(persons, field = 'status') {
-  const c = { n: persons.length, bestanden: 0, nichtBestanden: 0, offen: 0, nichtErfasst: 0, abgeschlossen: 0 };
+  const c = { n: persons.length, bestanden: 0, nichtBestanden: 0, offen: 0, passiv: 0, nichtErfasst: 0, abgeschlossen: 0 };
   for (const p of persons) {
     const st = p[field];
     if (st === STATUS.BESTANDEN) c.bestanden += 1;
     else if (st === STATUS.NICHT_BESTANDEN) c.nichtBestanden += 1;
     else if (st === STATUS.NICHT_ERFASST) c.nichtErfasst += 1;
-    else c.offen += 1;
+    else {
+      c.offen += 1;
+      if (p.passiv) c.passiv += 1;
+    }
   }
   c.abgeschlossen = c.bestanden + c.nichtBestanden;
   return c;
+}
+
+// Teilprüfungen je Profil, aus den Daten abgeleitet [hypothese]: ein Teil gehört zum Profil, wenn mindestens SMALL_N Vorgänge
+// des Profils einen absolvierten Run darin haben. [{ profil, we: [1,2,3], oe: [1], n }] in Profilreihenfolge.
+export function partsByProfile(persons) {
+  return groupBy(persons.filter(isVorgang), 'profil').map((g) => {
+    const parts = { we: [], oe: [] };
+    for (const kind of ['we', 'oe']) {
+      const count = CONFIG[kind].parts;
+      for (let i = 0; i < count; i++) {
+        const taken = g.persons.filter((p) => p[kind][i] && p[kind][i].runs.some((r) => r.taken)).length;
+        if (taken >= SMALL_N) parts[kind].push(i + 1);
+      }
+    }
+    return { profil: g.key, we: parts.we, oe: parts.oe, n: g.persons.length };
+  });
+}
+
+// Teile des Profils, die ein Vorgang noch nicht bestanden hat: ['WE3', 'OE1'].
+// null, wenn das Profil unbekannt ist oder (zu wenige Vorgänge) noch keine Teile abgeleitet sind.
+export function missingParts(p, profileParts) {
+  const def = profileParts.find((x) => x.profil === (p.profil === undefined ? null : p.profil));
+  if (!def || def.we.length + def.oe.length === 0) return null;
+  const out = [];
+  for (const kind of ['we', 'oe']) {
+    for (const n of def[kind]) {
+      const part = p[kind][n - 1];
+      if (!part || !part.runs.some((r) => r.passed === true)) out.push(kind.toUpperCase() + n);
+    }
+  }
+  return out;
 }
 
 function endOfDay(date) {
@@ -327,6 +368,7 @@ export function writtenPassRates(persons) {
     gesamt: ratio(st.bestanden, st.abgeschlossen),
     nichtBestanden: ratio(st.nichtBestanden, st.abgeschlossen),
     offen: st.offen,
+    passiv: st.passiv,
     nichtErfasst: st.nichtErfasst,
   };
 }
@@ -389,6 +431,7 @@ export function oralPassRates(persons) {
     bestanden: ratio(st.bestanden, st.abgeschlossen),
     nichtBestanden: ratio(st.nichtBestanden, st.abgeschlossen),
     offen: st.offen,
+    passiv: st.passiv,
     nichtErfasst: st.nichtErfasst,
     angetreten: n,
     failed1: ratio(failed1.length, n),

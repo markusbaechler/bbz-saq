@@ -21,7 +21,7 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 | Zeitverlauf | Kennzahlen je Jahr (Liniendiagramm und Tabelle, gesamt und je Profil), zwei Jahre vergleichen (Prozentpunkte), Schwierigkeit je Teilprüfung und Jahr, Durchlaufzeit je Profil und Jahr |
 | Bestenlisten | Je Profil: bbz-Award, beste schriftliche, beste mündliche Prüfung (mit Namen); Mindestgruppengrösse 5, Liste höchstens halbe Gruppe (maximal 5); Award-Dossier mit Begründung je Rang |
 | Bank-Report | Kennzahlen einer gewählten Bank gegen den anonymen Benchmark «alle Banken», je Profil und je Jahr; ohne Namen; Druck/PDF |
-| Offene Vorgänge | Laufende Zertifizierungsprozesse (Gesamtergebnis leer) je Profil und mit Teilnehmenden: fehlender Teil, letzte Prüfung, nächster Termin, Versuche (mit Namen); Frühwarnung «zweiter Fehlversuch»; Abbruch-Kandidaten |
+| Offene Vorgänge | Laufende Zertifizierungsprozesse (Gesamtergebnis leer) je Profil und mit Teilnehmenden: fehlende Teile, letzte Prüfung, nächster Termin, Versuche (mit Namen); Teilprüfungen je Profil; Frühwarnung «zweiter Fehlversuch»; passiv seit über 365 Tagen |
 | Geplante Prüfungen | Termine in der Zukunft ohne Ergebnis je Tag und Ort, mit Teilnehmenden, Bank, Profil, Sprache (mit Namen); Kapazität/Auslastung, sobald Plätze je Ort in `config.js` hinterlegt sind |
 | Datenqualität | «Nicht in den Kennzahlen» mit Grund je Zeile; jede nicht interpretierbare oder auffällige Zelle mit Wirkung auf die Kennzahlen, Stufe, Sheet, Zeile, Header, Rohwert, Grund; nach Wirkung priorisiert, sortier- und filterbar |
 | Glossar | Begriffe und Kennzahl-Definitionen (Definition, Nenner, Grenzfälle), auch ohne geladene Daten |
@@ -51,8 +51,9 @@ oder Gesamt (nur Zeitraum). Differenzen in Prozentpunkten.
 Eine Zeile der Datei ist ein **Zertifizierungsvorgang**; eine **Person** (Mensch) kann mehrere Vorgänge haben und wird über
 den **Personenschlüssel** aus «Last Name», «First Name» und Geburtsdatum identifiziert (nicht Employer). Zeilen derselben
 Person mit gleichem Profil und ohne widersprüchliche Prüfungsdaten sind **Duplikate** und werden zu einem Vorgang
-zusammengeführt. Jeder Vorgang hat einen **Status**: bestanden / nicht bestanden / offen / nicht erfasst; Nenner der
-Bestehensquoten sind abgeschlossene Vorgänge. Definitionen und Grenzfälle: Abschnitt «Kennzahl-Definitionen» bzw. Ansicht
+zusammengeführt. Jeder Vorgang hat einen **Status**: bestanden / nicht bestanden / offen / nicht erfasst; offene Vorgänge
+ohne Prüfung seit mehr als 365 Tagen und ohne Termin gelten zusätzlich als **passiv** (eigene Zahl, nie «nicht bestanden»).
+Nenner der Bestehensquoten sind abgeschlossene Vorgänge. Definitionen und Grenzfälle: Abschnitt «Kennzahl-Definitionen» bzw. Ansicht
 «Glossar».
 
 - Der Header «Birth Date» ist Pflicht in beiden Sheets (am File verifiziert). Leere oder unlesbare Geburtsdatum-Zellen ergeben
@@ -96,10 +97,11 @@ identisch mit der Ansicht «Glossar» in der App.
 | **Zeitverlauf (Ansicht)** | Kennzahlen je Jahr des Referenzdatums als Liniendiagramm und Tabelle (gesamt und je Profil), Vergleich zweier Jahre in Prozentpunkten sowie Schwierigkeit je Teilprüfung (Durchfallquote und Ø Resultat des ersten Versuchs je WE1–WE6, OE1–OE2 und Jahr des ersten Versuchs). | Der Zeitraumfilter wirkt nicht (alle Jahre sichtbar); die übrigen Filter gelten. Jahre mit n < 5 sind markiert (hohle Marker, *). Vorgänge ohne Referenzdatum tragen kein Jahr bei. Ein Diagramm hat immer eine Tabelle als Zwilling. |
 | **Frühwarnung «zweiter Fehlversuch»** | Teilprüfungen (WE1–WE6, OE1–OE2) mit zwei nicht bestandenen Versuchen und ohne bestandenen Run. «Letzter Versuch» = genau ein Versuch bleibt (der nächste ist der letzte); «ausgeschöpft» = alle Versuche nicht bestanden. Liste mit Namen in der Ansicht «Offene Vorgänge», unabhängig vom Zeitraumfilter. | Maximal drei Versuche je Teilprüfung gemäss Spaltenaufbau der Datei (RUN1–RUN3). |
 | **Durchlaufzeit** | Tage vom ersten Prüfungsdatum eines Vorgangs bis zur bestandenen mündlichen Prüfung (Referenzdatum); nur bestandene Vorgänge. Zusätzlich Tage bis zum Zertifikatsbeginn, wo «Certificate Start Date» vorhanden ist. Ausgewiesen als Median, Ø, Quartile, Min, Max je Profil und je Jahr. | Der Median ist gegen Ausreisser (sehr lange Unterbrüche) robuster als der Mittelwert. |
-| **Abbruch-Kandidaten** | Offene Vorgänge, deren letzte Prüfung mehr als 365 Tage zurückliegt und die keinen geplanten Termin haben. | Ob ein Abbruch vorliegt, ist fachlich zu klären [hypothese]; die Schwelle von 365 Tagen ist ein Vorschlag. Vorgänge ohne jede Prüfung fehlen (kein Datum zum Messen). |
+| **Passiv (> 365 Tage)** | Offener Vorgang, dessen letzte Prüfung mehr als 365 Tage vor dem Stichtag (Ladezeitpunkt) liegt und der keinen geplanten Termin hat. Eigene Kategorie neben «offen» (Entscheid Auftraggeber 05.09.2026), nie «nicht bestanden»; nicht im Nenner der Bestehensquoten. | Vorgänge ohne jede Prüfung sind nie passiv (kein Datum zum Messen). Schwelle PASSIVE_DAYS in metrics.js. |
+| **Teilprüfungen je Profil** | Welche Teilprüfungen (WE1–WE6, OE1–OE2) ein Profil umfasst, ist aus den Daten abgeleitet: ein Teil gehört dazu, wenn mindestens 5 Vorgänge des Profils einen absolvierten Run darin haben. Daraus: fehlende Teile je offenem Vorgang und der Hinweis «alle Teile bestanden, Gesamtergebnis leer». | Ableitung aus Daten, nicht aus einem Reglement [hypothese]; Tabelle in der Ansicht «Offene Vorgänge» zur Kontrolle. |
 | **Bank-Report** | Ansicht für die Weitergabe an ein Institut: Kennzahlen einer gewählten Bank im Vergleich zum Benchmark «alle Banken» (gleicher Zeitraum, gleiche übrigen Filter), je Profil und je Jahr. Ohne Namen, andere Banken nur als Aggregat. PDF über die Druckansicht des Browsers. | Voraussetzung: genau eine Bank in der Filterleiste gewählt. Kleine Gruppen (n < 5) sind markiert. |
 | **Prüfungsplanung / Kapazität** | Die Ansicht «Geplante Prüfungen» zeigt Kapazität und Auslastung je Tag und Ort, sobald Plätze je Prüfungsort in config.js (LOCATION_CAPACITY) hinterlegt sind. Die Excel-Datei enthält keine Kapazitätsdaten [beobachtet: kein Header dafür]. | Ohne hinterlegte Kapazität bleiben die Spalten ausgeblendet (b4 nur vorbereitet). |
-| **Data-Quality-Stufen** | Fehler = Zelle nicht interpretierbar, Wert wird ignoriert. Hinweis = Wert interpretiert oder abgeleitet, aber auffällig (z. B. Result als Prozentwert umgedeutet, Duplikat zusammengeführt, Konsistenzregel verletzt). Nicht ausgewertet = Zelle nicht interpretierbar, aber das Feld fliesst in keine Kennzahl (Score; Entscheid E6 offen). | Score-Header: «WE{n} RUN{r} Score», «OE{n} RUN{r} Score» (24 Spalten). |
+| **Data-Quality-Stufen** | Fehler = Zelle nicht interpretierbar, Wert wird ignoriert. Hinweis = Wert interpretiert oder abgeleitet, aber auffällig (z. B. Result als Prozentwert umgedeutet, Duplikat zusammengeführt, Konsistenzregel verletzt). Nicht ausgewertet = Zelle nicht interpretierbar, aber das Feld fliesst in keine Kennzahl (Score). | Score-Header: «WE{n} RUN{r} Score», «OE{n} RUN{r} Score» (24 Spalten). Entscheid E6 (05.09.2026): Score wird nicht ausgewertet, Result ist massgebend; das Parsing bleibt, damit verrutschte Zellen sichtbar sind. |
 
 ### Kennzahlen
 
@@ -107,7 +109,8 @@ identisch mit der Ansicht «Glossar» in der App.
 |---|---|---|---|
 | **Vorgänge** | Anzahl kennzahlrelevanter Zertifizierungsvorgänge im aktiven Filter. | – | Duplikate sind zusammengeführt und zählen einmal. |
 | **Personen** | Anzahl Menschen hinter den Vorgängen im Filter (Personenschlüssel). | – | Kleiner oder gleich «Vorgänge»; die Differenz sind Personen mit mehreren Profilen. |
-| **Vorgänge offen** | Vorgänge im Filter ohne Gesamtergebnis (schriftlich oder mündlich leer): der Prozess läuft noch. | – | Nicht im Nenner der Bestehensquoten (E4). Eigene Sicht in der Ansicht «Datenqualität» geplant. |
+| **Vorgänge offen** | Vorgänge im Filter ohne Gesamtergebnis (schriftlich oder mündlich leer): der Prozess läuft noch. | – | Nicht im Nenner der Bestehensquoten (E4). Eigene Ansicht «Offene Vorgänge». |
+| **Vorgänge passiv (> 365 Tage)** | Offene Vorgänge im Filter, deren letzte Prüfung mehr als 365 Tage zurückliegt und die keinen geplanten Termin haben. | – | Teilmenge von «Vorgänge offen»; nicht im Nenner. Bestehensquoten sind ohne diese Kategorie eine Obergrenze. |
 | **Vorgänge nicht erfasst** | Vorgänge im Filter, deren Gesamtergebnis gefüllt, aber unlesbar ist (Fehler im Data-Quality-Log). | – | Nicht im Nenner der Bestehensquoten; zählt nicht als offen (E4). |
 | **Schriftlich: im 1. Versuch bestanden** | Anteil Vorgänge, bei denen alle absolvierten WE RUN1 bestanden sind. | Vorgänge mit mindestens einem absolvierten WE RUN1. | Komplement zu «im 1. Versuch durchgefallen». |
 | **Schriftlich: im 1. Versuch durchgefallen** | Anteil Vorgänge mit mindestens einem WE RUN1 = no. | Vorgänge mit mindestens einem absolvierten WE RUN1. | – |
@@ -151,7 +154,7 @@ Fehlt ein Pflicht-Header, wird die Datei nicht verarbeitet und die fehlenden Hea
 | Profil | PK, IK, CWMA, KMU, AFFL, CCoB und Aliase; sonst Rohwert + Fehler |
 | Employer | Alias-Map (config.js) → kanonischer Bankname; unbekannt → Rohwert |
 | Result | Zahl 0–1 direkt (1 = 100 %); Zahl > 1 bis 100 ohne Prozentzeichen → /100 mit Hinweis (Umdeutung); Text «89.00%», «89,5%» direkt, «71.59» → /100 mit Hinweis; sonst Fehler |
-| Score | ganze Zahl ≥ 0; sonst Stufe «nicht ausgewertet» (Feld fliesst in keine Kennzahl, Entscheid E6 offen) |
+| Score | ganze Zahl ≥ 0; sonst Stufe «nicht ausgewertet» (Feld fliesst in keine Kennzahl; Entscheid E6: Result ist massgebend, Parsing bleibt zur Sichtbarkeit verrutschter Zellen) |
 | Geburtsdatum | wie Datum, plausible Jahrgänge 1920–2010 (Serienzahlen entsprechend); nur für den Personenschlüssel |
 | Datum | Excel-Datum oder Text `dd.mm.yy(yy)[ / hh.mm]` (Trenner . oder , Suffix h / Uhr); Excel-Serienzahl ohne Format → Datum + Hinweis; Jahr ausserhalb 2000–2100, ohne Jahr, dreistelliges Jahr → Fehler |
 

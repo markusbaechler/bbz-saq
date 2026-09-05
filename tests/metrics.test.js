@@ -8,7 +8,7 @@ import {
   benchmarkFilter, BENCHMARKS,
   STATUS, isVorgang, statusCounts, exclusionReason, groupByPerson, personCount, multiProfilePersons, modelComparison,
   excludedRows, openCases, openCaseState, rankingLimit, rankReason, refYear, yearsOf, timeSeries, timeSeriesBy, partDifficultyByYear,
-  earlyWarnings, durationDays, certificateDays, quantiles, throughputStats, dropoutCandidates,
+  earlyWarnings, durationDays, certificateDays, quantiles, throughputStats, passiveCases, PASSIVE_DAYS, partsByProfile, missingParts,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -211,7 +211,7 @@ test('writtenPassRates: im 1. Versuch bestanden / durchgefallen UND insgesamt be
   assertEqual(r.gesamt.n, 3);
   assertClose(r.gesamt.pct, 2 / 3);
   assertEqual(r.gesamt.small, true);
-  assertEqual(writtenPassRates([]), { erstversuch: ratio(0, 0), erstversuchFailed: ratio(0, 0), gesamt: ratio(0, 0), nichtBestanden: ratio(0, 0), offen: 0, nichtErfasst: 0 });
+  assertEqual(writtenPassRates([]), { erstversuch: ratio(0, 0), erstversuchFailed: ratio(0, 0), gesamt: ratio(0, 0), nichtBestanden: ratio(0, 0), offen: 0, passiv: 0, nichtErfasst: 0 });
 });
 
 test('writtenPassRates: Nenner Erstversuch = Personen mit absolviertem WE RUN1', () => {
@@ -541,9 +541,11 @@ test('BENCHMARKS: Auswahlwerte mit Beschriftung, Standard Bank', () => {
 test('STATUS und statusCounts: bestanden / nicht bestanden / offen / nicht erfasst; abgeschlossen = bestanden + nicht bestanden', () => {
   assertEqual(STATUS, { BESTANDEN: 'bestanden', NICHT_BESTANDEN: 'nicht bestanden', OFFEN: 'offen', NICHT_ERFASST: 'nicht erfasst' });
   const ps = [simple(), simple({ weAllPassed: false }), simple({ weAllPassed: null }), simple({ weStatus: 'nicht erfasst' })];
-  assertEqual(statusCounts(ps, 'weStatus'), { n: 4, bestanden: 1, nichtBestanden: 1, offen: 1, nichtErfasst: 1, abgeschlossen: 2 });
+  assertEqual(statusCounts(ps, 'weStatus'), { n: 4, bestanden: 1, nichtBestanden: 1, offen: 1, passiv: 0, nichtErfasst: 1, abgeschlossen: 2 });
   assertEqual(statusCounts(ps).nichtErfasst, 1, 'Vorgangsstatus folgt dem Teil');
-  assertEqual(statusCounts([]), { n: 0, bestanden: 0, nichtBestanden: 0, offen: 0, nichtErfasst: 0, abgeschlossen: 0 });
+  assertEqual(statusCounts([]), { n: 0, bestanden: 0, nichtBestanden: 0, offen: 0, passiv: 0, nichtErfasst: 0, abgeschlossen: 0 });
+  assertEqual(statusCounts([simple({ weAllPassed: null, passiv: true }), simple({ weAllPassed: null })], 'weStatus').passiv, 1, 'passiv = Teilmenge von offen');
+  assertEqual(statusCounts([simple({ passiv: true })]).passiv, 0, 'bestandene Vorgänge zählen nie als passiv');
 });
 
 test('writtenPassRates: Nenner «insgesamt bestanden» = abgeschlossene Vorgänge; offen und nicht erfasst separat (E4, Blocker 3)', () => {
@@ -551,7 +553,8 @@ test('writtenPassRates: Nenner «insgesamt bestanden» = abgeschlossene Vorgäng
   const r = writtenPassRates(ps);
   assertEqual(r.gesamt, ratio(2, 3), 'offen und nicht erfasst nicht im Nenner');
   assertEqual(r.nichtBestanden, ratio(1, 3));
-  assertEqual([r.offen, r.nichtErfasst], [1, 1]);
+  assertEqual([r.offen, r.passiv, r.nichtErfasst], [1, 0, 1]);
+  assertEqual(writtenPassRates([simple({ weAllPassed: null, passiv: true })]).passiv, 1);
   assertEqual(r.erstversuch.n, 5, 'Erstversuchsquote unverändert: alle mit absolviertem WE RUN1');
 });
 
@@ -563,7 +566,7 @@ test('oralPassRates: Nenner «bestanden» = abgeschlossene Vorgänge mündlich; 
   const r = oralPassRates([ok, failedOpen, failedFinal, unreadable]);
   assertEqual(r.bestanden, ratio(1, 2));
   assertEqual(r.nichtBestanden, ratio(1, 2));
-  assertEqual([r.offen, r.nichtErfasst, r.angetreten], [1, 1, 4]);
+  assertEqual([r.offen, r.passiv, r.nichtErfasst, r.angetreten], [1, 0, 1, 4]);
   assertEqual(r.failed1, ratio(2, 4), '1× durchgefallen zählt auch, wenn der Vorgang noch offen ist');
   assertEqual(r.failed2, ratio(1, 4));
   assertEqual(unreadable.status, 'nicht erfasst');
@@ -611,7 +614,7 @@ test('overview: Vorgänge, Personen und Status-Zähler', () => {
   const c = simple({ weAllPassed: null, oeAllPassed: null });
   const o = overview([a, b, c], MODE.ERSTVERSUCH);
   assertEqual([o.n, o.personen], [3, 2]);
-  assertEqual(o.status, { n: 3, bestanden: 2, nichtBestanden: 0, offen: 1, nichtErfasst: 0, abgeschlossen: 2 });
+  assertEqual(o.status, { n: 3, bestanden: 2, nichtBestanden: 0, offen: 1, passiv: 0, nichtErfasst: 0, abgeschlossen: 2 });
   assertEqual(o.written.gesamt, ratio(2, 2));
   assertEqual(o.written.offen, 1);
   assertEqual(o.oral.bestanden, ratio(2, 2));
@@ -757,14 +760,26 @@ test('durationDays / certificateDays / quantiles / throughputStats: Tage bis bes
   assertEqual([st.pruefung.n, st.pruefung.median, st.zertifikat.n, st.zertifikat.median], [2, (100 + 92) / 2, 1, 112]);
 });
 
-test('dropoutCandidates: offene Vorgänge ohne Termin mit letzter Prüfung vor mehr als 365 Tagen', () => {
+test('passiveCases: offene Vorgänge mit Kennzeichen passiv (store setzt es beim Laden); Tage aus today', () => {
   const today = d('2026-09-05');
-  const stale = simple({ lastName: 'Alt', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: false, date: '2024-01-10', result: 0.4 }] }, oe: {} });
+  assertEqual(PASSIVE_DAYS, 365);
+  const stale = simple({ lastName: 'Alt', weAllPassed: null, oeAllPassed: null, passiv: true, we: { 1: [{ passed: false, date: '2024-01-10', result: 0.4 }] }, oe: {} });
   const recent = simple({ lastName: 'Neu', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: true, date: '2026-03-10', result: 0.8 }] }, oe: {} });
-  const planned = simple({ lastName: 'Termin', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: false, date: '2024-01-10', result: 0.4 }, { date: '2026-11-01', planned: true }] }, oe: {} });
   const closed = simple({ lastName: 'Fertig' });
-  const c = dropoutCandidates([stale, recent, planned, closed], today);
+  const c = passiveCases([stale, recent, closed], today);
   assertEqual(c.map((x) => [x.person.lastName, x.daysSinceLastExam > 365, x.lastRunPassed]), [['Alt', true, false]]);
-  assertEqual(dropoutCandidates([stale], today, 2000), []);
   assertEqual(openCaseState(recent, today).lastRunPassed, true);
+});
+
+test('partsByProfile / missingParts: Teilprüfungen je Profil aus den Daten (≥ 5 Vorgänge), fehlende Teile je Vorgang', () => {
+  const pk = Array.from({ length: 6 }, (_, i) => simple({ lastName: 'P' + i, profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.8 }], 2: [{ passed: true, date: '2024-03-01', result: 0.7 }], 3: [{ passed: i === 0, date: '2024-03-02', result: 0.6 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } }));
+  pk.push(simple({ lastName: 'Ausreisser', profil: 'PK', we: { 6: [{ passed: true, date: '2024-03-01', result: 0.8 }] } })); // WE6 nur einmal → gehört nicht zum Profil
+  const ik = [simple({ lastName: 'I', profil: 'IK' })]; // zu wenige Vorgänge → keine Teile
+  const parts = partsByProfile(pk.concat(ik));
+  assertEqual(parts.map((x) => [x.profil, x.we, x.oe, x.n]), [['PK', [1, 2, 3], [1], 7], ['IK', [], [], 1]]);
+  const open = simple({ profil: 'PK', weAllPassed: null, we: { 1: [{ passed: true, date: '2025-01-01', result: 0.8 }], 3: [{ passed: false, date: '2025-02-01', result: 0.4 }] }, oe: {} });
+  assertEqual(missingParts(open, parts), ['WE2', 'WE3', 'OE1']);
+  assertEqual(missingParts(pk[0], parts), []);
+  assertEqual(missingParts(simple({ profil: 'CWMA' }), parts), null, 'unbekanntes Profil');
+  assertEqual(partsByProfile([simple({ duplicateOf: { sheet: 'x', row: 1 } })]), [], 'Duplikate zählen nicht');
 });

@@ -126,9 +126,14 @@ export const GLOSSARY = [
     nenner: 'Bestandene Vorgänge mit erstem Prüfungsdatum.', grenzfaelle: 'Der Median ist gegen Ausreisser (sehr lange Unterbrüche) robuster als der Mittelwert.',
   },
   {
-    kind: 'Begriff', term: 'Abbruch-Kandidaten',
-    definition: 'Offene Vorgänge, deren letzte Prüfung mehr als 365 Tage zurückliegt und die keinen geplanten Termin haben.',
-    nenner: '–', grenzfaelle: 'Ob ein Abbruch vorliegt, ist fachlich zu klären [hypothese]; die Schwelle von 365 Tagen ist ein Vorschlag. Vorgänge ohne jede Prüfung fehlen (kein Datum zum Messen).',
+    kind: 'Begriff', term: 'Passiv (> 365 Tage)',
+    definition: 'Offener Vorgang, dessen letzte Prüfung mehr als 365 Tage vor dem Stichtag (Ladezeitpunkt) liegt und der keinen geplanten Termin hat. Eigene Kategorie neben «offen» (Entscheid Auftraggeber 05.09.2026), nie «nicht bestanden»; nicht im Nenner der Bestehensquoten.',
+    nenner: '–', grenzfaelle: 'Vorgänge ohne jede Prüfung sind nie passiv (kein Datum zum Messen). Schwelle PASSIVE_DAYS in metrics.js.',
+  },
+  {
+    kind: 'Begriff', term: 'Teilprüfungen je Profil',
+    definition: 'Welche Teilprüfungen (WE1–WE6, OE1–OE2) ein Profil umfasst, ist aus den Daten abgeleitet: ein Teil gehört dazu, wenn mindestens 5 Vorgänge des Profils einen absolvierten Run darin haben. Daraus: fehlende Teile je offenem Vorgang und der Hinweis «alle Teile bestanden, Gesamtergebnis leer».',
+    nenner: '–', grenzfaelle: 'Ableitung aus Daten, nicht aus einem Reglement [hypothese]; Tabelle in der Ansicht «Offene Vorgänge» zur Kontrolle.',
   },
   {
     kind: 'Begriff', term: 'Bank-Report',
@@ -142,14 +147,15 @@ export const GLOSSARY = [
   },
   {
     kind: 'Begriff', term: 'Data-Quality-Stufen',
-    definition: 'Fehler = Zelle nicht interpretierbar, Wert wird ignoriert. Hinweis = Wert interpretiert oder abgeleitet, aber auffällig (z. B. Result als Prozentwert umgedeutet, Duplikat zusammengeführt, Konsistenzregel verletzt). Nicht ausgewertet = Zelle nicht interpretierbar, aber das Feld fliesst in keine Kennzahl (Score; Entscheid E6 offen).',
-    nenner: '–', grenzfaelle: 'Score-Header: «WE{n} RUN{r} Score», «OE{n} RUN{r} Score» (24 Spalten).',
+    definition: 'Fehler = Zelle nicht interpretierbar, Wert wird ignoriert. Hinweis = Wert interpretiert oder abgeleitet, aber auffällig (z. B. Result als Prozentwert umgedeutet, Duplikat zusammengeführt, Konsistenzregel verletzt). Nicht ausgewertet = Zelle nicht interpretierbar, aber das Feld fliesst in keine Kennzahl (Score).',
+    nenner: '–', grenzfaelle: 'Score-Header: «WE{n} RUN{r} Score», «OE{n} RUN{r} Score» (24 Spalten). Entscheid E6 (05.09.2026): Score wird nicht ausgewertet, Result ist massgebend; das Parsing bleibt, damit verrutschte Zellen sichtbar sind.',
   },
 
   // ---------------------------------------------------------------------- Kennzahlen (Kachel-/Spaltenbeschriftung)
   { kind: 'Kennzahl', term: 'Vorgänge', definition: 'Anzahl kennzahlrelevanter Zertifizierungsvorgänge im aktiven Filter.', nenner: '–', grenzfaelle: 'Duplikate sind zusammengeführt und zählen einmal.' },
   { kind: 'Kennzahl', term: 'Personen', definition: 'Anzahl Menschen hinter den Vorgängen im Filter (Personenschlüssel).', nenner: '–', grenzfaelle: 'Kleiner oder gleich «Vorgänge»; die Differenz sind Personen mit mehreren Profilen.' },
-  { kind: 'Kennzahl', term: 'Vorgänge offen', definition: 'Vorgänge im Filter ohne Gesamtergebnis (schriftlich oder mündlich leer): der Prozess läuft noch.', nenner: '–', grenzfaelle: 'Nicht im Nenner der Bestehensquoten (E4). Eigene Sicht in der Ansicht «Datenqualität» geplant.' },
+  { kind: 'Kennzahl', term: 'Vorgänge offen', definition: 'Vorgänge im Filter ohne Gesamtergebnis (schriftlich oder mündlich leer): der Prozess läuft noch.', nenner: '–', grenzfaelle: 'Nicht im Nenner der Bestehensquoten (E4). Eigene Ansicht «Offene Vorgänge».' },
+  { kind: 'Kennzahl', term: 'Vorgänge passiv (> 365 Tage)', definition: 'Offene Vorgänge im Filter, deren letzte Prüfung mehr als 365 Tage zurückliegt und die keinen geplanten Termin haben.', nenner: '–', grenzfaelle: 'Teilmenge von «Vorgänge offen»; nicht im Nenner. Bestehensquoten sind ohne diese Kategorie eine Obergrenze.' },
   { kind: 'Kennzahl', term: 'Vorgänge nicht erfasst', definition: 'Vorgänge im Filter, deren Gesamtergebnis gefüllt, aber unlesbar ist (Fehler im Data-Quality-Log).', nenner: '–', grenzfaelle: 'Nicht im Nenner der Bestehensquoten; zählt nicht als offen (E4).' },
   { kind: 'Kennzahl', term: 'Schriftlich: im 1. Versuch bestanden', definition: 'Anteil Vorgänge, bei denen alle absolvierten WE RUN1 bestanden sind.', nenner: 'Vorgänge mit mindestens einem absolvierten WE RUN1.', grenzfaelle: 'Komplement zu «im 1. Versuch durchgefallen».' },
   { kind: 'Kennzahl', term: 'Schriftlich: im 1. Versuch durchgefallen', definition: 'Anteil Vorgänge mit mindestens einem WE RUN1 = no.', nenner: 'Vorgänge mit mindestens einem absolvierten WE RUN1.', grenzfaelle: '–' },

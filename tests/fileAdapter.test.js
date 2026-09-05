@@ -133,7 +133,7 @@ test('parseWorkbook → normalizeWorkbook: End-to-End mit synthetischer Datei', 
   assertEqual([dq[0].sheet, dq[0].row, dq[0].header, dq[0].raw], [CONFIG.sheets.first, 12, 'WE1 RUN1 Passed', 'maybe']);
   assertEqual(meta.counts, {
     first: 2, issued: 1, zeilen: 3, vorgaenge: 3, personen: 3, duplikate: 0, profilKonflikte: 0, mehrereProfile: 0,
-    bestanden: 3, nichtBestanden: 0, offen: 0, nichtErfasst: 0, schluesselOhneGeburtsdatum: 3,
+    bestanden: 3, nichtBestanden: 0, offen: 0, passiv: 0, nichtErfasst: 0, vollstaendigOhneGesamtergebnis: 0, schluesselOhneGeburtsdatum: 3,
     dq: 1, fehler: 1, hinweise: 0, nichtAusgewertet: 0,
     wirkungUnsichtbar: 1, wirkungKennzahl: 0, wirkungKeine: 0,
   });

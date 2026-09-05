@@ -8,7 +8,7 @@ import {
   byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups,
   multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
   timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
-  earlyWarnings, dropoutCandidates, throughputStats, durationDays, certificateDays, groupBy,
+  earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS,
 } from '../metrics.js';
 import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
 import { LOCATION_CAPACITY } from '../config.js';
@@ -59,7 +59,7 @@ export function passRateTable(persons, key) {
   const row = (label, small, n, r) => ({
     gruppe: mark(label, small), n, small,
     erstversuch: formatPct(r.erstversuch.pct), durchgefallen: formatPct(r.erstversuchFailed.pct),
-    gesamt: formatPct(r.gesamt.pct), abgeschlossen: r.gesamt.n, offen: r.offen, nichtErfasst: r.nichtErfasst,
+    gesamt: formatPct(r.gesamt.pct), abgeschlossen: r.gesamt.n, offen: r.offen, passiv: r.passiv, nichtErfasst: r.nichtErfasst,
   });
   const rows = [row('Gesamt', smallTotal, persons.length, total)];
   for (const g of byGroup(persons, key, writtenPassRates)) rows.push(row(groupLabel(g.key), g.small, g.n, g.value));
@@ -67,10 +67,10 @@ export function passRateTable(persons, key) {
     title: 'Bestehensquote schriftlich nach ' + GROUP_LABELS[key],
     columns: [
       col('gruppe', GROUP_LABELS[key]), col('n', 'n (Vorgänge)'), col('erstversuch', 'Im 1. Versuch bestanden'), col('durchgefallen', 'Im 1. Versuch durchgefallen'),
-      col('gesamt', 'Insgesamt bestanden'), col('abgeschlossen', 'n (abgeschlossen)'), col('offen', 'Offen'), col('nichtErfasst', 'Nicht erfasst'),
+      col('gesamt', 'Insgesamt bestanden'), col('abgeschlossen', 'n (abgeschlossen)'), col('offen', 'Offen'), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)'), col('nichtErfasst', 'Nicht erfasst'),
     ],
     rows,
-    note: SMALL_NOTE + '; 1. Versuch: Nenner sind Vorgänge mit absolviertem RUN1; insgesamt bestanden: Nenner sind abgeschlossene Vorgänge (bestanden + nicht bestanden); offen = Gesamtergebnis leer (läuft noch), nicht erfasst = Gesamtergebnis unlesbar',
+    note: SMALL_NOTE + '; 1. Versuch: Nenner sind Vorgänge mit absolviertem RUN1; insgesamt bestanden: Nenner sind abgeschlossene Vorgänge (bestanden + nicht bestanden); offen = Gesamtergebnis leer (läuft noch), passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen und kein Termin; nicht erfasst = Gesamtergebnis unlesbar',
   };
 }
 
@@ -115,7 +115,7 @@ function oralRow(label, rates) {
   const n = rates.bestanden.n;
   return {
     gruppe: mark(label, n < SMALL_N), n, small: n < SMALL_N,
-    bestanden: formatPct(rates.bestanden.pct), nichtBestanden: formatPct(rates.nichtBestanden.pct), offen: rates.offen, nichtErfasst: rates.nichtErfasst,
+    bestanden: formatPct(rates.bestanden.pct), nichtBestanden: formatPct(rates.nichtBestanden.pct), offen: rates.offen, passiv: rates.passiv, nichtErfasst: rates.nichtErfasst,
     angetreten: rates.angetreten, failed1: formatPct(rates.failed1.pct), failed2: formatPct(rates.failed2.pct),
   };
 }
@@ -126,11 +126,11 @@ export function oralRateTable(persons, key) {
   return {
     title: 'Bestehensquote mündlich nach ' + GROUP_LABELS[key],
     columns: [
-      col('gruppe', GROUP_LABELS[key]), col('n', 'n (abgeschlossen)'), col('bestanden', 'Bestanden'), col('nichtBestanden', 'Nicht bestanden'), col('offen', 'Offen'), col('nichtErfasst', 'Nicht erfasst'),
+      col('gruppe', GROUP_LABELS[key]), col('n', 'n (abgeschlossen)'), col('bestanden', 'Bestanden'), col('nichtBestanden', 'Nicht bestanden'), col('offen', 'Offen'), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)'), col('nichtErfasst', 'Nicht erfasst'),
       col('angetreten', 'n (angetreten)'), col('failed1', 'Im 1. Versuch durchgefallen'), col('failed2', '2× durchgefallen'),
     ],
     rows,
-    note: SMALL_NOTE + '; bestanden / nicht bestanden: Nenner sind abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden); durchgefallen: Nenner sind angetretene Vorgänge (absolvierter, datierter OE1 RUN1)',
+    note: SMALL_NOTE + '; bestanden / nicht bestanden: Nenner sind abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden); passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen, kein Termin; durchgefallen: Nenner sind angetretene Vorgänge (absolvierter, datierter OE1 RUN1)',
   };
 }
 
@@ -365,6 +365,7 @@ export function overviewModel(persons, allPersons = persons) {
     kpi('Vorgänge', String(o.n), o.n, 'Zertifizierungsvorgänge (Zeilen ohne Duplikate) im Filter mit mindestens einem absolvierten, datierten schriftlichen Run', { raw: o.n }),
     kpi('Personen', String(o.personen), o.n, 'Menschen hinter den Vorgängen im Filter (Personenschlüssel aus Name und Geburtsdatum); eine Person kann mehrere Vorgänge haben', { raw: o.personen }),
     kpi('Vorgänge offen', String(o.status.offen), o.n, 'Vorgänge ohne Gesamtergebnis (Prozess läuft noch); nicht im Nenner der Bestehensquoten', { raw: o.status.offen }),
+    kpi('Vorgänge passiv (> ' + PASSIVE_DAYS + ' Tage)', String(o.status.passiv), o.n, 'Offene Vorgänge, deren letzte Prüfung mehr als ' + PASSIVE_DAYS + ' Tage zurückliegt und die keinen geplanten Termin haben; Teilmenge von «offen», nicht im Nenner', { raw: o.status.passiv }),
     kpi('Vorgänge nicht erfasst', String(o.status.nichtErfasst), o.n, 'Vorgänge mit unlesbarem Gesamtergebnis (Fehler im Data-Quality-Log); nicht im Nenner der Bestehensquoten', { raw: o.status.nichtErfasst }),
     rate('Schriftlich: im 1. Versuch bestanden', o.written.erstversuch, 'Anteil Vorgänge, bei denen alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden sind; n = Vorgänge mit absolviertem WE RUN1'),
     rate('Schriftlich: im 1. Versuch durchgefallen', o.written.erstversuchFailed, 'Anteil Vorgänge mit mindestens einer Teilprüfung, die im ersten Versuch nicht bestanden wurde; n = Vorgänge mit absolviertem WE RUN1'),
@@ -384,14 +385,14 @@ export function overviewModel(persons, allPersons = persons) {
     title: 'Kennzahlen je Profil',
     columns: [
       col('gruppe', 'Profil'), col('n', 'n (Vorgänge)'), col('personen', 'Personen'), col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('durchgefallen', 'Schriftlich im 1. Versuch durchgefallen'),
-      col('gesamt', 'Schriftlich insgesamt bestanden'), col('muendlich', 'Mündlich bestanden'), col('offen', 'Offen'),
+      col('gesamt', 'Schriftlich insgesamt bestanden'), col('muendlich', 'Mündlich bestanden'), col('offen', 'Offen'), col('passiv', 'davon passiv'),
     ],
     rows: o.byProfil.map((g) => ({
       gruppe: mark(groupLabel(g.key), g.small), n: g.n, small: g.small, personen: personCount(persons.filter((p) => (p.profil === undefined ? null : p.profil) === g.key)),
       erstversuch: formatPct(g.value.written.erstversuch.pct), durchgefallen: formatPct(g.value.written.erstversuchFailed.pct),
-      gesamt: formatPct(g.value.written.gesamt.pct), muendlich: formatPct(g.value.oral.bestanden.pct), offen: g.value.written.offen,
+      gesamt: formatPct(g.value.written.gesamt.pct), muendlich: formatPct(g.value.oral.bestanden.pct), offen: g.value.written.offen, passiv: g.value.written.passiv,
     })),
-    note: SMALL_NOTE + '; offen = Vorgänge ohne schriftliches Gesamtergebnis; Nenner der Quoten wie in den Kacheln',
+    note: SMALL_NOTE + '; offen = Vorgänge ohne schriftliches Gesamtergebnis, passiv = davon ohne Prüfung seit mehr als ' + PASSIVE_DAYS + ' Tagen und ohne Termin; Nenner der Quoten wie in den Kacheln',
   };
   return { kpis, byProfil, multi };
 }
@@ -463,13 +464,16 @@ export function excludedTables(persons, dq = []) {
 // ---------------------------------------------------------------------------
 
 // persons: Vorgänge nach den Filtern ohne Zeitraum (wie «Geplante Prüfungen»), inkl. nicht kennzahlrelevanter Zeilen
-export function openCasesTables(persons, today = new Date()) {
+// allPersons: alle Vorgänge (für die Teilprüfungen je Profil), Standard = persons
+export function openCasesTables(persons, today = new Date(), allPersons = persons) {
   const cases = openCases(persons, today);
+  const profileParts = partsByProfile(allPersons);
   const byProfil = new Map();
   for (const c of cases) {
     const key = groupLabel(c.person.profil);
-    const g = byProfil.get(key) || { profil: key, offen: 0, ohnePruefung: 0, schriftlich: 0, muendlich: 0, geplant: 0, kennzahlrelevant: 0 };
+    const g = byProfil.get(key) || { profil: key, offen: 0, passiv: 0, ohnePruefung: 0, schriftlich: 0, muendlich: 0, geplant: 0, kennzahlrelevant: 0 };
     g.offen += 1;
+    if (c.person.passiv) g.passiv += 1;
     if (!c.lastExam) g.ohnePruefung += 1;
     if (c.person.weStatus === STATUS.OFFEN) g.schriftlich += 1;
     if (c.person.oeStatus === STATUS.OFFEN) g.muendlich += 1;
@@ -479,24 +483,43 @@ export function openCasesTables(persons, today = new Date()) {
   }
   const summary = {
     title: 'Offene Vorgänge je Profil',
-    columns: [col('profil', 'Profil'), col('offen', 'Offen'), col('schriftlich', 'davon schriftlich offen'), col('muendlich', 'davon mündlich offen'), col('ohnePruefung', 'ohne Prüfung'), col('geplant', 'mit geplantem Termin'), col('kennzahlrelevant', 'kennzahlrelevant')],
+    columns: [col('profil', 'Profil'), col('offen', 'Offen'), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)'), col('schriftlich', 'davon schriftlich offen'), col('muendlich', 'davon mündlich offen'), col('ohnePruefung', 'ohne Prüfung'), col('geplant', 'mit geplantem Termin'), col('kennzahlrelevant', 'kennzahlrelevant')],
     rows: [...byProfil.values()].sort((a, b) => b.offen - a.offen || collatorDe.compare(a.profil, b.profil)),
-    note: 'Offen = Gesamtergebnis leer (schriftlich und/oder mündlich), kein «no» und kein unlesbarer Wert. Kennzahlrelevant = mindestens ein absolvierter, datierter schriftlicher Run.',
+    note: 'Offen = Gesamtergebnis leer (schriftlich und/oder mündlich), kein «no» und kein unlesbarer Wert. Passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen, kein Termin. Kennzahlrelevant = mindestens ein absolvierter, datierter schriftlicher Run.',
   };
   const details = {
     title: 'Offene Vorgänge – Teilnehmende',
     columns: [
-      col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache'), col('offen', 'Offen'), col('letzte', 'Letzte Prüfung'),
+      col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache'), col('offen', 'Offen'), col('fehlend', 'Fehlende Teile'), col('passiv', 'Passiv'), col('letzte', 'Letzte Prüfung'),
       col('tage', 'Tage seit letzter Prüfung'), col('naechste', 'Nächster Termin'), col('versuche', 'Versuche'), col('sheet', 'Sheet'), col('row', 'Zeile'),
     ],
-    rows: cases.map((c) => ({
-      name: personName(c.person), bank: c.person.employerCanon || '', profil: groupLabel(c.person.profil), sprache: groupLabel(c.person.sprache), offen: c.offen,
-      letzte: fmtDate(c.lastExam), tage: c.daysSinceLastExam === null ? '' : c.daysSinceLastExam, naechste: fmtDate(c.nextPlanned), versuche: c.attempts,
-      sheet: c.person.sheetName, row: c.person.row,
-    })),
-    note: 'Sortiert nach letzter Prüfung (älteste zuerst); Vorgänge ohne Prüfung am Ende.',
+    rows: cases.map((c) => {
+      const missing = missingParts(c.person, profileParts);
+      return {
+        name: personName(c.person), bank: c.person.employerCanon || '', profil: groupLabel(c.person.profil), sprache: groupLabel(c.person.sprache), offen: c.offen,
+        fehlend: missing === null ? '' : (missing.length ? missing.join(', ') : 'keine (Gesamtergebnis fehlt)'), passiv: c.person.passiv ? 'ja' : '',
+        letzte: fmtDate(c.lastExam), tage: c.daysSinceLastExam === null ? '' : c.daysSinceLastExam, naechste: fmtDate(c.nextPlanned), versuche: c.attempts,
+        sheet: c.person.sheetName, row: c.person.row,
+      };
+    }),
+    note: 'Sortiert nach letzter Prüfung (älteste zuerst); Vorgänge ohne Prüfung am Ende. Fehlende Teile = Teilprüfungen des Profils (aus den Daten abgeleitet) ohne bestandenen Run.',
   };
-  return { summary, details, total: cases.length, ohnePruefung: cases.filter((c) => !c.lastExam).length, mitTermin: cases.filter((c) => c.nextPlanned).length };
+  return { summary, details, total: cases.length, passiv: cases.filter((c) => c.person.passiv).length, ohnePruefung: cases.filter((c) => !c.lastExam).length, mitTermin: cases.filter((c) => c.nextPlanned).length };
+}
+
+// Teilprüfungen je Profil, aus den Daten abgeleitet (Entscheid 3): ein Teil gehört zum Profil, wenn mindestens 5 Vorgänge
+// des Profils ihn absolviert haben
+export function profilePartsTable(persons) {
+  const rows = partsByProfile(persons).map((d) => ({
+    profil: groupLabel(d.profil), n: d.n, we: d.we.length ? d.we.map((x) => 'WE' + x).join(', ') : '–', oe: d.oe.length ? d.oe.map((x) => 'OE' + x).join(', ') : '–',
+    anzahl: d.we.length + d.oe.length,
+  }));
+  return {
+    title: 'Teilprüfungen je Profil (aus den Daten abgeleitet)',
+    columns: [col('profil', 'Profil'), col('n', 'n (Vorgänge)'), col('we', 'Schriftlich'), col('oe', 'Mündlich'), col('anzahl', 'Anzahl Teile')],
+    rows,
+    note: 'Ein Teil gehört zum Profil, wenn mindestens ' + SMALL_N + ' Vorgänge des Profils einen absolvierten Run darin haben [hypothese: aus den Daten, nicht aus einem Reglement].',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -508,14 +531,14 @@ function seriesRow(label, r) {
     gruppe: mark(label, r.small), n: r.n, small: r.small, personen: r.personen,
     erstversuch: formatPct(r.written.erstversuch.pct), gesamt: formatPct(r.written.gesamt.pct), muendlich: formatPct(r.oral.bestanden.pct),
     wp1: formatPct(r.writtenPerf1.mean), wp2: formatPct(r.writtenPerf2.mean), op1: formatPct(r.oralPerf1.mean), op2: formatPct(r.oralPerf2.mean),
-    offen: r.status.offen, nichtErfasst: r.status.nichtErfasst,
+    offen: r.status.offen, passiv: r.status.passiv, nichtErfasst: r.status.nichtErfasst,
   };
 }
 
 const TIME_COLUMNS = [
   col('n', 'n (Vorgänge)'), col('personen', 'Personen'), col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('gesamt', 'Schriftlich insgesamt bestanden'),
   col('muendlich', 'Mündlich bestanden'), col('wp1', 'Ø schriftlich 1. Versuch'), col('wp2', 'Ø schriftlich bestandener Run'), col('op1', 'Ø mündlich 1. Versuch'),
-  col('op2', 'Ø mündlich bestandener Run'), col('offen', 'Offen'), col('nichtErfasst', 'Nicht erfasst'),
+  col('op2', 'Ø mündlich bestandener Run'), col('offen', 'Offen'), col('passiv', 'Passiv'), col('nichtErfasst', 'Nicht erfasst'),
 ];
 
 // persons: kennzahlrelevante Vorgänge ohne Zeitraumfilter
@@ -629,10 +652,11 @@ export function earlyWarningTable(persons) {
   };
 }
 
-export function dropoutTable(persons, today = new Date(), thresholdDays = 365) {
-  const items = dropoutCandidates(persons, today, thresholdDays);
+export function passiveTable(persons, today = new Date()) {
+  const items = passiveCases(persons, today);
+  const thresholdDays = PASSIVE_DAYS;
   return {
-    title: 'Abbruch-Kandidaten (über ' + thresholdDays + ' Tage ohne Prüfung, kein Termin)',
+    title: 'Passiv seit über ' + thresholdDays + ' Tagen (keine Prüfung, kein Termin)',
     columns: [
       col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('offen', 'Offen'), col('letzte', 'Letzte Prüfung'), col('tage', 'Tage seit letzter Prüfung'),
       col('letzterRun', 'Letzter Prüfungstag bestanden'), col('versuche', 'Versuche'), col('sheet', 'Sheet'), col('row', 'Zeile'),
@@ -641,7 +665,7 @@ export function dropoutTable(persons, today = new Date(), thresholdDays = 365) {
       name: personName(c.person), bank: c.person.employerCanon || '', profil: groupLabel(c.person.profil), offen: c.offen, letzte: fmtDate(c.lastExam), tage: c.daysSinceLastExam,
       letzterRun: c.lastRunPassed === null ? '' : c.lastRunPassed ? 'ja' : 'nein', versuche: c.attempts, sheet: c.person.sheetName, row: c.person.row,
     })),
-    note: 'Offene Vorgänge, deren letzte Prüfung mehr als ' + thresholdDays + ' Tage zurückliegt und die keinen geplanten Termin haben – vermutlich abgebrochen, fachlich zu klären [hypothese]. Schwelle ' + thresholdDays + ' Tage ist ein Vorschlag.',
+    note: 'Offene Vorgänge, deren letzte Prüfung mehr als ' + thresholdDays + ' Tage zurückliegt und die keinen geplanten Termin haben (Entscheid Auftraggeber 05.09.2026: Kategorie «passiv», nicht «nicht bestanden»). Eigene Zahl neben «offen», nicht im Nenner der Bestehensquoten.',
     total: items.length,
     thresholdDays,
   };

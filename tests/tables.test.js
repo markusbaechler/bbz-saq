@@ -5,7 +5,7 @@ import {
   rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
-  earlyWarningTable, dropoutTable, throughputTables, bankReportTables, numericColumns,
+  earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns,
 } from '../views/tables.js';
 import { makePerson, d } from './fixtures.js';
 import { LOCATION_CAPACITY } from '../config.js';
@@ -38,24 +38,24 @@ test('tables.groupLabel: null → «unbekannt», sonst Wert', () => {
 
 test('tables.passRateTable: Gesamt zuerst, Gruppen mit n, beide Quoten, n<5 markiert', () => {
   const t = passRateTable(cohort(), 'profil');
-  assertEqual(t.columns.map((c) => c.label), ['Profil', 'n (Vorgänge)', 'Im 1. Versuch bestanden', 'Im 1. Versuch durchgefallen', 'Insgesamt bestanden', 'n (abgeschlossen)', 'Offen', 'Nicht erfasst']);
+  assertEqual(t.columns.map((c) => c.label), ['Profil', 'n (Vorgänge)', 'Im 1. Versuch bestanden', 'Im 1. Versuch durchgefallen', 'Insgesamt bestanden', 'n (abgeschlossen)', 'Offen', 'davon passiv (> 365 Tage)', 'Nicht erfasst']);
   assertEqual(t.rows.map((r) => r.gruppe), ['Gesamt *', 'PK *', 'IK *', 'unbekannt *']);
   assertEqual(t.rows[0].n, 4);
   assertEqual(t.rows[0].erstversuch, '50.0 %', 'A und D im ersten Versuch, B und C nicht');
   assertEqual(t.rows[0].durchgefallen, '50.0 %');
   assertEqual(t.rows[0].gesamt, '75.0 %');
-  assertEqual(t.rows[1], { gruppe: 'PK *', n: 2, small: true, erstversuch: '50.0 %', durchgefallen: '50.0 %', gesamt: '100.0 %', abgeschlossen: 2, offen: 0, nichtErfasst: 0 });
+  assertEqual(t.rows[1], { gruppe: 'PK *', n: 2, small: true, erstversuch: '50.0 %', durchgefallen: '50.0 %', gesamt: '100.0 %', abgeschlossen: 2, offen: 0, passiv: 0, nichtErfasst: 0 });
   assertEqual(t.rows[2].gesamt, '0.0 %');
   assert(t.note.includes('n < 5') && t.note.includes('abgeschlossene Vorgänge'));
   const five = Array.from({ length: 5 }, () => simple({ profil: 'PK' }));
   assertEqual(passRateTable(five, 'profil').rows.map((r) => r.gruppe), ['Gesamt', 'PK'], 'keine Markierung ab n=5');
-  assertEqual(passRateTable([], 'sprache').rows, [{ gruppe: 'Gesamt *', n: 0, small: true, erstversuch: '–', durchgefallen: '–', gesamt: '–', abgeschlossen: 0, offen: 0, nichtErfasst: 0 }]);
+  assertEqual(passRateTable([], 'sprache').rows, [{ gruppe: 'Gesamt *', n: 0, small: true, erstversuch: '–', durchgefallen: '–', gesamt: '–', abgeschlossen: 0, offen: 0, passiv: 0, nichtErfasst: 0 }]);
 });
 
 test('tables.passRateTable: offene und nicht erfasste Vorgänge stehen nicht im Nenner von «insgesamt bestanden» (E4)', () => {
-  const ps = cohort().concat([simple({ profil: 'PK', weAllPassed: null, oeAllPassed: null }), simple({ profil: 'PK', weStatus: 'nicht erfasst' })]);
+  const ps = cohort().concat([simple({ profil: 'PK', weAllPassed: null, oeAllPassed: null, passiv: true }), simple({ profil: 'PK', weStatus: 'nicht erfasst' })]);
   const t = passRateTable(ps, 'profil');
-  assertEqual([t.rows[0].n, t.rows[0].abgeschlossen, t.rows[0].offen, t.rows[0].nichtErfasst, t.rows[0].gesamt], [6, 4, 1, 1, '75.0 %']);
+  assertEqual([t.rows[0].n, t.rows[0].abgeschlossen, t.rows[0].offen, t.rows[0].passiv, t.rows[0].nichtErfasst, t.rows[0].gesamt], [6, 4, 1, 1, 1, '75.0 %']);
   assertEqual([t.rows[1].gruppe, t.rows[1].n, t.rows[1].abgeschlossen, t.rows[1].offen, t.rows[1].nichtErfasst, t.rows[1].gesamt], ['PK *', 4, 2, 1, 1, '100.0 %']);
 });
 
@@ -84,8 +84,8 @@ test('tables.partTable: je Teilprüfung 1. Versuch bestanden/durchgefallen, insg
 
 test('tables.oralRateTable: Nenner = Personen mit OE1 RUN1-Datum, bestanden, 1× und 2× durchgefallen', () => {
   const t = oralRateTable(cohort(), 'profil');
-  assertEqual(t.columns.map((c) => c.label), ['Profil', 'n (abgeschlossen)', 'Bestanden', 'Nicht bestanden', 'Offen', 'Nicht erfasst', 'n (angetreten)', 'Im 1. Versuch durchgefallen', '2× durchgefallen']);
-  assertEqual(t.rows[0], { gruppe: 'Gesamt *', n: 4, small: true, bestanden: '75.0 %', nichtBestanden: '25.0 %', offen: 0, nichtErfasst: 0, angetreten: 4, failed1: '25.0 %', failed2: '0.0 %' });
+  assertEqual(t.columns.map((c) => c.label), ['Profil', 'n (abgeschlossen)', 'Bestanden', 'Nicht bestanden', 'Offen', 'davon passiv (> 365 Tage)', 'Nicht erfasst', 'n (angetreten)', 'Im 1. Versuch durchgefallen', '2× durchgefallen']);
+  assertEqual(t.rows[0], { gruppe: 'Gesamt *', n: 4, small: true, bestanden: '75.0 %', nichtBestanden: '25.0 %', offen: 0, passiv: 0, nichtErfasst: 0, angetreten: 4, failed1: '25.0 %', failed2: '0.0 %' });
   assertEqual(t.rows[2].gruppe, 'IK *');
   assertEqual(t.rows[2].bestanden, '0.0 %');
   const withOpen = oralRateTable(cohort().concat([simple({ profil: 'PK', oeAllPassed: null, oe: { 1: [{ passed: false, date: '2024-05-01', result: 0.4 }] } })]), 'profil');
@@ -140,7 +140,7 @@ test('tables.overviewModel: KPIs mit n und Kennzeichnung, Tabelle je Profil', ()
   const byLabel = Object.fromEntries(m.kpis.map((k) => [k.label, k]));
   assertEqual(byLabel['Vorgänge'].value, '4');
   assertEqual(byLabel['Personen'].value, '4', 'vier verschiedene Menschen');
-  assertEqual([byLabel['Vorgänge offen'].value, byLabel['Vorgänge nicht erfasst'].value, byLabel['Personen mit mehreren Profilen'].value], ['0', '0', '0']);
+  assertEqual([byLabel['Vorgänge offen'].value, byLabel['Vorgänge passiv (> 365 Tage)'].value, byLabel['Vorgänge nicht erfasst'].value, byLabel['Personen mit mehreren Profilen'].value], ['0', '0', '0', '0']);
   const k = byLabel['Schriftlich: im 1. Versuch bestanden'];
   assertEqual([k.value, k.n, k.small, k.count], ['50.0 %', 4, true, 2], 'Prozent und absolute Zahl');
   assert(typeof k.hint === 'string' && k.hint.length > 20, 'jede Kachel hat eine Beschreibung');
@@ -168,7 +168,7 @@ test('tables.overviewModel: KPIs mit n und Kennzeichnung, Tabelle je Profil', ()
   assertEqual(byLabel['Mündlich: Ø Resultat bestandener Run'].value, '90.0 %');
   assertEqual(byLabel['VSS / VSM'].value, '1 / 0');
   assertEqual(byLabel['Ausgestellte Zertifikate'].value, '0');
-  assertEqual(m.byProfil.columns.map((c) => c.label), ['Profil', 'n (Vorgänge)', 'Personen', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich im 1. Versuch durchgefallen', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden', 'Offen']);
+  assertEqual(m.byProfil.columns.map((c) => c.label), ['Profil', 'n (Vorgänge)', 'Personen', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich im 1. Versuch durchgefallen', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden', 'Offen', 'davon passiv']);
   assertEqual(m.byProfil.rows.map((r) => r.gruppe), ['PK *', 'IK *', 'unbekannt *']);
   assertEqual(m.byProfil.rows.map((r) => [r.n, r.personen, r.offen]), [[2, 2, 0], [1, 1, 0], [1, 1, 0]]);
   assertEqual(m.multi.title, 'Personen mit mehreren Profilen');
@@ -250,14 +250,16 @@ test('tables.openCasesTables: offene Vorgänge je Profil und Teilnehmende, ohne 
   ]);
   const t = openCasesTables(persons, today);
   assertEqual([t.total, t.ohnePruefung, t.mitTermin], [2, 1, 1]);
-  assertEqual(t.summary.columns.map((c) => c.label), ['Profil', 'Offen', 'davon schriftlich offen', 'davon mündlich offen', 'ohne Prüfung', 'mit geplantem Termin', 'kennzahlrelevant']);
+  assertEqual(t.summary.columns.map((c) => c.label), ['Profil', 'Offen', 'davon passiv (> 365 Tage)', 'davon schriftlich offen', 'davon mündlich offen', 'ohne Prüfung', 'mit geplantem Termin', 'kennzahlrelevant']);
   assertEqual(t.summary.rows, [
-    { profil: 'IK', offen: 1, ohnePruefung: 1, schriftlich: 1, muendlich: 1, geplant: 1, kennzahlrelevant: 0 },
-    { profil: 'PK', offen: 1, ohnePruefung: 0, schriftlich: 0, muendlich: 1, geplant: 0, kennzahlrelevant: 1 },
+    { profil: 'IK', offen: 1, passiv: 0, ohnePruefung: 1, schriftlich: 1, muendlich: 1, geplant: 1, kennzahlrelevant: 0 },
+    { profil: 'PK', offen: 1, passiv: 0, ohnePruefung: 0, schriftlich: 0, muendlich: 1, geplant: 0, kennzahlrelevant: 1 },
   ]);
-  assertEqual(t.details.columns.map((c) => c.label), ['Name', 'Bank', 'Profil', 'Sprache', 'Offen', 'Letzte Prüfung', 'Tage seit letzter Prüfung', 'Nächster Termin', 'Versuche', 'Sheet', 'Zeile']);
+  assertEqual(t.details.columns.map((c) => c.label), ['Name', 'Bank', 'Profil', 'Sprache', 'Offen', 'Fehlende Teile', 'Passiv', 'Letzte Prüfung', 'Tage seit letzter Prüfung', 'Nächster Termin', 'Versuche', 'Sheet', 'Zeile']);
   assertEqual(t.details.rows[0].name, 'Offen Olga');
-  assertEqual([t.details.rows[0].offen, t.details.rows[0].letzte, t.details.rows[0].naechste, t.details.rows[0].versuche], ['mündlich', '01.03.2024', '', 2]);
+  assertEqual([t.details.rows[0].offen, t.details.rows[0].letzte, t.details.rows[0].naechste, t.details.rows[0].versuche, t.details.rows[0].passiv], ['mündlich', '01.03.2024', '', 2, '']);
+  assertEqual(t.details.rows[0].fehlend, '', 'zu wenige Vorgänge je Profil → keine Teileliste');
+  assertEqual(t.passiv, 0);
   assertEqual([t.details.rows[1].name, t.details.rows[1].letzte, t.details.rows[1].tage, t.details.rows[1].naechste], ['Neu Nora', '', '', '01.10.2026']);
   assertEqual(openCasesTables(cohort(), today).total, 0);
 });
@@ -332,7 +334,7 @@ function yearCohort() {
 
 test('tables.timeSeriesTable / timeSeriesByProfileTable: Kennzahlen je Jahr des Referenzdatums', () => {
   const t = timeSeriesTable(yearCohort());
-  assertEqual(t.columns.map((c) => c.label), ['Jahr', 'n (Vorgänge)', 'Personen', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden', 'Ø schriftlich 1. Versuch', 'Ø schriftlich bestandener Run', 'Ø mündlich 1. Versuch', 'Ø mündlich bestandener Run', 'Offen', 'Nicht erfasst']);
+  assertEqual(t.columns.map((c) => c.label), ['Jahr', 'n (Vorgänge)', 'Personen', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden', 'Ø schriftlich 1. Versuch', 'Ø schriftlich bestandener Run', 'Ø mündlich 1. Versuch', 'Ø mündlich bestandener Run', 'Offen', 'Passiv', 'Nicht erfasst']);
   assertEqual(t.rows.map((r) => [r.gruppe, r.n, r.gesamt, r.muendlich, r.offen]), [['2023 *', 2, '50.0 %', '100.0 %', 0], ['2024 *', 1, '100.0 %', '100.0 %', 0], ['2025 *', 2, '100.0 %', '100.0 %', 0]]);
   assertEqual([t.rows[2].wp1, t.rows[2].op1, t.rows[2].op2], ['70.0 %', '50.0 %', '60.0 %']);
   const byProfil = timeSeriesByProfileTable(yearCohort());
@@ -390,14 +392,25 @@ test('tables.earlyWarningTable: Stufe, Teilprüfung, Fehlversuche, nächster Ter
   assertEqual(noDate.rows[0].naechster, 'offen (RUN3)');
 });
 
-test('tables.dropoutTable: Abbruch-Kandidaten mit Tagen seit letzter Prüfung und Schwelle', () => {
+test('tables.passiveTable: passive Vorgänge mit Tagen seit letzter Prüfung', () => {
   const today = d('2026-09-05');
-  const stale = simple({ lastName: 'Alt', firstName: 'A', profil: 'PK', employerCanon: 'Testbank AG', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: false, date: '2024-01-10', result: 0.4 }] }, oe: {} });
-  const t = dropoutTable([stale, simple()], today, 365);
+  const stale = simple({ lastName: 'Alt', firstName: 'A', profil: 'PK', employerCanon: 'Testbank AG', weAllPassed: null, oeAllPassed: null, passiv: true, we: { 1: [{ passed: false, date: '2024-01-10', result: 0.4 }] }, oe: {} });
+  const t = passiveTable([stale, simple()], today);
   assertEqual(t.columns.map((c) => c.label), ['Name', 'Bank', 'Profil', 'Offen', 'Letzte Prüfung', 'Tage seit letzter Prüfung', 'Letzter Prüfungstag bestanden', 'Versuche', 'Sheet', 'Zeile']);
   assertEqual(t.rows.map((r) => [r.name, r.offen, r.letzte, r.letzterRun, r.versuche]), [['Alt A', 'schriftlich und mündlich', '10.01.2024', 'nein', 1]]);
   assertEqual([t.total, t.thresholdDays], [1, 365]);
-  assert(t.title.includes('365'));
+  assert(t.title.startsWith('Passiv seit über 365 Tagen'));
+});
+
+test('tables.profilePartsTable / fehlende Teile: Teilprüfungen je Profil aus den Daten, fehlende Teile je offenem Vorgang', () => {
+  const pk = Array.from({ length: 5 }, (_, i) => simple({ lastName: 'P' + i, profil: 'PK' })); // WE1, WE2, OE1
+  const open = simple({ lastName: 'Offen', firstName: 'O', profil: 'PK', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: true, date: '2025-01-01', result: 0.8 }] }, oe: {} });
+  const all = pk.concat([open]);
+  const parts = profilePartsTable(all);
+  assertEqual(parts.columns.map((c) => c.label), ['Profil', 'n (Vorgänge)', 'Schriftlich', 'Mündlich', 'Anzahl Teile']);
+  assertEqual(parts.rows, [{ profil: 'PK', n: 6, we: 'WE1, WE2', oe: 'OE1', anzahl: 3 }]);
+  const t = openCasesTables([open], d('2026-09-05'), all);
+  assertEqual(t.details.rows[0].fehlend, 'WE2, OE1');
 });
 
 test('tables.throughputTables: Durchlaufzeit je Profil und Jahr (Median, Ø, Quartile, Zertifikat)', () => {
@@ -445,7 +458,7 @@ test('tables.plannedTables: Kapazität und Auslastung nur, wenn Plätze je Ort h
 test('tables.numericColumns: Zählspalten per Schlüssel, Prozent-/pp-Spalten per Inhalt; Text bleibt linksbündig (Befund 13)', () => {
   const t = passRateTable(cohort(), 'profil');
   const numeric = numericColumns(t);
-  assertEqual([...numeric].sort(), ['abgeschlossen', 'durchgefallen', 'erstversuch', 'gesamt', 'n', 'nichtErfasst', 'offen'].sort());
+  assertEqual([...numeric].sort(), ['abgeschlossen', 'durchgefallen', 'erstversuch', 'gesamt', 'n', 'nichtErfasst', 'offen', 'passiv'].sort());
   assert(!numeric.has('gruppe'), 'Gruppenbezeichnung ist Text');
   const cmp = comparisonTable(overviewModel(cohort()).kpis, overviewModel(cohort()).kpis, 'Alle Banken');
   const nc = numericColumns(cmp);
