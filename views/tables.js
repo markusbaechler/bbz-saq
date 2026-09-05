@@ -91,7 +91,7 @@ export function oralRateTable(persons, key) {
     title: 'Bestehensquote mündlich nach ' + GROUP_LABELS[key],
     columns: [col('gruppe', GROUP_LABELS[key]), col('n', 'n'), col('bestanden', 'Bestanden'), col('failed1', '1× durchgefallen'), col('failed2', '2× durchgefallen')],
     rows,
-    note: SMALL_NOTE + '; n = Personen mit OE1 RUN1-Datum',
+    note: SMALL_NOTE + '; n = Personen mit absolviertem, datiertem OE1 RUN1',
   };
 }
 

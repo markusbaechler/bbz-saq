@@ -1,25 +1,27 @@
-// app.js – Shell: Anmeldung, Laden, Status, Navigation, Fehleranzeige. Views rendern in #view.
-// Schritt 2: View «Datenqualität» aktiv; Views 1–5 folgen in Schritt 3.
+// app.js – Shell: Anmeldung, Laden, Status, Filterleiste, Navigation, Fehleranzeige. Views rendern in #view.
 
 import { getAuth, AuthConfigError } from './auth.js';
 import { GraphError, AuthExpiredError } from './graph.js';
 import { load, loadFromFile } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
+import { DEFAULT_FILTER, MODE, filterPersons, eligible, dayKey } from './metrics.js';
+import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
+import { el, exportBar } from './views/common.js';
 import { renderDataQuality, DEFAULT_DQ_STATE } from './views/dataQuality.js';
+import * as overview from './views/overview.js';
+import * as written from './views/written.js';
+import * as oral from './views/oral.js';
+import * as vssVsm from './views/vssVsm.js';
+import * as ranking from './views/ranking.js';
+import * as planned from './views/planned.js';
 
-const VIEWS = [
-  { id: 'uebersicht', label: 'Übersicht' },
-  { id: 'schriftlich', label: 'Schriftlich' },
-  { id: 'muendlich', label: 'Mündlich' },
-  { id: 'vss-vsm', label: 'VSS/VSM' },
-  { id: 'bestenlisten', label: 'Bestenlisten' },
-  { id: 'datenqualitaet', label: 'Datenqualität' },
-];
+const KPI_VIEWS = [overview, written, oral, vssVsm, ranking, planned];
+const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, build: v.build })).concat([{ id: 'datenqualitaet', label: 'Datenqualität' }]);
 
 const store = createStore();
 const auth = getAuth();
-const el = {};
+const ui = {};
 let authReady = false;
 let busy = false;
 let dqState = { ...DEFAULT_DQ_STATE };
@@ -28,17 +30,9 @@ function $(id) {
   return document.getElementById(id);
 }
 
-function pad2(n) {
-  return String(n).padStart(2, '0');
-}
-
-function fmtDateTime(d) {
-  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '–';
-  return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
-}
-
-function fmtTime(d) {
-  return d instanceof Date ? pad2(d.getHours()) + ':' + pad2(d.getMinutes()) : '–';
+function hasData() {
+  const { meta } = store.getState();
+  return !!(meta && meta.fileName);
 }
 
 function viewFromHash() {
@@ -47,50 +41,106 @@ function viewFromHash() {
 }
 
 // ---------------------------------------------------------------------------
-// Rendering
+// Kopf, Status, Navigation
 // ---------------------------------------------------------------------------
 
 function renderNav() {
   const current = viewFromHash();
-  el.nav.replaceChildren(...VIEWS.map((v) => {
-    const a = document.createElement('a');
-    a.href = '#' + v.id;
-    a.textContent = v.label;
-    if (v.id === current) {
-      a.className = 'active';
-      a.setAttribute('aria-current', 'page');
-    }
+  ui.nav.replaceChildren(...VIEWS.map((v) => {
+    const a = el('a', { href: '#' + v.id, text: v.label, class: v.id === current ? 'active' : null });
+    if (v.id === current) a.setAttribute('aria-current', 'page');
     return a;
   }));
 }
 
 function renderSession() {
   const account = auth.getAccount();
-  el.account.textContent = account ? (account.name || account.username || '') : (authReady ? 'Nicht angemeldet' : '');
-  el.signin.hidden = !authReady || !!account;
-  el.signout.hidden = !account;
-  el.load.disabled = busy || !account;
-  el.load.title = account ? '' : (authReady ? 'Zuerst anmelden' : 'Azure-Konfiguration fehlt (config.js)');
+  ui.account.textContent = account ? (account.name || account.username || '') : (authReady ? 'Nicht angemeldet' : '');
+  ui.signin.hidden = !authReady || !!account;
+  ui.signout.hidden = !account;
+  ui.load.disabled = busy || !account;
+  ui.load.title = account ? '' : (authReady ? 'Zuerst anmelden' : 'Azure-Konfiguration fehlt (config.js)');
 }
 
 function renderStatus(text) {
-  el.status.classList.toggle('busy', busy);
+  ui.status.classList.toggle('busy', busy);
   if (text) {
-    el.status.textContent = text;
+    ui.status.textContent = text;
     return;
   }
-  const { meta, persons, dq } = store.getState();
-  if (!meta || !meta.fileName) {
-    el.status.textContent = 'Keine Daten geladen.';
+  const { meta, persons } = store.getState();
+  if (!hasData()) {
+    ui.status.textContent = 'Keine Daten geladen.';
     return;
   }
   const source = meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint';
-  const counts = meta.counts || { first: 0, issued: 0 };
-  el.status.textContent = meta.fileName + ' (' + source + ') · geändert ' + fmtDateTime(meta.lastModified) + ' · geladen ' + fmtTime(meta.loadedAt)
-    + ' · ' + persons.length + ' Personen (' + counts.first + ' First Certification, ' + counts.issued + ' Ausgestellte Zertifikate) · Data-Quality-Log: ' + (counts.fehler || 0) + ' Fehler, ' + (counts.hinweise || 0) + ' Hinweise';
+  const counts = meta.counts || {};
+  ui.status.textContent = meta.fileName + ' (' + source + ') · geändert ' + (fmtDateTime(meta.lastModified) || '–') + ' · geladen ' + (fmtTime(meta.loadedAt) || '–')
+    + ' · ' + persons.length + ' Personen (' + (counts.first || 0) + ' First Certification, ' + (counts.issued || 0) + ' Ausgestellte Zertifikate)'
+    + ' · kennzahlrelevant ' + eligible(persons).length
+    + ' · Data-Quality-Log: ' + (counts.fehler || 0) + ' Fehler, ' + (counts.hinweise || 0) + ' Hinweise';
 }
 
-// Nur die DQ-Tabelle neu rendern (nicht die ganze View), damit der Fokus im Suchfeld erhalten bleibt
+// ---------------------------------------------------------------------------
+// Filterleiste
+// ---------------------------------------------------------------------------
+
+function toInputDate(d) {
+  return d instanceof Date && !Number.isNaN(d.getTime()) ? dayKey(d) : '';
+}
+
+function fromInputDate(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+
+function isYear(filter, year) {
+  return !!(filter.from && filter.to && filter.from.getTime() === new Date(year, 0, 1).getTime() && filter.to.getTime() === new Date(year, 11, 31).getTime());
+}
+
+function selectControl(labelText, value, options, onChange) {
+  const select = el('select', { onchange: (ev) => onChange(ev.target.value) }, options.map((o) => el('option', { value: o.value, text: o.label })));
+  select.value = value;
+  return el('label', {}, [labelText, select]);
+}
+
+function renderFilterBar() {
+  const bar = ui.filterbar;
+  bar.hidden = !hasData();
+  bar.replaceChildren();
+  if (!hasData()) return;
+  const { filter, persons } = store.getState();
+  const opts = store.getFilterOptions();
+  const years = [...new Set(eligible(persons).filter((p) => p.refDate).map((p) => p.refDate.getFullYear()))].sort((a, b) => b - a);
+  const set = (partial) => store.setFilter(partial);
+  const listOptions = (values) => [{ value: '', label: 'Alle' }].concat(values.map((v) => ({ value: v, label: v })));
+  const single = (list) => (list && list.length === 1 ? list[0] : '');
+
+  bar.append(
+    el('label', {}, ['Von', el('input', { type: 'date', value: toInputDate(filter.from), onchange: (ev) => set({ from: fromInputDate(ev.target.value) }) })]),
+    el('label', {}, ['Bis', el('input', { type: 'date', value: toInputDate(filter.to), onchange: (ev) => set({ to: fromInputDate(ev.target.value) }) })]),
+    el('label', {}, ['Jahr', el('div', { class: 'years' }, [
+      el('button', { type: 'button', class: 'secondary' + (!filter.from && !filter.to ? ' active' : ''), text: 'Alle', onclick: () => set({ from: null, to: null }) }),
+      ...years.map((y) => el('button', { type: 'button', class: 'secondary' + (isYear(filter, y) ? ' active' : ''), text: String(y), onclick: () => set({ from: new Date(y, 0, 1), to: new Date(y, 11, 31) }) })),
+    ])]),
+    selectControl('Profil', single(filter.profil), listOptions(opts.profil), (v) => set({ profil: v ? [v] : [] })),
+    selectControl('Sprache', single(filter.sprache), listOptions(opts.sprache), (v) => set({ sprache: v ? [v] : [] })),
+    selectControl('Bank', single(filter.bank), listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] })),
+    selectControl('VSS/VSM', filter.vssVsm, [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v })),
+    selectControl('Versuche', filter.versuche, [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v })),
+    selectControl('Versuchsmodus', filter.mode, [{ value: MODE.ERSTVERSUCH, label: 'Erstversuch (RUN1 zählt)' }, { value: MODE.BESTANDEN, label: 'Bestanden (bestandener Run zählt)' }], (v) => set({ mode: v })),
+    el('label', { class: 'check' }, [el('input', { type: 'checkbox', onchange: (ev) => set({ onlyIssued: ev.target.checked }) }), 'Nur ausgestellte Zertifikate']),
+    el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() }),
+  );
+  bar.querySelector('input[type="checkbox"]').checked = !!filter.onlyIssued;
+  const n = store.getFilteredPersons().length;
+  bar.appendChild(el('div', { class: 'summary', text: n + ' Personen im Filter (mit absolviertem, datiertem WE-Run) · ' + filterLines(filter, store.getState().meta).slice(1).join(' · ') }));
+}
+
+// ---------------------------------------------------------------------------
+// Views
+// ---------------------------------------------------------------------------
+
 function renderDq(table) {
   renderDataQuality(table, store.getState().dq, dqState, (next) => {
     dqState = next;
@@ -102,32 +152,51 @@ function renderView() {
   const current = viewFromHash();
   renderNav();
   const view = VIEWS.find((v) => v.id === current);
-  const container = el.view;
+  const container = ui.view;
   container.replaceChildren();
-  const h2 = document.createElement('h2');
-  h2.textContent = view.label;
-  container.appendChild(h2);
+  container.appendChild(el('h2', { text: view.label }));
 
   const state = store.getState();
+  if (!hasData()) {
+    container.appendChild(el('p', { class: 'empty', text: 'Noch keine Daten geladen. Bitte anmelden und «Daten von SharePoint laden» oder eine lokale Excel-Datei prüfen.' }));
+    return;
+  }
+
   if (current === 'datenqualitaet') {
-    const intro = document.createElement('p');
-    intro.className = 'meta-list';
-    intro.textContent = 'Jede Zelle, die nicht interpretierbar ist oder eine Konsistenzregel verletzt, erscheint hier mit Sheet, Excel-Zeile, Header, Rohwert und Grund. Namen erscheinen nur hier und in den Bestenlisten.';
-    container.appendChild(intro);
-    const table = document.createElement('div');
+    container.appendChild(el('p', { class: 'meta-list', text: 'Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit Sheet, Excel-Zeile, Header, Rohwert und Grund. Unabhängig vom Filter.' }));
+    const table = el('div');
     container.appendChild(table);
-    if (!state.meta || !state.meta.fileName) {
-      table.innerHTML = '<p class="empty">Noch keine Daten geladen.</p>';
-      return;
-    }
     renderDq(table);
     return;
   }
 
-  const p = document.createElement('p');
-  p.className = 'placeholder';
-  p.textContent = 'Diese Ansicht folgt in Schritt 3.' + (state.meta && state.meta.fileName ? ' Aktuell geladen: ' + store.getFilteredPersons().length + ' Personen mit mindestens einem WE-RUN-Datum.' : '');
-  container.appendChild(p);
+  const filter = state.filter;
+  const headerLines = filterLines(filter, state.meta);
+  const ctx = {
+    persons: store.getFilteredPersons(),
+    plannedPersons: filterPersons(state.persons, filter, { eligibleOnly: false, period: false }),
+    mode: filter.mode,
+    modeLabel: MODE_LABELS[filter.mode] || filter.mode,
+    filter,
+    meta: state.meta,
+    headerLines,
+  };
+  let built;
+  try {
+    built = view.build(ctx);
+  } catch (e) {
+    showError(e);
+    return;
+  }
+  container.appendChild(el('div', { class: 'print-filter', text: headerLines.join(' · ') }));
+  container.appendChild(exportBar({ viewId: view.id, tables: built.tables, headerLines }));
+  for (const node of built.nodes) container.appendChild(node);
+}
+
+function renderAll() {
+  renderStatus();
+  renderFilterBar();
+  renderView();
 }
 
 // ---------------------------------------------------------------------------
@@ -164,49 +233,18 @@ function describeError(e) {
 function showError(e) {
   console.error(e);
   const d = describeError(e);
-  const box = el.error;
-  box.replaceChildren();
-  const h3 = document.createElement('h3');
-  h3.textContent = d.title;
-  box.appendChild(h3);
-  const p = document.createElement('p');
-  p.textContent = d.message;
-  box.appendChild(p);
-  if (d.list) {
-    const ul = document.createElement('ul');
-    for (const item of d.list) {
-      const li = document.createElement('li');
-      li.textContent = item;
-      ul.appendChild(li);
-    }
-    box.appendChild(ul);
-  }
-  if (d.hint) {
-    const hint = document.createElement('p');
-    hint.className = 'hint';
-    hint.textContent = d.hint;
-    box.appendChild(hint);
-  }
-  if (d.retry) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = 'Erneut versuchen';
-    btn.addEventListener('click', () => run(loadGraph));
-    box.appendChild(btn);
-  }
-  if (d.signIn) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = 'Erneut anmelden';
-    btn.addEventListener('click', () => run(signIn));
-    box.appendChild(btn);
-  }
+  const box = ui.error;
+  box.replaceChildren(el('h3', { text: d.title }), el('p', { text: d.message }));
+  if (d.list) box.appendChild(el('ul', {}, d.list.map((item) => el('li', { text: item }))));
+  if (d.hint) box.appendChild(el('p', { class: 'hint', text: d.hint }));
+  if (d.retry) box.appendChild(el('button', { type: 'button', text: 'Erneut versuchen', onclick: () => run(loadGraph) }));
+  if (d.signIn) box.appendChild(el('button', { type: 'button', text: 'Erneut anmelden', onclick: () => run(signIn) }));
   box.hidden = false;
 }
 
 function clearError() {
-  el.error.hidden = true;
-  el.error.replaceChildren();
+  ui.error.hidden = true;
+  ui.error.replaceChildren();
 }
 
 // ---------------------------------------------------------------------------
@@ -241,14 +279,12 @@ async function signOut() {
 
 async function loadGraph() {
   renderStatus('Lade Reporting_KUBA.xlsx von SharePoint …');
-  const data = await load();
-  store.setData(data);
+  store.setData(await load());
 }
 
 async function loadLocal(file) {
   renderStatus('Lese ' + file.name + ' (nur im Browser) …');
-  const data = await loadFromFile(file);
-  store.setData(data);
+  store.setData(await loadFromFile(file));
 }
 
 // ---------------------------------------------------------------------------
@@ -256,32 +292,29 @@ async function loadLocal(file) {
 // ---------------------------------------------------------------------------
 
 async function init() {
-  el.account = $('account');
-  el.signin = $('btn-signin');
-  el.signout = $('btn-signout');
-  el.load = $('btn-load');
-  el.file = $('file-input');
-  el.status = $('status');
-  el.error = $('error');
-  el.nav = $('nav');
-  el.view = $('view');
+  ui.account = $('account');
+  ui.signin = $('btn-signin');
+  ui.signout = $('btn-signout');
+  ui.load = $('btn-load');
+  ui.file = $('file-input');
+  ui.status = $('status');
+  ui.error = $('error');
+  ui.nav = $('nav');
+  ui.filterbar = $('filterbar');
+  ui.view = $('view');
 
-  el.signin.addEventListener('click', () => run(signIn));
-  el.signout.addEventListener('click', () => run(signOut));
-  el.load.addEventListener('click', () => run(loadGraph));
-  el.file.addEventListener('change', (ev) => {
+  ui.signin.addEventListener('click', () => run(signIn));
+  ui.signout.addEventListener('click', () => run(signOut));
+  ui.load.addEventListener('click', () => run(loadGraph));
+  ui.file.addEventListener('change', (ev) => {
     const file = ev.target.files && ev.target.files[0];
     ev.target.value = '';
     if (file) run(() => loadLocal(file));
   });
   window.addEventListener('hashchange', renderView);
-  store.subscribe(() => {
-    renderStatus();
-    renderView();
-  });
+  store.subscribe(renderAll);
 
-  renderView();
-  renderStatus();
+  renderAll();
   try {
     await auth.init();
     authReady = true;

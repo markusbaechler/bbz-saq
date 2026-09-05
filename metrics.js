@@ -176,9 +176,9 @@ function oe1Run(person, n) {
   return person.oe[0] && person.oe[0].runs[n - 1];
 }
 
-// Nenner: Personen mit OE1 RUN1-Datum
+// Nenner: Personen mit absolviertem, datiertem OE1 RUN1 (geplante oder ausstehende Termine zählen nicht)
 export function oralPassRates(persons) {
-  const base = persons.filter((p) => oe1Run(p, 1) && oe1Run(p, 1).date !== null);
+  const base = persons.filter((p) => oe1Run(p, 1) && oe1Run(p, 1).taken && oe1Run(p, 1).date !== null);
   const n = base.length;
   const failed1 = base.filter((p) => oe1Run(p, 1).passed === false);
   const failed2 = failed1.filter((p) => oe1Run(p, 2) && oe1Run(p, 2).passed === false);

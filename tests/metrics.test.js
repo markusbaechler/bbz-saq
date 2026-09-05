@@ -436,3 +436,13 @@ test('filterPersons: Optionen eligibleOnly und period für die Planungsansicht',
   assertEqual(filterPersons([a, b, c], period, { eligibleOnly: false, period: false }).length, 3, 'Zeitraum ignoriert');
   assertEqual(filterPersons([a, b, c], { ...DEFAULT_FILTER, profil: ['IK'] }, { eligibleOnly: false }).map((p) => p.lastName), ['Beta'], 'übrige Filter gelten weiterhin');
 });
+
+test('oralPassRates: geplante oder ausstehende OE1 RUN1 (Datum ohne Passed) zählen nicht im Nenner', () => {
+  const done = simple();
+  const plannedOe = simple({ oeAllPassed: null, oe: { 1: [{ date: '2026-11-05', planned: true }] } });
+  const pending = simple({ oeAllPassed: null, oe: { 1: [{ date: '2024-06-01' }] } });
+  const undated = simple({ oe: { 1: [{ passed: true, result: 0.9 }] } });
+  const r = oralPassRates([done, plannedOe, pending, undated]);
+  assertEqual(r.bestanden.n, 1, 'nur absolvierte, datierte OE1 RUN1');
+  assertEqual(r.bestanden.count, 1);
+});

@@ -47,6 +47,13 @@ export function toCsv(table, headerLines = []) {
   return lines.join(CRLF);
 }
 
+// Mehrere Tabellen in einer CSV-Datei: Kopfzeilen einmal, je Tabelle Titelzeile + Tabelle, durch Leerzeile getrennt
+export function tablesToCsv(tables, headerLines = []) {
+  const head = headerLines.length ? headerLines.map((h) => csvEscape(h)).join(CRLF) + CRLF + CRLF : '';
+  const blocks = tables.map((t) => (t.title ? csvEscape(t.title) + CRLF : '') + toCsv(t));
+  return head + blocks.join(CRLF + CRLF);
+}
+
 // Array-of-Arrays für SheetJS (Zahlen bleiben Zahlen)
 export function tableToAoa(table, headerLines = []) {
   const aoa = headerLines.map((h) => [h]);
@@ -117,8 +124,9 @@ export function downloadBlob(filename, blob) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function downloadCsv(filename, table, headerLines = []) {
-  downloadBlob(filename, new Blob(['﻿' + toCsv(table, headerLines)], { type: 'text/csv;charset=utf-8' }));
+// csv: fertiger CSV-Text (toCsv / tablesToCsv); mit BOM für Excel
+export function downloadCsv(filename, csv) {
+  downloadBlob(filename, new Blob([String.fromCharCode(0xfeff) + csv], { type: 'text/csv;charset=utf-8' }));
 }
 
 function sheetName(title, index, used) {

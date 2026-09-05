@@ -1,5 +1,5 @@
 import { test, assert, assertEqual } from './runner.js';
-import { csvEscape, toCsv, tableToAoa, filterLines, exportFileName, fmtDate, fmtDateTime, fmtTime } from '../export.js';
+import { csvEscape, toCsv, tablesToCsv, tableToAoa, filterLines, exportFileName, fmtDate, fmtDateTime, fmtTime } from '../export.js';
 import { DEFAULT_FILTER } from '../metrics.js';
 
 const TABLE = {
@@ -73,4 +73,12 @@ test('export.filterLines: gesetzte Filter', () => {
 test('export.exportFileName: Präfix, View, Datum, Endung', () => {
   assertEqual(exportFileName('schriftlich', 'csv', new Date(2026, 8, 5)), 'bbz-saq_schriftlich_2026-09-05.csv');
   assertEqual(exportFileName('geplante-pruefungen', 'xlsx', new Date(2026, 0, 2)), 'bbz-saq_geplante-pruefungen_2026-01-02.xlsx');
+});
+
+test('export.tablesToCsv: mehrere Tabellen in einer Datei, Titelzeile je Tabelle, Kopfzeilen nur einmal', () => {
+  const CRLF = String.fromCharCode(13) + String.fromCharCode(10);
+  const second = { title: 'Zweite', columns: [{ key: 'a', label: 'A' }], rows: [{ a: 1 }] };
+  const lines = tablesToCsv([TABLE, second], ['Zeitraum: alle']).split(CRLF);
+  assertEqual(lines, ['Zeitraum: alle', '', 'Testtabelle', 'Gruppe;n;Quote', 'Gesamt;12;83.3 %', '"PK; Basis";3;66.7 %', '', 'Zweite', 'A', '1']);
+  assertEqual(tablesToCsv([second]).split(CRLF), ['Zweite', 'A', '1']);
 });
