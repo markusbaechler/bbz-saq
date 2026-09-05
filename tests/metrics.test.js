@@ -4,7 +4,7 @@ import {
   partResult, writtenScore, oralScore, firstAttemptPassed,
   writtenPassRates, writtenPerformance, writtenPerformanceByPart,
   oralPassRates, oralPerformance, groupBy, byGroup, vssVsmBreakdown,
-  awardScore, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, dayKey, partFirstAttempt,
+  awardScore, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, plannedByKind, dayKey, partFirstAttempt,
   benchmarkFilter, BENCHMARKS,
   STATUS, isVorgang, statusCounts, exclusionReason, groupByPerson, personCount, multiProfilePersons, modelComparison,
   excludedRows, openCases, openCaseState, rankingLimit, rankReason, refYear, yearsOf, timeSeries, timeSeriesBy, partDifficultyByYear,
@@ -470,26 +470,42 @@ test('dayKey: lokales Datum als YYYY-MM-DD', () => {
   assertEqual(dayKey(new Date(2026, 0, 5)), '2026-01-05');
 });
 
-test('plannedRuns: alle geplanten Runs mit Person, Prüfung, Datum und Ort, sortiert nach Datum', () => {
+test('plannedRuns: alle geplanten Runs mit Person, Prüfung, Datum und Ort, sortiert nach Datum, Ort, Teilprüfung, Name', () => {
   const { a, b, c } = plannedCohort();
   const runs = plannedRuns([c, a, b]);
   assertEqual(runs.length, 3);
-  assertEqual(runs.map((r) => [r.person.lastName, r.kind, r.part, r.run, r.location]), [['Alpha', 'we', 2, 1, 'Bern'], ['Beta', 'we', 1, 1, 'Bern'], ['Alpha', 'oe', 1, 1, 'Zürich']]);
+  assertEqual(runs.map((r) => [r.person.lastName, r.kind, r.part, r.run, r.location]), [['Beta', 'we', 1, 1, 'Bern'], ['Alpha', 'we', 2, 1, 'Bern'], ['Alpha', 'oe', 1, 1, 'Zürich']]);
   assertEqual(runs[0].date, d('2026-10-01'));
-  assertEqual(runs[0].label, 'WE2 RUN1');
+  assertEqual(runs[0].label, 'WE1 RUN1');
+  assertEqual(runs[1].label, 'WE2 RUN1', 'gleicher Tag und Ort: Teilprüfung vor Name');
   assertEqual(runs[2].label, 'OE1 RUN1');
   assertEqual(plannedRuns([c]), []);
 });
 
-test('plannedGroups: gruppiert nach Tag und Ort mit Anzahl und Einträgen', () => {
+test('plannedByKind: schriftliche (WE) und mündliche (OE) Termine getrennt, Reihenfolge bleibt', () => {
+  const { a, b, c } = plannedCohort();
+  const k = plannedByKind(plannedRuns([a, b, c]));
+  assertEqual(k.we.map((r) => [r.person.lastName, r.label]), [['Beta', 'WE1 RUN1'], ['Alpha', 'WE2 RUN1']]);
+  assertEqual(k.oe.map((r) => [r.person.lastName, r.label]), [['Alpha', 'OE1 RUN1']]);
+  assertEqual(plannedByKind([]), { we: [], oe: [] });
+});
+
+test('plannedGroups: gruppiert nach Tag und Ort mit Anzahl, Teilprüfungen (Anzahl), Wiederholungen und Einträgen', () => {
   const { a, b, c } = plannedCohort();
   const groups = plannedGroups(plannedRuns([a, b, c]));
   assertEqual(groups.map((g) => [g.dayKey, g.location, g.count]), [['2026-10-01', 'Bern', 2], ['2026-11-05', 'Zürich', 1]]);
   assertEqual(groups[0].day, d('2026-10-01'));
-  assertEqual(groups[0].entries.map((e) => e.person.lastName), ['Alpha', 'Beta']);
+  assertEqual(groups[0].entries.map((e) => e.person.lastName), ['Beta', 'Alpha']);
   assertEqual(groups[0].exams, ['WE1 RUN1', 'WE2 RUN1']);
+  assertEqual(groups[0].parts, [{ label: 'WE1', count: 1 }, { label: 'WE2', count: 1 }]);
+  assertEqual([groups[0].repeats, groups[1].repeats], [0, 0]);
+  assertEqual(groups[1].parts, [{ label: 'OE1', count: 1 }]);
   const noLocation = plannedGroups(plannedRuns([makePerson({ we: { 1: [{ date: '2026-10-02', planned: true }] } })]));
   assertEqual(noLocation[0].location, null);
+  // Wiederholung: geplanter RUN2 nach nicht bestandenem RUN1, gleiche Teilprüfung zweimal am selben Tag → ein Eintrag mit Anzahl 2
+  const repeat = makePerson({ lastName: 'Delta', we: { 1: [{ passed: false, date: '2026-01-10', result: 0.3 }, { date: '2026-10-01', location: 'Bern', planned: true }] } });
+  const g = plannedGroups(plannedRuns([b, repeat]))[0];
+  assertEqual([g.count, g.repeats, g.parts, g.exams], [2, 1, [{ label: 'WE1', count: 2 }], ['WE1 RUN1', 'WE1 RUN2']]);
 });
 
 test('filterPersons: Optionen eligibleOnly und period für die Planungsansicht', () => {
