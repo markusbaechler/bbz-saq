@@ -103,7 +103,17 @@ export function parseWorkbook(buffer, { XLSX, fflate, config = CONFIG }) {
   for (const [source, sheetName] of entries) {
     const ws = wb.Sheets[sheetName];
     if (!ws) throw new SheetMissingError(sheetName);
-    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, range: config.headerRow - 1, defval: null, blankrows: true, raw: true });
+    // Nur bis zur letzten nicht leeren Header-Zelle lesen: Blattbereiche reichen oft bis Spalte XFD,
+    // und sheet_to_json würde sonst je Zeile Tausende leere Zellen erzeugen.
+    const full = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    const headerIndex = config.headerRow - 1;
+    let lastCol = -1;
+    for (let c = full.s.c; c <= full.e.c; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: headerIndex, c })];
+      if (cell && cell.v !== undefined && cell.v !== null && String(cell.v).trim() !== '') lastCol = c;
+    }
+    const range = { s: { r: headerIndex, c: full.s.c }, e: { r: Math.max(full.e.r, headerIndex), c: Math.max(lastCol, full.s.c) } };
+    const aoa = lastCol < 0 ? [] : XLSX.utils.sheet_to_json(ws, { header: 1, range, defval: null, blankrows: true, raw: true });
     const headerRow = trimHeader(aoa[0] || []);
     const rows = aoa.slice(1).map((cells, i) => ({ row: config.headerRow + 1 + i, cells: padRow(cells, headerRow.length) }));
     sheets.push({ source, sheetName, headerRow, rows });
