@@ -76,6 +76,8 @@ test('config: Header-Kandidaten führen Sheet-Varianten (Passed | yes)', () => {
   assertEqual(headerCandidates('we3.run2.score'), ['WE3 RUN2 Score']);
   assertEqual(headerCandidates('we3.run2.result'), ['WE3 RUN2 Result']);
   assertEqual(headerCandidates('oe1.run3.passed'), ['OE1 RUN3 Passed', 'OE1 RUN3 yes']);
+  assertEqual(headerCandidates('we6.run1.location'), ['WE6 RUN1 Location'], 'Ort optional (fehlt in Sheet 2)');
+  assertEqual(headerCandidates('oe2.run3.location'), ['OE2 RUN3 Location']);
   assertEqual(headerCandidates('gibtEsNicht'), null);
 });
 
@@ -92,6 +94,7 @@ test('config: Pflicht-Header je Sheet (certStart nur bei «issued»)', () => {
     assert(first.includes(k), 'Pflicht-Header fehlt: ' + k);
   }
   assert(!first.includes('certNumber') && !first.includes('certEnd') && !first.includes('commLanguage'), 'optionale Felder nicht Pflicht');
+  assert(!first.includes('we6.run1.location') && !issued.includes('we6.run1.location'), 'Location nie Pflicht');
   assert(!issued.includes('certNumber') && !issued.includes('certEnd'), 'optionale Felder nicht Pflicht');
 });
 

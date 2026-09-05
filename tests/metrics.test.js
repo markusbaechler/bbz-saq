@@ -4,7 +4,7 @@ import {
   partResult, writtenScore, oralScore, firstAttemptPassed,
   writtenPassRates, writtenPerformance, writtenPerformanceByPart,
   oralPassRates, oralPerformance, groupBy, byGroup, vssVsmBreakdown,
-  awardScore, topWritten, topOral, awardRanking, overview,
+  awardScore, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, dayKey,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -387,4 +387,52 @@ test('overview: KPIs gesamt für aktiven Filter', () => {
   assertClose(o.oralPerf.mean, (0.9 + 0.9 + 0.3) / 3);
   assertEqual([o.vss, o.vsm, o.issued], [1, 1, 1]);
   assertEqual(o.byProfil.map((g) => [g.key, g.n]), [['PK', 3]]);
+});
+
+// ---------------------------------------------------------------------------
+// Geplante Prüfungen
+// ---------------------------------------------------------------------------
+
+function plannedCohort() {
+  const a = makePerson({ lastName: 'Alpha', profil: 'PK', employerCanon: 'Testbank AG', we: { 1: [{ passed: true, date: '2026-03-01', result: 0.8 }], 2: [{ date: '2026-10-01', location: 'Bern', planned: true }] }, oe: { 1: [{ date: '2026-11-05', location: 'Zürich', planned: true }] } });
+  const b = makePerson({ lastName: 'Beta', profil: 'IK', employerCanon: 'Musterbank', we: { 1: [{ date: '2026-10-01', location: 'Bern', planned: true }] } });
+  const c = makePerson({ lastName: 'Gamma', profil: 'PK', we: { 1: [{ passed: true, date: '2026-03-01', result: 0.7 }] } });
+  return { a, b, c };
+}
+
+test('dayKey: lokales Datum als YYYY-MM-DD', () => {
+  assertEqual(dayKey(new Date(2026, 9, 1, 9, 30)), '2026-10-01');
+  assertEqual(dayKey(new Date(2026, 0, 5)), '2026-01-05');
+});
+
+test('plannedRuns: alle geplanten Runs mit Person, Prüfung, Datum und Ort, sortiert nach Datum', () => {
+  const { a, b, c } = plannedCohort();
+  const runs = plannedRuns([c, a, b]);
+  assertEqual(runs.length, 3);
+  assertEqual(runs.map((r) => [r.person.lastName, r.kind, r.part, r.run, r.location]), [['Alpha', 'we', 2, 1, 'Bern'], ['Beta', 'we', 1, 1, 'Bern'], ['Alpha', 'oe', 1, 1, 'Zürich']]);
+  assertEqual(runs[0].date, d('2026-10-01'));
+  assertEqual(runs[0].label, 'WE2 RUN1');
+  assertEqual(runs[2].label, 'OE1 RUN1');
+  assertEqual(plannedRuns([c]), []);
+});
+
+test('plannedGroups: gruppiert nach Tag und Ort mit Anzahl und Einträgen', () => {
+  const { a, b, c } = plannedCohort();
+  const groups = plannedGroups(plannedRuns([a, b, c]));
+  assertEqual(groups.map((g) => [g.dayKey, g.location, g.count]), [['2026-10-01', 'Bern', 2], ['2026-11-05', 'Zürich', 1]]);
+  assertEqual(groups[0].day, d('2026-10-01'));
+  assertEqual(groups[0].entries.map((e) => e.person.lastName), ['Alpha', 'Beta']);
+  assertEqual(groups[0].exams, ['WE1 RUN1', 'WE2 RUN1']);
+  const noLocation = plannedGroups(plannedRuns([makePerson({ we: { 1: [{ date: '2026-10-02', planned: true }] } })]));
+  assertEqual(noLocation[0].location, null);
+});
+
+test('filterPersons: Optionen eligibleOnly und period für die Planungsansicht', () => {
+  const { a, b, c } = plannedCohort();
+  assertEqual(filterPersons([a, b, c], DEFAULT_FILTER).map((p) => p.lastName), ['Alpha', 'Gamma'], 'Standard: nur Personen mit absolviertem WE-Run');
+  assertEqual(filterPersons([a, b, c], DEFAULT_FILTER, { eligibleOnly: false }).map((p) => p.lastName), ['Alpha', 'Beta', 'Gamma']);
+  const period = { ...DEFAULT_FILTER, from: d('2030-01-01') };
+  assertEqual(filterPersons([a, b, c], period, { eligibleOnly: false }), [], 'Zeitraum wirkt');
+  assertEqual(filterPersons([a, b, c], period, { eligibleOnly: false, period: false }).length, 3, 'Zeitraum ignoriert');
+  assertEqual(filterPersons([a, b, c], { ...DEFAULT_FILTER, profil: ['IK'] }, { eligibleOnly: false }).map((p) => p.lastName), ['Beta'], 'übrige Filter gelten weiterhin');
 });

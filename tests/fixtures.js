@@ -22,7 +22,8 @@ export function headerRowFor(source) {
       for (let r = 1; r <= cfg.runs; r++) {
         row.push(h(runKey(kind, p, r, 'passed')), h(runKey(kind, p, r, 'date')),
           h(runKey(kind, p, r, 'score')), h(runKey(kind, p, r, 'result')));
-        if (kind === 'we' && p === 6 && r === 1 && source === 'first') row.push('WE6 RUN1 Location');
+        // Ort je Run; «WE6 RUN1 Location» fehlt in Sheet 2 (Spezifikation)
+        if (!(kind === 'we' && p === 6 && r === 1 && source === 'issued')) row.push(h(runKey(kind, p, r, 'location')));
       }
     }
   }
@@ -56,7 +57,7 @@ export function runValues(kind, parts) {
     for (let i = 0; i < runs.length; i++) {
       const r = runs[i];
       if (!r) continue;
-      for (const what of ['passed', 'date', 'score', 'result']) {
+      for (const what of ['passed', 'date', 'score', 'result', 'location']) {
         if (r[what] !== undefined) out[runKey(kind, Number(p), i + 1, what)] = r[what];
       }
     }
@@ -71,7 +72,7 @@ export const ALL_FIELD_KEYS = HEADER_FIELDS.map((f) => f.key);
 // ---------------------------------------------------------------------------
 
 function emptyRun(n) {
-  return { n, passed: null, date: null, score: null, result: null, taken: false };
+  return { n, passed: null, date: null, score: null, result: null, location: null, taken: false, planned: false };
 }
 
 function emptyPart(part, runs) {
@@ -146,7 +147,9 @@ function applyRuns(parts, spec) {
       if (r.date !== undefined) run.date = typeof r.date === 'string' ? d(r.date) : r.date;
       if (r.score !== undefined) run.score = r.score;
       if (r.result !== undefined) run.result = r.result;
+      if (r.location !== undefined) run.location = r.location;
       run.taken = run.passed !== null;
+      run.planned = r.planned === undefined ? false : !!r.planned;
     });
     if (!Array.isArray(entry) && entry.passed !== undefined) {
       part.passed = entry.passed;

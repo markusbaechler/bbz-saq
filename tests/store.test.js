@@ -274,12 +274,12 @@ test('normalizeSheet: vollständige Zeile aus Sheet 1 → Personenmodell', () =>
   assertEqual(p.we[0].part, 1);
   assertEqual(p.we[0].passed, true);
   assertEqual(p.we[0].runs.length, 3);
-  assertEqual(p.we[0].runs[0], { n: 1, passed: false, date: new Date(2024, 2, 1), score: 40, result: 0.55, taken: true });
-  assertEqual(p.we[0].runs[1], { n: 2, passed: true, date: new Date(2024, 3, 15), score: 61, result: 0.825, taken: true });
-  assertEqual(p.we[0].runs[2], { n: 3, passed: null, date: null, score: null, result: null, taken: false });
+  assertEqual(p.we[0].runs[0], { n: 1, passed: false, date: new Date(2024, 2, 1), score: 40, result: 0.55, location: null, taken: true, planned: false });
+  assertEqual(p.we[0].runs[1], { n: 2, passed: true, date: new Date(2024, 3, 15), score: 61, result: 0.825, location: null, taken: true, planned: false });
+  assertEqual(p.we[0].runs[2], { n: 3, passed: null, date: null, score: null, result: null, location: null, taken: false, planned: false });
   assertEqual(p.we[1].runs[0].result, 0.9);
   assertEqual(p.we[2].passed, null);
-  assertEqual(p.oe[0].runs[0], { n: 1, passed: false, date: new Date(2024, 4, 2, 9, 30), score: 3, result: 0.4, taken: true });
+  assertEqual(p.oe[0].runs[0], { n: 1, passed: false, date: new Date(2024, 4, 2, 9, 30), score: 3, result: 0.4, location: null, taken: true, planned: false });
   assertEqual(p.oe[0].runs[1].passed, true);
   assertEqual(p.oe[1].passed, null);
 });
@@ -379,7 +379,7 @@ test('normalizeSheet: Zeile mit Daten aber ohne Namen → keine Person, aber DQ-
 });
 
 test('normalizeSheet: Zeile nur mit Inhalt in nicht gemappten Spalten gilt als leer', () => {
-  const sheet = makeSheet('first', [{ Nr: 17 }, { Bemerkung: 'x', 'WE6 RUN1 Location': 'Bern' }]);
+  const sheet = makeSheet('first', [{ Nr: 17 }, { Bemerkung: 'x' }]);
   assertEqual(normalizeSheet(sheet, {}), { persons: [], dq: [] });
 });
 
@@ -572,4 +572,25 @@ test('normalizeSheet: «PK FRZ» → Profil PK und Sprache FR (Hinweis), Sprache
   assert(/PK FRZ/.test(dq[0].reason), dq[0].reason);
   const given = normalizeSheet(makeSheet('first', [fullRow({ profil: 'PK FRZ', sprache: 'DE' })]), {});
   assertEqual([given.persons[0].profil, given.persons[0].sprache, given.dq.length], ['PK', 'DE', 0]);
+});
+
+test('normalizeSheet: Ort je Run und Kennzeichen «geplant» (Datum in der Zukunft ohne Passed)', () => {
+  const today = new Date(2026, 8, 5);
+  const row = fullRow({
+    ...runValues('we', { 1: [{ location: ' Bern ' }], 3: [{ date: new Date(2026, 9, 15, 9, 0), location: 'Zürich' }] }),
+    ...runValues('oe', { 2: [{ date: new Date(2026, 10, 5, 13, 30), location: 'Luzern', score: 0, result: 0 }] }),
+  });
+  const { persons, dq } = normalizeSheet(makeSheet('first', [row]), {}, { today });
+  const p = persons[0];
+  assertEqual([p.we[0].runs[0].location, p.we[0].runs[0].planned], ['Bern', false], 'absolvierter Run mit Ort');
+  assertEqual([p.we[2].runs[0].location, p.we[2].runs[0].planned, p.we[2].runs[0].taken], ['Zürich', true, false]);
+  assertEqual([p.oe[1].runs[0].location, p.oe[1].runs[0].planned], ['Luzern', true]);
+  assertEqual(p.we[1].runs[0].planned, false, 'ohne Datum nicht geplant');
+  assertEqual(dq, [], 'geplante Termine sind keine Auffälligkeit');
+});
+
+test('normalizeSheet: Sheet 2 ohne «WE6 RUN1 Location» → Ort null, kein Fehler', () => {
+  const { persons, dq } = normalizeSheet(makeSheet('issued', [fullRow({ certStart: '01.07.2024', ...runValues('we', { 6: [{ passed: 'yes', date: new Date(2024, 1, 1) }] }) })]), {});
+  assertEqual(persons[0].we[5].runs[0].location, null);
+  assertEqual(dq, []);
 });

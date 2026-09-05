@@ -334,15 +334,18 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
         for (let r = 1; r <= cfg.runs; r++) {
           const passedKey = runKey(kind, p, r, 'passed');
           const dateKey = runKey(kind, p, r, 'date');
+          const locationKey = runKey(kind, p, r, 'location');
           const run = {
             n: r,
             passed: field(passedKey, parsePassed),
             date: field(dateKey, parseDate),
             score: field(runKey(kind, p, r, 'score'), parseScore),
             result: field(runKey(kind, p, r, 'result'), parseResult),
+            location: map[locationKey] === undefined ? null : asText(get(locationKey)),
           };
           // Absolviert = Passed-Wert vorhanden. Datum allein ist ein Termin (geplant oder ausstehend).
           run.taken = run.passed !== null;
+          run.planned = !run.taken && run.date !== null && run.date > horizon;
           const rawPassed = get(passedKey);
           const rawDate = get(dateKey);
           if (!run.taken && isBlank(rawPassed) && run.date !== null && run.date <= horizon) {

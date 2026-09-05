@@ -147,6 +147,7 @@ function buildHeaderFields() {
         fields.push({ key: runKey(g.kind, p, r, 'date'),   candidates: [run + ' Date'],   required: 'all' });
         fields.push({ key: runKey(g.kind, p, r, 'score'),  candidates: [run + ' Score'],  required: 'all' });
         fields.push({ key: runKey(g.kind, p, r, 'result'), candidates: [run + ' Result'], required: 'all' });
+        fields.push({ key: runKey(g.kind, p, r, 'location'), candidates: [run + ' Location'], required: 'none' }); // Prüfungsort (geplante Prüfungen)
       }
     }
   }

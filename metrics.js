@@ -9,6 +9,7 @@
 //   bestanden sind (Auftraggeber: «es müssen alle Teilprüfungen bestanden werden»).
 // - Voraussetzung für mündlich ist die bestandene schriftliche Prüfung (Konsistenzprüfung in store.js → DQ-Log).
 // - Filter «Versuche»: alle | erstversuch (kein RUN2/RUN3 absolviert) | mehrere (≥1 RUN2/RUN3 absolviert).
+// - Geplante Prüfungen: Runs mit Datum in der Zukunft ohne Passed-Wert (store.js setzt run.planned), nach Tag und Ort.
 // - Schriftlich: Erstversuchsquote (alle vorhandenen WE RUN1 bestanden) UND Gesamterfolgsquote (WE All Passed).
 // - Mündlich: Bestehensquote = OE All Passed; 1× durchgefallen = OE1 RUN1=false; 2× = OE1 RUN1=false ∧ RUN2=false;
 //   Nenner = Personen mit OE1 RUN1-Datum.
@@ -72,11 +73,13 @@ function endOfDay(date) {
   return d;
 }
 
-export function filterPersons(persons, filter = DEFAULT_FILTER) {
+// options.eligibleOnly (Standard true): nur Personen mit absolviertem, datiertem WE-Run
+// options.period (Standard true): Zeitraum auf Referenzdatum anwenden
+export function filterPersons(persons, filter = DEFAULT_FILTER, { eligibleOnly = true, period = true } = {}) {
   const f = { ...DEFAULT_FILTER, ...filter };
-  const from = f.from ? new Date(f.from).getTime() : null;
-  const to = f.to ? endOfDay(f.to).getTime() : null;
-  return eligible(persons).filter((p) => {
+  const from = period && f.from ? new Date(f.from).getTime() : null;
+  const to = period && f.to ? endOfDay(f.to).getTime() : null;
+  return (eligibleOnly ? eligible(persons) : persons).filter((p) => {
     if (f.onlyIssued && p.source !== 'issued') return false;
     if (f.profil.length && !f.profil.includes(p.profil)) return false;
     if (f.sprache.length && !f.sprache.includes(p.sprache)) return false;
@@ -307,6 +310,57 @@ export function awardRanking(persons, mode, k = 5) {
     if (score === null) return null;
     return { ...baseEntry(p, score), written: writtenScore(p, mode), oral: oralScore(p, mode) };
   }, k);
+}
+
+// ---------------------------------------------------------------------------
+// Geplante Prüfungen
+// ---------------------------------------------------------------------------
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
+export function dayKey(date) {
+  return date.getFullYear() + '-' + pad2(date.getMonth() + 1) + '-' + pad2(date.getDate());
+}
+
+function personName(p) {
+  return (p.lastName || '') + ' ' + (p.firstName || '');
+}
+
+// Alle geplanten Runs (run.planned) als flache Liste, sortiert nach Datum, Ort, Name
+export function plannedRuns(persons) {
+  const out = [];
+  for (const p of persons) {
+    for (const kind of ['we', 'oe']) {
+      for (const part of p[kind]) {
+        for (const r of part.runs) {
+          if (!r.planned) continue;
+          out.push({ person: p, kind, part: part.part, run: r.n, label: kind.toUpperCase() + part.part + ' RUN' + r.n, date: r.date, location: r.location });
+        }
+      }
+    }
+  }
+  return out.sort((a, b) => a.date - b.date || collator.compare(a.location || '', b.location || '') || collator.compare(personName(a.person), personName(b.person)));
+}
+
+// Gruppen je Tag und Ort: [{ dayKey, day, location, count, exams, entries }]
+export function plannedGroups(runs) {
+  const groups = new Map();
+  for (const r of runs) {
+    const key = dayKey(r.date) + '|' + (r.location || '');
+    let g = groups.get(key);
+    if (!g) {
+      g = { dayKey: dayKey(r.date), day: new Date(r.date.getFullYear(), r.date.getMonth(), r.date.getDate()), location: r.location, count: 0, exams: [], entries: [] };
+      groups.set(key, g);
+    }
+    g.count += 1;
+    g.entries.push(r);
+    if (!g.exams.includes(r.label)) g.exams.push(r.label);
+  }
+  return [...groups.values()]
+    .map((g) => ({ ...g, exams: g.exams.slice().sort(collator.compare) }))
+    .sort((a, b) => a.day - b.day || collator.compare(a.location || '', b.location || ''));
 }
 
 // ---------------------------------------------------------------------------
