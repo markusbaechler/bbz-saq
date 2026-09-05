@@ -8,12 +8,12 @@ export const id = 'uebersicht';
 export const label = 'Übersicht';
 
 export function build(ctx) {
-  const m = overviewModel(ctx.persons);
+  const m = overviewModel(ctx.persons, ctx.allPersons || ctx.persons);
   const planned = plannedTables(ctx.plannedPersons || []);
   const bench = ctx.benchmark || null;
   let comparison = null;
   if (bench) {
-    const bm = overviewModel(bench.persons);
+    const bm = overviewModel(bench.persons, ctx.allPersons || bench.persons);
     comparison = comparisonTable(m.kpis, bm.kpis, bench.label);
     const byLabel = new Map(bm.kpis.map((k) => [k.label, k]));
     for (const k of m.kpis) {
@@ -28,7 +28,7 @@ export function build(ctx) {
       select.value = bench.kind;
       return select;
     })()]),
-    el('span', { class: 'meta-list', text: (BENCHMARKS.find((b) => b.id === bench.kind) || {}).hint + ' · Benchmark: ' + bench.persons.length + ' Personen' + (bench.persons.length === ctx.persons.length ? ' (entspricht der Auswahl, kein entsprechender Filter aktiv)' : '') }),
+    el('span', { class: 'meta-list', text: (BENCHMARKS.find((b) => b.id === bench.kind) || {}).hint + ' · Benchmark: ' + bench.persons.length + ' Vorgänge' + (bench.persons.length === ctx.persons.length ? ' (entspricht der Auswahl, kein entsprechender Filter aktiv)' : '') }),
   ]) : null;
   const kpiTable = {
     title: 'Kennzahlen gesamt',
@@ -37,13 +37,14 @@ export function build(ctx) {
   };
   return {
     nodes: [
-      el('p', { class: 'meta-list', text: 'Kennzahlen für Personen mit mindestens einem absolvierten, datierten schriftlichen Run im aktiven Filter. Quoten sind Anteile von Personen; Ø Resultat ist der Mittelwert der erreichten Punkte in Prozent.' }),
+      el('p', { class: 'meta-list', text: 'Kennzahlen für Zertifizierungsvorgänge (eine Zeile der Datei, Duplikate zusammengeführt) mit mindestens einem absolvierten, datierten schriftlichen Run im aktiven Filter. Quoten sind Anteile von Vorgängen; «Personen» zählt Menschen (eine Person kann mehrere Vorgänge haben); Ø Resultat ist der Mittelwert der erreichten Punkte in Prozent. Bestehensquoten beziehen sich auf abgeschlossene Vorgänge; offene Vorgänge (Prozess läuft noch) sind separat ausgewiesen. Definitionen: Ansicht «Glossar».' }),
       benchmarkBar,
       renderKpis(kpis),
-      el('p', { class: 'note', text: '* Kennzahl auf Basis von n < 5 Personen (Aussagekraft eingeschränkt)' }),
+      el('p', { class: 'note', text: '* Kennzahl auf Basis von n < 5 Vorgängen (Aussagekraft eingeschränkt)' }),
       comparison ? section('Auswahl im Vergleich zum Benchmark', [renderTable(comparison)], { intro: 'Differenz in Prozentpunkten: Auswahl minus Benchmark. Der Benchmark verwendet dieselben Filter wie die Auswahl, nur ohne die gewählte Einschränkung.' }) : null,
       section('Kennzahlen je Profil', [renderTable(m.byProfil)]),
+      section('Personen mit mehreren Profilen', [renderTable(m.multi)], { intro: 'Menschen mit Zertifizierungsvorgängen in mehr als einem Profil, gruppiert nach der zeitlichen Abfolge der Profile.' }),
     ],
-    tables: comparison ? [kpiTable, comparison, m.byProfil] : [kpiTable, m.byProfil],
+    tables: (comparison ? [kpiTable, comparison, m.byProfil] : [kpiTable, m.byProfil]).concat([m.multi]),
   };
 }

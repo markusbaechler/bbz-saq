@@ -1,10 +1,12 @@
 // views/tables.js – reine Tabellenmodelle für die Views (kein DOM), getestet in tests/tables.test.js.
 // Jede Tabelle: { title, columns: [{ key, label }], rows: [{ … , small }], note }.
 // Prozent mit 1 Dezimale, immer mit n; Gruppen mit n < 5 tragen die Markierung «*».
+// Begriffe (E3): «Vorgänge» für alle prüfungsbezogenen Quoten, «Personen» nur, wo Menschen gezählt werden.
 
 import {
   MODE, SMALL_N, formatPct, writtenPassRates, writtenPerformance, partFirstAttempt, oralPassRates, oralPerformance,
   byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups,
+  multiProfilePersons, personCount,
 } from '../metrics.js';
 import { fmtDate, fmtTime } from '../export.js';
 
@@ -36,14 +38,21 @@ function col(key, label) {
 export function passRateTable(persons, key) {
   const total = writtenPassRates(persons);
   const smallTotal = persons.length < SMALL_N;
-  const row = (label, small, n, r) => ({ gruppe: mark(label, small), n, small, erstversuch: formatPct(r.erstversuch.pct), durchgefallen: formatPct(r.erstversuchFailed.pct), gesamt: formatPct(r.gesamt.pct) });
+  const row = (label, small, n, r) => ({
+    gruppe: mark(label, small), n, small,
+    erstversuch: formatPct(r.erstversuch.pct), durchgefallen: formatPct(r.erstversuchFailed.pct),
+    gesamt: formatPct(r.gesamt.pct), abgeschlossen: r.gesamt.n, offen: r.offen, nichtErfasst: r.nichtErfasst,
+  });
   const rows = [row('Gesamt', smallTotal, persons.length, total)];
   for (const g of byGroup(persons, key, writtenPassRates)) rows.push(row(groupLabel(g.key), g.small, g.n, g.value));
   return {
     title: 'Bestehensquote schriftlich nach ' + GROUP_LABELS[key],
-    columns: [col('gruppe', GROUP_LABELS[key]), col('n', 'n'), col('erstversuch', 'Im 1. Versuch bestanden'), col('durchgefallen', 'Im 1. Versuch durchgefallen'), col('gesamt', 'Insgesamt bestanden')],
+    columns: [
+      col('gruppe', GROUP_LABELS[key]), col('n', 'n (Vorgänge)'), col('erstversuch', 'Im 1. Versuch bestanden'), col('durchgefallen', 'Im 1. Versuch durchgefallen'),
+      col('gesamt', 'Insgesamt bestanden'), col('abgeschlossen', 'n (abgeschlossen)'), col('offen', 'Offen'), col('nichtErfasst', 'Nicht erfasst'),
+    ],
     rows,
-    note: SMALL_NOTE + '; 1. Versuch: Nenner sind Personen mit absolviertem RUN1',
+    note: SMALL_NOTE + '; 1. Versuch: Nenner sind Vorgänge mit absolviertem RUN1; insgesamt bestanden: Nenner sind abgeschlossene Vorgänge (bestanden + nicht bestanden); offen = Gesamtergebnis leer (läuft noch), nicht erfasst = Gesamtergebnis unlesbar',
   };
 }
 
@@ -61,7 +70,7 @@ export function performanceTable(persons, key, kind = 'written') {
     title: 'Ø Resultat ' + (kind === 'oral' ? 'mündlich' : 'schriftlich') + ' nach ' + GROUP_LABELS[key],
     columns: [col('gruppe', GROUP_LABELS[key]), col('n', 'n (1. Versuch)'), col('mean1', 'Ø Resultat 1. Versuch'), col('n2', 'n (bestanden)'), col('mean2', 'Ø Resultat bestandener Run')],
     rows,
-    note: SMALL_NOTE + '; Resultat = erreichte Punkte in Prozent; «bestandener Run» nur für Personen, deren absolvierte Teilprüfungen alle bestanden sind',
+    note: SMALL_NOTE + '; Resultat = erreichte Punkte in Prozent; n = Vorgänge mit Wert; «bestandener Run» nur für Vorgänge, deren absolvierte Teilprüfungen alle bestanden sind',
   };
 }
 
@@ -76,7 +85,7 @@ export function partTable(persons, kind = 'we') {
     title: (kind === 'oe' ? 'Mündlich' : 'Schriftlich') + ' je Teilprüfung',
     columns: [col('gruppe', 'Teilprüfung'), col('n', 'n'), col('bestanden1', 'Im 1. Versuch bestanden'), col('durchgefallen1', 'Im 1. Versuch durchgefallen'), col('gesamt', 'Insgesamt bestanden'), col('mean1', 'Ø Resultat 1. Versuch'), col('mean2', 'Ø Resultat bestandener Run')],
     rows,
-    note: SMALL_NOTE + '; n = Personen mit absolviertem RUN1 der Teilprüfung',
+    note: SMALL_NOTE + '; n = Vorgänge mit absolviertem RUN1 der Teilprüfung',
   };
 }
 
@@ -86,7 +95,11 @@ export function partTable(persons, kind = 'we') {
 
 function oralRow(label, rates) {
   const n = rates.bestanden.n;
-  return { gruppe: mark(label, n < SMALL_N), n, small: n < SMALL_N, bestanden: formatPct(rates.bestanden.pct), failed1: formatPct(rates.failed1.pct), failed2: formatPct(rates.failed2.pct) };
+  return {
+    gruppe: mark(label, n < SMALL_N), n, small: n < SMALL_N,
+    bestanden: formatPct(rates.bestanden.pct), nichtBestanden: formatPct(rates.nichtBestanden.pct), offen: rates.offen, nichtErfasst: rates.nichtErfasst,
+    angetreten: rates.angetreten, failed1: formatPct(rates.failed1.pct), failed2: formatPct(rates.failed2.pct),
+  };
 }
 
 export function oralRateTable(persons, key) {
@@ -94,9 +107,12 @@ export function oralRateTable(persons, key) {
   for (const g of byGroup(persons, key, oralPassRates)) rows.push(oralRow(groupLabel(g.key), g.value));
   return {
     title: 'Bestehensquote mündlich nach ' + GROUP_LABELS[key],
-    columns: [col('gruppe', GROUP_LABELS[key]), col('n', 'n'), col('bestanden', 'Bestanden'), col('failed1', 'Im 1. Versuch durchgefallen'), col('failed2', '2× durchgefallen')],
+    columns: [
+      col('gruppe', GROUP_LABELS[key]), col('n', 'n (abgeschlossen)'), col('bestanden', 'Bestanden'), col('nichtBestanden', 'Nicht bestanden'), col('offen', 'Offen'), col('nichtErfasst', 'Nicht erfasst'),
+      col('angetreten', 'n (angetreten)'), col('failed1', 'Im 1. Versuch durchgefallen'), col('failed2', '2× durchgefallen'),
+    ],
     rows,
-    note: SMALL_NOTE + '; n = Personen mit absolviertem, datiertem OE1 RUN1',
+    note: SMALL_NOTE + '; bestanden / nicht bestanden: Nenner sind abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden); durchgefallen: Nenner sind angetretene Vorgänge (absolvierter, datierter OE1 RUN1)',
   };
 }
 
@@ -116,9 +132,9 @@ export function vssVsmTable(persons) {
   }
   return {
     title: 'Bestehensquoten VSS / VSM / ohne, je Profil',
-    columns: [col('gruppe', 'Gruppe'), col('profil', 'Profil'), col('n', 'n'), col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('gesamt', 'Schriftlich insgesamt bestanden'), col('muendlich', 'Mündlich bestanden')],
+    columns: [col('gruppe', 'Gruppe'), col('profil', 'Profil'), col('n', 'n (Vorgänge)'), col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('gesamt', 'Schriftlich insgesamt bestanden'), col('muendlich', 'Mündlich bestanden')],
     rows,
-    note: 'Personen mit VSS und VSM zählen in beiden Gruppen; Zeilen mit n < ' + SMALL_N + ' sind eingeschränkt aussagekräftig',
+    note: 'Vorgänge mit VSS und VSM zählen in beiden Gruppen; Zeilen mit n < ' + SMALL_N + ' sind eingeschränkt aussagekräftig; Nenner der Quoten wie in den Ansichten Schriftlich und Mündlich',
   };
 }
 
@@ -170,6 +186,7 @@ export function plannedTables(persons) {
         name: personName(r.person), bank: r.person.employerCanon || '', profil: groupLabel(r.person.profil), sprache: groupLabel(r.person.sprache),
       })),
     },
+    personen: new Set(runs.map((r) => r.person.personKey)).size, // Menschen mit geplanten Terminen
   };
 }
 
@@ -177,43 +194,73 @@ export function plannedTables(persons) {
 // Übersicht
 // ---------------------------------------------------------------------------
 
-export function overviewModel(persons) {
+// Personen mit mehreren Profilen (E3): Anzahl und Profil-Abfolge, ohne Namen. allPersons = kennzahlrelevante Vorgänge
+// ohne Filter, damit ein Profil-Filter die Abfolge nicht zerschneidet; gezählt werden Personen mit ≥1 Vorgang im Filter.
+export function multiProfileTable(persons, allPersons = persons) {
+  const inFilter = new Set(persons);
+  const multi = multiProfilePersons(allPersons).filter((g) => g.vorgaenge.some((v) => inFilter.has(v)));
+  const bySeq = new Map();
+  for (const m of multi) {
+    const g = bySeq.get(m.sequence) || { sequence: m.sequence, personen: 0, vorgaenge: 0 };
+    g.personen += 1;
+    g.vorgaenge += m.vorgaenge.length;
+    bySeq.set(m.sequence, g);
+  }
+  const collator = new Intl.Collator('de-CH');
+  return {
+    title: 'Personen mit mehreren Profilen',
+    columns: [col('sequence', 'Profil-Abfolge'), col('personen', 'Personen'), col('vorgaenge', 'Vorgänge')],
+    rows: [...bySeq.values()].sort((a, b) => b.personen - a.personen || collator.compare(a.sequence, b.sequence)),
+    note: 'Zählt Menschen (Personenschlüssel aus Name und Geburtsdatum, nicht Employer), nicht Vorgänge. Abfolge nach dem ersten Prüfungsdatum je Vorgang; berücksichtigt alle kennzahlrelevanten Vorgänge der Person, auch ausserhalb des aktiven Profil-Filters.',
+    total: multi.length,
+  };
+}
+
+export function overviewModel(persons, allPersons = persons) {
   const o = overview(persons, MODE.ERSTVERSUCH);
   const wp1 = writtenPerformance(persons, MODE.ERSTVERSUCH);
   const wp2 = writtenPerformance(persons, MODE.BESTANDEN);
   const op1 = oralPerformance(persons, MODE.ERSTVERSUCH);
   const op2 = oralPerformance(persons, MODE.BESTANDEN);
-  // count: absolute Zahl bei Anteilen (x von n Personen), null bei Mittelwerten und Zählungen
+  const multi = multiProfileTable(persons, allPersons);
+  // count: absolute Zahl bei Anteilen (x von n Vorgängen), null bei Mittelwerten und Zählungen
   // kind/raw: Art und Rohwert für Vergleiche (ratio: Anteil 0..1, mean: Mittel 0..1, count: Zahl)
   const kpi = (label, value, n, hint, extra = {}) => ({ label, value, n, small: n < SMALL_N, hint, count: null, kind: 'count', raw: null, ...extra });
   const rate = (label, r, hint) => kpi(label, formatPct(r.pct), r.n, hint, { count: r.count, kind: 'ratio', raw: r.pct });
   const avg = (label, m, hint) => kpi(label, formatPct(m.mean), m.n, hint, { kind: 'mean', raw: m.mean });
   const kpis = [
-    kpi('Personen', String(o.n), o.n, 'Personen im Filter mit mindestens einem absolvierten, datierten schriftlichen Run', { raw: o.n }),
-    rate('Schriftlich: im 1. Versuch bestanden', o.written.erstversuch, 'Anteil Personen, die alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden haben'),
-    rate('Schriftlich: im 1. Versuch durchgefallen', o.written.erstversuchFailed, 'Anteil Personen mit mindestens einer Teilprüfung, die im ersten Versuch nicht bestanden wurde'),
-    rate('Schriftlich: insgesamt bestanden', o.written.gesamt, 'Anteil Personen mit «WE All Passed» = yes, unabhängig von der Anzahl Versuche'),
-    avg('Schriftlich: Ø Resultat 1. Versuch', wp1, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des ersten Versuchs je Teilprüfung'),
-    avg('Schriftlich: Ø Resultat bestandener Run', wp2, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des bestandenen Runs; nur Personen, deren Teilprüfungen alle bestanden sind'),
-    rate('Mündlich: bestanden', o.oral.bestanden, 'Anteil Personen mit «OE All Passed» = yes; n = Personen mit absolvierter mündlicher Prüfung OE1'),
-    rate('Mündlich: im 1. Versuch durchgefallen', o.oral.failed1, 'OE1 im ersten Versuch nicht bestanden, unabhängig vom späteren Erfolg'),
-    rate('Mündlich: 2× durchgefallen', o.oral.failed2, 'OE1 im ersten und im zweiten Versuch nicht bestanden'),
-    avg('Mündlich: Ø Resultat 1. Versuch', op1, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), erster Versuch'),
+    kpi('Vorgänge', String(o.n), o.n, 'Zertifizierungsvorgänge (Zeilen ohne Duplikate) im Filter mit mindestens einem absolvierten, datierten schriftlichen Run', { raw: o.n }),
+    kpi('Personen', String(o.personen), o.n, 'Menschen hinter den Vorgängen im Filter (Personenschlüssel aus Name und Geburtsdatum); eine Person kann mehrere Vorgänge haben', { raw: o.personen }),
+    kpi('Vorgänge offen', String(o.status.offen), o.n, 'Vorgänge ohne Gesamtergebnis (Prozess läuft noch); nicht im Nenner der Bestehensquoten', { raw: o.status.offen }),
+    kpi('Vorgänge nicht erfasst', String(o.status.nichtErfasst), o.n, 'Vorgänge mit unlesbarem Gesamtergebnis (Fehler im Data-Quality-Log); nicht im Nenner der Bestehensquoten', { raw: o.status.nichtErfasst }),
+    rate('Schriftlich: im 1. Versuch bestanden', o.written.erstversuch, 'Anteil Vorgänge, bei denen alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden sind; n = Vorgänge mit absolviertem WE RUN1'),
+    rate('Schriftlich: im 1. Versuch durchgefallen', o.written.erstversuchFailed, 'Anteil Vorgänge mit mindestens einer Teilprüfung, die im ersten Versuch nicht bestanden wurde; n = Vorgänge mit absolviertem WE RUN1'),
+    rate('Schriftlich: insgesamt bestanden', o.written.gesamt, 'Anteil abgeschlossener Vorgänge mit «WE All Passed» = yes, unabhängig von der Anzahl Versuche; n = abgeschlossene Vorgänge schriftlich (bestanden + nicht bestanden)'),
+    avg('Schriftlich: Ø Resultat 1. Versuch', wp1, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des ersten Versuchs je Teilprüfung; n = Vorgänge mit Wert'),
+    avg('Schriftlich: Ø Resultat bestandener Run', wp2, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des bestandenen Runs; nur Vorgänge, deren Teilprüfungen alle bestanden sind'),
+    rate('Mündlich: bestanden', o.oral.bestanden, 'Anteil abgeschlossener Vorgänge mit «OE All Passed» = yes; n = abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden)'),
+    rate('Mündlich: im 1. Versuch durchgefallen', o.oral.failed1, 'OE1 im ersten Versuch nicht bestanden, unabhängig vom späteren Erfolg; n = angetretene Vorgänge (absolvierter, datierter OE1 RUN1)'),
+    rate('Mündlich: 2× durchgefallen', o.oral.failed2, 'OE1 im ersten und im zweiten Versuch nicht bestanden; n = angetretene Vorgänge'),
+    avg('Mündlich: Ø Resultat 1. Versuch', op1, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), erster Versuch; n = Vorgänge mit Wert'),
     avg('Mündlich: Ø Resultat bestandener Run', op2, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), bestandener Run'),
-    kpi('VSS / VSM', o.vss + ' / ' + o.vsm, o.n, 'Anzahl Personen mit Kennzeichnung VSS bzw. VSM aus dem Kommentar auf der Namenszelle'),
-    kpi('Ausgestellte Zertifikate', String(o.issued), o.n, 'Personen aus dem Sheet «Ausgestellte Zertifikate» im Filter', { raw: o.issued }),
+    kpi('VSS / VSM', o.vss + ' / ' + o.vsm, o.n, 'Anzahl Vorgänge mit Kennzeichnung VSS bzw. VSM aus dem Kommentar auf der Namenszelle'),
+    kpi('Ausgestellte Zertifikate', String(o.issued), o.n, 'Vorgänge mit ausgestelltem Zertifikat (Sheet «Ausgestellte Zertifikate» oder damit zusammengeführt) im Filter', { raw: o.issued }),
+    kpi('Personen mit mehreren Profilen', String(multi.total), o.personen, 'Personen im Filter mit Vorgängen in mehr als einem Profil (Abfolge in der Tabelle unten)', { raw: multi.total }),
   ];
   const byProfil = {
     title: 'Kennzahlen je Profil',
-    columns: [col('gruppe', 'Profil'), col('n', 'n'), col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('durchgefallen', 'Schriftlich im 1. Versuch durchgefallen'), col('gesamt', 'Schriftlich insgesamt bestanden'), col('muendlich', 'Mündlich bestanden')],
+    columns: [
+      col('gruppe', 'Profil'), col('n', 'n (Vorgänge)'), col('personen', 'Personen'), col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('durchgefallen', 'Schriftlich im 1. Versuch durchgefallen'),
+      col('gesamt', 'Schriftlich insgesamt bestanden'), col('muendlich', 'Mündlich bestanden'), col('offen', 'Offen'),
+    ],
     rows: o.byProfil.map((g) => ({
-      gruppe: mark(groupLabel(g.key), g.small), n: g.n, small: g.small,
+      gruppe: mark(groupLabel(g.key), g.small), n: g.n, small: g.small, personen: personCount(persons.filter((p) => (p.profil === undefined ? null : p.profil) === g.key)),
       erstversuch: formatPct(g.value.written.erstversuch.pct), durchgefallen: formatPct(g.value.written.erstversuchFailed.pct),
-      gesamt: formatPct(g.value.written.gesamt.pct), muendlich: formatPct(g.value.oral.bestanden.pct),
+      gesamt: formatPct(g.value.written.gesamt.pct), muendlich: formatPct(g.value.oral.bestanden.pct), offen: g.value.written.offen,
     })),
-    note: SMALL_NOTE,
+    note: SMALL_NOTE + '; offen = Vorgänge ohne schriftliches Gesamtergebnis; Nenner der Quoten wie in den Kacheln',
   };
-  return { kpis, byProfil };
+  return { kpis, byProfil, multi };
 }
 
 // ---------------------------------------------------------------------------

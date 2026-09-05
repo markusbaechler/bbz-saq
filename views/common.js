@@ -25,7 +25,7 @@ function cellText(v) {
 
 // Tabellenmodell → <div class="table-wrap"><table>…; Zeilen mit small=true erhalten die Klasse «small»
 export function renderTable(table, { caption = true } = {}) {
-  const numeric = new Set(table.columns.filter((c) => /^(n|anzahl|rang|versuche)$/.test(c.key)).map((c) => c.key));
+  const numeric = new Set(table.columns.filter((c) => /^(n|n2|anzahl|rang|versuche|abgeschlossen|angetreten|offen|nichtErfasst|personen|vorgaenge|count)$/.test(c.key)).map((c) => c.key));
   const thead = el('thead', {}, [el('tr', {}, table.columns.map((c) => el('th', { scope: 'col', class: numeric.has(c.key) ? 'num' : null, text: c.label })))]);
   const tbody = el('tbody', {}, table.rows.map((row) => el('tr', { class: row.small ? 'small' : null }, table.columns.map((c) => el('td', { class: numeric.has(c.key) ? 'num' : null, text: cellText(row[c.key]) })))));
   const children = [];
@@ -42,7 +42,7 @@ export function renderKpis(kpis) {
   return el('div', { class: 'kpis' }, kpis.map((k) => el('div', { class: 'kpi' + (k.small ? ' small' : ''), title: k.hint || null }, [
     el('div', { class: 'kpi-label', text: k.label }),
     el('div', { class: 'kpi-value', text: k.value }),
-    el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' Personen' : 'n = ' + k.n) + (k.small ? ' *' : '') }),
+    el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' Vorgängen' : 'n = ' + k.n) + (k.small ? ' *' : '') }),
     k.benchmark ? el('div', { class: 'kpi-bench', text: 'Benchmark: ' + k.benchmark }) : null,
     k.hint ? el('div', { class: 'kpi-hint', text: k.hint }) : null,
   ])));

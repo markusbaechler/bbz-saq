@@ -11,7 +11,7 @@ export function build(ctx) {
   return {
     nodes: [
       section('Bestehensquoten VSS / VSM / ohne', [renderTable(table)], {
-        intro: 'VSS und VSM stammen aus den Threaded Comments auf der Namenszelle (Muster «VSS …» bzw. «VSM …»). Personen mit beiden Kennzeichnungen zählen in beiden Gruppen; «ohne» = weder VSS noch VSM.',
+        intro: 'VSS und VSM stammen aus den Threaded Comments auf der Namenszelle (Muster «VSS …» bzw. «VSM …»). Vorgänge mit beiden Kennzeichnungen zählen in beiden Gruppen; «ohne» = weder VSS noch VSM. Nenner der Quoten wie in den Ansichten Schriftlich und Mündlich (abgeschlossene bzw. angetretene Vorgänge).',
       }),
     ],
     tables: [table],

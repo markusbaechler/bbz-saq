@@ -148,7 +148,7 @@ export const BENCHMARKS = [
   { id: 'bank', label: 'Alle Banken', hint: 'gleicher Zeitraum und gleiche übrigen Filter, ohne Bank-Filter' },
   { id: 'profil', label: 'Alle Profile', hint: 'gleicher Zeitraum und gleiche übrigen Filter, ohne Profil-Filter' },
   { id: 'sprache', label: 'Alle Sprachen', hint: 'gleicher Zeitraum und gleiche übrigen Filter, ohne Sprach-Filter' },
-  { id: 'gesamt', label: 'Gesamt (nur Zeitraum)', hint: 'alle Personen im Zeitraum, ohne weitere Filter' },
+  { id: 'gesamt', label: 'Gesamt (nur Zeitraum)', hint: 'alle Vorgänge im Zeitraum, ohne weitere Filter' },
 ];
 
 export function benchmarkFilter(filter, kind = 'bank') {
