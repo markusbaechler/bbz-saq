@@ -22,7 +22,7 @@
 //   Nenner = Personen mit OE1 RUN1-Datum.
 // - Award = 0.5·Schriftlich + 0.5·Mündlich, nur mit bestandener OE; Tie-Break: weniger Versuche, früheres Referenzdatum.
 
-import { CONFIG, PROFILES } from './config.js';
+import { CONFIG, PROFILES, PROFILE_PARTS, PASSERELLE } from './config.js';
 
 export const MODE = Object.freeze({ ERSTVERSUCH: 'erstversuch', BESTANDEN: 'bestanden' });
 
@@ -228,26 +228,50 @@ export function statusCounts(persons, field = 'status') {
   return c;
 }
 
-// Teilprüfungen je Profil, aus den Daten abgeleitet [hypothese]: ein Teil gehört zum Profil, wenn mindestens SMALL_N Vorgänge
-// des Profils einen absolvierten Run darin haben. [{ profil, we: [1,2,3], oe: [1], n }] in Profilreihenfolge.
+// Teilprüfungen je Profil laut Vorgabe (config.PROFILE_PARTS, Auftraggeber 05.09.2026): [{ profil, we: [1,2,3], oe: [1] }]
+// in Profilreihenfolge. Massgebend für «Fehlende Teile» und den Hinweis «alle Teile bestanden, Gesamtergebnis leer».
+export function profileParts() {
+  return PROFILES.filter((profil) => PROFILE_PARTS[profil]).map((profil) => ({ profil, we: PROFILE_PARTS[profil].we.slice(), oe: PROFILE_PARTS[profil].oe.slice() }));
+}
+
+// Nutzung der Teilprüfungen in den Daten [beobachtet], zur Kontrolle der Vorgabe: je Profil die Anzahl Vorgänge mit
+// absolviertem Run je Teil (taken.we[i] für WE(i+1)) und die Teile mit mindestens SMALL_N solchen Vorgängen (we/oe).
 export function partsByProfile(persons) {
   return groupBy(persons.filter(isVorgang), 'profil').map((g) => {
     const parts = { we: [], oe: [] };
+    const taken = { we: [], oe: [] };
     for (const kind of ['we', 'oe']) {
-      const count = CONFIG[kind].parts;
-      for (let i = 0; i < count; i++) {
-        const taken = g.persons.filter((p) => p[kind][i] && p[kind][i].runs.some((r) => r.taken)).length;
-        if (taken >= SMALL_N) parts[kind].push(i + 1);
+      for (let i = 0; i < CONFIG[kind].parts; i++) {
+        const n = g.persons.filter((p) => p[kind][i] && p[kind][i].runs.some((r) => r.taken)).length;
+        taken[kind].push(n);
+        if (n >= SMALL_N) parts[kind].push(i + 1);
       }
     }
-    return { profil: g.key, we: parts.we, oe: parts.oe, n: g.persons.length };
+    return { profil: g.key, we: parts.we, oe: parts.oe, n: g.persons.length, taken };
   });
 }
 
-// Teile des Profils, die ein Vorgang noch nicht bestanden hat: ['WE3', 'OE1'].
-// null, wenn das Profil unbekannt ist oder (zu wenige Vorgänge) noch keine Teile abgeleitet sind.
-export function missingParts(p, profileParts) {
-  const def = profileParts.find((x) => x.profil === (p.profil === undefined ? null : p.profil));
+function partsFor(p, parts) {
+  return parts.find((x) => x.profil === (p.profil === undefined ? null : p.profil)) || null;
+}
+
+// Teile mit absolviertem Run ausserhalb der Vorgabe des Profils: ['WE4']. null, wenn das Profil keine Vorgabe hat.
+export function partsOutsideProfile(p, parts = profileParts()) {
+  const def = partsFor(p, parts);
+  if (!def) return null;
+  const out = [];
+  for (const kind of ['we', 'oe']) {
+    p[kind].forEach((part, i) => {
+      if (part && part.runs.some((r) => r.taken) && !def[kind].includes(i + 1)) out.push(kind.toUpperCase() + (i + 1));
+    });
+  }
+  return out;
+}
+
+// Teile der Vorgabe, die ein Vorgang noch nicht bestanden hat: ['WE3', 'OE1'].
+// null, wenn das Profil keine Vorgabe hat (unbekanntes oder leeres Profil).
+export function missingParts(p, parts = profileParts()) {
+  const def = partsFor(p, parts);
   if (!def || def.we.length + def.oe.length === 0) return null;
   const out = [];
   for (const kind of ['we', 'oe']) {
@@ -257,6 +281,25 @@ export function missingParts(p, profileParts) {
     }
   }
   return out;
+}
+
+// Vorgänge je Personenschlüssel (ohne Duplikate) für Nachschlagen über Profile hinweg
+export function personIndex(persons) {
+  const m = new Map();
+  for (const p of persons) {
+    if (!isVorgang(p)) continue;
+    if (!m.has(p.personKey)) m.set(p.personKey, []);
+    m.get(p.personKey).push(p);
+  }
+  return m;
+}
+
+// Passerelle möglich: p gehört zu einem Nachfolgeprofil (config.PASSERELLE) und dieselbe Person hat das Vorgängerprofil
+// bestanden (Status bestanden oder ausgestelltes Zertifikat). Liefert das Vorgängerprofil oder null. index = personIndex().
+export function passerelleFrom(p, index) {
+  const pred = PASSERELLE[p.profil];
+  if (!pred) return null;
+  return (index.get(p.personKey) || []).some((q) => q !== p && q.profil === pred && (q.status === STATUS.BESTANDEN || q.issued)) ? pred : null;
 }
 
 function endOfDay(date) {

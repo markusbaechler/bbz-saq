@@ -53,6 +53,24 @@ export const LANGUAGE_ALIASES = { D: 'DE', F: 'FR', I: 'IT', E: 'EN' };
 // Programmbezeichnungen, die eine Prüfungssprache implizieren (nur wenn «Certificate Language» leer ist)
 export const PROFILE_LANGUAGE_HINTS = { 'PK FRZ': 'FR' };
 
+// Teilprüfungen je Profil laut Auftraggeber (05.09.2026): schriftlich PK 1, IK 1, AFFL 2, CWMA 3, KMU 3, CCoB 3 Teile;
+// mündlich immer eine Prüfung (OE1). Gilt nach Auskunft des Auftraggebers für alle Jahrgänge.
+// Annahme [hypothese, vom Auftraggeber so freigegeben, ggf. zu korrigieren]: die Teile stehen von links in WE1…WEn.
+// Bei Abweichung hier korrigieren; die Ansicht «Offene Vorgänge» stellt Vorgabe und Nutzung in den Daten gegenüber.
+export const PROFILE_PARTS = {
+  PK: { we: [1], oe: [1] },
+  IK: { we: [1], oe: [1] },
+  AFFL: { we: [1, 2], oe: [1] },
+  CWMA: { we: [1, 2, 3], oe: [1] },
+  KMU: { we: [1, 2, 3], oe: [1] },
+  CCoB: { we: [1, 2, 3], oe: [1] },
+};
+
+// Passerelle (Auftraggeber 05.09.2026): Nachfolgeprofil → Vorgängerprofil. Mit bestandenem Vorgängerprofil ist nur ein
+// schriftlicher Teil nötig. Wie eine Passerelle in der Datei erfasst ist und welche Spalte der Teil belegt, ist [unklar];
+// darum nur Kennzeichnung «Passerelle möglich» (Vorgängerprofil derselben Person bestanden), keine reduzierte Teileliste.
+export const PASSERELLE = { IK: 'PK', CWMA: 'AFFL', CCoB: 'KMU' };
+
 // Passed-Felder: Schreibweisen nach trim, Vergleich ohne Gross-/Kleinschreibung. Alles andere → null + Data-Quality-Log.
 export const PASSED_TRUE = ['yes', 'YES', 'Yes', 'PASSED', 'fulfilled', 'FULFILLED'];
 export const PASSED_FALSE = ['no', 'No', 'FAILED'];

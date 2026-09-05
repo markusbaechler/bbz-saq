@@ -484,7 +484,7 @@ test('normalizeWorkbook: beide Sheets → eine Personenliste, DQ gesammelt, Meta
   assertEqual(result.meta.fileName, 'Reporting_KUBA.xlsx');
   assertEqual(result.meta.counts, {
     first: 2, issued: 1, zeilen: 3, vorgaenge: 3, personen: 3, duplikate: 0, profilKonflikte: 0, mehrereProfile: 0,
-    bestanden: 3, nichtBestanden: 0, offen: 0, passiv: 0, nichtErfasst: 0, vollstaendigOhneGesamtergebnis: 0, schluesselOhneGeburtsdatum: 3,
+    bestanden: 3, nichtBestanden: 0, offen: 0, passiv: 0, nichtErfasst: 0, vollstaendigOhneGesamtergebnis: 0, teileAusserhalbVorgabe: 0, passerelleMoeglich: 0, schluesselOhneGeburtsdatum: 3,
     dq: 1, fehler: 1, hinweise: 0, nichtAusgewertet: 0,
     wirkungUnsichtbar: 0, wirkungKennzahl: 1, wirkungKeine: 0,
   });
@@ -843,18 +843,47 @@ test('normalizeSheet: passiv = offen, letzte Prüfung > 365 Tage vor dem Stichta
   assertEqual([wb.meta.counts.offen, wb.meta.counts.passiv], [4, 1]);
 });
 
-test('normalizeWorkbook: Hinweis, wenn alle Teilprüfungen des Profils bestanden sind, aber das Gesamtergebnis leer ist (Entscheid 3)', () => {
-  const done = (name, extra = {}) => ({ lastName: name, firstName: 'D', profil: 'PK', weAllPassed: 'yes', oeAllPassed: 'yes',
+test('normalizeWorkbook: Hinweis, wenn alle Teilprüfungen der Vorgabe bestanden sind, aber das Gesamtergebnis leer ist (Entscheid 3)', () => {
+  const done = (name, extra = {}) => ({ lastName: name, firstName: 'D', profil: 'AFFL', weAllPassed: 'yes', oeAllPassed: 'yes',
     ...runValues('we', { 1: [{ passed: 'yes', date: '01.03.2024', score: 1, result: 0.8 }], 2: [{ passed: 'yes', date: '01.03.2024', score: 1, result: 0.7 }] }),
     ...runValues('oe', { 1: [{ passed: 'yes', date: '01.06.2024', score: 1, result: 0.9 }] }), ...extra });
-  const rows = ['A', 'B', 'C', 'D', 'E'].map((n) => done(n));                    // PK: WE1, WE2, OE1 gehören zum Profil
+  const rows = ['A', 'B', 'C', 'D', 'E'].map((n) => done(n));                    // AFFL: Vorgabe WE1, WE2, OE1 (config.PROFILE_PARTS)
   rows.push(done('Vergessen', { weAllPassed: '' }));                             // alle WE-Teile bestanden, WE All leer → Hinweis
   rows.push(done('Unterwegs', { weAllPassed: '', 'we2.run1.passed': 'no' }));    // WE2 nicht bestanden → kein Hinweis
   rows.push(done('Mund', { oeAllPassed: '' }));                                  // OE1 bestanden, OE All leer → Hinweis
   const wb = normalizeWorkbook({ sheets: [makeSheet('first', rows)] }, { today: new Date(2026, 8, 5) });
   const hints = wb.dq.filter((e) => /Gesamtergebnis leer/.test(e.reason));
   assertEqual(hints.map((e) => [e.row, e.header, e.level, e.impact]), [[16, 'WE All Passed', 'hinweis', 'kennzahl'], [18, 'OE All Passed', 'hinweis', 'kennzahl']]);
-  assert(/WE1, WE2/.test(hints[0].reason) && /OE1/.test(hints[1].reason), hints[0].reason);
-  assertEqual(wb.meta.counts.vollstaendigOhneGesamtergebnis, 2);
+  assert(/AFFL \(WE1, WE2\)/.test(hints[0].reason) && /OE1/.test(hints[1].reason), hints[0].reason);
+  assertEqual([wb.meta.counts.vollstaendigOhneGesamtergebnis, wb.meta.counts.teileAusserhalbVorgabe], [2, 0]);
   assertEqual(wb.persons[5].status, 'offen', 'Status bleibt offen (E4), keine Ableitung');
+});
+
+test('normalizeWorkbook: Vorgabe gilt unabhängig von der Gruppengrösse; absolvierte Runs ausserhalb der Vorgabe → Hinweis ohne Kennzahlwirkung', () => {
+  // PK: Vorgabe WE1, OE1. Ein einzelner Vorgang genügt (keine Mindestzahl wie bei der Datenableitung).
+  const rows = [
+    { lastName: 'Einzeln', firstName: 'E', profil: 'PK', weAllPassed: '', oeAllPassed: 'yes', ...runValues('we', { 1: [{ passed: 'yes', date: '01.03.2024', score: 1, result: 0.8 }] }), ...runValues('oe', { 1: [{ passed: 'yes', date: '01.06.2024', score: 1, result: 0.9 }] }) },
+    { lastName: 'Zuviel', firstName: 'Z', profil: 'PK', weAllPassed: 'yes', oeAllPassed: 'yes', ...runValues('we', { 1: [{ passed: 'yes', date: '01.03.2024', score: 1, result: 0.8 }], 4: [{ passed: 'no', date: '02.03.2024', score: 1, result: 0.3 }] }), ...runValues('oe', { 1: [{ passed: 'yes', date: '01.06.2024', score: 1, result: 0.9 }], 2: [{ passed: 'yes', date: '02.06.2024', score: 1, result: 0.9 }] }) },
+  ];
+  const wb = normalizeWorkbook({ sheets: [makeSheet('first', rows)] }, { today: new Date(2026, 8, 5) });
+  const voll = wb.dq.filter((e) => /Gesamtergebnis leer/.test(e.reason));
+  assertEqual(voll.map((e) => [e.row, e.header]), [[11, 'WE All Passed']], 'WE1 bestanden = Vorgabe PK vollständig');
+  const outside = wb.dq.filter((e) => /ausserhalb|Vorgabe für PK umfasst/.test(e.reason));
+  assertEqual(outside.map((e) => [e.row, e.header, e.field, e.level, e.impact]), [[12, 'WE4 Passed', 'we4.passed', 'hinweis', 'keine'], [12, 'OE2 Passed', 'oe2.passed', 'hinweis', 'keine']]);
+  assert(/nur WE1/.test(outside[0].reason) && /nur OE1/.test(outside[1].reason), outside[0].reason);
+  assertEqual([wb.meta.counts.vollstaendigOhneGesamtergebnis, wb.meta.counts.teileAusserhalbVorgabe, wb.meta.counts.passerelleMoeglich], [1, 1, 0]);
+});
+
+test('normalizeWorkbook: Passerelle möglich, wenn dieselbe Person das Vorgängerprofil bestanden hat (PK→IK, AFFL→CWMA, KMU→CCoB)', () => {
+  const base = (o) => ({ lastName: 'Weiter', firstName: 'W', birthDate: '01.01.1990', weAllPassed: '', oeAllPassed: '',
+    ...runValues('we', { 1: [{ passed: 'yes', date: '01.03.2026', score: 1, result: 0.8 }] }), ...runValues('oe', { 1: [{ passed: '', date: '', score: '', result: '' }] }), ...o });
+  const rows = [
+    base({ profil: 'PK', weAllPassed: 'yes', oeAllPassed: 'yes', ...runValues('we', { 1: [{ passed: 'yes', date: '01.03.2024', score: 1, result: 0.8 }] }), ...runValues('oe', { 1: [{ passed: 'yes', date: '01.06.2024', score: 1, result: 0.9 }] }) }), // PK bestanden
+    base({ profil: 'IK' }),                                                                       // IK offen, Vorgänger PK bestanden → Passerelle möglich
+    base({ lastName: 'Direkt', firstName: 'D', birthDate: '02.02.1992', profil: 'IK' }),         // IK ohne PK → nicht
+    base({ lastName: 'Falsch', firstName: 'F', birthDate: '03.03.1993', profil: 'CWMA' }),       // CWMA ohne AFFL → nicht
+  ];
+  const wb = normalizeWorkbook({ sheets: [makeSheet('first', rows)] }, { today: new Date(2026, 8, 5) });
+  assertEqual(wb.meta.counts.passerelleMoeglich, 1);
+  assertEqual(wb.persons.map((p) => p.status), ['bestanden', 'offen', 'offen', 'offen']);
 });

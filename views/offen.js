@@ -29,7 +29,7 @@ export function build(ctx) {
       }),
       section('Je Profil', [renderTable(t.summary)]),
       section('Teilprüfungen je Profil', [renderTable(parts)], {
-        intro: 'Welche Teilprüfungen ein Profil umfasst, ist aus den Daten abgeleitet (mindestens 5 Vorgänge mit absolviertem Run). Daraus ergeben sich je offenem Vorgang die fehlenden Teile in der Tabelle «Teilnehmende» und der Hinweis im Data-Quality-Log, wenn alle Teile bestanden sind, aber das Gesamtergebnis fehlt.',
+        intro: 'Vorgabe laut Auftraggeber (05.09.2026): schriftlich PK 1, IK 1, AFFL 2, CWMA 3, KMU 3, CCoB 3 Teile, mündlich je OE1; Annahme: Teile von links in WE1–WEn. Die Tabelle stellt der Vorgabe die Nutzung in den Daten gegenüber. Daraus ergeben sich je offenem Vorgang die fehlenden Teile in «Teilnehmende» und der Hinweis im Data-Quality-Log, wenn alle Teile bestanden sind, aber das Gesamtergebnis fehlt. Passerelle (PK→IK, AFFL→CWMA, KMU→CCoB, je 1 Teil) wird nur als «möglich» gekennzeichnet, weil ihre Erfassung in der Datei offen ist.',
       }),
       section('Teilnehmende', [renderTable(t.details)]),
       section('Passiv seit über ' + PASSIVE_DAYS + ' Tagen', [renderTable(drop)], {

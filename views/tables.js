@@ -8,8 +8,7 @@ import {
   byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, plannedByKind, dayKey,
   multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
   timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
-  earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS,
-} from '../metrics.js';
+  earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS, profileParts, personIndex, passerelleFrom } from '../metrics.js';
 import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
 import { LOCATION_CAPACITY } from '../config.js';
 
@@ -511,7 +510,8 @@ export function excludedTables(persons, dq = []) {
 // allPersons: alle Vorgänge (für die Teilprüfungen je Profil), Standard = persons
 export function openCasesTables(persons, today = new Date(), allPersons = persons) {
   const cases = openCases(persons, today);
-  const profileParts = partsByProfile(allPersons);
+  const parts = profileParts();
+  const index = personIndex(allPersons);
   const byProfil = new Map();
   for (const c of cases) {
     const key = groupLabel(c.person.profil);
@@ -534,35 +534,58 @@ export function openCasesTables(persons, today = new Date(), allPersons = person
   const details = {
     title: 'Offene Vorgänge – Teilnehmende',
     columns: [
-      col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache'), col('offen', 'Offen'), col('fehlend', 'Fehlende Teile'), col('passiv', 'Passiv'), col('letzte', 'Letzte Prüfung'),
+      col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache'), col('offen', 'Offen'), col('fehlend', 'Fehlende Teile'), col('passerelle', 'Passerelle'), col('passiv', 'Passiv'), col('letzte', 'Letzte Prüfung'),
       col('tage', 'Tage seit letzter Prüfung'), col('naechste', 'Nächster Termin'), col('versuche', 'Versuche'), col('sheet', 'Sheet'), col('row', 'Zeile'),
     ],
     rows: cases.map((c) => {
-      const missing = missingParts(c.person, profileParts);
+      const missing = missingParts(c.person, parts);
+      const pass = passerelleFrom(c.person, index);
       return {
         name: personName(c.person), bank: c.person.employerCanon || '', profil: groupLabel(c.person.profil), sprache: groupLabel(c.person.sprache), offen: c.offen,
-        fehlend: missing === null ? '' : (missing.length ? missing.join(', ') : 'keine (Gesamtergebnis fehlt)'), passiv: c.person.passiv ? 'ja' : '',
+        fehlend: missing === null ? '' : (missing.length ? missing.join(', ') : 'keine (Gesamtergebnis fehlt)'), passerelle: pass ? 'möglich (' + pass + ' bestanden)' : '', passiv: c.person.passiv ? 'ja' : '',
         letzte: fmtDate(c.lastExam), tage: c.daysSinceLastExam === null ? '' : c.daysSinceLastExam, naechste: fmtDate(c.nextPlanned), versuche: c.attempts,
         sheet: c.person.sheetName, row: c.person.row,
       };
     }),
-    note: 'Sortiert nach letzter Prüfung (älteste zuerst); Vorgänge ohne Prüfung am Ende. Fehlende Teile = Teilprüfungen des Profils (aus den Daten abgeleitet) ohne bestandenen Run.',
+    note: 'Sortiert nach letzter Prüfung (älteste zuerst); Vorgänge ohne Prüfung am Ende. Fehlende Teile = Teilprüfungen der Vorgabe (config.js, PROFILE_PARTS) ohne bestandenen Run. Passerelle = Vorgängerprofil derselben Person bestanden; welcher Teil dann nötig ist, ist offen.',
   };
-  return { summary, details, total: cases.length, passiv: cases.filter((c) => c.person.passiv).length, ohnePruefung: cases.filter((c) => !c.lastExam).length, mitTermin: cases.filter((c) => c.nextPlanned).length };
+  return { summary, details, total: cases.length, passiv: cases.filter((c) => c.person.passiv).length, passerelle: cases.filter((c) => passerelleFrom(c.person, index)).length, ohnePruefung: cases.filter((c) => !c.lastExam).length, mitTermin: cases.filter((c) => c.nextPlanned).length };
 }
 
-// Teilprüfungen je Profil, aus den Daten abgeleitet (Entscheid 3): ein Teil gehört zum Profil, wenn mindestens 5 Vorgänge
-// des Profils ihn absolviert haben
+// Teilprüfungen je Profil (Entscheid 3, Vorgabe Auftraggeber 05.09.2026): Vorgabe aus config.PROFILE_PARTS neben der Nutzung in den Daten.
 export function profilePartsTable(persons) {
-  const rows = partsByProfile(persons).map((d) => ({
-    profil: groupLabel(d.profil), n: d.n, we: d.we.length ? d.we.map((x) => 'WE' + x).join(', ') : '–', oe: d.oe.length ? d.oe.map((x) => 'OE' + x).join(', ') : '–',
-    anzahl: d.we.length + d.oe.length,
-  }));
+  const parts = profileParts();
+  const data = partsByProfile(persons);
+  const byProfil = new Map(data.map((d) => [d.profil, d]));
+  const fmt = (kind, list) => (list.length ? list.map((x) => kind + x).join(', ') : '–');
+  const usage = (d, def) => {
+    const used = [];
+    const outside = [];
+    if (d) {
+      for (const kind of ['we', 'oe']) {
+        d.taken[kind].forEach((n, i) => {
+          if (!n) return;
+          const text = kind.toUpperCase() + (i + 1) + ' (' + n + ')';
+          used.push(text);
+          if (def && !def[kind].includes(i + 1)) outside.push(text);
+        });
+      }
+    }
+    return { daten: used.length ? used.join(', ') : '–', abweichung: outside.join(', ') };
+  };
+  const rows = parts.map((def) => {
+    const d = byProfil.get(def.profil) || null;
+    return { profil: def.profil, we: fmt('WE', def.we), oe: fmt('OE', def.oe), anzahl: def.we.length + def.oe.length, n: d ? d.n : 0, ...usage(d, def) };
+  });
+  for (const d of data) {
+    if (parts.some((x) => x.profil === d.profil)) continue;
+    rows.push({ profil: groupLabel(d.profil), we: '–', oe: '–', anzahl: 0, n: d.n, ...usage(d, null), abweichung: 'keine Vorgabe' });
+  }
   return {
-    title: 'Teilprüfungen je Profil (aus den Daten abgeleitet)',
-    columns: [col('profil', 'Profil'), col('n', 'n (Vorgänge)'), col('we', 'Schriftlich'), col('oe', 'Mündlich'), col('anzahl', 'Anzahl Teile')],
+    title: 'Teilprüfungen je Profil: Vorgabe und Nutzung in den Daten',
+    columns: [col('profil', 'Profil'), col('we', 'Schriftlich (Vorgabe)'), col('oe', 'Mündlich (Vorgabe)'), col('anzahl', 'Anzahl Teile'), col('n', 'n (Vorgänge)'), col('daten', 'In den Daten (Vorgänge je Teil)'), col('abweichung', 'Abweichung')],
     rows,
-    note: 'Ein Teil gehört zum Profil, wenn mindestens ' + SMALL_N + ' Vorgänge des Profils einen absolvierten Run darin haben [hypothese: aus den Daten, nicht aus einem Reglement].',
+    note: 'Vorgabe laut Auftraggeber 05.09.2026 (config.js, PROFILE_PARTS); Annahme: die Teile stehen von links in WE1–WEn [hypothese]. «In den Daten» = Anzahl Vorgänge mit absolviertem Run je Teil. Abweichung = absolvierte Runs ausserhalb der Vorgabe, je Vorgang als Hinweis im Data-Quality-Log.',
   };
 }
 
