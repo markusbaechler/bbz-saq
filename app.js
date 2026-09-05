@@ -19,10 +19,11 @@ import * as ranking from './views/ranking.js';
 import * as planned from './views/planned.js';
 import * as offen from './views/offen.js';
 import * as zeitverlauf from './views/zeitverlauf.js';
+import * as historie from './views/historie.js';
 import * as bankReport from './views/bankReport.js';
 import * as glossar from './views/glossar.js';
 
-const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, ranking, bankReport, offen, planned];
+const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, historie, ranking, bankReport, offen, planned];
 const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, build: v.build, noPersonExport: !!v.noPersonExport }))
   .concat([{ id: 'datenqualitaet', label: 'Datenqualität' }, { id: glossar.id, label: glossar.label, build: glossar.build, isStatic: true }]);
 
@@ -259,6 +260,9 @@ function renderView() {
     today: new Date(),
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
+    snapshots: state.ui.snapshots || [],
+    snapshotErrors: state.ui.snapshotErrors || [],
+    onSnapshotsChange: (snapshots, snapshotErrors = []) => store.setUi({ snapshots, snapshotErrors }),
     mode: filter.mode,
     modeLabel: MODE_LABELS[filter.mode] || filter.mode,
     filter,

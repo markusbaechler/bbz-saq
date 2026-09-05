@@ -54,3 +54,9 @@ test('urlState: Vergleichsjahre (a6) als vergleich=JJJJ-JJJJ; ungültig → null
   assertEqual(parseHash('#zeitverlauf').ui.compare, null);
   assertEqual(serializeState(DEFAULT_FILTER, { ...DEFAULT_UI, compare: { a: 'x', b: 2025 } }), '');
 });
+
+test('urlState.serializeState: geladene Snapshots (Historie) landen nie in der URL', () => {
+  const ui = { ...DEFAULT_UI, snapshots: [{ stichtag: '2026-01-31', kennzahlen: {} }], snapshotErrors: ['x.json: kein gültiges JSON'] };
+  assertEqual(serializeState(DEFAULT_FILTER, ui), '', 'nur Memory, keine Dateiinhalte in Links');
+  assertEqual(buildHash('historie', DEFAULT_FILTER, ui), '#historie');
+});

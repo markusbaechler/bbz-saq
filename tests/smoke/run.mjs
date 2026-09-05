@@ -7,7 +7,7 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { startServer } from './server.mjs';
 import { writeSynthWorkbook } from './synth.mjs';
 
@@ -121,6 +121,30 @@ try {
   const counter = (await page.textContent('#view .dq-count')).trim();
   check(filtered > 0 && filtered < allRows && counter.startsWith(filtered + ' von ' + allRows), 'DQ-Suche «Score» filtert (' + filtered + ' von ' + allRows + ' Einträgen; Zähler: «' + counter.slice(0, 40) + '…»)');
   check(await page.evaluate(() => !!document.activeElement && document.activeElement.classList.contains('dq-text')), 'DQ-Suche behält den Fokus');
+
+  // Historie (b7): Snapshot herunterladen (ohne Namen), wieder laden, Vergleich mit «Heute»
+  await page.goto(server.url + '#historie');
+  await page.waitForSelector('#view h2');
+  check((await page.locator('#view p.empty').count()) >= 1 && (await page.locator('#view table').count()) === 0, 'Historie ohne Snapshot: Hinweis, keine Vergleichstabellen');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#view button:has-text("Snapshot herunterladen")').click()]);
+  const snapshotPath = join(outDir, download.suggestedFilename());
+  await download.saveAs(snapshotPath);
+  const snapshotText = readFileSync(snapshotPath, 'utf8');
+  const snapshot = JSON.parse(snapshotText);
+  check(/^cockpit-snapshot-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename()) && snapshot.format === 'bbz-cockpit-snapshot' && snapshot.kennzahlen.vorgaenge.value === 8, 'Snapshot heruntergeladen: ' + download.suggestedFilename() + ', ' + snapshot.kennzahlen.vorgaenge.value + ' Vorgänge');
+  const names = ['Muster', 'Anna', 'Beispiel', 'Ben', 'Olga', 'Paul', 'Petra', 'Tom', 'Nora', 'Bea', 'Zoe', 'Testbank', 'Musterbank'];
+  check(names.every((n) => !snapshotText.includes(n)), 'Snapshot enthält keine Namen und keine Banken');
+  await page.setInputFiles('#view input[type="file"]', snapshotPath);
+  await page.waitForSelector('#view table.data');
+  const historyHeads = await page.$$eval('#view table.data caption', (c) => c.map((x) => x.textContent));
+  check(historyHeads.length === 6 && /Kennzahlen je Stichtag/.test(historyHeads[0]), 'Snapshot geladen, Vergleich mit ' + historyHeads.length + ' Tabellen');
+  const vorgRow = await page.$$eval('#view table.data tbody tr', (trs) => { const tr = trs.find((r) => r.children[0].textContent === 'Vorgänge'); return tr ? Array.from(tr.children).map((td) => td.textContent) : null; });
+  check(!!vorgRow && vorgRow[1] === '8' && vorgRow[2] === '8' && vorgRow[3] === '±0', 'Vergleich: Vorgänge Snapshot = Heute = 8, Differenz ±0 (' + (vorgRow || []).join(' | ') + ')');
+  check((await page.locator('#view .snapshot-list li').count()) === 1, 'Geladener Snapshot in der Liste');
+  await shot(page, 'historie');
+  await page.locator('#view .snapshot-list button:has-text("Entfernen")').click();
+  await page.waitForSelector('#view p.empty');
+  check((await page.locator('#view table.data').count()) === 0, 'Snapshot entfernt, Vergleich wieder leer');
 
   // Dark Mode: Zeitverlauf mit Diagramm
   await page.emulateMedia({ colorScheme: 'dark' });

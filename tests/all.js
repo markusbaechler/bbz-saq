@@ -12,3 +12,4 @@ import './export.test.js';
 import './tables.test.js';
 import './glossary.test.js';
 import './urlState.test.js';
+import './snapshot.test.js';
