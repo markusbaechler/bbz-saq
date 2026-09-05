@@ -1,5 +1,5 @@
 import { test, assert, assertEqual } from './runner.js';
-import { DQ_COLUMNS, formatRaw, sortDq, filterDq, sheetOptions, summarizeDq } from '../views/dataQuality.js';
+import { DQ_COLUMNS, formatRaw, sortDq, filterDq, sheetOptions, summarizeDq, summaryAsText } from '../views/dataQuality.js';
 
 const ENTRIES = [
   { sheet: 'First Certification', row: 100, header: 'WE1 RUN1 Passed', field: 'we1.run1.passed', raw: 'maybe', reason: 'Passed-Wert nicht in Whitelist' },
@@ -62,10 +62,27 @@ test('dataQuality.sheetOptions: vorhandene Sheets in Konfigurationsreihenfolge',
 test('dataQuality.summarizeDq: Anzahl je Sheet/Header/Grund, absteigend, ohne Rohwerte und Zeilen', () => {
   const rows = summarizeDq(ENTRIES.concat([{ ...ENTRIES[0], row: 200, raw: 'vielleicht' }]));
   assertEqual(rows.length, 5);
-  assertEqual(rows[0], { sheet: 'First Certification', header: 'WE1 RUN1 Passed', reason: 'Passed-Wert nicht in Whitelist', count: 2 });
+  assertEqual(rows[0], { sheet: 'First Certification', header: 'WE1 RUN1 Passed', reason: 'Passed-Wert nicht in Whitelist', count: 2, examples: ['maybe', 'vielleicht'] });
   assertEqual(rows.map((r) => r.count), [2, 1, 1, 1, 1]);
   assertEqual(rows.slice(1).map((r) => r.sheet), ['First Certification', 'First Certification', 'Ausgestellte Zertifikate', 'Ausgestellte Zertifikate'], 'Gleichstand: Sheet in Konfigurationsreihenfolge');
   assertEqual(rows.slice(1).map((r) => r.header), ['Certificate Language', 'Last Name', 'OE1 RUN1 Date', 'WE2 RUN1 Score'], 'dann Header alphabetisch');
   assert(rows.every((r) => !('raw' in r) && !('row' in r)));
   assertEqual(summarizeDq([]), []);
+});
+
+test('dataQuality.summarizeDq: Beispiele – höchstens 3 verschiedene Rohwerte, keine aus Namensspalten', () => {
+  const many = Array.from({ length: 6 }, (_, i) => ({ ...ENTRIES[3], row: 20 + i, raw: 10.5 + (i % 4) }));
+  const rows = summarizeDq(many.concat(ENTRIES[4], { ...ENTRIES[4], row: 13, raw: 'irgendwas' }));
+  assertEqual(rows[0].examples, ['10.5', '11.5', '12.5']);
+  assertEqual(rows[1].header, 'Last Name');
+  assertEqual(rows[1].examples, [], 'Namensfelder liefern keine Beispiele');
+  assertEqual(summarizeDq([{ ...ENTRIES[2], raw: new Date(2024, 8, 5, 10, 30) }])[0].examples, ['05.09.2024 10:30']);
+});
+
+test('dataQuality.summaryAsText: Tab-getrennt mit Beispielen', () => {
+  const text = summaryAsText(summarizeDq(ENTRIES.slice(0, 2)));
+  const lines = text.split('\n');
+  assertEqual(lines[0], ['Sheet', 'Header', 'Grund', 'Anzahl', 'Beispiele'].join('\t'));
+  assertEqual(lines[1], ['First Certification', 'Certificate Language', 'Sprache unbekannt', '1', 'ES'].join('\t'));
+  assertEqual(lines.length, 3);
 });

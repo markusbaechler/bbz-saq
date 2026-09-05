@@ -250,7 +250,14 @@ export function normalizeSheet(sheet, comments = {}) {
 
     const lastName = asText(get('lastName'));
     const firstName = asText(get('firstName'));
-    if (lastName === null && firstName === null) logDq('lastName', get('lastName'), 'Name fehlt (Zeile enthält Daten)');
+    if (lastName === null && firstName === null) {
+      const filled = [];
+      cells.forEach((cell, idx) => {
+        if (!isBlank(cell)) filled.push(String(headerRow[idx] === undefined || headerRow[idx] === null ? '' : headerRow[idx]).trim() || ('Spalte ' + (idx + 1)));
+      });
+      const shown = filled.slice(0, 6).join(', ') + (filled.length > 6 ? ' …' : '');
+      logDq('lastName', get('lastName'), 'Name fehlt (Daten in: ' + shown + ')');
+    }
 
     const { employer, employerCanon } = parseEmployer(get('employer'));
 

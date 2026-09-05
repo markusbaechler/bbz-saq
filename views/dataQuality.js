@@ -67,13 +67,21 @@ export function sheetOptions(entries) {
   return known.concat(other);
 }
 
-// Zusammenfassung ohne Rohwerte und Zeilen (keine Personendaten): [{ sheet, header, reason, count }]
+const NAME_FIELDS = new Set(['lastName', 'firstName']);
+const MAX_EXAMPLES = 3;
+
+// Zusammenfassung ohne Zeilen: [{ sheet, header, reason, count, examples }]
+// examples = bis zu 3 verschiedene Rohwerte (formatiert), nie aus Namensspalten.
 export function summarizeDq(entries) {
   const groups = new Map();
   for (const e of entries) {
     const key = [e.sheet, e.header, e.reason].join('\u0000');
-    const g = groups.get(key) || { sheet: e.sheet, header: e.header, reason: e.reason, count: 0 };
+    const g = groups.get(key) || { sheet: e.sheet, header: e.header, reason: e.reason, count: 0, examples: [] };
     g.count += 1;
+    if (!NAME_FIELDS.has(e.field)) {
+      const shown = formatRaw(e.raw);
+      if (shown !== '' && g.examples.length < MAX_EXAMPLES && !g.examples.includes(shown)) g.examples.push(shown);
+    }
     groups.set(key, g);
   }
   const order = Object.values(CONFIG.sheets);
@@ -83,7 +91,7 @@ export function summarizeDq(entries) {
 }
 
 export function summaryAsText(summary) {
-  return ['Sheet\tHeader\tGrund\tAnzahl'].concat(summary.map((r) => [r.sheet, r.header, r.reason, r.count].join('\t'))).join('\n');
+  return ['Sheet\tHeader\tGrund\tAnzahl\tBeispiele'].concat(summary.map((r) => [r.sheet, r.header, r.reason, r.count, r.examples.join(' | ')].join('\t'))).join('\n');
 }
 
 export const DEFAULT_DQ_STATE = Object.freeze({ sortKey: 'row', sortDir: 'asc', text: '', sheet: '' });
@@ -142,9 +150,10 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
     },
   });
   const summaryTable = el('table', { class: 'dq-summary' }, [
-    el('thead', {}, [el('tr', {}, ['Sheet', 'Header', 'Grund', 'Anzahl'].map((t) => el('th', { scope: 'col', text: t })))]),
+    el('thead', {}, [el('tr', {}, ['Sheet', 'Header', 'Grund', 'Anzahl', 'Beispiele'].map((t) => el('th', { scope: 'col', text: t })))]),
     el('tbody', {}, summary.map((r) => el('tr', {}, [
       el('td', { text: r.sheet }), el('td', { text: r.header }), el('td', { text: r.reason }), el('td', { class: 'col-row', text: String(r.count) }),
+      el('td', { class: 'col-raw', text: r.examples.join(' | ') }),
     ]))),
   ]);
   container.appendChild(el('details', { class: 'dq-summary-box', open: '' }, [

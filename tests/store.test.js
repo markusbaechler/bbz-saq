@@ -339,6 +339,15 @@ test('normalizeSheet: Zeile mit Daten aber ohne Namen → Person + DQ-Eintrag', 
   assertEqual(dq.length, 1);
   assertEqual(dq[0].header, 'Last Name');
   assertEqual(dq[0].row, 11);
+  assert(dq[0].reason.includes('Certificate Program'), 'Grund nennt die gefüllten Spalten: ' + dq[0].reason);
+});
+
+test('normalizeSheet: «Name fehlt» nennt auch nicht gemappte Spalten mit Inhalt', () => {
+  const sheet = makeSheet('first', [{ Nr: 17, Bemerkung: 'x' }]);
+  const { persons, dq } = normalizeSheet(sheet, {});
+  assertEqual(persons.length, 1);
+  assertEqual(dq.length, 1);
+  assert(dq[0].reason.includes('Nr') && dq[0].reason.includes('Bemerkung'), dq[0].reason);
 });
 
 test('normalizeSheet: nicht interpretierbare Zellen → Data-Quality-Log mit Sheet/Zeile/Header/Rohwert/Grund', () => {
