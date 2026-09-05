@@ -67,6 +67,25 @@ export function sheetOptions(entries) {
   return known.concat(other);
 }
 
+// Zusammenfassung ohne Rohwerte und Zeilen (keine Personendaten): [{ sheet, header, reason, count }]
+export function summarizeDq(entries) {
+  const groups = new Map();
+  for (const e of entries) {
+    const key = [e.sheet, e.header, e.reason].join('\u0000');
+    const g = groups.get(key) || { sheet: e.sheet, header: e.header, reason: e.reason, count: 0 };
+    g.count += 1;
+    groups.set(key, g);
+  }
+  const order = Object.values(CONFIG.sheets);
+  const rank = (name) => (order.includes(name) ? order.indexOf(name) : order.length);
+  return [...groups.values()].sort((a, b) => b.count - a.count || rank(a.sheet) - rank(b.sheet)
+    || collator.compare(a.header, b.header) || collator.compare(a.reason, b.reason));
+}
+
+export function summaryAsText(summary) {
+  return ['Sheet\tHeader\tGrund\tAnzahl'].concat(summary.map((r) => [r.sheet, r.header, r.reason, r.count].join('\t'))).join('\n');
+}
+
 export const DEFAULT_DQ_STATE = Object.freeze({ sortKey: 'row', sortDir: 'asc', text: '', sheet: '' });
 
 function el(tag, attrs = {}, children = []) {
@@ -111,6 +130,29 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
     container.appendChild(el('p', { class: 'empty', text: 'Keine Einträge im Data-Quality-Log. Alle Zellen der beiden Sheets waren interpretierbar.' }));
     return;
   }
+
+  // Zusammenfassung (gefilterte Einträge) – ohne Rohwerte, daher ohne Personendaten
+  const summary = summarizeDq(filterDq(entries, s));
+  const copyButton = el('button', {
+    type: 'button', class: 'secondary small-button', text: 'Zusammenfassung kopieren',
+    onclick: (ev) => {
+      const btn = ev.currentTarget;
+      const done = () => { btn.textContent = 'Kopiert'; setTimeout(() => { btn.textContent = 'Zusammenfassung kopieren'; }, 1500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(summaryAsText(summary)).then(done, () => {});
+    },
+  });
+  const summaryTable = el('table', { class: 'dq-summary' }, [
+    el('thead', {}, [el('tr', {}, ['Sheet', 'Header', 'Grund', 'Anzahl'].map((t) => el('th', { scope: 'col', text: t })))]),
+    el('tbody', {}, summary.map((r) => el('tr', {}, [
+      el('td', { text: r.sheet }), el('td', { text: r.header }), el('td', { text: r.reason }), el('td', { class: 'col-row', text: String(r.count) }),
+    ]))),
+  ]);
+  container.appendChild(el('details', { class: 'dq-summary-box', open: '' }, [
+    el('summary', { text: 'Zusammenfassung nach Header und Grund (' + summary.length + ' Gruppen)' }),
+    el('div', { class: 'toolbar' }, [copyButton]),
+    el('div', { class: 'table-wrap' }, [summaryTable]),
+  ]));
+  container.appendChild(el('h3', { text: 'Einzelne Einträge' }));
 
   const headRow = el('tr', {}, DQ_COLUMNS.map((c) => {
     const active = s.sortKey === c.key;

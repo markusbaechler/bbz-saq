@@ -102,6 +102,11 @@ th { background: #f0f3f6; position: sticky; top: 0; }
 th.sortable button { background: none; border: none; color: inherit; padding: 0; font-weight: 600; cursor: pointer; }
 th.active button { color: var(--accent); }
 td.col-row { text-align: right; white-space: nowrap; }
+.dq-summary-box { margin: .25rem 0 1rem; }
+.dq-summary-box summary { cursor: pointer; font-weight: 600; margin-bottom: .5rem; }
+.dq-summary { margin-bottom: .5rem; }
+.small-button { padding: .25rem .6rem; font-size: .9rem; }
+h3 { font-size: 1rem; margin: .75rem 0 .4rem; }
 td.col-raw { font-family: ui-monospace, Consolas, monospace; white-space: pre-wrap; }
 .small { color: var(--muted); font-style: italic; }
 .meta-list { color: var(--muted); font-size: .9rem; }

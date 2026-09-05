@@ -1,5 +1,5 @@
-import { test, assertEqual } from './runner.js';
-import { DQ_COLUMNS, formatRaw, sortDq, filterDq, sheetOptions } from '../views/dataQuality.js';
+import { test, assert, assertEqual } from './runner.js';
+import { DQ_COLUMNS, formatRaw, sortDq, filterDq, sheetOptions, summarizeDq } from '../views/dataQuality.js';
 
 const ENTRIES = [
   { sheet: 'First Certification', row: 100, header: 'WE1 RUN1 Passed', field: 'we1.run1.passed', raw: 'maybe', reason: 'Passed-Wert nicht in Whitelist' },
@@ -57,4 +57,15 @@ test('dataQuality.sheetOptions: vorhandene Sheets in Konfigurationsreihenfolge',
   assertEqual(sheetOptions(ENTRIES), ['First Certification', 'Ausgestellte Zertifikate']);
   assertEqual(sheetOptions([ENTRIES[2]]), ['Ausgestellte Zertifikate']);
   assertEqual(sheetOptions([]), []);
+});
+
+test('dataQuality.summarizeDq: Anzahl je Sheet/Header/Grund, absteigend, ohne Rohwerte und Zeilen', () => {
+  const rows = summarizeDq(ENTRIES.concat([{ ...ENTRIES[0], row: 200, raw: 'vielleicht' }]));
+  assertEqual(rows.length, 5);
+  assertEqual(rows[0], { sheet: 'First Certification', header: 'WE1 RUN1 Passed', reason: 'Passed-Wert nicht in Whitelist', count: 2 });
+  assertEqual(rows.map((r) => r.count), [2, 1, 1, 1, 1]);
+  assertEqual(rows.slice(1).map((r) => r.sheet), ['First Certification', 'First Certification', 'Ausgestellte Zertifikate', 'Ausgestellte Zertifikate'], 'Gleichstand: Sheet in Konfigurationsreihenfolge');
+  assertEqual(rows.slice(1).map((r) => r.header), ['Certificate Language', 'Last Name', 'OE1 RUN1 Date', 'WE2 RUN1 Score'], 'dann Header alphabetisch');
+  assert(rows.every((r) => !('raw' in r) && !('row' in r)));
+  assertEqual(summarizeDq([]), []);
 });
