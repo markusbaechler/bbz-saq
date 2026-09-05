@@ -1,6 +1,6 @@
 // views/written.js – View 2 «Schriftlich»: Bestehensquoten und Ø Performance nach Profil, Sprache, Bank, Teilprüfung.
 
-import { passRateTable, performanceTable, performanceByPartTable } from './tables.js';
+import { passRateTable, performanceTable, partTable } from './tables.js';
 import { renderTable, section } from './common.js';
 
 export const id = 'schriftlich';
@@ -10,17 +10,20 @@ const KEYS = ['profil', 'sprache', 'employerCanon'];
 
 export function build(ctx) {
   const rates = KEYS.map((k) => passRateTable(ctx.persons, k));
-  const perf = KEYS.map((k) => performanceTable(ctx.persons, k, ctx.mode, 'written'));
-  const parts = performanceByPartTable(ctx.persons, ctx.mode);
+  const parts = partTable(ctx.persons, 'we');
+  const perf = KEYS.map((k) => performanceTable(ctx.persons, k, 'written'));
   return {
     nodes: [
-      section('Bestehensquoten', rates.map((t) => renderTable(t)), {
-        intro: 'Erstversuchsquote: alle absolvierten WE RUN1 bestanden. Gesamterfolgsquote: «WE All Passed» = yes. Nenner n: Personen mit mindestens einem absolvierten, datierten WE-Run im aktiven Filter.',
+      section('Bestehensquoten (Anteil Personen)', rates.map((t) => renderTable(t)), {
+        intro: 'Im 1. Versuch bestanden: alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden. Im 1. Versuch durchgefallen: mindestens eine Teilprüfung im ersten Versuch nicht bestanden. Insgesamt bestanden: «WE All Passed» = yes, unabhängig von der Anzahl Versuche.',
       }),
-      section('Ø Performance (' + (ctx.modeLabel || ctx.mode) + ')', perf.concat([parts]).map((t) => renderTable(t)), {
-        intro: 'Mittel der Result-Prozente über die vorhandenen Teilprüfungen je Person, danach Mittel über die Personen. Im Modus «Bestanden» nur Personen, deren absolvierte Teilprüfungen alle bestanden sind.',
+      section('Je Teilprüfung WE1–WE6', [renderTable(parts)], {
+        intro: 'Anteile und Ø Resultat je Teilprüfung; n = Personen mit absolviertem ersten Versuch der Teilprüfung.',
+      }),
+      section('Ø Resultat (erreichte Punkte in Prozent)', perf.map((t) => renderTable(t)), {
+        intro: 'Je Person Mittel über die vorhandenen Teilprüfungen, danach Mittel über die Personen. Beide Wertungen nebeneinander: Resultat des ersten Versuchs und Resultat des bestandenen Runs.',
       }),
     ],
-    tables: rates.concat(perf, [parts]),
+    tables: rates.concat([parts], perf),
   };
 }

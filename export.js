@@ -100,7 +100,7 @@ export function filterLines(filter, meta = {}) {
     'Bank: ' + listOrAll(f.bank),
     'VSS/VSM: ' + (VSS_VSM_LABELS[f.vssVsm] || f.vssVsm),
     'Versuche: ' + (VERSUCHE_LABELS[f.versuche] || f.versuche),
-    'Versuchsmodus: ' + (MODE_LABELS[f.mode] || f.mode),
+    'Wertung Bestenlisten: ' + (MODE_LABELS[f.mode] || f.mode),
     'Nur ausgestellte Zertifikate: ' + (f.onlyIssued ? 'ja' : 'nein'),
   ];
 }

@@ -15,7 +15,7 @@
 //   Nenner = Personen mit OE1 RUN1-Datum.
 // - Award = 0.5·Schriftlich + 0.5·Mündlich, nur mit bestandener OE; Tie-Break: weniger Versuche, früheres Referenzdatum.
 
-import { PROFILES } from './config.js';
+import { CONFIG, PROFILES } from './config.js';
 
 export const MODE = Object.freeze({ ERSTVERSUCH: 'erstversuch', BESTANDEN: 'bestanden' });
 
@@ -146,12 +146,38 @@ export function firstAttemptPassed(person) {
 // Schriftlich
 // ---------------------------------------------------------------------------
 
+// erstversuch / erstversuchFailed: Nenner = Personen mit mindestens einem absolvierten WE RUN1;
+// gesamt: Nenner = alle Personen im Filter
 export function writtenPassRates(persons) {
-  const n = persons.length;
+  const withRun1 = persons.filter((p) => firstAttemptPassed(p) !== null);
   return {
-    erstversuch: ratio(persons.filter((p) => firstAttemptPassed(p) === true).length, n),
-    gesamt: ratio(persons.filter((p) => p.weAllPassed === true).length, n),
+    erstversuch: ratio(withRun1.filter((p) => firstAttemptPassed(p) === true).length, withRun1.length),
+    erstversuchFailed: ratio(withRun1.filter((p) => firstAttemptPassed(p) === false).length, withRun1.length),
+    gesamt: ratio(persons.filter((p) => p.weAllPassed === true).length, persons.length),
   };
+}
+
+// Je Teilprüfung (kind 'we' | 'oe'): n = Personen mit absolviertem RUN1 des Teils;
+// passed/failed = RUN1 bestanden/nicht bestanden; anyPassed = irgendein Run des Teils bestanden;
+// meanFirst/meanPassed = Ø Resultat des ersten bzw. des bestandenen Runs
+export function partFirstAttempt(persons, kind = 'we') {
+  const count = CONFIG[kind].parts;
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const withRun1 = persons.filter((p) => p[kind][i] && p[kind][i].runs[0].taken);
+    const n = withRun1.length;
+    out.push({
+      part: i + 1,
+      label: kind.toUpperCase() + (i + 1),
+      n,
+      passed: ratio(withRun1.filter((p) => p[kind][i].runs[0].passed === true).length, n),
+      failed: ratio(withRun1.filter((p) => p[kind][i].runs[0].passed === false).length, n),
+      anyPassed: ratio(withRun1.filter((p) => p[kind][i].runs.some((r) => r.passed === true)).length, n),
+      meanFirst: mean(withRun1.map((p) => partResult(p[kind][i], MODE.ERSTVERSUCH))),
+      meanPassed: mean(withRun1.map((p) => partResult(p[kind][i], MODE.BESTANDEN))),
+    });
+  }
+  return out;
 }
 
 export function writtenPerformance(persons, mode) {

@@ -4,7 +4,7 @@ import {
   partResult, writtenScore, oralScore, firstAttemptPassed,
   writtenPassRates, writtenPerformance, writtenPerformanceByPart,
   oralPassRates, oralPerformance, groupBy, byGroup, vssVsmBreakdown,
-  awardScore, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, dayKey,
+  awardScore, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, dayKey, partFirstAttempt,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -199,15 +199,43 @@ function writtenCohort() {
   return [a, b, c];
 }
 
-test('writtenPassRates: Erstversuchsquote UND Gesamterfolgsquote, je mit n', () => {
+test('writtenPassRates: im 1. Versuch bestanden / durchgefallen UND insgesamt bestanden, je mit n', () => {
   const r = writtenPassRates(writtenCohort());
-  assertEqual(r.erstversuch.count, 1);
-  assertEqual(r.erstversuch.n, 3);
+  assertEqual(r.erstversuch, ratio(1, 3));
+  assertEqual(r.erstversuchFailed, ratio(2, 3), 'b und c mit mindestens einem WE RUN1 nicht bestanden');
   assertEqual(r.gesamt.count, 2);
   assertEqual(r.gesamt.n, 3);
   assertClose(r.gesamt.pct, 2 / 3);
   assertEqual(r.gesamt.small, true);
-  assertEqual(writtenPassRates([]), { erstversuch: ratio(0, 0), gesamt: ratio(0, 0) });
+  assertEqual(writtenPassRates([]), { erstversuch: ratio(0, 0), erstversuchFailed: ratio(0, 0), gesamt: ratio(0, 0) });
+});
+
+test('writtenPassRates: Nenner Erstversuch = Personen mit absolviertem WE RUN1', () => {
+  const onlyRun2 = makePerson({ weAllPassed: true, we: { 1: [null, { passed: true, date: '2024-02-01', result: 0.7 }] } });
+  const r = writtenPassRates([simple(), onlyRun2]);
+  assertEqual([r.erstversuch.n, r.erstversuchFailed.n, r.gesamt.n], [1, 1, 2]);
+  assertEqual(r.gesamt.count, 2);
+});
+
+test('partFirstAttempt: je Teilprüfung n, 1. Versuch bestanden/durchgefallen, insgesamt bestanden, Ø beider Wertungen', () => {
+  const parts = partFirstAttempt(writtenCohort(), 'we');
+  assertEqual(parts.map((p) => p.label), ['WE1', 'WE2', 'WE3', 'WE4', 'WE5', 'WE6']);
+  const we1 = parts[0];
+  assertEqual([we1.part, we1.n], [1, 3]);
+  assertEqual(we1.passed, ratio(2, 3));
+  assertEqual(we1.failed, ratio(1, 3));
+  assertEqual(we1.anyPassed, ratio(3, 3));
+  assertClose(we1.meanFirst.mean, (0.8 + 0.4 + 0.8) / 3);
+  assertEqual(we1.meanFirst.n, 3);
+  assertClose(we1.meanPassed.mean, (0.8 + 0.7 + 0.8) / 3);
+  const we2 = parts[1];
+  assertEqual([we2.passed, we2.failed, we2.anyPassed], [ratio(2, 3), ratio(1, 3), ratio(2, 3)]);
+  assertClose(we2.meanPassed.mean, 0.6);
+  assertEqual(we2.meanPassed.n, 2);
+  assertEqual(parts[2], { part: 3, label: 'WE3', n: 0, passed: ratio(0, 0), failed: ratio(0, 0), anyPassed: ratio(0, 0), meanFirst: { mean: null, n: 0 }, meanPassed: { mean: null, n: 0 } });
+  const oe = partFirstAttempt([simple()], 'oe');
+  assertEqual(oe.map((p) => p.label), ['OE1', 'OE2']);
+  assertEqual(oe[0].passed, ratio(1, 1));
 });
 
 test('writtenPerformance: Ø über Personen gemäss Modus, n = Personen mit Wert', () => {

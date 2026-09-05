@@ -27,8 +27,9 @@ Druckansicht. Der Filterzustand steht im Kopf jedes Exports.
 ## Globale Filter
 
 Zeitraum (Von–Bis, Jahres-Shortcuts, «Alle»; wirkt auf das Referenzdatum), Profil, Sprache, Bank, VSS/VSM,
-Versuche (alle | nur 1. Versuch | mehrere Versuche), Versuchsmodus (Erstversuch | Bestanden),
-«nur ausgestellte Zertifikate» (Sheet 2). In der Ansicht «Geplante Prüfungen» wirken Zeitraum und Versuchsmodus nicht.
+Versuche (alle | nur 1. Versuch | mehrere Versuche), Wertung Bestenlisten (Resultat 1. Versuch | Resultat bestandener Run),
+«nur ausgestellte Zertifikate» (Sheet 2). Die Wertung wirkt nur auf die Bestenlisten; alle anderen Ansichten zeigen
+beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfungen» wirken Zeitraum und Wertung nicht.
 
 ## Kennzahl-Definitionen
 
@@ -39,15 +40,17 @@ Ein Datum allein ist ein Termin (geplant oder Ergebnis ausstehend), Score/Result
 | Kennzahl | Definition |
 |---|---|
 | Referenzdatum | Datum des bestandenen mündlichen Runs (letzter Run mit passed = yes). Ohne bestandene mündliche Prüfung: letztes Datum eines absolvierten Runs. Darauf wirkt der Zeitraumfilter. |
-| Versuchsmodus ERSTVERSUCH | Nur RUN1 zählt (Result von RUN1, auch wenn nicht bestanden). |
-| Versuchsmodus BESTANDEN | Der bestandene Run zählt. Eine Person hat nur dann einen Wert, wenn alle absolvierten Teilprüfungen einen bestandenen Run haben. |
-| Schriftlich Erstversuchsquote | Anteil Personen, bei denen alle absolvierten WE RUN1 bestanden sind. |
-| Schriftlich Gesamterfolgsquote | Anteil Personen mit «WE All Passed» = yes. In Sheet 2 gilt ein leeres «WE All yes» bei ausgestelltem Zertifikat als bestanden (Hinweis im Log). |
-| Schriftlich Ø Performance | Je Person Mittel der Result-Prozente über die vorhandenen Teilprüfungen gemäss Versuchsmodus, dann Mittel über die Personen mit Wert. Zusätzlich je Teilprüfung WE1–WE6 (bestandener Run des jeweiligen Teils, unabhängig von anderen Teilen). |
-| Mündlich Bestehensquote | Anteil Personen mit «OE All Passed» = yes. Nenner: Personen mit absolviertem, datiertem OE1 RUN1. |
-| Mündlich 1× / 2× durchgefallen | OE1 RUN1 = no bzw. OE1 RUN1 = no und OE1 RUN2 = no; gleicher Nenner. |
-| Mündlich Ø Performance | Result-Prozent der mündlichen Prüfung gemäss Versuchsmodus, Mittel über Personen mit Wert. |
-| bbz-Award | 0.5 · Schriftlich-Performance + 0.5 · Mündlich-Performance, nur Personen mit bestandener mündlicher Prüfung. Tie-Break 1: weniger Prüfungsversuche gesamt; Tie-Break 2: früheres Referenzdatum. Die Tie-Breaks gelten auch für die schriftlichen und mündlichen Bestenlisten. |
+| Wertung «Resultat 1. Versuch» | Result von RUN1 zählt, auch wenn nicht bestanden. |
+| Wertung «Resultat bestandener Run» | Der bestandene Run zählt. Eine Person hat nur dann einen Wert, wenn alle absolvierten Teilprüfungen einen bestandenen Run haben. |
+| Schriftlich: im 1. Versuch bestanden | Anteil Personen, bei denen alle absolvierten WE RUN1 bestanden sind. Nenner: Personen mit mindestens einem absolvierten WE RUN1. |
+| Schriftlich: im 1. Versuch durchgefallen | Anteil Personen mit mindestens einem WE RUN1 = no; gleicher Nenner (Komplement der vorigen Quote). |
+| Schriftlich: insgesamt bestanden | Anteil Personen mit «WE All Passed» = yes. In Sheet 2 gilt ein leeres «WE All yes» bei ausgestelltem Zertifikat als bestanden (Hinweis im Log). |
+| Schriftlich: Ø Resultat | Erreichte Punkte in Prozent. Je Person Mittel über die vorhandenen Teilprüfungen, dann Mittel über die Personen mit Wert; für beide Wertungen ausgewiesen. |
+| Je Teilprüfung (WE1–WE6, OE1–OE2) | n = Personen mit absolviertem RUN1 des Teils; im 1. Versuch bestanden / durchgefallen; insgesamt bestanden = irgendein Run des Teils bestanden; Ø Resultat für beide Wertungen. |
+| Mündlich: bestanden | Anteil Personen mit «OE All Passed» = yes. Nenner: Personen mit absolviertem, datiertem OE1 RUN1 (geplante Termine zählen nicht). |
+| Mündlich: im 1. Versuch / 2× durchgefallen | OE1 RUN1 = no bzw. OE1 RUN1 = no und OE1 RUN2 = no, unabhängig vom späteren Erfolg; gleicher Nenner. |
+| Mündlich: Ø Resultat | Erreichte Punkte in Prozent der mündlichen Prüfung, Mittel über Personen mit Wert; für beide Wertungen ausgewiesen. |
+| bbz-Award | 0.5 · Ø Resultat schriftlich + 0.5 · Ø Resultat mündlich gemäss gewählter Wertung, nur Personen mit bestandener mündlicher Prüfung. Tie-Break 1: weniger Prüfungsversuche gesamt; Tie-Break 2: früheres Referenzdatum. Die Tie-Breaks gelten auch für die schriftlichen und mündlichen Bestenlisten. |
 | VSS / VSM | Aus dem Threaded Comment auf der Namenszelle (Spalte B): `\bVSS\b` bzw. `\bVSM\b`, beides möglich. «ohne» = weder noch. |
 | Versuche (Filter) | «nur 1. Versuch»: kein RUN2/RUN3 absolviert; «mehrere Versuche»: mindestens ein RUN2/RUN3 absolviert (schriftlich oder mündlich). |
 | Geplante Prüfung | Run mit Datum in der Zukunft und ohne Passed-Wert; Ort aus «WE{n} RUN{r} Location» bzw. «OE{n} RUN{r} Location». |
@@ -58,7 +61,7 @@ Alle Quoten werden mit n (Nenner) ausgewiesen, Prozent mit einer Dezimale. Grupp
 
 - Voraussetzung für die mündliche Prüfung ist die bestandene schriftliche Prüfung. Widersprüche erscheinen als Hinweis.
 - Ein Zertifikat setzt schriftlich und mündlich bestanden voraus (auch für die Passerellen-Jahrgänge 2015–2018).
-- Es müssen alle vorhandenen Teilprüfungen bestanden werden (Modus BESTANDEN).
+- Es müssen alle vorhandenen Teilprüfungen bestanden werden (Wertung «bestandener Run»).
 - Ohne Namen (Spalten «Last Name» und «First Name» leer) keine Person; solche Zeilen mit Daten werden als Fehler gemeldet.
   Zeilen, die nur in nicht gemappten Hilfsspalten Inhalt haben, gelten als leer.
 - Fehlt die «Certificate Language», wird die Sprache aus der Programmbezeichnung (z. B. «PK FRZ» → FR) oder aus

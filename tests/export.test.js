@@ -50,7 +50,7 @@ test('export.filterLines: Filterzustand lesbar, Standard = alle', () => {
   assert(lines.includes('Bank: alle'));
   assert(lines.includes('VSS/VSM: alle'));
   assert(lines.includes('Versuche: alle'));
-  assert(lines.includes('Versuchsmodus: Erstversuch (nur RUN1 zählt)'));
+  assert(lines.includes('Wertung Bestenlisten: Erstversuch (nur RUN1 zählt)'));
   assert(lines.includes('Nur ausgestellte Zertifikate: nein'));
 });
 
@@ -64,7 +64,7 @@ test('export.filterLines: gesetzte Filter', () => {
   assert(lines.includes('Bank: Testbank AG'));
   assert(lines.includes('VSS/VSM: nur VSM'));
   assert(lines.includes('Versuche: nur 1. Versuch'));
-  assert(lines.includes('Versuchsmodus: Bestanden (der bestandene Run zählt)'));
+  assert(lines.includes('Wertung Bestenlisten: Bestanden (der bestandene Run zählt)'));
   assert(lines.includes('Nur ausgestellte Zertifikate: ja'));
   assertEqual(filterLines({ ...DEFAULT_FILTER, from: new Date(2025, 0, 1) }, {}).find((l) => l.startsWith('Zeitraum')), 'Zeitraum: ab 01.01.2025');
   assertEqual(filterLines({ ...DEFAULT_FILTER, to: new Date(2025, 0, 1) }, {}).find((l) => l.startsWith('Zeitraum')), 'Zeitraum: bis 01.01.2025');

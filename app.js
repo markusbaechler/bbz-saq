@@ -128,7 +128,7 @@ function renderFilterBar() {
     selectControl('Bank', single(filter.bank), listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] })),
     selectControl('VSS/VSM', filter.vssVsm, [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v })),
     selectControl('Versuche', filter.versuche, [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v })),
-    selectControl('Versuchsmodus', filter.mode, [{ value: MODE.ERSTVERSUCH, label: 'Erstversuch (RUN1 zählt)' }, { value: MODE.BESTANDEN, label: 'Bestanden (bestandener Run zählt)' }], (v) => set({ mode: v })),
+    selectControl('Wertung Bestenlisten', filter.mode, [{ value: MODE.ERSTVERSUCH, label: 'Resultat 1. Versuch' }, { value: MODE.BESTANDEN, label: 'Resultat bestandener Run' }], (v) => set({ mode: v })),
     el('label', { class: 'check' }, [el('input', { type: 'checkbox', onchange: (ev) => set({ onlyIssued: ev.target.checked }) }), 'Nur ausgestellte Zertifikate']),
     el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() }),
   );
