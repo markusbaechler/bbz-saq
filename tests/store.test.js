@@ -390,7 +390,7 @@ test('normalizeSheet: Zeile mit Daten aber ohne Namen → keine Person, aber DQ-
 
 test('normalizeSheet: Zeile nur mit Inhalt in nicht gemappten Spalten gilt als leer', () => {
   const sheet = makeSheet('first', [{ Nr: 17 }, { Bemerkung: 'x' }]);
-  assertEqual(normalizeSheet(sheet, {}), { persons: [], dq: [], headers: { birthDate: null } });
+  assertEqual(normalizeSheet(sheet, {}), { persons: [], dq: [], headers: { birthDate: 'Birth Date' } });
 });
 
 test('normalizeSheet: «Name fehlt» nennt auch nicht gemappte Spalten mit Inhalt', () => {
@@ -488,8 +488,8 @@ test('normalizeWorkbook: beide Sheets → eine Personenliste, DQ gesammelt, Meta
     dq: 1, fehler: 1, hinweise: 0, nichtAusgewertet: 0,
     wirkungUnsichtbar: 0, wirkungKennzahl: 1, wirkungKeine: 0,
   });
-  assertEqual(result.meta.personKey.complete, false, 'kein Geburtsdatum-Header in den Fixtures');
-  assertEqual(result.meta.personKey.birthDateHeaders, { first: null, issued: null });
+  assertEqual(result.meta.personKey.complete, true);
+  assertEqual(result.meta.personKey.birthDateHeaders, { first: 'Birth Date', issued: 'Birth Date' });
 });
 
 test('normalizeWorkbook: unbekanntes Sheet wird abgewiesen', () => {
@@ -646,18 +646,17 @@ test('normalizeNamePart / personKeyOf: Akzente, Bindestrich, Gross-/Kleinschreib
     !== personKeyOf({ lastName: 'Muster', firstName: 'Anna', birthDate: new Date(1986, 2, 15) }), 'anderes Geburtsdatum = andere Person');
 });
 
-test('normalizeSheet: Geburtsdatum-Header vorhanden → Schlüssel mit Datum (full); fehlt oder leer → nur Name (name-only)', () => {
-  const withHeader = makeSheet('first', [fullRow({ birthDate: '15.03.1985' }), fullRow({ lastName: 'Zwei' })], { extraFields: ['birthDate'] });
-  const r = normalizeSheet(withHeader, {});
-  assertEqual(r.headers.birthDate, 'Date of Birth');
+test('normalizeSheet: «Birth Date» ist Pflicht-Header → Schlüssel mit Datum (full); Zelle leer oder unlesbar → nur Name (name-only)', () => {
+  const r = normalizeSheet(makeSheet('first', [fullRow({ birthDate: '15.03.1985' }), fullRow({ lastName: 'Zwei' })]), {});
+  assertEqual(r.headers.birthDate, 'Birth Date');
   assertEqual(r.persons[0].birthDate, new Date(1985, 2, 15));
   assertEqual([r.persons[0].personKey, r.persons[0].personKeyLevel], ['muster|anna|1985-03-15', 'full']);
   assertEqual([r.persons[1].personKey, r.persons[1].personKeyLevel], ['zwei|anna|', 'name-only'], 'Zelle leer → name-only');
-  const without = normalizeSheet(makeSheet('first', [fullRow()]), {});
-  assertEqual(without.headers.birthDate, null, 'kein Header → gemeldet, kein harter Fehler (Header am File nicht verifiziert)');
-  assertEqual([without.persons[0].personKey, without.persons[0].personKeyLevel], ['muster|anna|', 'name-only']);
-  const bad = normalizeSheet(makeSheet('first', [fullRow({ birthDate: 1985 })], { extraFields: ['birthDate'] }), {});
-  assertEqual([bad.dq[0].level, bad.dq[0].header, bad.dq[0].raw], ['fehler', 'Date of Birth', 1985]);
+  const without = makeSheet('first', [fullRow()]);
+  without.headerRow = without.headerRow.map((h) => (h === 'Birth Date' ? 'Geburtstag' : h));
+  assertThrows(() => normalizeSheet(without, {}), (e) => e instanceof MissingHeaderError && /Birth Date/.test(e.message), 'fehlender Pflicht-Header = harter Fehler');
+  const bad = normalizeSheet(makeSheet('first', [fullRow({ birthDate: 1985 })]), {});
+  assertEqual([bad.dq[0].level, bad.dq[0].header, bad.dq[0].raw], ['fehler', 'Birth Date', 1985]);
   assertEqual(bad.persons[0].personKeyLevel, 'name-only');
 });
 
@@ -700,7 +699,7 @@ test('normalizeSheet: Sheet 2 – leeres OE All gilt als bestanden (Hinweis), «
   assertEqual([first.persons[0].status, first.dq.length], ['offen', 0], 'Sheet 1: leer bleibt offen, keine Ableitung');
 });
 
-function bothSheets(firstRows, issuedRows, extraFields = ['birthDate']) {
+function bothSheets(firstRows, issuedRows, extraFields = []) {
   return { sheets: [makeSheet('first', firstRows, { extraFields }), makeSheet('issued', issuedRows, { extraFields })], comments: {}, meta: {} };
 }
 
@@ -717,7 +716,7 @@ test('normalizeWorkbook: dieselbe Person in beiden Sheets mit gleichem Profil �
   assertEqual([hint.level, hint.sheet, hint.row, hint.header, hint.raw], ['hinweis', CONFIG.sheets.first, 11, 'Last Name', null]);
   assert(/Zeile 11/.test(hint.reason) && /nicht doppelt/.test(hint.reason), hint.reason);
   assertEqual(r.meta.personKey.complete, true);
-  assertEqual(r.meta.personKey.birthDateHeaders, { first: 'Date of Birth', issued: 'Birth Date' });
+  assertEqual(r.meta.personKey.birthDateHeaders, { first: 'Birth Date', issued: 'Birth Date' });
   assertEqual(r.meta.counts.bestanden, 1);
 });
 
@@ -766,12 +765,12 @@ test('normalizeWorkbook: gleiches Profil, aber widersprüchliche Prüfungsdaten 
   assertEqual(r.persons.filter((p) => p.duplicateOf), []);
 });
 
-test('normalizeWorkbook: gleicher Name, anderes Geburtsdatum → zwei Personen; ohne Geburtsdatum-Header entscheidet der Name', () => {
+test('normalizeWorkbook: gleicher Name, anderes Geburtsdatum → zwei Personen; ohne Geburtsdatum-Zelle entscheidet der Name', () => {
   const r = normalizeWorkbook(bothSheets([fullRow({ birthDate: '15.03.1985' })], [fullRow({ birthDate: '16.03.1985', certStart: '01.07.2024' })]));
   assertEqual([r.meta.counts.vorgaenge, r.meta.counts.personen, r.meta.counts.duplikate, r.meta.counts.schluesselOhneGeburtsdatum], [2, 2, 0, 0]);
   const nameOnly = normalizeWorkbook({ sheets: [makeSheet('first', [fullRow()]), makeSheet('issued', [fullRow({ certStart: '01.07.2024' })])] });
   assertEqual([nameOnly.meta.counts.vorgaenge, nameOnly.meta.counts.personen, nameOnly.meta.counts.duplikate, nameOnly.meta.counts.schluesselOhneGeburtsdatum], [1, 1, 1, 1]);
-  assertEqual(nameOnly.meta.personKey.complete, false);
+  assertEqual(nameOnly.meta.personKey.complete, true, 'Header vorhanden, Zellen leer');
 });
 
 test('normalizeWorkbook: Duplikate fliessen nicht in Kennzahlen (eligible, filterPersons), Ausschlussgrund benannt', () => {

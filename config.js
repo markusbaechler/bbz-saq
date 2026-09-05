@@ -103,8 +103,8 @@ export const DATE_RULES = { minYear: 2000, maxYear: 2100, serialMin: 36526, seri
 export const BIRTH_DATE_RULES = { minYear: 1920, maxYear: 2010, serialMin: 7306, serialMax: 40179 };
 
 // Personenschlüssel (E2): normalisiert aus Last Name, First Name und Geburtsdatum – bewusst NICHT Employer
-// (ein Bankwechsel ist dieselbe Person). Header-Kandidaten des Geburtsdatums: [unklar], am File noch nicht verifiziert.
-// Solange der Header fehlt, bildet die App den Schlüssel nur aus dem Namen und meldet das in meta.personKey.
+// (ein Bankwechsel ist dieselbe Person). Header «Birth Date» am File verifiziert (05.09.2026, beide Sheets) → Pflicht-Header.
+// Leere Geburtsdatum-Zellen ergeben einen Schlüssel nur aus dem Namen (meta.counts.schluesselOhneGeburtsdatum).
 export const PERSON_KEY_FIELDS = ['lastName', 'firstName', 'birthDate'];
 
 // Prüfungsplanung (b4): Kapazität (Plätze) je Prüfungsort und Prüfungstag. Die Excel-Datei enthält keine Kapazitätsdaten
@@ -139,9 +139,7 @@ function buildHeaderFields() {
     { key: 'profil',      candidates: ['Certificate Program'],    required: 'all' },
     { key: 'sprache',     candidates: ['Certificate Language'],   required: 'all' },
     { key: 'commLanguage', candidates: ['Communication Language'], required: 'none' }, // Fallback für leere Certificate Language
-    // Geburtsdatum für den Personenschlüssel (E2). Header-Name am File nicht verifiziert [unklar] → optional;
-    // sobald bestätigt, auf required: 'all' setzen (dann harter Fehler bei fehlendem Header).
-    { key: 'birthDate',   candidates: ['Date of Birth', 'Birth Date', 'Birthdate', 'Birthday', 'Geburtsdatum'], required: 'none' },
+    { key: 'birthDate',   candidates: ['Birth Date'],             required: 'all' }, // Personenschlüssel (E2), am File verifiziert
     { key: 'certNumber',  candidates: ['Certificate Number'],     required: 'none' },
     { key: 'certStart',   candidates: ['Certificate Start Date'], required: 'issued' },
     { key: 'certEnd',     candidates: ['Certificate End Date'],   required: 'none' },

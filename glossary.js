@@ -18,7 +18,7 @@ export const GLOSSARY = [
   {
     kind: 'Begriff', term: 'Personenschlüssel',
     definition: 'Normalisiert aus «Last Name», «First Name» und Geburtsdatum: Akzente entfernt, ß → ss, Kleinschreibung, Bindestriche und Mehrfach-Leerzeichen zu einem Leerzeichen.',
-    nenner: '–', grenzfaelle: 'Fehlt der Geburtsdatum-Header in der Datei [unklar, am File nicht verifiziert], besteht der Schlüssel nur aus dem Namen; die Statuszeile meldet das. Namensgleiche Personen würden dann zusammenfallen.',
+    nenner: '–', grenzfaelle: 'Header «Birth Date» (beide Sheets, am File verifiziert) ist Pflicht. Ist die Zelle leer oder unlesbar, besteht der Schlüssel nur aus dem Namen; namensgleiche Personen fallen dann zusammen (Zähler in der Statuszeile).',
   },
   {
     kind: 'Begriff', term: 'Duplikat',

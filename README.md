@@ -55,9 +55,8 @@ zusammengeführt. Jeder Vorgang hat einen **Status**: bestanden / nicht bestande
 Bestehensquoten sind abgeschlossene Vorgänge. Definitionen und Grenzfälle: Abschnitt «Kennzahl-Definitionen» bzw. Ansicht
 «Glossar».
 
-- Der Header des Geburtsdatums ist am File noch nicht verifiziert (`config.js`, Feld `birthDate`, Kandidaten «Date of Birth»,
-  «Birth Date», «Birthdate», «Birthday», «Geburtsdatum»); fehlt er, bildet die App den Schlüssel nur aus dem Namen und
-  meldet das in der Statuszeile. Sobald der Header bestätigt ist: `required: 'all'` setzen.
+- Der Header «Birth Date» ist Pflicht in beiden Sheets (am File verifiziert). Leere oder unlesbare Geburtsdatum-Zellen ergeben
+  einen Schlüssel nur aus dem Namen; die Anzahl steht im Modellbericht (`schluesselOhneGeburtsdatum`).
 - Lokaler Modellbericht (Zähler, Duplikate, offene Vorgänge, Quoten alt → neu je Profil, Score-Beispielwerte; keine Namen):
   `node tools/modellbericht.js /pfad/zu/Reporting_KUBA.xlsx`
 
@@ -75,7 +74,7 @@ identisch mit der Ansicht «Glossar» in der App.
 |---|---|---|
 | **Zertifizierungsvorgang (Vorgang)** | Eine Zeile der Excel-Datei: eine Person durchläuft die Zertifizierung für ein Profil. Alle prüfungsbezogenen Quoten zählen Vorgänge. Duplikate (dieselbe Person, dasselbe Profil in beiden Sheets) sind zu einem Vorgang zusammengeführt. | Eine Person mit zwei Profilen hat zwei Vorgänge und zählt in Quoten zweimal – bewusst, weil zwei Zertifizierungen stattfanden (E3). |
 | **Person** | Mensch hinter einem oder mehreren Vorgängen, identifiziert über den Personenschlüssel. «Personen» wird nur dort ausgewiesen, wo Menschen gezählt werden. | Bankwechsel ändert die Person nicht (Employer ist nicht Teil des Schlüssels, E2). |
-| **Personenschlüssel** | Normalisiert aus «Last Name», «First Name» und Geburtsdatum: Akzente entfernt, ß → ss, Kleinschreibung, Bindestriche und Mehrfach-Leerzeichen zu einem Leerzeichen. | Fehlt der Geburtsdatum-Header in der Datei [unklar, am File nicht verifiziert], besteht der Schlüssel nur aus dem Namen; die Statuszeile meldet das. Namensgleiche Personen würden dann zusammenfallen. |
+| **Personenschlüssel** | Normalisiert aus «Last Name», «First Name» und Geburtsdatum: Akzente entfernt, ß → ss, Kleinschreibung, Bindestriche und Mehrfach-Leerzeichen zu einem Leerzeichen. | Header «Birth Date» (beide Sheets, am File verifiziert) ist Pflicht. Ist die Zelle leer oder unlesbar, besteht der Schlüssel nur aus dem Namen; namensgleiche Personen fallen dann zusammen (Zähler in der Statuszeile). |
 | **Duplikat** | Zwei Zeilen derselben Person mit gleichem Profil und ohne widersprüchliche Prüfungsdaten (gleicher Run, anderes Datum oder anderer Passed-Wert). Sie werden zu einem Vorgang zusammengeführt: Lücken werden aufgefüllt, nie überschrieben; behalten wird die Zeile mit den meisten absolvierten Runs, bei Gleichstand die aus «Ausgestellte Zertifikate». | Widersprüchliche Zeilen bleiben eigene Vorgänge und erhalten den Hinweis «Wiederholung?» im Data-Quality-Log (E1). |
 | **Status: bestanden / nicht bestanden / offen / nicht erfasst** | Je Vorgang getrennt für schriftlich («WE All Passed»), mündlich («OE All Passed») und gesamt. yes → bestanden, no → nicht bestanden, leer → offen (der Prozess läuft noch), gefüllt aber unlesbar → nicht erfasst (Fehler im Data-Quality-Log). Gesamt: nicht bestanden, sobald ein Teil nicht bestanden ist; bestanden nur, wenn beide bestanden sind. | Im Sheet «Ausgestellte Zertifikate» gelten leere Gesamtergebnisse als bestanden (Zertifikat setzt beides voraus), mit Hinweis im Log. Ob ein «no» später zu «yes» werden kann, ist [unklar]; nach E4 gilt «no» als abgeschlossen. |
 | **Abgeschlossener Vorgang** | Vorgang mit Status bestanden oder nicht bestanden (schriftlich bzw. mündlich). Nenner aller Bestehensquoten «insgesamt bestanden» und «mündlich bestanden» (E4). | Offene und nicht erfasste Vorgänge stehen nicht im Nenner und werden als eigene Zahlen ausgewiesen. |

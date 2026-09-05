@@ -108,7 +108,7 @@ function renderStatus(text) {
   }
   const source = meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint';
   const counts = meta.counts || {};
-  const keyNote = meta.personKey && !meta.personKey.complete ? ' · Personenschlüssel nur aus Namen (Geburtsdatum-Header nicht gefunden)' : '';
+  const keyNote = counts.schluesselOhneGeburtsdatum ? ' · ' + counts.schluesselOhneGeburtsdatum + ' Vorgänge ohne Geburtsdatum (Schlüssel nur aus Namen)' : '';
   ui.status.textContent = meta.fileName + ' (' + source + ') · geändert ' + (fmtDateTime(meta.lastModified) || '–') + ' · geladen ' + (fmtTime(meta.loadedAt) || '–')
     + ' · ' + (counts.zeilen || persons.length) + ' Zeilen (' + (counts.first || 0) + ' First Certification, ' + (counts.issued || 0) + ' Ausgestellte Zertifikate)'
     + ' · ' + (counts.vorgaenge || 0) + ' Vorgänge, ' + (counts.personen || 0) + ' Personen, ' + (counts.duplikate || 0) + ' Duplikate'
