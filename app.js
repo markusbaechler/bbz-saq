@@ -5,10 +5,11 @@ import { GraphError, AuthExpiredError } from './graph.js';
 import { load, loadFromFile } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
-import { filterPersons, eligible, dayKey, benchmarkFilter, BENCHMARKS, personCount } from './metrics.js';
+import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount } from './metrics.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
+import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
 import { el, exportBar } from './views/common.js';
-import { renderDataQuality, DEFAULT_DQ_STATE } from './views/dataQuality.js';
+import { renderDataQuality } from './views/dataQuality.js';
 import * as overview from './views/overview.js';
 import * as written from './views/written.js';
 import * as oral from './views/oral.js';
@@ -22,13 +23,12 @@ const KPI_VIEWS = [overview, written, oral, vssVsm, ranking, offen, planned];
 const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, build: v.build }))
   .concat([{ id: 'datenqualitaet', label: 'Datenqualität' }, { id: glossar.id, label: glossar.label, build: glossar.build, isStatic: true }]);
 
+// Aller Zustand liegt im Store (Filter, Anzeigezustand, Daten); app.js hält nur DOM-Referenzen und Lauf-Flags (Befund 16).
 const store = createStore();
 const auth = getAuth();
 const ui = {};
 let authReady = false;
 let busy = false;
-let dqState = { ...DEFAULT_DQ_STATE };
-let benchmarkKind = 'bank';
 
 function $(id) {
   return document.getElementById(id);
@@ -40,8 +40,32 @@ function hasData() {
 }
 
 function viewFromHash() {
-  const id = (location.hash || '').replace(/^#/, '');
+  const id = parseHash(location.hash).view;
   return VIEWS.some((v) => v.id === id) ? id : VIEWS[0].id;
+}
+
+// ---------------------------------------------------------------------------
+// URL: #ansicht?filter… – Filter- und Anzeigezustand teilbar (Befund 8), keine Personendaten
+// ---------------------------------------------------------------------------
+
+// Zustand → URL (replaceState: keine History-Einträge je Filterklick, kein hashchange)
+function syncHash() {
+  const { filter, ui: uiState } = store.getState();
+  const target = buildHash(viewFromHash(), filter, uiState);
+  if (location.hash !== target) history.replaceState(null, '', target);
+}
+
+// URL → Zustand: bei Parametern Filter/Anzeige übernehmen (ein Store-Update), sonst nur die Ansicht wechseln
+function applyHash() {
+  const parsed = parseHash(location.hash);
+  const { filter, ui: uiState } = store.getState();
+  const filterChanged = parsed.hasParams && !sameFilter(parsed.filter, filter);
+  const uiChanged = parsed.hasParams && parsed.ui.benchmark !== uiState.benchmark;
+  if (filterChanged || uiChanged) {
+    store.update({ filter: filterChanged ? parsed.filter : null, ui: uiChanged ? { benchmark: parsed.ui.benchmark } : null });
+  } else {
+    renderAll();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -50,8 +74,10 @@ function viewFromHash() {
 
 function renderNav() {
   const current = viewFromHash();
+  const { filter, ui: uiState } = store.getState();
   ui.nav.replaceChildren(...VIEWS.map((v) => {
-    const a = el('a', { href: '#' + v.id, text: v.label, class: v.id === current ? 'active' : null });
+    // Links tragen den Filterzustand mit, damit der Ansichtswechsel ihn behält
+    const a = el('a', { href: buildHash(v.id, filter, uiState), text: v.label, class: v.id === current ? 'active' : null });
     if (v.id === current) a.setAttribute('aria-current', 'page');
     return a;
   }));
@@ -89,58 +115,92 @@ function renderStatus(text) {
 }
 
 // ---------------------------------------------------------------------------
-// Filterleiste
+// Filterleiste – einmal je Datenstand gebaut; Filteränderungen aktualisieren nur Werte und Zusammenfassung,
+// damit der Tastaturfokus auf dem bedienten Element bleibt (Befund 9)
 // ---------------------------------------------------------------------------
 
-function toInputDate(d) {
-  return d instanceof Date && !Number.isNaN(d.getTime()) ? dayKey(d) : '';
-}
-
-function fromInputDate(value) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
-  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
-}
+const filterBar = { dataKey: null, controls: null };
 
 function isYear(filter, year) {
   return !!(filter.from && filter.to && filter.from.getTime() === new Date(year, 0, 1).getTime() && filter.to.getTime() === new Date(year, 11, 31).getTime());
 }
 
-function selectControl(labelText, value, options, onChange) {
+function selectControl(labelText, options, onChange) {
   const select = el('select', { onchange: (ev) => onChange(ev.target.value) }, options.map((o) => el('option', { value: o.value, text: o.label })));
-  select.value = value;
-  return el('label', {}, [labelText, select]);
+  return { node: el('label', {}, [labelText, select]), select };
 }
 
-function renderFilterBar() {
+// Wert setzen; ein Wert, der nicht in den Optionen ist (z. B. aus einer URL), wird als eigene Option gezeigt
+function setSelect(select, value) {
+  if (![...select.options].some((o) => o.value === value)) {
+    select.appendChild(el('option', { value, text: value + ' (nicht in den Daten)' }));
+  }
+  select.value = value;
+}
+
+function buildFilterBar() {
   const bar = ui.filterbar;
-  bar.hidden = !hasData();
   bar.replaceChildren();
-  if (!hasData()) return;
-  const { filter, persons } = store.getState();
+  const { persons } = store.getState();
   const opts = store.getFilterOptions();
   const years = [...new Set(eligible(persons).filter((p) => p.refDate).map((p) => p.refDate.getFullYear()))].sort((a, b) => b - a);
   const set = (partial) => store.setFilter(partial);
   const listOptions = (values) => [{ value: '', label: 'Alle' }].concat(values.map((v) => ({ value: v, label: v })));
-  const single = (list) => (list && list.length === 1 ? list[0] : '');
-
+  const c = {};
+  c.from = el('input', { type: 'date', onchange: (ev) => set({ from: parseDay(ev.target.value) }) });
+  c.to = el('input', { type: 'date', onchange: (ev) => set({ to: parseDay(ev.target.value) }) });
+  c.years = [{ year: null, button: el('button', { type: 'button', class: 'secondary', text: 'Alle', onclick: () => set({ from: null, to: null }) }) }]
+    .concat(years.map((y) => ({ year: y, button: el('button', { type: 'button', class: 'secondary', text: String(y), onclick: () => set({ from: new Date(y, 0, 1), to: new Date(y, 11, 31) }) }) })));
+  const profil = selectControl('Profil', listOptions(opts.profil), (v) => set({ profil: v ? [v] : [] }));
+  const sprache = selectControl('Sprache', listOptions(opts.sprache), (v) => set({ sprache: v ? [v] : [] }));
+  const bank = selectControl('Bank', listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] }));
+  const vssVsm = selectControl('VSS/VSM', [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v }));
+  const versuche = selectControl('Versuche', [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v }));
+  Object.assign(c, { profil: profil.select, sprache: sprache.select, bank: bank.select, vssVsm: vssVsm.select, versuche: versuche.select });
+  c.onlyIssued = el('input', { type: 'checkbox', onchange: (ev) => set({ onlyIssued: ev.target.checked }) });
+  c.summary = el('div', { class: 'summary' });
   bar.append(
-    el('label', {}, ['Von', el('input', { type: 'date', value: toInputDate(filter.from), onchange: (ev) => set({ from: fromInputDate(ev.target.value) }) })]),
-    el('label', {}, ['Bis', el('input', { type: 'date', value: toInputDate(filter.to), onchange: (ev) => set({ to: fromInputDate(ev.target.value) }) })]),
-    el('label', {}, ['Jahr', el('div', { class: 'years' }, [
-      el('button', { type: 'button', class: 'secondary' + (!filter.from && !filter.to ? ' active' : ''), text: 'Alle', onclick: () => set({ from: null, to: null }) }),
-      ...years.map((y) => el('button', { type: 'button', class: 'secondary' + (isYear(filter, y) ? ' active' : ''), text: String(y), onclick: () => set({ from: new Date(y, 0, 1), to: new Date(y, 11, 31) }) })),
-    ])]),
-    selectControl('Profil', single(filter.profil), listOptions(opts.profil), (v) => set({ profil: v ? [v] : [] })),
-    selectControl('Sprache', single(filter.sprache), listOptions(opts.sprache), (v) => set({ sprache: v ? [v] : [] })),
-    selectControl('Bank', single(filter.bank), listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] })),
-    selectControl('VSS/VSM', filter.vssVsm, [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v })),
-    selectControl('Versuche', filter.versuche, [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v })),
-    el('label', { class: 'check' }, [el('input', { type: 'checkbox', onchange: (ev) => set({ onlyIssued: ev.target.checked }) }), 'Nur ausgestellte Zertifikate']),
+    el('label', {}, ['Von', c.from]),
+    el('label', {}, ['Bis', c.to]),
+    el('label', {}, ['Jahr', el('div', { class: 'years' }, c.years.map((y) => y.button))]),
+    profil.node, sprache.node, bank.node, vssVsm.node, versuche.node,
+    el('label', { class: 'check' }, [c.onlyIssued, 'Nur ausgestellte Zertifikate']),
     el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() }),
+    c.summary,
   );
-  bar.querySelector('input[type="checkbox"]').checked = !!filter.onlyIssued;
+  filterBar.controls = c;
+}
+
+function updateFilterBar() {
+  const bar = ui.filterbar;
+  bar.hidden = !hasData();
+  if (!hasData()) {
+    filterBar.dataKey = null;
+    filterBar.controls = null;
+    bar.replaceChildren();
+    return;
+  }
+  const { meta, filter } = store.getState();
+  const dataKey = meta.loadedAt instanceof Date ? meta.loadedAt.getTime() : meta.fileName;
+  if (!filterBar.controls || filterBar.dataKey !== dataKey) {
+    buildFilterBar();
+    filterBar.dataKey = dataKey;
+  }
+  const c = filterBar.controls;
+  const single = (list) => (list && list.length === 1 ? list[0] : '');
+  c.from.value = formatDay(filter.from);
+  c.to.value = formatDay(filter.to);
+  for (const { year, button } of c.years) button.classList.toggle('active', year === null ? !filter.from && !filter.to : isYear(filter, year));
+  setSelect(c.profil, single(filter.profil));
+  setSelect(c.sprache, single(filter.sprache));
+  setSelect(c.bank, single(filter.bank));
+  c.vssVsm.value = filter.vssVsm;
+  c.versuche.value = filter.versuche;
+  c.onlyIssued.checked = !!filter.onlyIssued;
   const filtered = store.getFilteredPersons();
-  bar.appendChild(el('div', { class: 'summary', text: filtered.length + ' Vorgänge (' + personCount(filtered) + ' Personen) im Filter, mit absolviertem, datiertem WE-Run · ' + filterLines(filter, store.getState().meta).slice(1).filter((l) => !l.startsWith('Wertung')).join(' · ') }));
+  const multi = ['profil', 'sprache', 'bank'].some((k) => filter[k].length > 1) ? ' · Mehrfachauswahl aus der URL (Auswahlfelder zeigen «Alle»)' : '';
+  c.summary.textContent = filtered.length + ' Vorgänge (' + personCount(filtered) + ' Personen) im Filter, mit absolviertem, datiertem WE-Run · '
+    + filterLines(filter, meta).slice(1).filter((l) => !l.startsWith('Wertung')).join(' · ') + multi;
 }
 
 // ---------------------------------------------------------------------------
@@ -148,11 +208,8 @@ function renderFilterBar() {
 // ---------------------------------------------------------------------------
 
 function renderDq(table) {
-  const { dq, persons } = store.getState();
-  renderDataQuality(table, dq, dqState, (next) => {
-    dqState = next;
-    renderDq(table);
-  }, { persons });
+  const { dq, persons, ui: uiState } = store.getState();
+  renderDataQuality(table, dq, uiState.dq || {}, (next) => store.setUi({ dq: next }), { persons });
 }
 
 function renderView() {
@@ -196,14 +253,11 @@ function renderView() {
     meta: state.meta,
     headerLines,
     benchmark: {
-      kind: benchmarkKind,
-      label: (BENCHMARKS.find((b) => b.id === benchmarkKind) || BENCHMARKS[0]).label,
-      persons: filterPersons(state.persons, benchmarkFilter(filter, benchmarkKind)),
+      kind: state.ui.benchmark,
+      label: (BENCHMARKS.find((b) => b.id === state.ui.benchmark) || BENCHMARKS[0]).label,
+      persons: filterPersons(state.persons, benchmarkFilter(filter, state.ui.benchmark)),
     },
-    onBenchmarkChange: (kind) => {
-      benchmarkKind = kind;
-      renderView();
-    },
+    onBenchmarkChange: (kind) => store.setUi({ benchmark: kind }),
     onModeChange: (mode) => store.setFilter({ mode }),
   };
   let built;
@@ -220,8 +274,9 @@ function renderView() {
 
 function renderAll() {
   renderStatus();
-  renderFilterBar();
+  updateFilterBar();
   renderView();
+  syncHash();
 }
 
 // ---------------------------------------------------------------------------
@@ -336,10 +391,10 @@ async function init() {
     ev.target.value = '';
     if (file) run(() => loadLocal(file));
   });
-  window.addEventListener('hashchange', renderView);
+  window.addEventListener('hashchange', applyHash);
   store.subscribe(renderAll);
 
-  renderAll();
+  applyHash(); // Filter aus der URL übernehmen und erste Ansicht rendern
   try {
     await auth.init();
     authReady = true;

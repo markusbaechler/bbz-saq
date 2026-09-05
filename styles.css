@@ -17,6 +17,12 @@
 
 * { box-sizing: border-box; }
 
+/* Tastaturfokus sichtbar (Befund 9); Maus-Fokus bleibt dezent */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, .views a:focus-visible { outline: 3px solid var(--accent-dark); outline-offset: 2px; }
+input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+th.sortable button:focus-visible { outline-offset: 0; }
+
 html, body { margin: 0; padding: 0; }
 
 body {

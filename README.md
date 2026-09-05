@@ -30,7 +30,12 @@ Druckansicht. Der Filterzustand steht im Kopf jedes Exports.
 ## Globale Filter
 
 Zeitraum (Von–Bis, Jahres-Shortcuts, «Alle»; wirkt auf das Referenzdatum), Profil, Sprache, Bank, VSS/VSM,
-Versuche (alle | nur 1. Versuch | mehrere Versuche), «nur ausgestellte Zertifikate» (Sheet 2).
+Versuche (alle | nur 1. Versuch | mehrere Versuche), «nur ausgestellte Zertifikate» (Sheet 2 oder damit zusammengeführt).
+
+**Filterzustand in der URL:** Ansicht, Filter, Wertung und Benchmark stehen im Hash der Adresse
+(`#schriftlich?von=2025-01-01&bis=2025-12-31&profil=PK&bank=…&wertung=bestanden&benchmark=profil`) und lassen sich als
+Link teilen; nach dem Öffnen müssen die Daten neu geladen werden. Die URL enthält nie Personendaten. Die Filterleiste wird
+bei Filteränderungen nur aktualisiert, nicht neu aufgebaut; der Tastaturfokus bleibt auf dem bedienten Element.
 Die Wertung (Resultat 1. Versuch | Resultat bestandener Run) wird nur in der Ansicht «Bestenlisten» gewählt; alle anderen
 Ansichten zeigen beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfungen» wirkt der Zeitraum nicht.
 

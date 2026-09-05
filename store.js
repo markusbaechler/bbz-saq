@@ -39,6 +39,7 @@ import {
   PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, BIRTH_DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
 } from './config.js';
 import { DEFAULT_FILTER, STATUS, filterPersons, eligible, groupBy, groupByPerson, dayKey } from './metrics.js';
+import { DEFAULT_UI } from './urlState.js';
 
 export const LEVEL = Object.freeze({ FEHLER: 'fehler', HINWEIS: 'hinweis', NICHT_AUSGEWERTET: 'nicht-ausgewertet' });
 
@@ -752,12 +753,14 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
 // State (nur im Memory – keine Persistenz von Personendaten oder Aggregaten im Browser)
 // ---------------------------------------------------------------------------
 
+// state.ui: Anzeigezustand ohne Personendaten (Benchmark-Art, Sortierung/Filter des DQ-Logs) – ein Ort für allen State (Befund 16)
 export function createStore() {
   const state = {
     persons: [],
     dq: [],
     meta: null,
     filter: { ...DEFAULT_FILTER },
+    ui: { ...DEFAULT_UI },
   };
   const listeners = new Set();
 
@@ -781,6 +784,18 @@ export function createStore() {
 
     setFilter(partial) {
       state.filter = { ...state.filter, ...partial };
+      notify();
+    },
+
+    setUi(partial) {
+      state.ui = { ...state.ui, ...partial };
+      notify();
+    },
+
+    // Filter und Anzeigezustand zusammen setzen (z. B. aus der URL), eine Benachrichtigung
+    update({ filter = null, ui = null } = {}) {
+      if (filter) state.filter = { ...state.filter, ...filter };
+      if (ui) state.ui = { ...state.ui, ...ui };
       notify();
     },
 
