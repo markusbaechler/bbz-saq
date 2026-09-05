@@ -1,0 +1,12 @@
+# Nie ins Repo: Excel-Kopien, lokale Daten, lokale Konfiguration
+*.xlsx
+*.xlsm
+/data
+/local
+config.local.js
+
+# Betriebssystem / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
