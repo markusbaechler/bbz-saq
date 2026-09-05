@@ -43,6 +43,8 @@ test('parseLanguage: trim + upper → DE/FR/IT/EN, sonst null + Grund', () => {
   assertEqual(parseLanguage(' Fr '), { value: 'FR', reason: null });
   assertEqual(parseLanguage('IT'), { value: 'IT', reason: null });
   assertEqual(parseLanguage('en'), { value: 'EN', reason: null });
+  assertEqual(parseLanguage('D'), { value: 'DE', reason: null }, 'eindeutiges Kürzel');
+  assertEqual(parseLanguage(' f '), { value: 'FR', reason: null });
   assertEqual(parseLanguage(''), { value: null, reason: null });
   assertEqual(parseLanguage(null), { value: null, reason: null });
   assertEqual(parseLanguage('ES').value, null);
@@ -544,4 +546,29 @@ test('normalizeWorkbook: today wird durchgereicht (geplante Runs)', () => {
   const early = normalizeWorkbook({ sheets: [makeSheet('first', [row])] }, { today: new Date(2026, 6, 1) });
   assertEqual(late.meta.counts.hinweise, 1, 'vergangen ohne Passed');
   assertEqual(early.meta.counts.hinweise, 0, 'noch geplant');
+});
+
+test('normalizeSheet: Sprache leer → aus «Communication Language» übernommen (Hinweis)', () => {
+  const { persons, dq } = normalizeSheet(makeSheet('issued', [fullRow({ sprache: '', commLanguage: 'fr', certStart: '01.07.2024' })]), {});
+  assertEqual(persons[0].sprache, 'FR');
+  assertEqual(persons[0].spracheDerived, true);
+  assertEqual(dq.length, 1);
+  assertEqual([dq[0].level, dq[0].header], ['hinweis', 'Certificate Language']);
+  assert(/Communication Language/.test(dq[0].reason), dq[0].reason);
+  const given = normalizeSheet(makeSheet('issued', [fullRow({ sprache: 'DE', commLanguage: 'fr', certStart: '01.07.2024' })]), {});
+  assertEqual([given.persons[0].sprache, given.persons[0].spracheDerived, given.dq.length], ['DE', false, 0], 'vorhandene Sprache hat Vorrang');
+  const none = normalizeSheet(makeSheet('issued', [fullRow({ sprache: '', commLanguage: '', certStart: '01.07.2024' })]), {});
+  assertEqual([none.persons[0].sprache, none.dq.length], [null, 0], 'ohne beides bleibt null ohne Eintrag');
+  const odd = normalizeSheet(makeSheet('issued', [fullRow({ sprache: '', commLanguage: 'Deutsch', certStart: '01.07.2024' })]), {});
+  assertEqual(odd.persons[0].sprache, null);
+  assertEqual([odd.dq[0].level, odd.dq[0].header], ['hinweis', 'Communication Language'], 'nicht deutbare Kommunikationssprache ist nur ein Hinweis');
+});
+
+test('normalizeSheet: «PK FRZ» → Profil PK und Sprache FR (Hinweis), Sprache aus Zelle hat Vorrang', () => {
+  const { persons, dq } = normalizeSheet(makeSheet('first', [fullRow({ profil: 'PK FRZ', sprache: '', commLanguage: 'de' })]), {});
+  assertEqual([persons[0].profil, persons[0].sprache, persons[0].spracheDerived], ['PK', 'FR', true], 'Programmbezeichnung vor Kommunikationssprache');
+  assertEqual(dq.length, 1);
+  assert(/PK FRZ/.test(dq[0].reason), dq[0].reason);
+  const given = normalizeSheet(makeSheet('first', [fullRow({ profil: 'PK FRZ', sprache: 'DE' })]), {});
+  assertEqual([given.persons[0].profil, given.persons[0].sprache, given.dq.length], ['PK', 'DE', 0]);
 });

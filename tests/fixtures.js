@@ -13,7 +13,7 @@ export function headerFor(source, key) {
 // Sheet 1: zusätzlich «WE6 RUN1 Location»; Sheet 2: zusätzlich Certificate Number/Start/End.
 export function headerRowFor(source) {
   const h = (key) => headerFor(source, key);
-  const row = ['Nr', h('lastName'), h('firstName'), h('role'), h('employer'), h('profil'), h('sprache')];
+  const row = ['Nr', h('lastName'), h('firstName'), h('role'), h('employer'), h('profil'), h('sprache'), h('commLanguage')];
   if (source === 'issued') row.push(h('certNumber'), h('certStart'), h('certEnd'));
   for (const [kind, cfg] of [['we', CONFIG.we], ['oe', CONFIG.oe]]) {
     row.push(h(kind + 'AllPassed'));
@@ -94,6 +94,7 @@ export function makePerson(overrides = {}) {
     employerCanon: 'Testbank AG',
     profil: 'PK',
     sprache: 'DE',
+    spracheDerived: false,
     vss: false,
     vsm: false,
     certStart: null,

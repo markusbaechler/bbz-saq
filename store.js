@@ -24,8 +24,8 @@
 //   und mündlich voraus) – mit Hinweis im DQ-Log.
 
 import {
-  CONFIG, HEADER_FIELDS, PROFILES, PROFILE_ALIASES, LANGUAGES, PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES,
-  VSS_REGEX, VSM_REGEX, DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
+  CONFIG, HEADER_FIELDS, PROFILES, PROFILE_ALIASES, LANGUAGES, LANGUAGE_ALIASES, PROFILE_LANGUAGE_HINTS,
+  PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
 } from './config.js';
 import { DEFAULT_FILTER, filterPersons, eligible, groupBy } from './metrics.js';
 
@@ -85,6 +85,7 @@ export function parseLanguage(raw) {
   if (typeof raw !== 'string') return bad(null, 'Sprache ist kein Text (' + typeName(raw) + ')');
   const t = raw.trim().toUpperCase();
   if (LANGUAGES.includes(t)) return ok(t);
+  if (LANGUAGE_ALIASES[t]) return ok(LANGUAGE_ALIASES[t]);
   return bad(null, 'Sprache unbekannt (erlaubt: ' + LANGUAGES.join(', ') + ')');
 }
 
@@ -371,6 +372,7 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
       employerCanon,
       profil: field('profil', parseProfile),
       sprache: field('sprache', parseLanguage),
+      spracheDerived: false,
       ...parseVssVsm(comments[CONFIG.commentColumn + row]),
       certStart: map.certStart === undefined ? null : field('certStart', parseDate),
       certNumber: map.certNumber === undefined ? null : asText(get('certNumber')),
@@ -384,6 +386,27 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
       attemptsTotal: 0,
       hasWeDate: false,
     };
+
+    // Sprache ableiten, wenn «Certificate Language» leer: 1. Programmbezeichnung (z. B. «PK FRZ»),
+    // 2. «Communication Language» (Auftraggeber: sinngemäss übernehmen)
+    if (person.sprache === null && isBlank(get('sprache'))) {
+      const profilRaw = asText(get('profil'));
+      const hinted = profilRaw ? PROFILE_LANGUAGE_HINTS[profilRaw.toUpperCase()] || PROFILE_LANGUAGE_HINTS[profilRaw] : undefined;
+      if (hinted) {
+        person.sprache = hinted;
+        person.spracheDerived = true;
+        hint('sprache', get('sprache'), 'Certificate Language leer – Sprache aus Programmbezeichnung «' + profilRaw + '» übernommen (' + hinted + ')');
+      } else if (map.commLanguage !== undefined && !isBlank(get('commLanguage'))) {
+        const comm = parseLanguage(get('commLanguage'));
+        if (comm.value) {
+          person.sprache = comm.value;
+          person.spracheDerived = true;
+          hint('sprache', get('sprache'), 'Certificate Language leer – Sprache aus «Communication Language» übernommen (' + comm.value + ')');
+        } else {
+          hint('commLanguage', get('commLanguage'), 'Certificate Language leer und Communication Language nicht deutbar');
+        }
+      }
+    }
 
     // Abgeleitete Felder
     const weRuns = person.we.flatMap((part) => part.runs);

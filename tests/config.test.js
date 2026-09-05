@@ -2,6 +2,7 @@ import { test, assert, assertEqual } from './runner.js';
 import {
   CONFIG, PROFILES, PROFILE_ALIASES, LANGUAGES, PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES,
   VSS_REGEX, VSM_REGEX, HEADER_FIELDS, headerCandidates, requiredFieldKeys, partKey, runKey, DATE_RULES,
+  LANGUAGE_ALIASES, PROFILE_LANGUAGE_HINTS,
 } from '../config.js';
 
 test('config: Sheet-Namen und Header-Zeile gemäss Spezifikation', () => {
@@ -25,6 +26,8 @@ test('config: Whitelists der Normalisierungstabelle', () => {
   assertEqual(PROFILES, ['PK', 'IK', 'CWMA', 'KMU', 'AFFL', 'CCoB']);
   assertEqual(PROFILE_ALIASES, { CCOB: 'CCoB', Affluent: 'AFFL', Affl: 'AFFL', AFF: 'AFFL', 'PK FRZ': 'PK' });
   assertEqual(LANGUAGES, ['DE', 'FR', 'IT', 'EN']);
+  assertEqual(LANGUAGE_ALIASES, { D: 'DE', F: 'FR', I: 'IT', E: 'EN' });
+  assertEqual(PROFILE_LANGUAGE_HINTS, { 'PK FRZ': 'FR' });
   assertEqual(PASSED_TRUE, ['yes', 'YES', 'Yes', 'PASSED', 'fulfilled', 'FULFILLED']);
   assertEqual(PASSED_FALSE, ['no', 'No', 'FAILED']);
   assertEqual(EMPLOYER_ALIASES['BEKB'], 'Berner Kantonalbank AG');
@@ -63,6 +66,7 @@ test('config: Header-Kandidaten führen Sheet-Varianten (Passed | yes)', () => {
   assertEqual(headerCandidates('profil'), ['Certificate Program']);
   assertEqual(headerCandidates('sprache'), ['Certificate Language']);
   assertEqual(headerCandidates('certStart'), ['Certificate Start Date']);
+  assertEqual(headerCandidates('commLanguage'), ['Communication Language'], 'optional, für Sprach-Ableitung');
   assertEqual(headerCandidates('weAllPassed'), ['WE All Passed', 'WE All yes']);
   assertEqual(headerCandidates('oeAllPassed'), ['OE All Passed', 'OE All yes']);
   assertEqual(headerCandidates('we3.passed'), ['WE3 Passed', 'WE3 yes']);
@@ -87,7 +91,7 @@ test('config: Pflicht-Header je Sheet (certStart nur bei «issued»)', () => {
     'we1.passed', 'we6.passed', 'oe1.passed', 'oe2.passed', 'we6.run3.result', 'oe2.run3.date']) {
     assert(first.includes(k), 'Pflicht-Header fehlt: ' + k);
   }
-  assert(!first.includes('certNumber') && !first.includes('certEnd'), 'optionale Felder nicht Pflicht');
+  assert(!first.includes('certNumber') && !first.includes('certEnd') && !first.includes('commLanguage'), 'optionale Felder nicht Pflicht');
   assert(!issued.includes('certNumber') && !issued.includes('certEnd'), 'optionale Felder nicht Pflicht');
 });
 

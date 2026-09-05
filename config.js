@@ -46,6 +46,12 @@ export const PROFILE_ALIASES = {
 
 export const LANGUAGES = ['DE', 'FR', 'IT', 'EN'];
 
+// Eindeutige Kürzel → Sprache (Vergleich case-insensitiv nach trim)
+export const LANGUAGE_ALIASES = { D: 'DE', F: 'FR', I: 'IT', E: 'EN' };
+
+// Programmbezeichnungen, die eine Prüfungssprache implizieren (nur wenn «Certificate Language» leer ist)
+export const PROFILE_LANGUAGE_HINTS = { 'PK FRZ': 'FR' };
+
 // Passed-Felder: Schreibweisen nach trim, Vergleich ohne Gross-/Kleinschreibung. Alles andere → null + Data-Quality-Log.
 export const PASSED_TRUE = ['yes', 'YES', 'Yes', 'PASSED', 'fulfilled', 'FULFILLED'];
 export const PASSED_FALSE = ['no', 'No', 'FAILED'];
@@ -118,6 +124,7 @@ function buildHeaderFields() {
     { key: 'employer',    candidates: ['Employer'],               required: 'all' },
     { key: 'profil',      candidates: ['Certificate Program'],    required: 'all' },
     { key: 'sprache',     candidates: ['Certificate Language'],   required: 'all' },
+    { key: 'commLanguage', candidates: ['Communication Language'], required: 'none' }, // Fallback für leere Certificate Language
     { key: 'certNumber',  candidates: ['Certificate Number'],     required: 'none' },
     { key: 'certStart',   candidates: ['Certificate Start Date'], required: 'issued' },
     { key: 'certEnd',     candidates: ['Certificate End Date'],   required: 'none' },
