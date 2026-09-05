@@ -24,7 +24,7 @@ test('config: Datei-Referenz ohne hardcodierte Item-IDs', () => {
 
 test('config: Whitelists der Normalisierungstabelle', () => {
   assertEqual(PROFILES, ['PK', 'IK', 'CWMA', 'KMU', 'AFFL', 'CCoB']);
-  assertEqual(PROFILE_ALIASES, { CCOB: 'CCoB', Affluent: 'AFFL', Affl: 'AFFL', AFF: 'AFFL', 'PK FRZ': 'PK' });
+  assertEqual(PROFILE_ALIASES, { CCOB: 'CCoB', Affluent: 'AFFL', Affl: 'AFFL', AFF: 'AFFL', AF: 'AFFL', 'PK FRZ': 'PK' });
   assertEqual(LANGUAGES, ['DE', 'FR', 'IT', 'EN']);
   assertEqual(LANGUAGE_ALIASES, { D: 'DE', F: 'FR', I: 'IT', E: 'EN' });
   assertEqual(PROFILE_LANGUAGE_HINTS, { 'PK FRZ': 'FR' });

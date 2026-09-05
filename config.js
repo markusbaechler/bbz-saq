@@ -41,6 +41,7 @@ export const PROFILE_ALIASES = {
   Affluent: 'AFFL',
   Affl: 'AFFL',
   AFF: 'AFFL',
+  AF: 'AFFL',
   'PK FRZ': 'PK', // französische Durchführung des PK-Profils (in der Datei so erfasst)
 };
 

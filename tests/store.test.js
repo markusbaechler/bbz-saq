@@ -61,6 +61,7 @@ test('parseProfile: kanonisch, Alias-Map, case-insensitiv; unbekannt → Rohwert
   assertEqual(parseProfile('CCoB'), { value: 'CCoB', reason: null });
   assertEqual(parseProfile('Affluent'), { value: 'AFFL', reason: null });
   assertEqual(parseProfile('AFFLUENT'), { value: 'AFFL', reason: null });
+  assertEqual(parseProfile('AF'), { value: 'AFFL', reason: null }, 'Auftraggeber: AF ist Affluent');
   assertEqual(parseProfile('CWMA'), { value: 'CWMA', reason: null });
   assertEqual(parseProfile(''), { value: null, reason: null });
   const unknown = parseProfile(' XYZ ');
