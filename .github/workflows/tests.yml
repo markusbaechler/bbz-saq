@@ -1,0 +1,47 @@
+# CI: Tests und Konsistenzprüfungen bei jedem Push auf main und jedem Pull Request.
+# Kein Build-Schritt, keine Abhängigkeiten (Bibliotheken liegen unter lib/); Node 22 wie in der lokalen Entwicklung.
+# Deployment läuft getrennt über GitHub Pages (Branch main), nicht über diesen Workflow.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax aller ES-Module (auch Views, die der Node-Runner nicht lädt)
+        run: |
+          set -e
+          for f in *.js views/*.js datasource/*.js tools/*.js tests/*.js; do node --check "$f"; done
+          echo "Syntax geprüft: $(ls *.js views/*.js datasource/*.js tools/*.js tests/*.js | wc -l) Dateien"
+
+      - name: Tests (tests/run-node.js)
+        run: node tests/run-node.js
+
+      - name: README-Glossar aktuell (aus glossary.js erzeugt)
+        run: |
+          node tools/glossar-readme.js --write
+          if ! git diff --quiet -- README.md; then
+            echo '::error::README-Glossar veraltet – lokal «node tools/glossar-readme.js --write» ausführen und committen'
+            git --no-pager diff -- README.md
+            exit 1
+          fi

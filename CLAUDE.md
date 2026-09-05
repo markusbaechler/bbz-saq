@@ -35,4 +35,6 @@ Vollständige Spezifikation: `PROMPT.md`. Bei Widerspruch gilt diese Datei.
 
 ## Lokal
 - `python -m http.server 3000` → http://localhost:3000
-- Tests: `tests.html` im Browser öffnen; alle Tests müssen grün sein, bevor Views geändert werden.
+- Tests: `tests.html` im Browser öffnen oder `node tests/run-node.js`; alle Tests müssen grün sein, bevor Views geändert werden.
+- CI: `.github/workflows/tests.yml` führt bei Push auf `main` und bei Pull Requests Syntaxprüfung, Tests und den
+  README-Glossar-Abgleich (`node tools/glossar-readme.js --write` muss keine Änderung ergeben) aus.
