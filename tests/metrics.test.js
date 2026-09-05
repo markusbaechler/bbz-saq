@@ -9,6 +9,7 @@ import {
   STATUS, isVorgang, statusCounts, exclusionReason, groupByPerson, personCount, multiProfilePersons, modelComparison,
   excludedRows, openCases, openCaseState, rankingLimit, rankReason, refYear, yearsOf, timeSeries, timeSeriesBy, partDifficultyByYear,
   earlyWarnings, durationDays, certificateDays, quantiles, throughputStats, passiveCases, PASSIVE_DAYS, partsByProfile, missingParts,
+  profileParts, partsOutsideProfile, personIndex, passerelleFrom,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -787,15 +788,46 @@ test('passiveCases: offene Vorgänge mit Kennzeichen passiv (store setzt es beim
   assertEqual(openCaseState(recent, today).lastRunPassed, true);
 });
 
-test('partsByProfile / missingParts: Teilprüfungen je Profil aus den Daten (≥ 5 Vorgänge), fehlende Teile je Vorgang', () => {
+test('partsByProfile: Nutzung der Teilprüfungen in den Daten je Profil (Vorgänge je Teil, Teile mit ≥ 5 Vorgängen)', () => {
   const pk = Array.from({ length: 6 }, (_, i) => simple({ lastName: 'P' + i, profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.8 }], 2: [{ passed: true, date: '2024-03-01', result: 0.7 }], 3: [{ passed: i === 0, date: '2024-03-02', result: 0.6 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } }));
-  pk.push(simple({ lastName: 'Ausreisser', profil: 'PK', we: { 6: [{ passed: true, date: '2024-03-01', result: 0.8 }] } })); // WE6 nur einmal → gehört nicht zum Profil
-  const ik = [simple({ lastName: 'I', profil: 'IK' })]; // zu wenige Vorgänge → keine Teile
+  pk.push(simple({ lastName: 'Ausreisser', profil: 'PK', we: { 6: [{ passed: true, date: '2024-03-01', result: 0.8 }] } })); // WE6 nur einmal
+  const ik = [simple({ lastName: 'I', profil: 'IK' })]; // zu wenige Vorgänge für die Schwelle
   const parts = partsByProfile(pk.concat(ik));
   assertEqual(parts.map((x) => [x.profil, x.we, x.oe, x.n]), [['PK', [1, 2, 3], [1], 7], ['IK', [], [], 1]]);
-  const open = simple({ profil: 'PK', weAllPassed: null, we: { 1: [{ passed: true, date: '2025-01-01', result: 0.8 }], 3: [{ passed: false, date: '2025-02-01', result: 0.4 }] }, oe: {} });
-  assertEqual(missingParts(open, parts), ['WE2', 'WE3', 'OE1']);
-  assertEqual(missingParts(pk[0], parts), []);
-  assertEqual(missingParts(simple({ profil: 'CWMA' }), parts), null, 'unbekanntes Profil');
+  assertEqual(parts[0].taken, { we: [6, 6, 6, 0, 0, 1], oe: [7, 0] }, 'Anzahl Vorgänge mit absolviertem Run je Teil (Ausreisser hat OE1 aus der Kurzform)');
+  assertEqual(parts[1].taken, { we: [1, 1, 0, 0, 0, 0], oe: [1, 0] });
   assertEqual(partsByProfile([simple({ duplicateOf: { sheet: 'x', row: 1 } })]), [], 'Duplikate zählen nicht');
+});
+
+test('profileParts / missingParts / partsOutsideProfile: Vorgabe je Profil (config.PROFILE_PARTS), fehlende Teile und Teile ausserhalb', () => {
+  const parts = profileParts();
+  assertEqual(parts.map((x) => [x.profil, x.we, x.oe]), [['PK', [1], [1]], ['IK', [1], [1]], ['CWMA', [1, 2, 3], [1]], ['KMU', [1, 2, 3], [1]], ['AFFL', [1, 2], [1]], ['CCoB', [1, 2, 3], [1]]]);
+  const open = simple({ profil: 'CWMA', weAllPassed: null, we: { 1: [{ passed: true, date: '2025-01-01', result: 0.8 }], 3: [{ passed: false, date: '2025-02-01', result: 0.4 }] }, oe: {} });
+  assertEqual(missingParts(open), ['WE2', 'WE3', 'OE1'], 'Standard: Vorgabe aus config');
+  assertEqual(missingParts(simple({ profil: 'PK' })), [], 'WE1 und OE1 bestanden → nichts fehlt (WE2 gehört nicht zur Vorgabe)');
+  assertEqual(missingParts(simple({ profil: 'XY' })), null, 'Profil ohne Vorgabe');
+  assertEqual(missingParts(simple({ profil: null })), null, 'leeres Profil');
+  assertEqual(partsOutsideProfile(simple({ profil: 'PK' })), ['WE2'], 'WE2 absolviert, aber nicht in der Vorgabe PK');
+  assertEqual(partsOutsideProfile(simple({ profil: 'AFFL' })), []);
+  assertEqual(partsOutsideProfile(simple({ profil: 'XY' })), null);
+  const planned = simple({ profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.8 }], 4: [{ date: '2030-01-01', planned: true }] } });
+  assertEqual(partsOutsideProfile(planned), [], 'nur geplante Runs zählen nicht als absolviert');
+});
+
+test('personIndex / passerelleFrom: Vorgängerprofil derselben Person bestanden → Passerelle möglich', () => {
+  const pkDone = simple({ lastName: 'W', personKey: 'w|w|1990-01-01', profil: 'PK' });
+  const ikOpen = simple({ lastName: 'W', personKey: 'w|w|1990-01-01', profil: 'IK', weAllPassed: null, oeAllPassed: null, we: {}, oe: {} });
+  const cwmaOpen = simple({ lastName: 'W', personKey: 'w|w|1990-01-01', profil: 'CWMA', weAllPassed: null, oeAllPassed: null, we: {}, oe: {} });
+  const other = simple({ lastName: 'X', personKey: 'x|x|1991-01-01', profil: 'IK', weAllPassed: null, oeAllPassed: null, we: {}, oe: {} });
+  const index = personIndex([pkDone, ikOpen, cwmaOpen, other, simple({ personKey: 'w|w|1990-01-01', profil: 'PK', duplicateOf: { sheet: 'x', row: 1 } })]);
+  assertEqual([...index.keys()], ['w|w|1990-01-01', 'x|x|1991-01-01']);
+  assertEqual(index.get('w|w|1990-01-01').length, 3, 'Duplikate nicht im Index');
+  assertEqual(passerelleFrom(ikOpen, index), 'PK');
+  assertEqual(passerelleFrom(cwmaOpen, index), null, 'CWMA braucht AFFL, nicht PK');
+  assertEqual(passerelleFrom(other, index), null, 'kein Vorgängerprofil bei dieser Person');
+  assertEqual(passerelleFrom(pkDone, index), null, 'PK hat kein Vorgängerprofil');
+  // Vorgänger nur mit Zertifikat (Status offen im Sheet 1, Zertifikat im Sheet 2)
+  const affl = simple({ lastName: 'Z', personKey: 'z|z|1992-01-01', profil: 'AFFL', weAllPassed: null, oeAllPassed: null, issued: true });
+  const cwma = simple({ lastName: 'Z', personKey: 'z|z|1992-01-01', profil: 'CWMA', weAllPassed: null, oeAllPassed: null, we: {}, oe: {} });
+  assertEqual(passerelleFrom(cwma, personIndex([affl, cwma])), 'AFFL');
 });

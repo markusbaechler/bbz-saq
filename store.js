@@ -38,7 +38,7 @@ import {
   CONFIG, HEADER_FIELDS, PROFILES, PROFILE_ALIASES, LANGUAGES, LANGUAGE_ALIASES, PROFILE_LANGUAGE_HINTS,
   PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, BIRTH_DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
 } from './config.js';
-import { DEFAULT_FILTER, STATUS, PASSIVE_DAYS, filterPersons, eligible, groupBy, groupByPerson, dayKey, partsByProfile, missingParts } from './metrics.js';
+import { DEFAULT_FILTER, STATUS, PASSIVE_DAYS, filterPersons, eligible, groupBy, groupByPerson, dayKey, partsByProfile, missingParts, profileParts, partsOutsideProfile, personIndex, passerelleFrom } from './metrics.js';
 import { DEFAULT_UI } from './urlState.js';
 
 export const LEVEL = Object.freeze({ FEHLER: 'fehler', HINWEIS: 'hinweis', NICHT_AUSGEWERTET: 'nicht-ausgewertet' });
@@ -732,21 +732,39 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
   const horizon = endOfDay(options.today || new Date());
   const { duplikate, profilKonflikte } = linkPersons(persons, dq, horizon);
   const vorgaenge = persons.filter((p) => !p.duplicateOf);
-  // Hinweis (Entscheid 3): alle Teilprüfungen des Profils bestanden, aber Gesamtergebnis leer → bleibt offen (E4), vermutlich fehlt «yes».
-  // Teilprüfungen je Profil werden aus den Daten abgeleitet (metrics.partsByProfile).
-  const profileParts = partsByProfile(vorgaenge);
+  // Teilprüfungen je Profil laut Vorgabe (config.PROFILE_PARTS, Auftraggeber 05.09.2026).
+  // Hinweis (Entscheid 3): alle Teile der Vorgabe bestanden, aber Gesamtergebnis leer → bleibt offen (E4), vermutlich fehlt «yes».
+  // Hinweis (Kontrolle der Vorgabe): absolvierte Runs in Teilen ausserhalb der Vorgabe (z. B. WE2 bei PK) – ohne Kennzahlwirkung.
+  const parts = profileParts();
+  const index = personIndex(vorgaenge);
   let vollstaendigOhneGesamtergebnis = 0;
+  let teileAusserhalbVorgabe = 0;
+  let passerelleMoeglich = 0;
+  const label = (kind, list) => list.map((n) => kind.toUpperCase() + n).join(', ');
   for (const p of vorgaenge) {
-    const missing = missingParts(p, profileParts);
+    const def = parts.find((x) => x.profil === p.profil);
+    const outside = partsOutsideProfile(p, parts);
+    if (outside && outside.length) {
+      teileAusserhalbVorgabe += 1;
+      for (const part of outside) {
+        const kind = part.startsWith('WE') ? 'we' : 'oe';
+        const key = partKey(kind, Number(part.slice(2)));
+        dq.push({
+          level: LEVEL.HINWEIS, impact: IMPACT.KEINE, sheet: p.sheetName, row: p.row, header: headerCandidates(key)[0], field: key, raw: null,
+          reason: 'Absolvierter Run in ' + part + ', aber die Vorgabe für ' + p.profil + ' umfasst ' + (def[kind].length ? 'nur ' + label(kind, def[kind]) : 'keine ' + (kind === 'we' ? 'schriftliche' : 'mündliche') + ' Teile') + ' – Vorgabe (config.js, PROFILE_PARTS) oder Erfassung prüfen',
+        });
+      }
+    }
+    if (passerelleFrom(p, index)) passerelleMoeglich += 1;
+    const missing = missingParts(p, parts);
     if (missing === null) continue;
     for (const [kind, status, flag, header] of [['we', 'weStatus', 'weAllPassed', p.weAllHeader], ['oe', 'oeStatus', 'oeAllPassed', p.oeAllHeader]]) {
-      const def = profileParts.find((x) => x.profil === p.profil);
-      if (!def || !def[kind].length || p[status] !== STATUS.OFFEN) continue;
+      if (!def[kind].length || p[status] !== STATUS.OFFEN) continue;
       if (missing.some((m) => m.startsWith(kind.toUpperCase()))) continue;
       vollstaendigOhneGesamtergebnis += 1;
       dq.push({
         level: LEVEL.HINWEIS, impact: IMPACT.KENNZAHL, sheet: p.sheetName, row: p.row, header, field: flag, raw: null,
-        reason: 'Alle Teilprüfungen des Profils (' + def[kind].map((n) => kind.toUpperCase() + n).join(', ') + ') bestanden, aber Gesamtergebnis leer – Vorgang gilt als offen (E4); vermutlich fehlt «yes»',
+        reason: 'Alle Teilprüfungen der Vorgabe für ' + p.profil + ' (' + label(kind, def[kind]) + ') bestanden, aber Gesamtergebnis leer – Vorgang gilt als offen (E4); vermutlich fehlt «yes»',
       });
     }
   }
@@ -766,6 +784,8 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
     passiv: vorgaenge.filter((p) => p.passiv).length,
     nichtErfasst: byStatus(STATUS.NICHT_ERFASST),
     vollstaendigOhneGesamtergebnis,
+    teileAusserhalbVorgabe,
+    passerelleMoeglich,
     schluesselOhneGeburtsdatum: vorgaenge.filter((p) => p.personKeyLevel !== 'full').length,
     dq: dq.length,
     fehler: dq.filter((e) => e.level === LEVEL.FEHLER).length,

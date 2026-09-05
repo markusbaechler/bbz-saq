@@ -43,7 +43,7 @@ test('createStore.setData: normalisiert Sheets, hält Personen, DQ und Meta nur 
   assertEqual(s.dq.length, 2, 'ein Fehler (?), ein Hinweis (Passed ohne Datum)');
   assertEqual(s.meta.counts, {
     first: 4, issued: 1, zeilen: 5, vorgaenge: 5, personen: 5, duplikate: 0, profilKonflikte: 0, mehrereProfile: 0,
-    bestanden: 5, nichtBestanden: 0, offen: 0, passiv: 0, nichtErfasst: 0, vollstaendigOhneGesamtergebnis: 0, schluesselOhneGeburtsdatum: 5,
+    bestanden: 5, nichtBestanden: 0, offen: 0, passiv: 0, nichtErfasst: 0, vollstaendigOhneGesamtergebnis: 0, teileAusserhalbVorgabe: 0, passerelleMoeglich: 0, schluesselOhneGeburtsdatum: 5,
     dq: 2, fehler: 1, hinweise: 1, nichtAusgewertet: 0,
     wirkungUnsichtbar: 2, wirkungKennzahl: 0, wirkungKeine: 0,
   });

@@ -132,8 +132,13 @@ export const GLOSSARY = [
   },
   {
     kind: 'Begriff', term: 'Teilprüfungen je Profil',
-    definition: 'Welche Teilprüfungen (WE1–WE6, OE1–OE2) ein Profil umfasst, ist aus den Daten abgeleitet: ein Teil gehört dazu, wenn mindestens 5 Vorgänge des Profils einen absolvierten Run darin haben. Daraus: fehlende Teile je offenem Vorgang und der Hinweis «alle Teile bestanden, Gesamtergebnis leer».',
-    nenner: '–', grenzfaelle: 'Ableitung aus Daten, nicht aus einem Reglement [hypothese]; Tabelle in der Ansicht «Offene Vorgänge» zur Kontrolle.',
+    definition: 'Vorgabe laut Auftraggeber (05.09.2026, config.js PROFILE_PARTS): schriftlich PK 1, IK 1, AFFL 2, CWMA 3, KMU 3, CCoB 3 Teile, mündlich je OE1. Daraus: fehlende Teile je offenem Vorgang und der Hinweis «alle Teile bestanden, Gesamtergebnis leer». Die Ansicht «Offene Vorgänge» stellt der Vorgabe die Nutzung in den Daten gegenüber (Vorgänge mit absolviertem Run je Teil).',
+    nenner: '–', grenzfaelle: 'Annahme [hypothese]: die Teile stehen von links in WE1–WEn; absolvierte Runs ausserhalb der Vorgabe erscheinen als Abweichung und je Vorgang als Hinweis im Data-Quality-Log (ohne Kennzahlwirkung). Gilt laut Auftraggeber für alle Jahrgänge.',
+  },
+  {
+    kind: 'Begriff', term: 'Passerelle',
+    definition: 'Verkürzter Weg in ein Nachfolgeprofil (PK→IK, AFFL→CWMA, KMU→CCoB) mit nur einem schriftlichen Teil. Das Cockpit kennzeichnet einen Vorgang als «Passerelle möglich», wenn dieselbe Person das Vorgängerprofil bestanden hat (Status bestanden oder Zertifikat).',
+    nenner: '–', grenzfaelle: 'Wie eine Passerelle in der Datei erfasst ist und welche Spalte der Teil belegt, ist [unklar]; deshalb keine reduzierte Teileliste, «Fehlende Teile» zeigt weiterhin die volle Vorgabe.',
   },
   {
     kind: 'Begriff', term: 'Bank-Report',

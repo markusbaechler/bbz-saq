@@ -276,11 +276,12 @@ test('tables.openCasesTables: offene Vorgänge je Profil und Teilnehmende, ohne 
     { profil: 'IK', offen: 1, passiv: 0, ohnePruefung: 1, schriftlich: 1, muendlich: 1, geplant: 1, kennzahlrelevant: 0 },
     { profil: 'PK', offen: 1, passiv: 0, ohnePruefung: 0, schriftlich: 0, muendlich: 1, geplant: 0, kennzahlrelevant: 1 },
   ]);
-  assertEqual(t.details.columns.map((c) => c.label), ['Name', 'Bank', 'Profil', 'Sprache', 'Offen', 'Fehlende Teile', 'Passiv', 'Letzte Prüfung', 'Tage seit letzter Prüfung', 'Nächster Termin', 'Versuche', 'Sheet', 'Zeile']);
+  assertEqual(t.details.columns.map((c) => c.label), ['Name', 'Bank', 'Profil', 'Sprache', 'Offen', 'Fehlende Teile', 'Passerelle', 'Passiv', 'Letzte Prüfung', 'Tage seit letzter Prüfung', 'Nächster Termin', 'Versuche', 'Sheet', 'Zeile']);
   assertEqual(t.details.rows[0].name, 'Offen Olga');
   assertEqual([t.details.rows[0].offen, t.details.rows[0].letzte, t.details.rows[0].naechste, t.details.rows[0].versuche, t.details.rows[0].passiv], ['mündlich', '01.03.2024', '', 2, '']);
-  assertEqual(t.details.rows[0].fehlend, '', 'zu wenige Vorgänge je Profil → keine Teileliste');
-  assertEqual(t.passiv, 0);
+  assertEqual([t.details.rows[0].fehlend, t.details.rows[0].passerelle], ['OE1', ''], 'Vorgabe PK: WE1 bestanden, OE1 fehlt – unabhängig von der Gruppengrösse');
+  assertEqual([t.details.rows[1].fehlend, t.details.rows[1].passerelle], ['WE1, OE1', ''], 'Vorgabe IK ohne Prüfung: alles fehlt; kein bestandenes PK derselben Person');
+  assertEqual([t.passiv, t.passerelle], [0, 0]);
   assertEqual([t.details.rows[1].name, t.details.rows[1].letzte, t.details.rows[1].tage, t.details.rows[1].naechste], ['Neu Nora', '', '', '01.10.2026']);
   assertEqual(openCasesTables(cohort(), today).total, 0);
 });
@@ -423,15 +424,25 @@ test('tables.passiveTable: passive Vorgänge mit Tagen seit letzter Prüfung', (
   assert(t.title.startsWith('Passiv seit über 365 Tagen'));
 });
 
-test('tables.profilePartsTable / fehlende Teile: Teilprüfungen je Profil aus den Daten, fehlende Teile je offenem Vorgang', () => {
-  const pk = Array.from({ length: 5 }, (_, i) => simple({ lastName: 'P' + i, profil: 'PK' })); // WE1, WE2, OE1
+test('tables.profilePartsTable / fehlende Teile: Vorgabe je Profil neben der Nutzung in den Daten, Abweichungen, Passerelle', () => {
+  const pk = Array.from({ length: 5 }, (_, i) => simple({ lastName: 'P' + i, profil: 'PK' })); // Daten: WE1, WE2, OE1 – Vorgabe PK: WE1, OE1
   const open = simple({ lastName: 'Offen', firstName: 'O', profil: 'PK', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: true, date: '2025-01-01', result: 0.8 }] }, oe: {} });
-  const all = pk.concat([open]);
+  const fremd = simple({ lastName: 'Fremd', profil: 'XY' }); // Profil ohne Vorgabe
+  const all = pk.concat([open, fremd]);
   const parts = profilePartsTable(all);
-  assertEqual(parts.columns.map((c) => c.label), ['Profil', 'n (Vorgänge)', 'Schriftlich', 'Mündlich', 'Anzahl Teile']);
-  assertEqual(parts.rows, [{ profil: 'PK', n: 6, we: 'WE1, WE2', oe: 'OE1', anzahl: 3 }]);
+  assertEqual(parts.columns.map((c) => c.label), ['Profil', 'Schriftlich (Vorgabe)', 'Mündlich (Vorgabe)', 'Anzahl Teile', 'n (Vorgänge)', 'In den Daten (Vorgänge je Teil)', 'Abweichung']);
+  assertEqual(parts.rows.map((r) => r.profil), ['PK', 'IK', 'CWMA', 'KMU', 'AFFL', 'CCoB', 'XY'], 'alle Profile der Vorgabe, danach Profile ohne Vorgabe');
+  assertEqual(parts.rows[0], { profil: 'PK', we: 'WE1', oe: 'OE1', anzahl: 2, n: 6, daten: 'WE1 (6), WE2 (5), OE1 (5)', abweichung: 'WE2 (5)' });
+  assertEqual(parts.rows[2], { profil: 'CWMA', we: 'WE1, WE2, WE3', oe: 'OE1', anzahl: 4, n: 0, daten: '–', abweichung: '' });
+  assertEqual(parts.rows[6], { profil: 'XY', we: '–', oe: '–', anzahl: 0, n: 1, daten: 'WE1 (1), WE2 (1), OE1 (1)', abweichung: 'keine Vorgabe' });
+  assert(parts.note.includes('PROFILE_PARTS'));
   const t = openCasesTables([open], d('2026-09-05'), all);
-  assertEqual(t.details.rows[0].fehlend, 'WE2, OE1');
+  assertEqual(t.details.rows[0].fehlend, 'OE1', 'WE2 gehört nicht zur Vorgabe PK');
+  // Passerelle: IK offen, dieselbe Person hat PK bestanden
+  const pkDone = simple({ lastName: 'Weiter', firstName: 'W', personKey: 'weiter|w|1990-01-01', profil: 'PK' });
+  const ikOpen = simple({ lastName: 'Weiter', firstName: 'W', personKey: 'weiter|w|1990-01-01', profil: 'IK', weAllPassed: null, oeAllPassed: null, we: {}, oe: {} });
+  const p = openCasesTables([ikOpen], d('2026-09-05'), [pkDone, ikOpen]);
+  assertEqual([p.details.rows[0].fehlend, p.details.rows[0].passerelle, p.passerelle], ['WE1, OE1', 'möglich (PK bestanden)', 1]);
 });
 
 test('tables.throughputTables: Durchlaufzeit je Profil und Jahr (Median, Ø, Quartile, Zertifikat)', () => {
