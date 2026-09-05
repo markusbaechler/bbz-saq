@@ -2,9 +2,9 @@ import { test, assert, assertEqual } from './runner.js';
 import { MODE } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
-  rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, SMALL_MARK,
+  rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
 } from '../views/tables.js';
-import { makePerson } from './fixtures.js';
+import { makePerson, d } from './fixtures.js';
 
 // Kurzform: schriftlich 2 Teile, RUN1 bestanden, mündlich OE1 RUN1 bestanden
 function simple(overrides = {}) {
@@ -214,4 +214,46 @@ test('tables.comparisonTable: fehlender Wert → Strich statt Differenz', () => 
   const t = comparisonTable(none.kpis, all.kpis, 'Alle Banken');
   const row = t.rows.find((r) => r.kennzahl === 'Schriftlich: im 1. Versuch bestanden');
   assertEqual([row.auswahl, row.differenz], ['–', '–']);
+});
+
+test('tables.excludedTables: Gründe mit Anzahl, Zeilen mit Namen, Zeilen ohne Namen aus dem Log', () => {
+  const persons = cohort().concat([
+    makePerson({ lastName: 'Neu', firstName: 'Nora', profil: 'PK', sheetName: 'First Certification', row: 40 }),
+    makePerson({ lastName: 'Plan', firstName: 'Paul', profil: 'IK', sheetName: 'First Certification', row: 41, we: { 1: [{ date: '2030-01-01', planned: true }] } }),
+    simple({ lastName: 'Doppelt', firstName: 'Dora', sheetName: 'Ausgestellte Zertifikate', row: 12, duplicateOf: { sheet: 'First Certification', row: 12 } }),
+  ]);
+  const dq = [{ level: 'fehler', field: 'lastName', sheet: 'First Certification', row: 50, header: 'Last Name', raw: null, reason: 'Name fehlt' }];
+  const t = excludedTables(persons, dq);
+  assertEqual([t.total, t.rows, t.nameless, t.zeilen], [4, 3, 1, 8]);
+  assertEqual(t.summary.columns.map((c) => c.label), ['Grund', 'Zeilen']);
+  assertEqual(t.summary.rows, [
+    { grund: 'Duplikat', anzahl: 1 },
+    { grund: 'Kein Name (Zeile zählt nicht als Person)', anzahl: 1 },
+    { grund: 'Noch keine Prüfung absolviert', anzahl: 1 },
+    { grund: 'Noch keine Prüfung absolviert (nur geplante Termine)', anzahl: 1 },
+  ]);
+  assertEqual(t.details.columns.map((c) => c.label), ['Sheet', 'Zeile', 'Name', 'Profil', 'Bank', 'Grund', 'Status']);
+  assertEqual(t.details.rows.map((r) => [r.name, r.row, r.status]), [['Doppelt Dora', 12, 'bestanden'], ['Neu Nora', 40, 'offen'], ['Plan Paul', 41, 'offen']]);
+  assert(t.details.rows[0].grund.startsWith('Duplikat (zusammengeführt mit «First Certification» Zeile 12)'));
+  assertEqual(excludedTables(cohort()).total, 0);
+});
+
+test('tables.openCasesTables: offene Vorgänge je Profil und Teilnehmende, ohne abgeschlossene Vorgänge', () => {
+  const today = d('2026-09-05');
+  const persons = cohort().concat([
+    simple({ lastName: 'Offen', firstName: 'Olga', profil: 'PK', employerCanon: 'Testbank AG', oeAllPassed: null, oe: {} }),
+    makePerson({ lastName: 'Neu', firstName: 'Nora', profil: 'IK', we: { 1: [{ date: '2026-10-01', location: 'Bern', planned: true }] } }),
+  ]);
+  const t = openCasesTables(persons, today);
+  assertEqual([t.total, t.ohnePruefung, t.mitTermin], [2, 1, 1]);
+  assertEqual(t.summary.columns.map((c) => c.label), ['Profil', 'Offen', 'davon schriftlich offen', 'davon mündlich offen', 'ohne Prüfung', 'mit geplantem Termin', 'kennzahlrelevant']);
+  assertEqual(t.summary.rows, [
+    { profil: 'IK', offen: 1, ohnePruefung: 1, schriftlich: 1, muendlich: 1, geplant: 1, kennzahlrelevant: 0 },
+    { profil: 'PK', offen: 1, ohnePruefung: 0, schriftlich: 0, muendlich: 1, geplant: 0, kennzahlrelevant: 1 },
+  ]);
+  assertEqual(t.details.columns.map((c) => c.label), ['Name', 'Bank', 'Profil', 'Sprache', 'Offen', 'Letzte Prüfung', 'Tage seit letzter Prüfung', 'Nächster Termin', 'Versuche', 'Sheet', 'Zeile']);
+  assertEqual(t.details.rows[0].name, 'Offen Olga');
+  assertEqual([t.details.rows[0].offen, t.details.rows[0].letzte, t.details.rows[0].naechste, t.details.rows[0].versuche], ['mündlich', '01.03.2024', '', 2]);
+  assertEqual([t.details.rows[1].name, t.details.rows[1].letzte, t.details.rows[1].tage, t.details.rows[1].naechste], ['Neu Nora', '', '', '01.10.2026']);
+  assertEqual(openCasesTables(cohort(), today).total, 0);
 });

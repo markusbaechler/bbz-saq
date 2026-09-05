@@ -141,6 +141,11 @@ td.col-raw { font-family: ui-monospace, Consolas, monospace; white-space: pre-wr
 td.col-level { white-space: nowrap; font-weight: 600; }
 tr.level-fehler td.col-level { color: var(--danger); }
 tr.level-hinweis td.col-level { color: #8a5a00; }
+td.col-impact { white-space: nowrap; font-weight: 600; }
+tr.impact-unsichtbar td.col-impact { color: var(--danger); }
+tr.impact-kennzahl td.col-impact { color: #8a5a00; }
+tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
+.excluded-box { border: 1px solid var(--border); border-radius: var(--radius); padding: .5rem .75rem; background: #fafbfc; }
 .small { color: var(--muted); font-style: italic; }
 .meta-list { color: var(--muted); font-size: .9rem; }
 

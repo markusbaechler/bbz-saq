@@ -42,6 +42,14 @@ import { DEFAULT_FILTER, STATUS, filterPersons, eligible, groupBy, groupByPerson
 
 export const LEVEL = Object.freeze({ FEHLER: 'fehler', HINWEIS: 'hinweis', NICHT_AUSGEWERTET: 'nicht-ausgewertet' });
 
+// Wirkungsklasse eines DQ-Eintrags (Befund 7): was sich ändert, wenn die Zelle korrigiert wird.
+//   unsichtbar = die Zeile fehlt deswegen in allen Kennzahlen (kein Name, kein absolvierter datierter WE-Run)
+//   kennzahl   = die Zeile ist sichtbar, aber ein Wert, eine Gruppe oder eine Zählung hängt an der Zelle
+//   keine      = reine Interpretation oder nicht ausgewertetes Feld – keine Zahl im Cockpit ändert sich
+export const IMPACT = Object.freeze({ UNSICHTBAR: 'unsichtbar', KENNZAHL: 'kennzahl', KEINE: 'keine' });
+export const IMPACT_LABELS = Object.freeze({ unsichtbar: 'macht Zeile unsichtbar', kennzahl: 'verändert Kennzahl', keine: 'ohne Kennzahlwirkung' });
+export const IMPACT_ORDER = Object.freeze({ unsichtbar: 0, kennzahl: 1, keine: 2 });
+
 // ---------------------------------------------------------------------------
 // Hilfsfunktionen
 // ---------------------------------------------------------------------------
@@ -56,6 +64,11 @@ function bad(value, reason) {
 
 function note(value, reason) {
   return { value, reason, level: LEVEL.HINWEIS };
+}
+
+// Hinweis für eine verlustfreie Interpretation (Wert eindeutig ableitbar): ohne Kennzahlwirkung
+function interpreted(value, reason) {
+  return { value, reason, level: LEVEL.HINWEIS, impact: IMPACT.KEINE };
 }
 
 export function isBlank(raw) {
@@ -132,7 +145,7 @@ const RESULT_TEXT = /^\s*(\d+(?:[.,]\d+)?)\s*(%*)\s*$/;
 // und wird durch 100 geteilt – diese Umdeutung wird als Hinweis geloggt (Befund 11, analog zur Excel-Serienzahl).
 function resultFromNumber(n, shown) {
   if (n >= 0 && n <= 1) return ok(n);
-  if (n > 1 && n <= 100) return note(n / 100, 'Result «' + shown + '» ohne Prozentzeichen und > 1 – als Prozentwert interpretiert (' + n + ' % → ' + (n / 100) + ')');
+  if (n > 1 && n <= 100) return interpreted(n / 100, 'Result «' + shown + '» ohne Prozentzeichen und > 1 – als Prozentwert interpretiert (' + n + ' % → ' + (n / 100) + ')');
   return bad(null, 'Result ausserhalb 0–100');
 }
 
@@ -160,7 +173,7 @@ export function parseResult(raw) {
 export function parseScore(raw) {
   if (isBlank(raw)) return ok(null);
   if (typeof raw === 'number' && Number.isInteger(raw) && raw >= 0) return ok(raw);
-  return { value: null, reason: 'Score ist keine ganze Zahl ≥ 0 – Feld wird nicht ausgewertet (Entscheid E6 offen)', level: LEVEL.NICHT_AUSGEWERTET };
+  return { value: null, reason: 'Score ist keine ganze Zahl ≥ 0 – Feld wird nicht ausgewertet (Entscheid E6 offen)', level: LEVEL.NICHT_AUSGEWERTET, impact: IMPACT.KEINE };
 }
 
 // dd.mm.yy(yy) [ / hh.mm | hh:mm ] [h | Uhr]; Trenner Punkt oder Komma
@@ -188,7 +201,7 @@ export function parseDateWith(raw, rules = DATE_RULES) {
   }
   if (typeof raw === 'number') {
     if (Number.isFinite(raw) && raw >= rules.serialMin && raw <= rules.serialMax) {
-      return note(serialToDate(raw), 'Datum als Zahl ohne Datumsformat (' + raw + '), als Excel-Serienzahl interpretiert');
+      return interpreted(serialToDate(raw), 'Datum als Zahl ohne Datumsformat (' + raw + '), als Excel-Serienzahl interpretiert');
     }
     return bad(null, 'Datum liegt als Zahl vor (' + raw + '), keine plausible Excel-Serienzahl');
   }
@@ -363,12 +376,12 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
     if (!mappedIndices.some((i) => !isBlank(cells[i]))) continue;
 
     const get = (key) => (map[key] === undefined ? undefined : cells[map[key]]);
-    const logDq = (key, raw, reason, level) => dq.push({ level, sheet: sheetName, row, header: headerNameOf(key), field: key, raw, reason });
+    const logDq = (key, raw, reason, level, impact = null) => dq.push({ level, impact, sheet: sheetName, row, header: headerNameOf(key), field: key, raw, reason });
     const hint = (key, raw, reason) => logDq(key, raw, reason, LEVEL.HINWEIS);
     const field = (key, parser) => {
       const raw = get(key);
       const r = parser(raw);
-      if (r.reason) logDq(key, raw, r.reason, r.level || LEVEL.FEHLER);
+      if (r.reason) logDq(key, raw, r.reason, r.level || LEVEL.FEHLER, r.impact || null);
       return r.value;
     };
 
@@ -648,7 +661,7 @@ export function linkPersons(persons, dq) {
           const conflicts = runConflicts(p, first);
           profilKonflikte += 1;
           dq.push({
-            level: LEVEL.HINWEIS, sheet: p.sheetName, row: p.row, header: 'Certificate Program', field: 'profilKonflikt', raw: p.profil,
+            level: LEVEL.HINWEIS, impact: IMPACT.KENNZAHL, sheet: p.sheetName, row: p.row, header: 'Certificate Program', field: 'profilKonflikt', raw: p.profil,
             reason: 'Gleiche Person und gleiches Profil wie «' + first.sheetName + '» Zeile ' + first.row + ', aber abweichende Prüfungsdaten (' + conflicts.join(', ') + ') – als eigener Vorgang gezählt (Wiederholung?)',
           });
         }
@@ -661,7 +674,7 @@ export function linkPersons(persons, dq) {
           mergeVorgang(keep, dup);
           duplikate += 1;
           dq.push({
-            level: LEVEL.HINWEIS, sheet: dup.sheetName, row: dup.row, header: 'Last Name', field: 'duplikat', raw: null,
+            level: LEVEL.HINWEIS, impact: IMPACT.KENNZAHL, sheet: dup.sheetName, row: dup.row, header: 'Last Name', field: 'duplikat', raw: null,
             reason: 'Duplikat: derselbe Zertifizierungsvorgang wie «' + keep.sheetName + '» Zeile ' + keep.row + ' (gleiche Person, gleiches Profil, keine abweichenden Prüfungsdaten) – zusammengeführt, zählt nicht doppelt',
           });
         }
@@ -669,6 +682,24 @@ export function linkPersons(persons, dq) {
     }
   }
   return { duplikate, profilKonflikte };
+}
+
+// Wirkungsklasse eines Eintrags aus Feld, Stufe und Endzustand der Zeile (row = Vorgang oder null, wenn die Zeile
+// keine Person ergab). Parser-Vorgaben (impact) haben Vorrang.
+export function dqImpact(entry, row) {
+  if (entry.impact) return entry.impact;
+  if (entry.level === LEVEL.NICHT_AUSGEWERTET) return IMPACT.KEINE;
+  if (entry.field === 'lastName' || entry.field === 'firstName') return IMPACT.UNSICHTBAR;
+  // Zeile nicht kennzahlrelevant (Duplikate sind gewollt unsichtbar, ihre Daten leben im behaltenen Vorgang weiter)
+  const invisible = !row || (!row.duplicateOf && !row.hasWeDate);
+  if (invisible && /^we\d+\.run\d+\.(date|passed)$/.test(entry.field)) return IMPACT.UNSICHTBAR;
+  return IMPACT.KENNZAHL;
+}
+
+export function classifyDq(dq, persons) {
+  const byRow = new Map(persons.map((p) => [p.sheetName + '|' + p.row, p]));
+  for (const e of dq) e.impact = dqImpact(e, byRow.get(e.sheet + '|' + e.row) || null);
+  return dq;
 }
 
 // Beide Sheets → eine Liste von Vorgängen (persons[]; Duplikate bleiben mit duplicateOf markiert enthalten)
@@ -689,6 +720,7 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
     birthDateHeaders[sheet.source] = result.headers.birthDate;
   }
   const { duplikate, profilKonflikte } = linkPersons(persons, dq);
+  classifyDq(dq, persons);
   const vorgaenge = persons.filter((p) => !p.duplicateOf);
   const people = groupByPerson(vorgaenge);
   const byStatus = (st) => vorgaenge.filter((p) => p.status === st).length;
@@ -708,6 +740,9 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
     fehler: dq.filter((e) => e.level === LEVEL.FEHLER).length,
     hinweise: dq.filter((e) => e.level === LEVEL.HINWEIS).length,
     nichtAusgewertet: dq.filter((e) => e.level === LEVEL.NICHT_AUSGEWERTET).length,
+    wirkungUnsichtbar: dq.filter((e) => e.impact === IMPACT.UNSICHTBAR).length,
+    wirkungKennzahl: dq.filter((e) => e.impact === IMPACT.KENNZAHL).length,
+    wirkungKeine: dq.filter((e) => e.impact === IMPACT.KEINE).length,
   });
   const personKey = { fields: ['Last Name', 'First Name', 'Geburtsdatum'], birthDateHeaders, complete: Object.values(birthDateHeaders).every((h) => h !== null) };
   return { persons, dq, meta: { ...meta, counts, personKey } };

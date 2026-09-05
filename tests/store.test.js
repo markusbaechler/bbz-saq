@@ -2,7 +2,7 @@ import { test, assert, assertEqual, assertClose, assertThrows } from './runner.j
 import { CONFIG } from '../config.js';
 import {
   parsePassed, parseLanguage, parseProfile, parseEmployer, parseResult, parseScore, parseDate, parseBirthDate, parseVssVsm,
-  normalizeNamePart, personKeyOf, statusOf, combineStatus,
+  normalizeNamePart, personKeyOf, statusOf, combineStatus, dqImpact,
   resolveHeaders, HeaderError, MissingHeaderError, DuplicateHeaderError,
   normalizeSheet, normalizeWorkbook,
 } from '../store.js';
@@ -486,6 +486,7 @@ test('normalizeWorkbook: beide Sheets → eine Personenliste, DQ gesammelt, Meta
     first: 2, issued: 1, zeilen: 3, vorgaenge: 3, personen: 3, duplikate: 0, profilKonflikte: 0, mehrereProfile: 0,
     bestanden: 3, nichtBestanden: 0, offen: 0, nichtErfasst: 0, schluesselOhneGeburtsdatum: 3,
     dq: 1, fehler: 1, hinweise: 0, nichtAusgewertet: 0,
+    wirkungUnsichtbar: 0, wirkungKennzahl: 1, wirkungKeine: 0,
   });
   assertEqual(result.meta.personKey.complete, false, 'kein Geburtsdatum-Header in den Fixtures');
   assertEqual(result.meta.personKey.birthDateHeaders, { first: null, issued: null });
@@ -782,4 +783,42 @@ test('normalizeWorkbook: Duplikate fliessen nicht in Kennzahlen (eligible, filte
   const dup = r.persons.find((p) => p.duplicateOf);
   assert(exclusionReason(dup).startsWith('Duplikat'), exclusionReason(dup));
   assertEqual(exclusionReason(r.persons.find((p) => !p.duplicateOf)), null);
+});
+
+// ---------------------------------------------------------------------------
+// P3 – Wirkungsklasse je DQ-Eintrag (Befund 7)
+// ---------------------------------------------------------------------------
+
+test('normalizeWorkbook: Wirkungsklasse – unsichtbar / kennzahl / keine je nach Feld, Stufe und Zeilenzustand', () => {
+  const rows = [
+    { profil: 'PK' },                                                                              // kein Name → unsichtbar
+    fullRow({ 'we2.run1.score': 12.5 }),                                                           // Score → keine
+    fullRow({ lastName: 'Umdeutung', 'we2.run1.result': 85 }),                                     // Result > 1 → keine (Interpretation)
+    fullRow({ lastName: 'Serie', 'we2.run1.date': 44125 }),                                        // Serienzahl → keine
+    fullRow({ lastName: 'Sprache', sprache: 'ES' }),                                               // Sprache → kennzahl
+    fullRow({ lastName: 'Datum', 'we1.run1.date': '31.02.2024' }),                                 // Datumsfehler, Zeile bleibt sichtbar (WE2 datiert) → kennzahl
+    { lastName: 'Nur', firstName: 'Datumsfehler', ...runValues('we', { 1: [{ passed: 'yes', date: 'kaputt', score: 1, result: 0.5 }] }) }, // einziger WE-Run → unsichtbar
+    { lastName: 'Ohne', firstName: 'Datum', ...runValues('we', { 1: [{ passed: 'yes', score: 1, result: 0.5 }] }) },                 // Passed ohne Datum → unsichtbar
+  ];
+  const r = normalizeWorkbook({ sheets: [makeSheet('first', rows)] });
+  const by = (row, field) => r.dq.find((e) => e.row === row && e.field === field);
+  assertEqual(by(11, 'lastName').impact, 'unsichtbar');
+  assertEqual(by(12, 'we2.run1.score').impact, 'keine');
+  assertEqual(by(13, 'we2.run1.result').impact, 'keine');
+  assertEqual(by(14, 'we2.run1.date').impact, 'keine');
+  assertEqual(by(15, 'sprache').impact, 'kennzahl');
+  assertEqual(by(16, 'we1.run1.date').impact, 'kennzahl', 'Zeile bleibt kennzahlrelevant');
+  assertEqual(by(17, 'we1.run1.date').impact, 'unsichtbar', 'einziger schriftlicher Run ohne gültiges Datum');
+  assertEqual(by(18, 'we1.run1.date').impact, 'unsichtbar', 'Passed ohne Datum');
+  assert(r.dq.every((e) => ['unsichtbar', 'kennzahl', 'keine'].includes(e.impact)), 'jeder Eintrag hat eine Wirkungsklasse');
+  assertEqual([r.meta.counts.wirkungUnsichtbar, r.meta.counts.wirkungKeine], [3, 3]);
+  assertEqual(r.meta.counts.wirkungKennzahl, r.dq.length - 6);
+});
+
+test('normalizeWorkbook: Duplikat-Hinweise gelten als «verändert Kennzahl», auch wenn die Zeile unsichtbar ist', () => {
+  const r = normalizeWorkbook(bothSheets([fullRow({ birthDate: '15.03.1985' })], [fullRow({ birthDate: '15.03.1985', certStart: '01.07.2024' })]));
+  assertEqual(r.dq.find((e) => e.field === 'duplikat').impact, 'kennzahl');
+  assertEqual(dqImpact({ level: 'hinweis', field: 'we1.run1.date', reason: 'x' }, { duplicateOf: { sheet: 'x', row: 1 }, hasWeDate: false }), 'kennzahl', 'Daten des Duplikats leben im behaltenen Vorgang weiter');
+  assertEqual(dqImpact({ level: 'fehler', field: 'we1.run1.date', reason: 'x' }, null), 'unsichtbar', 'ohne Zeile: unsichtbar');
+  assertEqual(dqImpact({ level: 'fehler', field: 'oe1.run1.date', reason: 'x' }, { hasWeDate: false, duplicateOf: null }), 'kennzahl', 'mündliche Daten machen nie unsichtbar');
 });

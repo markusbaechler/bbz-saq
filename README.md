@@ -19,8 +19,9 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 | Mündlich | Bestehensquote gesamt und je Profil, Anteil 1× / 2× durchgefallen; Ø Performance nach Profil, Sprache, Bank |
 | VSS/VSM | Bestehensquoten schriftlich und mündlich für VSS / VSM / ohne, je Profil |
 | Bestenlisten | Top 5 je Profil: bbz-Award, beste schriftliche, beste mündliche Prüfung (mit Namen) |
+| Offene Vorgänge | Laufende Zertifizierungsprozesse (Gesamtergebnis leer) je Profil und mit Teilnehmenden: fehlender Teil, letzte Prüfung, nächster Termin, Versuche (mit Namen) |
 | Geplante Prüfungen | Termine in der Zukunft ohne Ergebnis je Tag und Ort, mit Teilnehmenden, Bank, Profil, Sprache (mit Namen) |
-| Datenqualität | Jede nicht interpretierbare oder auffällige Zelle mit Sheet, Zeile, Header, Rohwert, Grund; sortier- und filterbar |
+| Datenqualität | «Nicht in den Kennzahlen» mit Grund je Zeile; jede nicht interpretierbare oder auffällige Zelle mit Wirkung auf die Kennzahlen, Stufe, Sheet, Zeile, Header, Rohwert, Grund; nach Wirkung priorisiert, sortier- und filterbar |
 | Glossar | Begriffe und Kennzahl-Definitionen (Definition, Nenner, Grenzfälle), auch ohne geladene Daten |
 
 Jede Kennzahl-Ansicht bietet Export als CSV (alle Tabellen in einer Datei) und XLSX (ein Blatt je Tabelle) sowie eine
@@ -80,6 +81,9 @@ identisch mit der Ansicht «Glossar» in der App.
 | **VSS / VSM (Kennzeichnung)** | Kennzeichnung aus dem Threaded Comment auf der Namenszelle (Spalte B): Muster «VSS …» bzw. «VSM …», beides möglich. «ohne» = weder noch. | Vorgänge mit beiden Kennzeichnungen zählen in beiden Gruppen. |
 | **Versuche (Filter)** | «nur 1. Versuch»: kein RUN2/RUN3 absolviert; «mehrere Versuche»: mindestens ein RUN2/RUN3 absolviert (schriftlich oder mündlich). | – |
 | **Ausgestellte Zertifikate (Filter)** | Vorgänge aus dem Sheet «Ausgestellte Zertifikate» oder mit einer Zeile daraus zusammengeführt (Kennzeichen «ausgestellt»). | – |
+| **Wirkungsklasse (Data-Quality-Log)** | Was sich ändert, wenn die Zelle korrigiert wird: «macht Zeile unsichtbar» (die Zeile fehlt deswegen in allen Kennzahlen: kein Name, kein absolvierter datierter schriftlicher Run), «verändert Kennzahl» (die Zeile ist sichtbar, aber ein Wert, eine Gruppe oder eine Zählung hängt an der Zelle), «ohne Kennzahlwirkung» (reine Interpretation wie Result als Prozentwert oder Excel-Serienzahl, oder nicht ausgewertetes Feld wie Score). | Das Log ist nach Wirkung, dann Stufe, dann Zeile sortiert (Arbeitsliste). Einträge auf zusammengeführten Duplikaten gelten als «verändert Kennzahl», weil ihre Daten im behaltenen Vorgang weiterleben. |
+| **Nicht in den Kennzahlen** | Zeilen, die in keiner Kennzahl vorkommen, mit Grund: noch keine Prüfung absolviert (ggf. nur geplante Termine), nur mündliche Runs, schriftlicher Run ohne Datum, Duplikat (zusammengeführt) oder kein Name. Abschnitt in der Ansicht «Datenqualität», unabhängig vom Filter. | Zeilen ohne Namen ergeben keine Person und erscheinen nur als Fehler «Name fehlt». |
+| **Offene Vorgänge (Ansicht)** | Alle Vorgänge mit Status offen – auch solche ohne absolvierte Prüfung – mit fehlendem Teil (schriftlich/mündlich), letzter Prüfung, Tagen seit der letzten Prüfung, nächstem geplanten Termin und Versuchen. Filter Profil, Sprache, Bank, VSS/VSM gelten; Zeitraum und Versuchsmodus nicht. | Die Kachel «Vorgänge offen» in der Übersicht zählt nur kennzahlrelevante offene Vorgänge im Filter (inkl. Zeitraum) und kann deshalb kleiner sein. |
 | **Data-Quality-Stufen** | Fehler = Zelle nicht interpretierbar, Wert wird ignoriert. Hinweis = Wert interpretiert oder abgeleitet, aber auffällig (z. B. Result als Prozentwert umgedeutet, Duplikat zusammengeführt, Konsistenzregel verletzt). Nicht ausgewertet = Zelle nicht interpretierbar, aber das Feld fliesst in keine Kennzahl (Score; Entscheid E6 offen). | Score-Header: «WE{n} RUN{r} Score», «OE{n} RUN{r} Score» (24 Spalten). |
 
 ### Kennzahlen
@@ -139,8 +143,11 @@ Fehlt ein Pflicht-Header, wird die Datei nicht verarbeitet und die fehlenden Hea
 Stufen im Log: **Fehler** = Zelle nicht interpretierbar, Wert wird ignoriert. **Hinweis** = Wert interpretiert oder
 abgeleitet, aber auffällig (z. B. vergangener Termin ohne Ergebnis, Passed ohne Datum, abgeleitete Sprache, Result als
 Prozentwert umgedeutet, Duplikat zusammengeführt), oder Konsistenzregel verletzt. **Nicht ausgewertet** = Zelle nicht
-interpretierbar, aber das Feld fliesst in keine Kennzahl (Score). Die Zusammenfassung nach Header und Grund lässt sich ohne
-Personendaten kopieren.
+interpretierbar, aber das Feld fliesst in keine Kennzahl (Score).
+
+Wirkungsklasse je Eintrag: **macht Zeile unsichtbar** (Zeile fehlt deswegen in allen Kennzahlen), **verändert Kennzahl**,
+**ohne Kennzahlwirkung** (reine Interpretation, nicht ausgewertetes Feld). Das Log ist nach Wirkung, Stufe und Zeile
+sortiert; die Zusammenfassung nach Wirkung, Header und Grund lässt sich ohne Personendaten kopieren.
 
 ## Architektur
 

@@ -6,7 +6,7 @@
 import {
   MODE, SMALL_N, formatPct, writtenPassRates, writtenPerformance, partFirstAttempt, oralPassRates, oralPerformance,
   byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups,
-  multiProfilePersons, personCount,
+  multiProfilePersons, personCount, excludedRows, openCases, STATUS,
 } from '../metrics.js';
 import { fmtDate, fmtTime } from '../export.js';
 
@@ -292,4 +292,76 @@ export function comparisonTable(selectionKpis, benchmarkKpis, benchmarkLabel) {
     rows,
     note: 'Differenz in Prozentpunkten (Auswahl minus Benchmark); ' + SMALL_NOTE,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Datenqualität ↔ Kennzahlen: Nicht in den Kennzahlen (Blocker 2)
+// ---------------------------------------------------------------------------
+
+const collatorDe = new Intl.Collator('de-CH');
+
+// persons: alle Zeilen (unfiltriert, inkl. Duplikate); dq: Data-Quality-Log (für Zeilen ohne Namen).
+// summary: Gründe mit Anzahl; details: je Zeile mit Namen (Ansicht Datenqualität zeigt Namen); nameless: Zeilen ohne Namen.
+export function excludedTables(persons, dq = []) {
+  const rows = excludedRows(persons);
+  const nameless = dq.filter((e) => e.field === 'lastName' && e.level === 'fehler').length;
+  const reasonGroup = (reason) => reason.replace(/\s*\(zusammengeführt.*$/, '');
+  const counts = new Map();
+  for (const { reason } of rows) counts.set(reasonGroup(reason), (counts.get(reasonGroup(reason)) || 0) + 1);
+  if (nameless) counts.set('Kein Name (Zeile zählt nicht als Person)', nameless);
+  const summary = {
+    title: 'Nicht in den Kennzahlen – Gründe',
+    columns: [col('grund', 'Grund'), col('anzahl', 'Zeilen')],
+    rows: [...counts.entries()].map(([grund, anzahl]) => ({ grund, anzahl })).sort((a, b) => b.anzahl - a.anzahl || collatorDe.compare(a.grund, b.grund)),
+  };
+  const details = {
+    title: 'Nicht in den Kennzahlen – Zeilen',
+    columns: [col('sheet', 'Sheet'), col('row', 'Zeile'), col('name', 'Name'), col('profil', 'Profil'), col('bank', 'Bank'), col('grund', 'Grund'), col('status', 'Status')],
+    rows: rows
+      .map(({ person: p, reason }) => ({ sheet: p.sheetName, row: p.row, name: personName(p), profil: groupLabel(p.profil), bank: p.employerCanon || '', grund: reason, status: p.status }))
+      .sort((a, b) => collatorDe.compare(a.grund, b.grund) || collatorDe.compare(a.sheet, b.sheet) || a.row - b.row),
+    note: 'Zeilen ohne absolvierten, datierten schriftlichen Run sowie zusammengeführte Duplikate. Zeilen ohne Namen erscheinen nur im Log (Fehler «Name fehlt»).',
+  };
+  return { summary, details, total: rows.length + nameless, rows: rows.length, nameless, zeilen: persons.length + nameless };
+}
+
+// ---------------------------------------------------------------------------
+// Offene Vorgänge (E4)
+// ---------------------------------------------------------------------------
+
+// persons: Vorgänge nach den Filtern ohne Zeitraum (wie «Geplante Prüfungen»), inkl. nicht kennzahlrelevanter Zeilen
+export function openCasesTables(persons, today = new Date()) {
+  const cases = openCases(persons, today);
+  const byProfil = new Map();
+  for (const c of cases) {
+    const key = groupLabel(c.person.profil);
+    const g = byProfil.get(key) || { profil: key, offen: 0, ohnePruefung: 0, schriftlich: 0, muendlich: 0, geplant: 0, kennzahlrelevant: 0 };
+    g.offen += 1;
+    if (!c.lastExam) g.ohnePruefung += 1;
+    if (c.person.weStatus === STATUS.OFFEN) g.schriftlich += 1;
+    if (c.person.oeStatus === STATUS.OFFEN) g.muendlich += 1;
+    if (c.nextPlanned) g.geplant += 1;
+    if (c.eligible) g.kennzahlrelevant += 1;
+    byProfil.set(key, g);
+  }
+  const summary = {
+    title: 'Offene Vorgänge je Profil',
+    columns: [col('profil', 'Profil'), col('offen', 'Offen'), col('schriftlich', 'davon schriftlich offen'), col('muendlich', 'davon mündlich offen'), col('ohnePruefung', 'ohne Prüfung'), col('geplant', 'mit geplantem Termin'), col('kennzahlrelevant', 'kennzahlrelevant')],
+    rows: [...byProfil.values()].sort((a, b) => b.offen - a.offen || collatorDe.compare(a.profil, b.profil)),
+    note: 'Offen = Gesamtergebnis leer (schriftlich und/oder mündlich), kein «no» und kein unlesbarer Wert. Kennzahlrelevant = mindestens ein absolvierter, datierter schriftlicher Run.',
+  };
+  const details = {
+    title: 'Offene Vorgänge – Teilnehmende',
+    columns: [
+      col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache'), col('offen', 'Offen'), col('letzte', 'Letzte Prüfung'),
+      col('tage', 'Tage seit letzter Prüfung'), col('naechste', 'Nächster Termin'), col('versuche', 'Versuche'), col('sheet', 'Sheet'), col('row', 'Zeile'),
+    ],
+    rows: cases.map((c) => ({
+      name: personName(c.person), bank: c.person.employerCanon || '', profil: groupLabel(c.person.profil), sprache: groupLabel(c.person.sprache), offen: c.offen,
+      letzte: fmtDate(c.lastExam), tage: c.daysSinceLastExam === null ? '' : c.daysSinceLastExam, naechste: fmtDate(c.nextPlanned), versuche: c.attempts,
+      sheet: c.person.sheetName, row: c.person.row,
+    })),
+    note: 'Sortiert nach letzter Prüfung (älteste zuerst); Vorgänge ohne Prüfung am Ende.',
+  };
+  return { summary, details, total: cases.length, ohnePruefung: cases.filter((c) => !c.lastExam).length, mitTermin: cases.filter((c) => c.nextPlanned).length };
 }

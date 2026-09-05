@@ -7,6 +7,7 @@ import {
   awardScore, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, dayKey, partFirstAttempt,
   benchmarkFilter, BENCHMARKS,
   STATUS, isVorgang, statusCounts, exclusionReason, groupByPerson, personCount, multiProfilePersons, modelComparison,
+  excludedRows, openCases, openCaseState,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -597,4 +598,36 @@ test('modelComparison: alt (Zeile = Person, Nenner alle) → neu (Vorgänge, Nen
   assertEqual(r.byProfil[0].alt.written, ratio(2, 3));
   assertEqual(r.byProfil[0].neu.written, ratio(1, 1));
   assertEqual(r.gesamt.neu.status.offen, 1);
+});
+
+// ---------------------------------------------------------------------------
+// P3 – Ausschlüsse und offene Vorgänge
+// ---------------------------------------------------------------------------
+
+test('excludedRows: alle nicht kennzahlrelevanten Zeilen mit Grund', () => {
+  const ok = simple();
+  const none = makePerson();
+  const dup = simple({ duplicateOf: { sheet: 'First Certification', row: 12 } });
+  const ex = excludedRows([ok, none, dup]);
+  assertEqual(ex.map((x) => x.person), [none, dup]);
+  assertEqual(ex[0].reason, 'Noch keine Prüfung absolviert');
+  assert(ex[1].reason.startsWith('Duplikat'));
+});
+
+test('openCaseState / openCases: offene Vorgänge mit fehlendem Teil, letzter Prüfung, nächstem Termin; älteste zuerst', () => {
+  const today = d('2026-09-05');
+  const weOnly = simple({ lastName: 'Schriftlich', oeAllPassed: null, oe: {} });                                       // mündlich offen
+  const fresh = makePerson({ lastName: 'Neu', we: { 1: [{ date: '2026-10-01', planned: true }] } });                     // ohne Prüfung, Termin geplant
+  const older = simple({ lastName: 'Alt', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: false, date: '2023-01-10', result: 0.4 }] }, oe: {} });
+  const done = simple();
+  const failed = simple({ weAllPassed: false });
+  const dup = simple({ oeAllPassed: null, duplicateOf: { sheet: 'x', row: 1 } });
+  const cases = openCases([weOnly, fresh, older, done, failed, dup], today);
+  assertEqual(cases.map((c) => c.person.lastName), ['Alt', 'Schriftlich', 'Neu'], 'älteste letzte Prüfung zuerst, ohne Prüfung zuletzt; abgeschlossene und Duplikate fehlen');
+  const alt = cases[0];
+  assertEqual([alt.offen, alt.lastExam, alt.nextPlanned, alt.attempts, alt.eligible], ['schriftlich und mündlich', d('2023-01-10'), null, 1, true]);
+  assertEqual(alt.daysSinceLastExam, Math.floor((today - d('2023-01-10')) / 86400000));
+  assertEqual([cases[1].offen, cases[1].lastExam], ['mündlich', d('2024-03-01')]);
+  assertEqual([cases[2].offen, cases[2].lastExam, cases[2].nextPlanned, cases[2].eligible, cases[2].daysSinceLastExam], ['schriftlich und mündlich', null, d('2026-10-01'), false, null]);
+  assertEqual(openCaseState(done).offen, '');
 });

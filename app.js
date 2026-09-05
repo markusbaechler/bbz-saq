@@ -15,9 +15,10 @@ import * as oral from './views/oral.js';
 import * as vssVsm from './views/vssVsm.js';
 import * as ranking from './views/ranking.js';
 import * as planned from './views/planned.js';
+import * as offen from './views/offen.js';
 import * as glossar from './views/glossar.js';
 
-const KPI_VIEWS = [overview, written, oral, vssVsm, ranking, planned];
+const KPI_VIEWS = [overview, written, oral, vssVsm, ranking, offen, planned];
 const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, build: v.build }))
   .concat([{ id: 'datenqualitaet', label: 'Datenqualität' }, { id: glossar.id, label: glossar.label, build: glossar.build, isStatic: true }]);
 
@@ -147,10 +148,11 @@ function renderFilterBar() {
 // ---------------------------------------------------------------------------
 
 function renderDq(table) {
-  renderDataQuality(table, store.getState().dq, dqState, (next) => {
+  const { dq, persons } = store.getState();
+  renderDataQuality(table, dq, dqState, (next) => {
     dqState = next;
     renderDq(table);
-  });
+  }, { persons });
 }
 
 function renderView() {
@@ -175,7 +177,7 @@ function renderView() {
   }
 
   if (current === 'datenqualitaet') {
-    container.appendChild(el('p', { class: 'meta-list', text: 'Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit Sheet, Excel-Zeile, Header, Rohwert und Grund. Unabhängig vom Filter.' }));
+    container.appendChild(el('p', { class: 'meta-list', text: 'Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit ihrer Wirkung auf die Kennzahlen, Stufe, Sheet, Excel-Zeile, Header, Rohwert und Grund – Wichtigstes zuerst. Unabhängig vom Filter.' }));
     const table = el('div');
     container.appendChild(table);
     renderDq(table);

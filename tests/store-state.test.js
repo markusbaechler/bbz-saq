@@ -45,6 +45,7 @@ test('createStore.setData: normalisiert Sheets, hält Personen, DQ und Meta nur 
     first: 4, issued: 1, zeilen: 5, vorgaenge: 5, personen: 5, duplikate: 0, profilKonflikte: 0, mehrereProfile: 0,
     bestanden: 5, nichtBestanden: 0, offen: 0, nichtErfasst: 0, schluesselOhneGeburtsdatum: 5,
     dq: 2, fehler: 1, hinweise: 1, nichtAusgewertet: 0,
+    wirkungUnsichtbar: 2, wirkungKennzahl: 0, wirkungKeine: 0,
   });
   assertEqual(s.meta.fileName, 'Reporting_KUBA.xlsx');
   assertEqual(s.persons[1].vss, true);

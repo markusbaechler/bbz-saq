@@ -97,6 +97,40 @@ export function exclusionReason(p) {
   return null;
 }
 
+// Alle Zeilen, die nicht in die Kennzahlen fliessen, mit Grund (Blocker 2): [{ person, reason }]
+export function excludedRows(persons) {
+  return persons.map((p) => ({ person: p, reason: exclusionReason(p) })).filter((x) => x.reason !== null);
+}
+
+// Offene Vorgänge (E4): Vorgang läuft noch. Zustand je Vorgang für die Ansicht «Offene Vorgänge».
+export function openCaseState(p, today = new Date()) {
+  const runs = p.we.concat(p.oe).flatMap((part) => part.runs);
+  const dated = runs.filter((r) => r.taken && r.date).map((r) => r.date.getTime());
+  const planned = runs.filter((r) => r.planned && r.date).map((r) => r.date.getTime());
+  const lastExam = dated.length ? new Date(Math.max(...dated)) : null;
+  const nextPlanned = planned.length ? new Date(Math.min(...planned)) : null;
+  const open = [];
+  if (p.weStatus === STATUS.OFFEN) open.push('schriftlich');
+  if (p.oeStatus === STATUS.OFFEN) open.push('mündlich');
+  return {
+    lastExam,
+    nextPlanned,
+    offen: open.join(' und '),
+    attempts: p.attemptsTotal,
+    eligible: isVorgang(p) && p.hasWeDate,
+    daysSinceLastExam: lastExam ? Math.floor((today.getTime() - lastExam.getTime()) / 86400000) : null,
+  };
+}
+
+// [{ person, ...openCaseState }] – nur Vorgänge (keine Duplikate) mit Status offen; älteste letzte Prüfung zuerst,
+// Vorgänge ohne Prüfung danach (Zeilenreihenfolge).
+export function openCases(persons, today = new Date()) {
+  return persons
+    .filter((p) => isVorgang(p) && p.status === STATUS.OFFEN)
+    .map((p) => ({ person: p, ...openCaseState(p, today) }))
+    .sort((a, b) => (a.lastExam ? a.lastExam.getTime() : Infinity) - (b.lastExam ? b.lastExam.getTime() : Infinity) || a.person.row - b.person.row);
+}
+
 // Status-Zähler über ein Statusfeld ('status' | 'weStatus' | 'oeStatus'); abgeschlossen = bestanden + nicht bestanden
 export function statusCounts(persons, field = 'status') {
   const c = { n: persons.length, bestanden: 0, nichtBestanden: 0, offen: 0, nichtErfasst: 0, abgeschlossen: 0 };
