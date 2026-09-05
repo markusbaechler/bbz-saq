@@ -7,7 +7,7 @@ import {
   awardScore, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, dayKey, partFirstAttempt,
   benchmarkFilter, BENCHMARKS,
   STATUS, isVorgang, statusCounts, exclusionReason, groupByPerson, personCount, multiProfilePersons, modelComparison,
-  excludedRows, openCases, openCaseState, rankingLimit, rankReason,
+  excludedRows, openCases, openCaseState, rankingLimit, rankReason, refYear, yearsOf, timeSeries, timeSeriesBy, partDifficultyByYear,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -662,4 +662,57 @@ test('openCaseState / openCases: offene Vorgänge mit fehlendem Teil, letzter Pr
   assertEqual([cases[1].offen, cases[1].lastExam], ['mündlich', d('2024-03-01')]);
   assertEqual([cases[2].offen, cases[2].lastExam, cases[2].nextPlanned, cases[2].eligible, cases[2].daysSinceLastExam], ['schriftlich und mündlich', null, d('2026-10-01'), false, null]);
   assertEqual(openCaseState(done).offen, '');
+});
+
+// ---------------------------------------------------------------------------
+// P6 – Zeitverlauf und Schwierigkeit je Teilprüfung
+// ---------------------------------------------------------------------------
+
+function yearCohort() {
+  return [
+    simple({ lastName: 'A23', profil: 'PK', oe: { 1: [{ passed: true, date: '2023-06-01', result: 0.9 }] } }),
+    simple({ lastName: 'B23', profil: 'PK', weAllPassed: false, we: { 1: [{ passed: false, date: '2023-03-01', result: 0.4 }] }, oeAllPassed: null, oe: {} }), // refDate = lastExam 2023
+    simple({ lastName: 'C24', profil: 'IK', oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.8 }] } }),
+    simple({ lastName: 'D25', profil: 'PK', we: { 1: [{ passed: true, date: '2025-03-01', result: 0.7 }] }, oe: { 1: [{ passed: true, date: '2025-06-01', result: 0.6 }] } }),
+    simple({ lastName: 'E25', profil: 'PK', we: { 1: [{ passed: true, date: '2025-03-01', result: 0.7 }] }, oe: { 1: [{ passed: false, date: '2025-05-01', result: 0.4 }, { passed: true, date: '2025-06-01', result: 0.6 }] } }),
+    makePerson({ lastName: 'NoRef' }),
+  ];
+}
+
+test('refYear / yearsOf / timeSeries: Kennzahlen je Jahr des Referenzdatums, ohne Referenzdatum kein Jahr', () => {
+  const ps = yearCohort();
+  assertEqual(ps.map(refYear), [2023, 2023, 2024, 2025, 2025, null]);
+  assertEqual(yearsOf(ps), [2023, 2024, 2025]);
+  const ts = timeSeries(ps);
+  assertEqual(ts.map((r) => [r.year, r.n, r.personen, r.small]), [[2023, 2, 2, true], [2024, 1, 1, true], [2025, 2, 2, true]]);
+  assertEqual(ts[0].written.gesamt, ratio(1, 2));
+  assertEqual(ts[0].oral.bestanden, ratio(1, 1), 'B23 mündlich offen → nicht im Nenner');
+  assertEqual([ts[0].oral.offen, ts[0].status.offen, ts[0].status.nichtBestanden], [1, 0, 1], 'B23: mündlich offen, Vorgang aber nicht bestanden (schriftlich no dominiert)');
+  assertClose(ts[2].writtenPerf1.mean, 0.7);
+  assertClose(ts[2].oralPerf1.mean, 0.5);
+  assertClose(ts[2].oralPerf2.mean, 0.6);
+  assertEqual(ts[2].oral.failed1, ratio(1, 2));
+  assertEqual(timeSeries([]), []);
+  const byProfil = timeSeriesBy(ps, 'profil');
+  assertEqual(byProfil.map((g) => [g.key, g.series.map((r) => r.year)]), [['PK', [2023, 2025]], ['IK', [2024]]], 'Vorgang ohne Referenzdatum trägt kein Jahr bei');
+});
+
+test('partDifficultyByYear: je Jahr (Datum des 1. Versuchs) und Teilprüfung – n, Durchfallquote, Ø Resultate', () => {
+  const ps = yearCohort();
+  const d = partDifficultyByYear(ps);
+  assertEqual(d.map((c) => [c.year, c.part, c.n]), [
+    [2023, 'WE1', 1], [2023, 'OE1', 1],
+    [2024, 'WE1', 2], [2024, 'WE2', 2], [2024, 'OE1', 1],
+    [2025, 'WE1', 2], [2025, 'OE1', 2],
+  ]);
+  const we1_2023 = d[0];
+  assertEqual([we1_2023.failed, we1_2023.passed], [ratio(1, 1), ratio(0, 1)]);
+  assertClose(we1_2023.meanFirst.mean, 0.4);
+  assertEqual(we1_2023.meanPassed, { mean: null, n: 0 }, 'nie bestanden');
+  const oe1_2025 = d[6];
+  assertEqual(oe1_2025.failed, ratio(1, 2));
+  assertClose(oe1_2025.meanFirst.mean, 0.5);
+  assertClose(oe1_2025.meanPassed.mean, 0.6, 'bestandener Run zählt für den Ø bestanden');
+  assertEqual(oe1_2025.small, true);
+  assertEqual(partDifficultyByYear([makePerson()]), []);
 });

@@ -7,7 +7,8 @@
 
 import { DEFAULT_FILTER, MODE, BENCHMARKS, dayKey } from './metrics.js';
 
-export const DEFAULT_UI = Object.freeze({ benchmark: 'bank', dq: null });
+// compare: zwei Jahre für den Zeitraumvergleich (a6), null = automatisch die zwei jüngsten Jahre mit Daten
+export const DEFAULT_UI = Object.freeze({ benchmark: 'bank', dq: null, compare: null });
 
 const VSS_VALUES = ['alle', 'vss', 'vsm', 'ohne'];
 const VERSUCHE_VALUES = ['alle', 'erstversuch', 'mehrere'];
@@ -43,6 +44,7 @@ export function serializeState(filter = DEFAULT_FILTER, ui = DEFAULT_UI) {
   if (f.onlyIssued) p.set('zertifikate', '1');
   if (f.mode !== DEFAULT_FILTER.mode) p.set('wertung', f.mode);
   if (u.benchmark !== DEFAULT_UI.benchmark) p.set('benchmark', u.benchmark);
+  if (u.compare && Number.isInteger(u.compare.a) && Number.isInteger(u.compare.b)) p.set('vergleich', u.compare.a + '-' + u.compare.b);
   return p.toString();
 }
 
@@ -76,6 +78,8 @@ export function parseHash(hash) {
   if (mode) filter.mode = mode;
   const benchmark = oneOf('benchmark', BENCHMARK_VALUES);
   if (benchmark) ui.benchmark = benchmark;
+  const cmp = /^(\d{4})-(\d{4})$/.exec(p.get('vergleich') || '');
+  if (cmp) ui.compare = { a: Number(cmp[1]), b: Number(cmp[2]) };
   return { view, hasParams: q >= 0, filter, ui };
 }
 

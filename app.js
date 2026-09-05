@@ -18,9 +18,10 @@ import * as vssVsm from './views/vssVsm.js';
 import * as ranking from './views/ranking.js';
 import * as planned from './views/planned.js';
 import * as offen from './views/offen.js';
+import * as zeitverlauf from './views/zeitverlauf.js';
 import * as glossar from './views/glossar.js';
 
-const KPI_VIEWS = [overview, written, oral, vssVsm, ranking, offen, planned];
+const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, ranking, offen, planned];
 const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, build: v.build }))
   .concat([{ id: 'datenqualitaet', label: 'Datenqualität' }, { id: glossar.id, label: glossar.label, build: glossar.build, isStatic: true }]);
 
@@ -248,6 +249,9 @@ function renderView() {
     persons: store.getFilteredPersons(),
     allPersons: eligible(state.persons), // kennzahlrelevante Vorgänge ohne Filter (Personen mit mehreren Profilen)
     plannedPersons: filterPersons(state.persons, filter, { eligibleOnly: false, period: false }),
+    timePersons: filterPersons(state.persons, filter, { period: false }), // kennzahlrelevant, alle Jahre (Zeitverlauf)
+    compare: state.ui.compare,
+    onCompareChange: (compare) => store.setUi({ compare }),
     mode: filter.mode,
     modeLabel: MODE_LABELS[filter.mode] || filter.mode,
     filter,

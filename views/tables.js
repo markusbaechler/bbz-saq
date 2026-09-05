@@ -7,6 +7,7 @@ import {
   MODE, SMALL_N, formatPct, writtenPassRates, writtenPerformance, partFirstAttempt, oralPassRates, oralPerformance,
   byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups,
   multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
+  timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
 } from '../metrics.js';
 import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
 
@@ -468,4 +469,110 @@ export function openCasesTables(persons, today = new Date()) {
     note: 'Sortiert nach letzter Prüfung (älteste zuerst); Vorgänge ohne Prüfung am Ende.',
   };
   return { summary, details, total: cases.length, ohnePruefung: cases.filter((c) => !c.lastExam).length, mitTermin: cases.filter((c) => c.nextPlanned).length };
+}
+
+// ---------------------------------------------------------------------------
+// Zeit (P6): Zeitverlauf je Kennzahl (a1), Zeitraumvergleich (a6), Schwierigkeit je Teilprüfung (b6)
+// ---------------------------------------------------------------------------
+
+function seriesRow(label, r) {
+  return {
+    gruppe: mark(label, r.small), n: r.n, small: r.small, personen: r.personen,
+    erstversuch: formatPct(r.written.erstversuch.pct), gesamt: formatPct(r.written.gesamt.pct), muendlich: formatPct(r.oral.bestanden.pct),
+    wp1: formatPct(r.writtenPerf1.mean), wp2: formatPct(r.writtenPerf2.mean), op1: formatPct(r.oralPerf1.mean), op2: formatPct(r.oralPerf2.mean),
+    offen: r.status.offen, nichtErfasst: r.status.nichtErfasst,
+  };
+}
+
+const TIME_COLUMNS = [
+  col('n', 'n (Vorgänge)'), col('personen', 'Personen'), col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('gesamt', 'Schriftlich insgesamt bestanden'),
+  col('muendlich', 'Mündlich bestanden'), col('wp1', 'Ø schriftlich 1. Versuch'), col('wp2', 'Ø schriftlich bestandener Run'), col('op1', 'Ø mündlich 1. Versuch'),
+  col('op2', 'Ø mündlich bestandener Run'), col('offen', 'Offen'), col('nichtErfasst', 'Nicht erfasst'),
+];
+
+// persons: kennzahlrelevante Vorgänge ohne Zeitraumfilter
+export function timeSeriesTable(persons) {
+  const rows = timeSeries(persons).map((r) => seriesRow(String(r.year), r));
+  return {
+    title: 'Kennzahlen je Jahr',
+    columns: [col('gruppe', 'Jahr')].concat(TIME_COLUMNS),
+    rows,
+    note: SMALL_NOTE + '; Jahr = Jahr des Referenzdatums (bestandene mündliche Prüfung, sonst letzte Prüfung); Nenner wie in der Übersicht',
+  };
+}
+
+export function timeSeriesByProfileTable(persons) {
+  const rows = [];
+  for (const g of timeSeriesBy(persons, 'profil')) {
+    for (const r of g.series) rows.push({ profil: groupLabel(g.key), ...seriesRow(String(r.year), r) });
+  }
+  return {
+    title: 'Kennzahlen je Profil und Jahr',
+    columns: [col('profil', 'Profil'), col('gruppe', 'Jahr')].concat(TIME_COLUMNS),
+    rows,
+    note: SMALL_NOTE,
+  };
+}
+
+// Reihen für das Liniendiagramm: [{ label, points: [{ x, y, n, small }] }]
+export function timeSeriesChartSeries(persons) {
+  const ts = timeSeries(persons);
+  const pick = (label, fn) => ({ label, points: ts.map((r) => ({ x: String(r.year), y: fn(r), n: r.n, small: r.small })) });
+  return {
+    quoten: [
+      pick('Schriftlich im 1. Versuch bestanden', (r) => r.written.erstversuch.pct),
+      pick('Schriftlich insgesamt bestanden', (r) => r.written.gesamt.pct),
+      pick('Mündlich bestanden', (r) => r.oral.bestanden.pct),
+    ],
+    resultate: [
+      pick('Ø schriftlich 1. Versuch', (r) => r.writtenPerf1.mean),
+      pick('Ø mündlich 1. Versuch', (r) => r.oralPerf1.mean),
+    ],
+  };
+}
+
+// Zwei Jahre vergleichen (a6): Kennzahlen des Jahres A gegen Jahr B, Differenz in Prozentpunkten
+export function yearComparisonTable(persons, yearA, yearB) {
+  const ofYear = (y) => persons.filter((p) => refYear(p) === y);
+  const a = overviewModel(ofYear(yearA), persons);
+  const b = overviewModel(ofYear(yearB), persons);
+  const t = comparisonTable(a.kpis, b.kpis, String(yearB));
+  t.title = 'Vergleich ' + yearA + ' gegenüber ' + yearB;
+  t.columns = t.columns.map((c) => (c.key === 'auswahl' ? col('auswahl', String(yearA)) : c.key === 'n' ? col('n', 'n ' + yearA) : c.key === 'n2' ? col('n2', 'n ' + yearB) : c));
+  t.note = 'Differenz in Prozentpunkten (' + yearA + ' minus ' + yearB + '); Jahr = Jahr des Referenzdatums; ' + SMALL_NOTE;
+  return t;
+}
+
+// Standardwahl für den Vergleich: die zwei jüngsten Jahre mit Daten
+export function defaultCompareYears(persons) {
+  const years = yearsOf(persons);
+  if (years.length < 2) return years.length === 1 ? { a: years[0], b: years[0] } : null;
+  return { a: years[years.length - 1], b: years[years.length - 2] };
+}
+
+// Schwierigkeit je Teilprüfung (b6): lange Tabelle und Pivot (Teil × Jahr, Durchfallquote im 1. Versuch)
+export function difficultyTables(persons) {
+  const cells = partDifficultyByYear(persons);
+  const long = {
+    title: 'Schwierigkeit je Teilprüfung und Jahr',
+    columns: [col('jahr', 'Jahr'), col('teil', 'Teilprüfung'), col('n', 'n'), col('durchgefallen', 'Im 1. Versuch durchgefallen'), col('bestanden', 'Im 1. Versuch bestanden'), col('mean1', 'Ø Resultat 1. Versuch'), col('mean2', 'Ø Resultat bestandener Run')],
+    rows: cells.map((c) => ({ jahr: c.year, teil: mark(c.part, c.small), n: c.n, small: c.small, durchgefallen: formatPct(c.failed.pct), bestanden: formatPct(c.passed.pct), mean1: formatPct(c.meanFirst.mean), mean2: formatPct(c.meanPassed.mean) })),
+    note: SMALL_NOTE + '; Jahr = Datum des ersten Versuchs (RUN1) der Teilprüfung; n = Vorgänge mit absolviertem, datiertem RUN1',
+  };
+  const years = [...new Set(cells.map((c) => c.year))].sort((a, b) => a - b);
+  const parts = [...new Set(cells.map((c) => c.part))];
+  const pivot = {
+    title: 'Durchfallquote im 1. Versuch je Teilprüfung und Jahr',
+    columns: [col('teil', 'Teilprüfung')].concat(years.map((y) => col('y' + y, String(y)))),
+    rows: parts.map((part) => {
+      const row = { teil: part };
+      for (const y of years) {
+        const c = cells.find((x) => x.part === part && x.year === y);
+        row['y' + y] = c ? formatPct(c.failed.pct) + (c.small ? ' *' : '') : '';
+      }
+      return row;
+    }),
+    note: '* Zelle mit n < ' + SMALL_N + ' Vorgängen; leer = keine Erstversuche im Jahr',
+  };
+  return { long, pivot };
 }

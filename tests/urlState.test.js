@@ -46,3 +46,11 @@ test('urlState.parseDay / formatDay: lokales Datum ohne Zeitzonenversatz', () =>
   assertEqual(formatDay(null), '');
   assertEqual(formatDay(new Date('nope')), '');
 });
+
+test('urlState: Vergleichsjahre (a6) als vergleich=JJJJ-JJJJ; ungültig → null', () => {
+  assertEqual(serializeState(DEFAULT_FILTER, { ...DEFAULT_UI, compare: { a: 2024, b: 2025 } }), 'vergleich=2024-2025');
+  assertEqual(parseHash('#zeitverlauf?vergleich=2024-2025').ui.compare, { a: 2024, b: 2025 });
+  assertEqual(parseHash('#zeitverlauf?vergleich=2024').ui.compare, null);
+  assertEqual(parseHash('#zeitverlauf').ui.compare, null);
+  assertEqual(serializeState(DEFAULT_FILTER, { ...DEFAULT_UI, compare: { a: 'x', b: 2025 } }), '');
+});

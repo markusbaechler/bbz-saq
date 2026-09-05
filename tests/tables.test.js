@@ -4,6 +4,7 @@ import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
   rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
+  timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
 } from '../views/tables.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -315,4 +316,60 @@ test('tables.vorgangExportTables: eine Zeile je Vorgang und je Run, mit Status, 
     ['Plan P', 'WE1', 1, '01.01.2030', '', '–', 'ja', 'Bern'],
   ]);
   assertEqual(vorgangExportTables([])[0].rows, []);
+});
+
+function yearCohort() {
+  return [
+    simple({ lastName: 'A23', profil: 'PK', oe: { 1: [{ passed: true, date: '2023-06-01', result: 0.9 }] } }),
+    simple({ lastName: 'B23', profil: 'PK', weAllPassed: false, we: { 1: [{ passed: false, date: '2023-03-01', result: 0.4 }] }, oeAllPassed: null, oe: {} }),
+    simple({ lastName: 'C24', profil: 'IK', oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.8 }] } }),
+    simple({ lastName: 'D25', profil: 'PK', we: { 1: [{ passed: true, date: '2025-03-01', result: 0.7 }] }, oe: { 1: [{ passed: true, date: '2025-06-01', result: 0.6 }] } }),
+    simple({ lastName: 'E25', profil: 'PK', we: { 1: [{ passed: true, date: '2025-03-01', result: 0.7 }] }, oe: { 1: [{ passed: false, date: '2025-05-01', result: 0.4 }, { passed: true, date: '2025-06-01', result: 0.6 }] } }),
+  ];
+}
+
+test('tables.timeSeriesTable / timeSeriesByProfileTable: Kennzahlen je Jahr des Referenzdatums', () => {
+  const t = timeSeriesTable(yearCohort());
+  assertEqual(t.columns.map((c) => c.label), ['Jahr', 'n (Vorgänge)', 'Personen', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden', 'Ø schriftlich 1. Versuch', 'Ø schriftlich bestandener Run', 'Ø mündlich 1. Versuch', 'Ø mündlich bestandener Run', 'Offen', 'Nicht erfasst']);
+  assertEqual(t.rows.map((r) => [r.gruppe, r.n, r.gesamt, r.muendlich, r.offen]), [['2023 *', 2, '50.0 %', '100.0 %', 0], ['2024 *', 1, '100.0 %', '100.0 %', 0], ['2025 *', 2, '100.0 %', '100.0 %', 0]]);
+  assertEqual([t.rows[2].wp1, t.rows[2].op1, t.rows[2].op2], ['70.0 %', '50.0 %', '60.0 %']);
+  const byProfil = timeSeriesByProfileTable(yearCohort());
+  assertEqual(byProfil.rows.map((r) => [r.profil, r.gruppe, r.n]), [['PK', '2023 *', 2], ['PK', '2025 *', 2], ['IK', '2024 *', 1]]);
+  assertEqual(timeSeriesTable([]).rows, []);
+});
+
+test('tables.timeSeriesChartSeries: Reihen für das Liniendiagramm mit n und Kennzeichnung kleiner Jahre', () => {
+  const c = timeSeriesChartSeries(yearCohort());
+  assertEqual(c.quoten.map((s) => s.label), ['Schriftlich im 1. Versuch bestanden', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden']);
+  assertEqual(c.resultate.map((s) => s.label), ['Ø schriftlich 1. Versuch', 'Ø mündlich 1. Versuch']);
+  assertEqual(c.quoten[1].points.map((p) => [p.x, p.y, p.n, p.small]), [['2023', 0.5, 2, true], ['2024', 1, 1, true], ['2025', 1, 2, true]]);
+  assertEqual(c.quoten[0].points.length, 3);
+  assertEqual(timeSeriesChartSeries([]).quoten[0].points, []);
+});
+
+test('tables.yearComparisonTable / defaultCompareYears: zwei Jahre nebeneinander, Differenz in Prozentpunkten', () => {
+  const ps = yearCohort();
+  assertEqual(defaultCompareYears(ps), { a: 2025, b: 2024 });
+  assertEqual(defaultCompareYears([ps[0]]), { a: 2023, b: 2023 });
+  assertEqual(defaultCompareYears([]), null);
+  const t = yearComparisonTable(ps, 2025, 2023);
+  assertEqual(t.title, 'Vergleich 2025 gegenüber 2023');
+  assertEqual(t.columns.map((c) => c.label), ['Kennzahl', '2025', 'n 2025', 'Benchmark: 2023', 'n 2023', 'Differenz']);
+  const byLabel = Object.fromEntries(t.rows.map((r) => [r.kennzahl, r]));
+  assertEqual([byLabel['Vorgänge'].auswahl, byLabel['Vorgänge'].benchmark], ['2', '2']);
+  assertEqual(byLabel['Schriftlich: insgesamt bestanden'].differenz, '+50.0 pp');
+  assertEqual(byLabel['Mündlich: im 1. Versuch durchgefallen'].differenz, '+50.0 pp');
+  assert(t.note.includes('2025 minus 2023'));
+});
+
+test('tables.difficultyTables: lange Tabelle und Pivot Teil × Jahr (Durchfallquote 1. Versuch)', () => {
+  const { long, pivot } = difficultyTables(yearCohort());
+  assertEqual(long.columns.map((c) => c.label), ['Jahr', 'Teilprüfung', 'n', 'Im 1. Versuch durchgefallen', 'Im 1. Versuch bestanden', 'Ø Resultat 1. Versuch', 'Ø Resultat bestandener Run']);
+  assertEqual(long.rows[0], { jahr: 2023, teil: 'WE1 *', n: 1, small: true, durchgefallen: '100.0 %', bestanden: '0.0 %', mean1: '40.0 %', mean2: '–' });
+  assertEqual(pivot.columns.map((c) => c.label), ['Teilprüfung', '2023', '2024', '2025']);
+  assertEqual(pivot.rows.map((r) => r.teil), ['WE1', 'OE1', 'WE2']);
+  assertEqual(pivot.rows[0], { teil: 'WE1', y2023: '100.0 % *', y2024: '0.0 % *', y2025: '0.0 % *' });
+  assertEqual(pivot.rows[1].y2025, '50.0 % *');
+  assertEqual(pivot.rows[2].y2023, '', 'leer = keine Erstversuche im Jahr');
+  assertEqual(difficultyTables([]).pivot.rows, []);
 });

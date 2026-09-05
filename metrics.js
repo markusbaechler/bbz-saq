@@ -577,6 +577,77 @@ export function overview(persons, mode) {
 }
 
 // ---------------------------------------------------------------------------
+// Zeit (P6): Zeitverlauf je Kennzahl (a1), Schwierigkeit je Teilprüfung (b6)
+// ---------------------------------------------------------------------------
+
+// Jahr des Referenzdatums (null ohne Referenzdatum)
+export function refYear(p) {
+  return p.refDate ? p.refDate.getFullYear() : null;
+}
+
+// Jahre mit Vorgängen (aufsteigend)
+export function yearsOf(persons) {
+  return [...new Set(persons.map(refYear).filter((y) => y !== null))].sort((a, b) => a - b);
+}
+
+// Kennzahlen je Jahr (Referenzdatum): [{ year, n, personen, written, oral, writtenPerf1, writtenPerf2, oralPerf1, oralPerf2, status }]
+// Vorgänge ohne Referenzdatum fehlen (kein Jahr zuordenbar); der Zeitraumfilter soll hier nicht angewendet sein.
+export function timeSeries(persons) {
+  return yearsOf(persons).map((year) => {
+    const ps = persons.filter((p) => refYear(p) === year);
+    return {
+      year,
+      n: ps.length,
+      small: ps.length < SMALL_N,
+      personen: personCount(ps),
+      written: writtenPassRates(ps),
+      oral: oralPassRates(ps),
+      writtenPerf1: writtenPerformance(ps, MODE.ERSTVERSUCH),
+      writtenPerf2: writtenPerformance(ps, MODE.BESTANDEN),
+      oralPerf1: oralPerformance(ps, MODE.ERSTVERSUCH),
+      oralPerf2: oralPerformance(ps, MODE.BESTANDEN),
+      status: statusCounts(ps),
+    };
+  });
+}
+
+// Zeitverlauf je Gruppe (z. B. Profil): [{ key, series: timeSeries }]
+export function timeSeriesBy(persons, key) {
+  return groupBy(persons, key).map((g) => ({ key: g.key, series: timeSeries(g.persons) }));
+}
+
+// Schwierigkeit je Teilprüfung und Jahr (b6): Jahr = Datum des ersten Versuchs (RUN1) des Teils, nicht das Referenzdatum.
+// [{ year, part: 'WE1', kind, n, failed (Quote), passed, meanFirst, meanPassed }]
+export function partDifficultyByYear(persons) {
+  const cells = new Map();
+  for (const p of persons) {
+    for (const kind of ['we', 'oe']) {
+      for (const part of p[kind]) {
+        const run1 = part.runs[0];
+        if (!run1 || !run1.taken || !run1.date) continue;
+        const year = run1.date.getFullYear();
+        const label = kind.toUpperCase() + part.part;
+        const key = year + '|' + label;
+        let c = cells.get(key);
+        if (!c) {
+          c = { year, part: label, kind, n: 0, failedCount: 0, passedCount: 0, results1: [], resultsPassed: [] };
+          cells.set(key, c);
+        }
+        c.n += 1;
+        if (run1.passed === false) c.failedCount += 1;
+        if (run1.passed === true) c.passedCount += 1;
+        if (isNum(run1.result)) c.results1.push(run1.result);
+        const passedRun = part.runs.find((r) => r.passed === true);
+        if (passedRun && isNum(passedRun.result)) c.resultsPassed.push(passedRun.result);
+      }
+    }
+  }
+  return [...cells.values()]
+    .map((c) => ({ year: c.year, part: c.part, kind: c.kind, n: c.n, small: c.n < SMALL_N, failed: ratio(c.failedCount, c.n), passed: ratio(c.passedCount, c.n), meanFirst: mean(c.results1), meanPassed: mean(c.resultsPassed) }))
+    .sort((a, b) => a.year - b.year || (a.kind === b.kind ? 0 : a.kind === 'we' ? -1 : 1) || collator.compare(a.part, b.part, { numeric: true }));
+}
+
+// ---------------------------------------------------------------------------
 // Modellvergleich alt → neu (Übergangsbericht P1; auf allen Zeilen, auch Duplikaten)
 // alt: Zeile = Person, Duplikate zählen mit, «insgesamt bestanden» = WE All yes / alle, «mündlich bestanden» = OE All yes /
 //      Vorgänge mit absolviertem, datiertem OE1 RUN1.
