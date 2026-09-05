@@ -9,7 +9,8 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 - Live: https://markusbaechler.github.io/bbz-saq/ (Anmeldung mit M365-Konto, Zugriff gemäss SharePoint-Rechten)
 - Lokal: `python -m http.server 3000` → http://localhost:3000
 - Tests: `node tests/run-node.js` oder `tests.html` im Browser (synthetische Daten, keine Personendaten)
-- CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Syntaxprüfung aller Module, `node tests/run-node.js`, README-Glossar-Abgleich
+- Browser-Smoke-Test (Playwright, Chromium): `cd tests/smoke && npm ci && npx playwright install chromium && node run.mjs`. Erzeugt eine synthetische Excel im Temp-Verzeichnis, lädt sie in die App, rendert jede Ansicht, prüft Filter, aufklappbare Ereignisse, DQ-Suche, Druck, Dark Mode und den leeren Browser-Speicher; Screenshots unter `tests/smoke/output/`. Playwright ist die einzige npm-Abhängigkeit im Repo und reines Test-Tooling.
+- CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Job «tests» (Syntaxprüfung aller Module, `node tests/run-node.js`, README-Glossar-Abgleich) und Job «smoke» (Browser-Smoke-Test, Screenshots als Artefakt bei Fehlern)
 - Modellbericht auf einer lokalen Kopie der Datei (nur Zähler und Quoten): `node tools/modellbericht.js <Datei.xlsx>`
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
 

@@ -1,5 +1,6 @@
 # CI: Tests und Konsistenzprüfungen bei jedem Push auf main und jedem Pull Request.
-# Kein Build-Schritt, keine Abhängigkeiten (Bibliotheken liegen unter lib/); Node 22 wie in der lokalen Entwicklung.
+# Job «tests»: kein Build-Schritt, keine Abhängigkeiten (Bibliotheken liegen unter lib/); Node 22 wie lokal.
+# Job «smoke»: Browser-Smoke-Test mit Playwright/Chromium (tests/smoke, einzige npm-Abhängigkeit, nur Test-Tooling).
 # Deployment läuft getrennt über GitHub Pages (Branch main), nicht über diesen Workflow.
 name: Tests
 
@@ -45,3 +46,43 @@ jobs:
             git --no-pager diff -- README.md
             exit 1
           fi
+
+  smoke:
+    name: Browser-Smoke-Test (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/smoke/package-lock.json
+
+      - name: Playwright installieren (nur Test-Tooling, die App bleibt ohne Abhängigkeiten)
+        working-directory: tests/smoke
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        run: npm ci
+
+      - name: Chromium-Build zwischenspeichern
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('tests/smoke/package-lock.json') }}
+
+      - name: Chromium und Systembibliotheken
+        working-directory: tests/smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke-Test (synthetische Excel, alle Ansichten, Interaktionen)
+        run: node tests/smoke/run.mjs
+
+      - name: Screenshots bei Fehler bereitstellen
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots
+          path: tests/smoke/output/
+          if-no-files-found: ignore

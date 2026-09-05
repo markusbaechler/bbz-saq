@@ -10,3 +10,7 @@ config.local.js
 Thumbs.db
 .vscode/
 .idea/
+
+# Test-Tooling (Browser-Smoke-Test): Abhängigkeiten und Ausgaben
+node_modules/
+tests/smoke/output/

@@ -1,0 +1,13 @@
+{
+  "name": "bbz-saq-smoke",
+  "private": true,
+  "description": "Browser-Smoke-Test des Cockpits (Playwright, Chromium). Nur Test-Tooling – die App selbst hat keine Abhängigkeiten und keinen Build-Schritt.",
+  "type": "module",
+  "scripts": {
+    "synth": "node synth.mjs",
+    "smoke": "node run.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}
