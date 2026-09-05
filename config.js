@@ -8,9 +8,9 @@
 
 export const CONFIG = {
   auth: {
-    // Vom Auftraggeber einzutragen (Azure App-Registrierung «bbz-saq-SPA», SPA-Plattform).
-    clientId: '00000000-0000-0000-0000-000000000000',
-    tenantId: '00000000-0000-0000-0000-000000000000',
+    // Azure App-Registrierung «bbz-saq-SPA» (SPA-Plattform). Öffentliche Kennungen, keine Secrets.
+    clientId: '78cf8834-1900-4711-9773-54b3b99d2084',
+    tenantId: '3643e7ab-d166-4e27-bd5f-c5bbfcd282d7',
     scopes: ['Files.Read.All'],
   },
   sharepoint: {
