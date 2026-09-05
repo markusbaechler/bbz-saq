@@ -188,6 +188,9 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .viz-key-box { display: inline-block; width: 14px; height: 2px; border-radius: 1px; }
 .viz figcaption { color: var(--muted); font-size: .75rem; margin-top: .25rem; }
 
+.report-head { border-top: 3px solid var(--accent); padding-top: .5rem; margin: .5rem 0 1rem; }
+.report-head h3 { margin-bottom: .25rem; }
+
 .app-footer { padding: .6rem 1.25rem; color: var(--muted); font-size: .8rem; }
 .print-filter { display: none; color: var(--muted); font-size: .8rem; margin-bottom: .5rem; }
 

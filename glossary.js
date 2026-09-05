@@ -116,6 +116,31 @@ export const GLOSSARY = [
     nenner: '–', grenzfaelle: 'Der Zeitraumfilter wirkt nicht (alle Jahre sichtbar); die übrigen Filter gelten. Jahre mit n < 5 sind markiert (hohle Marker, *). Vorgänge ohne Referenzdatum tragen kein Jahr bei. Ein Diagramm hat immer eine Tabelle als Zwilling.',
   },
   {
+    kind: 'Begriff', term: 'Frühwarnung «zweiter Fehlversuch»',
+    definition: 'Teilprüfungen (WE1–WE6, OE1–OE2) mit zwei nicht bestandenen Versuchen und ohne bestandenen Run. «Letzter Versuch» = genau ein Versuch bleibt (der nächste ist der letzte); «ausgeschöpft» = alle Versuche nicht bestanden. Liste mit Namen in der Ansicht «Offene Vorgänge», unabhängig vom Zeitraumfilter.',
+    nenner: '–', grenzfaelle: 'Maximal drei Versuche je Teilprüfung gemäss Spaltenaufbau der Datei (RUN1–RUN3).',
+  },
+  {
+    kind: 'Begriff', term: 'Durchlaufzeit',
+    definition: 'Tage vom ersten Prüfungsdatum eines Vorgangs bis zur bestandenen mündlichen Prüfung (Referenzdatum); nur bestandene Vorgänge. Zusätzlich Tage bis zum Zertifikatsbeginn, wo «Certificate Start Date» vorhanden ist. Ausgewiesen als Median, Ø, Quartile, Min, Max je Profil und je Jahr.',
+    nenner: 'Bestandene Vorgänge mit erstem Prüfungsdatum.', grenzfaelle: 'Der Median ist gegen Ausreisser (sehr lange Unterbrüche) robuster als der Mittelwert.',
+  },
+  {
+    kind: 'Begriff', term: 'Abbruch-Kandidaten',
+    definition: 'Offene Vorgänge, deren letzte Prüfung mehr als 365 Tage zurückliegt und die keinen geplanten Termin haben.',
+    nenner: '–', grenzfaelle: 'Ob ein Abbruch vorliegt, ist fachlich zu klären [hypothese]; die Schwelle von 365 Tagen ist ein Vorschlag. Vorgänge ohne jede Prüfung fehlen (kein Datum zum Messen).',
+  },
+  {
+    kind: 'Begriff', term: 'Bank-Report',
+    definition: 'Ansicht für die Weitergabe an ein Institut: Kennzahlen einer gewählten Bank im Vergleich zum Benchmark «alle Banken» (gleicher Zeitraum, gleiche übrigen Filter), je Profil und je Jahr. Ohne Namen, andere Banken nur als Aggregat. PDF über die Druckansicht des Browsers.',
+    nenner: '–', grenzfaelle: 'Voraussetzung: genau eine Bank in der Filterleiste gewählt. Kleine Gruppen (n < 5) sind markiert.',
+  },
+  {
+    kind: 'Begriff', term: 'Prüfungsplanung / Kapazität',
+    definition: 'Die Ansicht «Geplante Prüfungen» zeigt Kapazität und Auslastung je Tag und Ort, sobald Plätze je Prüfungsort in config.js (LOCATION_CAPACITY) hinterlegt sind. Die Excel-Datei enthält keine Kapazitätsdaten [beobachtet: kein Header dafür].',
+    nenner: '–', grenzfaelle: 'Ohne hinterlegte Kapazität bleiben die Spalten ausgeblendet (b4 nur vorbereitet).',
+  },
+  {
     kind: 'Begriff', term: 'Data-Quality-Stufen',
     definition: 'Fehler = Zelle nicht interpretierbar, Wert wird ignoriert. Hinweis = Wert interpretiert oder abgeleitet, aber auffällig (z. B. Result als Prozentwert umgedeutet, Duplikat zusammengeführt, Konsistenzregel verletzt). Nicht ausgewertet = Zelle nicht interpretierbar, aber das Feld fliesst in keine Kennzahl (Score; Entscheid E6 offen).',
     nenner: '–', grenzfaelle: 'Score-Header: «WE{n} RUN{r} Score», «OE{n} RUN{r} Score» (24 Spalten).',

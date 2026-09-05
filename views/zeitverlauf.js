@@ -1,7 +1,7 @@
 // views/zeitverlauf.js – Ansicht «Zeitverlauf» (P6): Kennzahlen je Jahr (a1), zwei Jahre vergleichen (a6),
 // Schwierigkeit je Teilprüfung über die Jahre (b6). Der Zeitraumfilter wirkt hier nicht (alle Jahre), die übrigen Filter schon.
 
-import { timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables } from './tables.js';
+import { timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables, throughputTables } from './tables.js';
 import { renderTable, section, el } from './common.js';
 import { renderLineChart } from './chart.js';
 import { formatPct, yearsOf } from '../metrics.js';
@@ -16,6 +16,7 @@ export function build(ctx) {
   const perYear = timeSeriesTable(persons);
   const perProfile = timeSeriesByProfileTable(persons);
   const diff = difficultyTables(persons);
+  const through = throughputTables(persons);
   const compare = (ctx.compare && years.includes(ctx.compare.a) && years.includes(ctx.compare.b)) ? ctx.compare : defaultCompareYears(persons);
   const comparison = compare ? yearComparisonTable(persons, compare.a, compare.b) : null;
   const yearSelect = (value, onChange) => {
@@ -42,7 +43,10 @@ export function build(ctx) {
       section('Schwierigkeit je Teilprüfung', [renderTable(diff.pivot), renderTable(diff.long)], {
         intro: 'Wie streng oder leicht war eine Teilprüfung in einem Jahr? Durchfallquote und Ø Resultat des ersten Versuchs je WE1–WE6 und OE1–OE2, Jahr = Datum des ersten Versuchs. Hohe Durchfallquoten bei gleichbleibenden Kandidatinnen und Kandidaten deuten auf die Prüfung, nicht auf die Teilnehmenden.',
       }),
+      section('Durchlaufzeit', [renderTable(through.byProfil), renderTable(through.byYear)], {
+        intro: 'Tage vom ersten Prüfungsdatum bis zur bestandenen mündlichen Prüfung (nur bestandene Vorgänge) sowie bis zum Zertifikatsbeginn, wo «Certificate Start Date» vorhanden ist. Median ist robuster als der Mittelwert.',
+      }),
     ],
-    tables: [perYear, perProfile].concat(comparison ? [comparison] : [], [diff.pivot, diff.long]),
+    tables: [perYear, perProfile].concat(comparison ? [comparison] : [], [diff.pivot, diff.long, through.byProfil, through.byYear]),
   };
 }

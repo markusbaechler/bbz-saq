@@ -112,6 +112,7 @@ export function openCaseState(p, today = new Date()) {
   const open = [];
   if (p.weStatus === STATUS.OFFEN) open.push('schriftlich');
   if (p.oeStatus === STATUS.OFFEN) open.push('mündlich');
+  const lastRuns = runs.filter((r) => r.taken && r.date && r.date.getTime() === (lastExam ? lastExam.getTime() : -1));
   return {
     lastExam,
     nextPlanned,
@@ -119,7 +120,79 @@ export function openCaseState(p, today = new Date()) {
     attempts: p.attemptsTotal,
     eligible: isVorgang(p) && p.hasWeDate,
     daysSinceLastExam: lastExam ? Math.floor((today.getTime() - lastExam.getTime()) / 86400000) : null,
+    lastRunPassed: lastRuns.length ? lastRuns.every((r) => r.passed === true) : null, // letzter Prüfungstag bestanden?
   };
+}
+
+// ---------------------------------------------------------------------------
+// Ausbau (P7): Frühwarnung zweiter Fehlversuch (b1), Durchlaufzeit und Abbruch (b5)
+// ---------------------------------------------------------------------------
+
+// Teilprüfungen mit mindestens zwei nicht bestandenen Runs und ohne bestandenen Run, je Vorgang (keine Duplikate):
+// stage 'letzter Versuch' (genau ein Run-Slot frei), 'ausgeschöpft' (kein Slot frei), 'weiterer Versuch' (mehr als ein Slot frei).
+// Sortierung: letzter Versuch zuerst, dann ausgeschöpft, dann weitere; innerhalb nach jüngstem Fehlversuch.
+export function earlyWarnings(persons) {
+  const out = [];
+  for (const p of persons) {
+    if (!isVorgang(p)) continue;
+    for (const kind of ['we', 'oe']) {
+      for (const part of p[kind]) {
+        const failedRuns = part.runs.filter((r) => r.taken && r.passed === false);
+        if (failedRuns.length < 2 || part.runs.some((r) => r.passed === true)) continue;
+        const free = part.runs.filter((r) => !r.taken);
+        const next = free[0] || null;
+        const lastFail = latestDate(failedRuns.map((r) => r.date).filter((d) => d));
+        out.push({
+          person: p, kind, part: part.part, label: kind.toUpperCase() + part.part, failed: failedRuns.length, remaining: free.length,
+          nextRun: next ? next.n : null, nextPlanned: next && next.planned ? next.date : null, lastFail,
+          stage: free.length === 0 ? 'ausgeschöpft' : free.length === 1 ? 'letzter Versuch' : 'weiterer Versuch',
+        });
+      }
+    }
+  }
+  const order = { 'letzter Versuch': 0, 'ausgeschöpft': 1, 'weiterer Versuch': 2 };
+  return out.sort((a, b) => order[a.stage] - order[b.stage] || (b.lastFail ? b.lastFail.getTime() : 0) - (a.lastFail ? a.lastFail.getTime() : 0) || a.person.row - b.person.row);
+}
+
+function latestDate(dates) {
+  return dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : null;
+}
+
+const DAY = 86400000;
+
+// Durchlaufzeit (b5): Tage vom ersten Prüfungsdatum bis zur bestandenen mündlichen Prüfung (Referenzdatum aus OE);
+// null, wenn der Vorgang nicht bestanden ist oder ein Datum fehlt
+export function durationDays(p) {
+  if (!p.firstExamDate || p.status !== STATUS.BESTANDEN || p.refDateSource !== 'oe' || !p.refDate) return null;
+  return Math.round((p.refDate.getTime() - p.firstExamDate.getTime()) / DAY);
+}
+
+// Tage vom ersten Prüfungsdatum bis zum Zertifikatsbeginn (nur mit Certificate Start Date)
+export function certificateDays(p) {
+  if (!p.firstExamDate || !p.certStart) return null;
+  return Math.round((p.certStart.getTime() - p.firstExamDate.getTime()) / DAY);
+}
+
+// Lagemasse einer Zahlenliste: { n, median, mean, min, max, p25, p75 } (null bei leerer Liste)
+export function quantiles(values) {
+  const nums = values.filter(isNum).sort((a, b) => a - b);
+  if (!nums.length) return { n: 0, median: null, mean: null, min: null, max: null, p25: null, p75: null };
+  const q = (f) => {
+    const pos = (nums.length - 1) * f;
+    const lo = Math.floor(pos);
+    const hi = Math.ceil(pos);
+    return nums[lo] + (nums[hi] - nums[lo]) * (pos - lo);
+  };
+  return { n: nums.length, median: q(0.5), mean: nums.reduce((a, b) => a + b, 0) / nums.length, min: nums[0], max: nums[nums.length - 1], p25: q(0.25), p75: q(0.75) };
+}
+
+export function throughputStats(persons) {
+  return { pruefung: quantiles(persons.map(durationDays)), zertifikat: quantiles(persons.map(certificateDays)) };
+}
+
+// Abbruch-Kandidaten (b5): offene Vorgänge mit letzter Prüfung vor mehr als thresholdDays Tagen und ohne geplanten Termin
+export function dropoutCandidates(persons, today = new Date(), thresholdDays = 365) {
+  return openCases(persons, today).filter((c) => c.lastExam && !c.nextPlanned && c.daysSinceLastExam > thresholdDays);
 }
 
 // [{ person, ...openCaseState }] – nur Vorgänge (keine Duplikate) mit Status offen; älteste letzte Prüfung zuerst,

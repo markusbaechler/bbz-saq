@@ -8,8 +8,10 @@ import {
   byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups,
   multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
   timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
+  earlyWarnings, dropoutCandidates, throughputStats, durationDays, certificateDays, groupBy,
 } from '../metrics.js';
 import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
+import { LOCATION_CAPACITY } from '../config.js';
 
 export const SMALL_MARK = '*';
 export const SMALL_NOTE = SMALL_MARK + ' Gruppe mit n < ' + SMALL_N + ' (Aussagekraft eingeschränkt)';
@@ -276,12 +278,23 @@ export function vorgangExportTables(persons) {
 export function plannedTables(persons) {
   const runs = plannedRuns(persons);
   const groups = plannedGroups(runs);
+  const hasCapacity = Object.keys(LOCATION_CAPACITY).length > 0;
   return {
     total: runs.length,
     summary: {
       title: 'Geplante Prüfungen je Tag und Ort',
-      columns: [col('datum', 'Datum'), col('ort', 'Ort'), col('pruefungen', 'Prüfungen'), col('anzahl', 'Anzahl')],
-      rows: groups.map((g) => ({ datum: fmtDate(g.day), ort: groupLabel(g.location), pruefungen: g.exams.join(', '), anzahl: g.count })),
+      columns: [col('datum', 'Datum'), col('ort', 'Ort'), col('pruefungen', 'Prüfungen'), col('anzahl', 'Anzahl')]
+        .concat(hasCapacity ? [col('kapazitaet', 'Kapazität'), col('auslastung', 'Auslastung')] : []),
+      rows: groups.map((g) => {
+        const row = { datum: fmtDate(g.day), ort: groupLabel(g.location), pruefungen: g.exams.join(', '), anzahl: g.count };
+        if (hasCapacity) {
+          const cap = g.location ? LOCATION_CAPACITY[g.location] : undefined;
+          row.kapazitaet = cap === undefined ? '' : cap;
+          row.auslastung = cap ? formatPct(g.count / cap) : '';
+        }
+        return row;
+      }),
+      note: hasCapacity ? 'Kapazität = Plätze je Prüfungstag und Ort (config.js, LOCATION_CAPACITY); Auslastung = geplante Termine ÷ Kapazität' : null,
     },
     details: {
       title: 'Geplante Prüfungen – Teilnehmende',
@@ -517,16 +530,16 @@ export function timeSeriesByProfileTable(persons) {
 // Reihen für das Liniendiagramm: [{ label, points: [{ x, y, n, small }] }]
 export function timeSeriesChartSeries(persons) {
   const ts = timeSeries(persons);
-  const pick = (label, fn) => ({ label, points: ts.map((r) => ({ x: String(r.year), y: fn(r), n: r.n, small: r.small })) });
+  const pick = (label, short, fn) => ({ label, short, points: ts.map((r) => ({ x: String(r.year), y: fn(r), n: r.n, small: r.small })) });
   return {
     quoten: [
-      pick('Schriftlich im 1. Versuch bestanden', (r) => r.written.erstversuch.pct),
-      pick('Schriftlich insgesamt bestanden', (r) => r.written.gesamt.pct),
-      pick('Mündlich bestanden', (r) => r.oral.bestanden.pct),
+      pick('Schriftlich im 1. Versuch bestanden', 'schriftlich 1. Versuch', (r) => r.written.erstversuch.pct),
+      pick('Schriftlich insgesamt bestanden', 'schriftlich insgesamt', (r) => r.written.gesamt.pct),
+      pick('Mündlich bestanden', 'mündlich', (r) => r.oral.bestanden.pct),
     ],
     resultate: [
-      pick('Ø schriftlich 1. Versuch', (r) => r.writtenPerf1.mean),
-      pick('Ø mündlich 1. Versuch', (r) => r.oralPerf1.mean),
+      pick('Ø schriftlich 1. Versuch', 'Ø schriftlich', (r) => r.writtenPerf1.mean),
+      pick('Ø mündlich 1. Versuch', 'Ø mündlich', (r) => r.oralPerf1.mean),
     ],
   };
 }
@@ -575,4 +588,109 @@ export function difficultyTables(persons) {
     note: '* Zelle mit n < ' + SMALL_N + ' Vorgängen; leer = keine Erstversuche im Jahr',
   };
   return { long, pivot };
+}
+
+// ---------------------------------------------------------------------------
+// Ausbau (P7): Frühwarnung (b1), Durchlaufzeit und Abbruch (b5), Bank-Report (b2)
+// ---------------------------------------------------------------------------
+
+export function earlyWarningTable(persons) {
+  const items = earlyWarnings(persons);
+  return {
+    title: 'Frühwarnung: zweiter Fehlversuch',
+    columns: [
+      col('stufe', 'Stufe'), col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('teil', 'Teilprüfung'), col('fehlversuche', 'Fehlversuche'),
+      col('letzter', 'Letzter Fehlversuch'), col('naechster', 'Nächster Termin'), col('status', 'Status Vorgang'), col('sheet', 'Sheet'), col('row', 'Zeile'),
+    ],
+    rows: items.map((w) => ({
+      stufe: w.stage, name: personName(w.person), bank: w.person.employerCanon || '', profil: groupLabel(w.person.profil), teil: w.label, fehlversuche: w.failed,
+      letzter: fmtDate(w.lastFail), naechster: w.nextPlanned ? fmtDate(w.nextPlanned) : (w.nextRun ? 'offen (RUN' + w.nextRun + ')' : '–'), status: w.person.status,
+      sheet: w.person.sheetName, row: w.person.row,
+    })),
+    note: 'Teilprüfungen mit zwei nicht bestandenen Versuchen und ohne bestandenen Run. «letzter Versuch» = genau ein Versuch bleibt; «ausgeschöpft» = alle Versuche nicht bestanden. Handlungsbedarf vor dem nächsten Termin.',
+    total: items.length,
+    lastAttempt: items.filter((w) => w.stage === 'letzter Versuch').length,
+    exhausted: items.filter((w) => w.stage === 'ausgeschöpft').length,
+  };
+}
+
+export function dropoutTable(persons, today = new Date(), thresholdDays = 365) {
+  const items = dropoutCandidates(persons, today, thresholdDays);
+  return {
+    title: 'Abbruch-Kandidaten (über ' + thresholdDays + ' Tage ohne Prüfung, kein Termin)',
+    columns: [
+      col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('offen', 'Offen'), col('letzte', 'Letzte Prüfung'), col('tage', 'Tage seit letzter Prüfung'),
+      col('letzterRun', 'Letzter Prüfungstag bestanden'), col('versuche', 'Versuche'), col('sheet', 'Sheet'), col('row', 'Zeile'),
+    ],
+    rows: items.map((c) => ({
+      name: personName(c.person), bank: c.person.employerCanon || '', profil: groupLabel(c.person.profil), offen: c.offen, letzte: fmtDate(c.lastExam), tage: c.daysSinceLastExam,
+      letzterRun: c.lastRunPassed === null ? '' : c.lastRunPassed ? 'ja' : 'nein', versuche: c.attempts, sheet: c.person.sheetName, row: c.person.row,
+    })),
+    note: 'Offene Vorgänge, deren letzte Prüfung mehr als ' + thresholdDays + ' Tage zurückliegt und die keinen geplanten Termin haben – vermutlich abgebrochen, fachlich zu klären [hypothese]. Schwelle ' + thresholdDays + ' Tage ist ein Vorschlag.',
+    total: items.length,
+    thresholdDays,
+  };
+}
+
+function days(v) {
+  return v === null || v === undefined ? '–' : String(Math.round(v));
+}
+
+// Durchlaufzeit je Profil und je Jahr (Jahr des Referenzdatums): Tage vom ersten Prüfungsdatum bis zur bestandenen mündlichen
+// Prüfung (nur bestandene Vorgänge) und bis zum Zertifikatsbeginn (nur mit Certificate Start Date)
+export function throughputTables(persons) {
+  const row = (label, ps) => {
+    const st = throughputStats(ps);
+    return {
+      gruppe: mark(label, st.pruefung.n < SMALL_N), small: st.pruefung.n < SMALL_N, n: st.pruefung.n, median: days(st.pruefung.median), mean: days(st.pruefung.mean),
+      p25: days(st.pruefung.p25), p75: days(st.pruefung.p75), min: days(st.pruefung.min), max: days(st.pruefung.max),
+      nZert: st.zertifikat.n, medianZert: days(st.zertifikat.median),
+    };
+  };
+  const columns = (first) => [
+    col('gruppe', first), col('n', 'n (bestanden)'), col('median', 'Median Tage'), col('mean', 'Ø Tage'), col('p25', '25 %-Quantil'), col('p75', '75 %-Quantil'), col('min', 'Min'), col('max', 'Max'),
+    col('nZert', 'n (mit Zertifikatsbeginn)'), col('medianZert', 'Median Tage bis Zertifikat'),
+  ];
+  const note = SMALL_NOTE + '; Tage vom ersten Prüfungsdatum bis zur bestandenen mündlichen Prüfung (Referenzdatum); bis Zertifikat nur mit «Certificate Start Date»';
+  const byProfil = {
+    title: 'Durchlaufzeit je Profil',
+    columns: columns('Profil'),
+    rows: [row('Gesamt', persons)].concat(groupBy(persons, 'profil').map((g) => row(groupLabel(g.key), g.persons))),
+    note,
+  };
+  const byYear = {
+    title: 'Durchlaufzeit je Jahr',
+    columns: columns('Jahr'),
+    rows: yearsOf(persons).map((y) => row(String(y), persons.filter((p) => refYear(p) === y))),
+    note,
+  };
+  return { byProfil, byYear };
+}
+
+// Bank-Report (b2): eigene Zahlen einer Bank gegen den anonymen Benchmark «alle Banken» (gleicher Zeitraum, gleiche
+// übrigen Filter). Keine Namen, keine anderen Banken einzeln.
+export function bankReportTables(bankPersons, benchmarkPersons, bankLabel) {
+  const own = overviewModel(bankPersons, bankPersons);
+  const bench = overviewModel(benchmarkPersons, benchmarkPersons);
+  const kpis = comparisonTable(own.kpis, bench.kpis, 'Alle Banken');
+  kpis.title = 'Kennzahlen ' + bankLabel + ' im Vergleich zu allen Banken';
+  kpis.columns = kpis.columns.map((c) => (c.key === 'auswahl' ? col('auswahl', bankLabel) : c.key === 'n' ? col('n', 'n ' + bankLabel) : c.key === 'n2' ? col('n2', 'n alle Banken') : c));
+  kpis.rows = kpis.rows.filter((r) => r.kennzahl !== 'Personen mit mehreren Profilen');
+  const benchByProfil = new Map(bench.byProfil.rows.map((r) => [r.gruppe.replace(/ \*$/, ''), r]));
+  const byProfil = {
+    title: 'Je Profil: ' + bankLabel + ' und alle Banken',
+    columns: [
+      col('profil', 'Profil'), col('n', 'n ' + bankLabel), col('erstversuch', 'Schriftlich 1. Versuch bestanden'), col('gesamt', 'Schriftlich insgesamt bestanden'), col('muendlich', 'Mündlich bestanden'),
+      col('n2', 'n alle Banken'), col('erstversuch2', 'Schriftlich 1. Versuch bestanden (alle)'), col('gesamt2', 'Schriftlich insgesamt bestanden (alle)'), col('muendlich2', 'Mündlich bestanden (alle)'),
+    ],
+    rows: own.byProfil.rows.map((r) => {
+      const key = r.gruppe.replace(/ \*$/, '');
+      const b = benchByProfil.get(key) || {};
+      return { profil: r.gruppe, small: r.small, n: r.n, erstversuch: r.erstversuch, gesamt: r.gesamt, muendlich: r.muendlich, n2: b.n === undefined ? '' : b.n, erstversuch2: b.erstversuch || '–', gesamt2: b.gesamt || '–', muendlich2: b.muendlich || '–' };
+    }),
+    note: SMALL_NOTE + '; Benchmark = alle Banken mit denselben übrigen Filtern und demselben Zeitraum',
+  };
+  const verlauf = timeSeriesTable(bankPersons);
+  verlauf.title = 'Kennzahlen je Jahr: ' + bankLabel;
+  return { kpis, byProfil, verlauf };
 }

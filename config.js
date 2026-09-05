@@ -107,6 +107,10 @@ export const BIRTH_DATE_RULES = { minYear: 1920, maxYear: 2010, serialMin: 7306,
 // Solange der Header fehlt, bildet die App den Schlüssel nur aus dem Namen und meldet das in meta.personKey.
 export const PERSON_KEY_FIELDS = ['lastName', 'firstName', 'birthDate'];
 
+// Prüfungsplanung (b4): Kapazität (Plätze) je Prüfungsort und Prüfungstag. Die Excel-Datei enthält keine Kapazitätsdaten
+// [beobachtet: kein Header dafür]; hier pflegen, dann zeigt «Geplante Prüfungen» die Auslastung je Tag und Ort. Leer = aus.
+export const LOCATION_CAPACITY = {};
+
 // VSS/VSM aus Threaded Comment auf B{row}, z. B. «VSM 8718 28.08./05.09.24: Name», «VSS 07.05.2026: Name».
 export const VSS_REGEX = /\bVSS\b/i;
 export const VSM_REGEX = /\bVSM\b/i;

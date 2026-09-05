@@ -8,6 +8,7 @@ import {
   benchmarkFilter, BENCHMARKS,
   STATUS, isVorgang, statusCounts, exclusionReason, groupByPerson, personCount, multiProfilePersons, modelComparison,
   excludedRows, openCases, openCaseState, rankingLimit, rankReason, refYear, yearsOf, timeSeries, timeSeriesBy, partDifficultyByYear,
+  earlyWarnings, durationDays, certificateDays, quantiles, throughputStats, dropoutCandidates,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -715,4 +716,54 @@ test('partDifficultyByYear: je Jahr (Datum des 1. Versuchs) und Teilprüfung –
   assertClose(oe1_2025.meanPassed.mean, 0.6, 'bestandener Run zählt für den Ø bestanden');
   assertEqual(oe1_2025.small, true);
   assertEqual(partDifficultyByYear([makePerson()]), []);
+});
+
+// ---------------------------------------------------------------------------
+// P7 – Frühwarnung, Durchlaufzeit, Abbruch
+// ---------------------------------------------------------------------------
+
+test('earlyWarnings: zwei Fehlversuche ohne bestandenen Run – letzter Versuch, ausgeschöpft, sortiert', () => {
+  const lastAttempt = simple({ lastName: 'Zwei', weAllPassed: null, we: { 1: [{ passed: false, date: '2025-01-10', result: 0.4 }, { passed: false, date: '2025-03-10', result: 0.45 }, { date: '2026-10-01', planned: true }] } });
+  const exhausted = simple({ lastName: 'Drei', weAllPassed: false, we: { 2: [{ passed: false, date: '2024-01-10', result: 0.4 }, { passed: false, date: '2024-03-10', result: 0.4 }, { passed: false, date: '2024-06-10', result: 0.4 }] } });
+  const recovered = simple({ lastName: 'Ok', we: { 1: [{ passed: false, date: '2025-01-10', result: 0.4 }, { passed: false, date: '2025-02-10', result: 0.4 }, { passed: true, date: '2025-03-10', result: 0.7 }] } });
+  const oneFail = simple({ lastName: 'Eins', oe: { 1: [{ passed: false, date: '2025-05-01', result: 0.4 }] } });
+  const dup = simple({ lastName: 'Dup', duplicateOf: { sheet: 'x', row: 1 }, we: { 1: [{ passed: false, date: '2025-01-10', result: 0.4 }, { passed: false, date: '2025-03-10', result: 0.45 }] } });
+  const w = earlyWarnings([exhausted, oneFail, recovered, dup, lastAttempt]);
+  assertEqual(w.map((x) => [x.person.lastName, x.label, x.stage, x.failed, x.remaining, x.nextRun]), [
+    ['Zwei', 'WE1', 'letzter Versuch', 2, 1, 3],
+    ['Drei', 'WE2', 'ausgeschöpft', 3, 0, null],
+  ]);
+  assertEqual(w[0].nextPlanned, d('2026-10-01'));
+  assertEqual(w[0].lastFail, d('2025-03-10'));
+  assertEqual(w[1].nextPlanned, null);
+  assertEqual(earlyWarnings([simple()]), []);
+});
+
+test('durationDays / certificateDays / quantiles / throughputStats: Tage bis bestandene mündliche Prüfung bzw. Zertifikat', () => {
+  const done = simple({ we: { 1: [{ passed: true, date: '2024-01-10', result: 0.8 }] }, oe: { 1: [{ passed: true, date: '2024-04-19', result: 0.9 }] }, certStart: d('2024-05-01') });
+  assertEqual(done.firstExamDate, d('2024-01-10'));
+  assertEqual(durationDays(done), 100);
+  assertEqual(certificateDays(done), 112);
+  const open = simple({ weAllPassed: null, oeAllPassed: null });
+  assertEqual(durationDays(open), null, 'nur bestandene Vorgänge');
+  const failedOral = simple({ oeAllPassed: false, oe: { 1: [{ passed: false, date: '2024-06-01', result: 0.4 }] } });
+  assertEqual(durationDays(failedOral), null);
+  assertEqual(certificateDays(simple()), null, 'ohne Zertifikatsbeginn');
+  assertEqual(quantiles([]), { n: 0, median: null, mean: null, min: null, max: null, p25: null, p75: null });
+  assertEqual(quantiles([5, 1, 3]), { n: 3, median: 3, mean: 3, min: 1, max: 5, p25: 2, p75: 4 });
+  assertEqual(quantiles([4, 2]).median, 3);
+  const st = throughputStats([done, open, simple()]);
+  assertEqual([st.pruefung.n, st.pruefung.median, st.zertifikat.n, st.zertifikat.median], [2, (100 + 92) / 2, 1, 112]);
+});
+
+test('dropoutCandidates: offene Vorgänge ohne Termin mit letzter Prüfung vor mehr als 365 Tagen', () => {
+  const today = d('2026-09-05');
+  const stale = simple({ lastName: 'Alt', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: false, date: '2024-01-10', result: 0.4 }] }, oe: {} });
+  const recent = simple({ lastName: 'Neu', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: true, date: '2026-03-10', result: 0.8 }] }, oe: {} });
+  const planned = simple({ lastName: 'Termin', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: false, date: '2024-01-10', result: 0.4 }, { date: '2026-11-01', planned: true }] }, oe: {} });
+  const closed = simple({ lastName: 'Fertig' });
+  const c = dropoutCandidates([stale, recent, planned, closed], today);
+  assertEqual(c.map((x) => [x.person.lastName, x.daysSinceLastExam > 365, x.lastRunPassed]), [['Alt', true, false]]);
+  assertEqual(dropoutCandidates([stale], today, 2000), []);
+  assertEqual(openCaseState(recent, today).lastRunPassed, true);
 });

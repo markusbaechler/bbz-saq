@@ -19,10 +19,11 @@ import * as ranking from './views/ranking.js';
 import * as planned from './views/planned.js';
 import * as offen from './views/offen.js';
 import * as zeitverlauf from './views/zeitverlauf.js';
+import * as bankReport from './views/bankReport.js';
 import * as glossar from './views/glossar.js';
 
-const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, ranking, offen, planned];
-const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, build: v.build }))
+const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, ranking, bankReport, offen, planned];
+const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, build: v.build, noPersonExport: !!v.noPersonExport }))
   .concat([{ id: 'datenqualitaet', label: 'Datenqualität' }, { id: glossar.id, label: glossar.label, build: glossar.build, isStatic: true }]);
 
 // Aller Zustand liegt im Store (Filter, Anzeigezustand, Daten); app.js hält nur DOM-Referenzen und Lauf-Flags (Befund 16).
@@ -250,6 +251,8 @@ function renderView() {
     allPersons: eligible(state.persons), // kennzahlrelevante Vorgänge ohne Filter (Personen mit mehreren Profilen)
     plannedPersons: filterPersons(state.persons, filter, { eligibleOnly: false, period: false }),
     timePersons: filterPersons(state.persons, filter, { period: false }), // kennzahlrelevant, alle Jahre (Zeitverlauf)
+    bankBenchmarkPersons: filterPersons(state.persons, benchmarkFilter(filter, 'bank')), // Bank-Report: alle Banken
+    today: new Date(),
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
     mode: filter.mode,
@@ -273,7 +276,7 @@ function renderView() {
     return;
   }
   container.appendChild(el('div', { class: 'print-filter', text: headerLines.join(' · ') }));
-  container.appendChild(exportBar({ viewId: view.id, tables: built.tables, headerLines, extra: { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) } }));
+  container.appendChild(exportBar({ viewId: view.id, tables: built.tables, headerLines, extra: view.noPersonExport ? null : { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) } }));
   for (const node of built.nodes) container.appendChild(node);
 }
 

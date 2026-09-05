@@ -5,8 +5,10 @@ import {
   rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
+  earlyWarningTable, dropoutTable, throughputTables, bankReportTables,
 } from '../views/tables.js';
 import { makePerson, d } from './fixtures.js';
+import { LOCATION_CAPACITY } from '../config.js';
 
 // Kurzform: schriftlich 2 Teile, RUN1 bestanden, mündlich OE1 RUN1 bestanden
 function simple(overrides = {}) {
@@ -372,4 +374,70 @@ test('tables.difficultyTables: lange Tabelle und Pivot Teil × Jahr (Durchfallqu
   assertEqual(pivot.rows[1].y2025, '50.0 % *');
   assertEqual(pivot.rows[2].y2023, '', 'leer = keine Erstversuche im Jahr');
   assertEqual(difficultyTables([]).pivot.rows, []);
+});
+
+test('tables.earlyWarningTable: Stufe, Teilprüfung, Fehlversuche, nächster Termin, Zähler', () => {
+  const lastAttempt = simple({ lastName: 'Zwei', firstName: 'Z', profil: 'PK', employerCanon: 'Testbank AG', weAllPassed: null, we: { 1: [{ passed: false, date: '2025-01-10', result: 0.4 }, { passed: false, date: '2025-03-10', result: 0.45 }, { date: '2026-10-01', planned: true }] } });
+  const exhausted = simple({ lastName: 'Drei', firstName: 'D', profil: 'IK', weAllPassed: false, we: { 2: [{ passed: false, date: '2024-01-10', result: 0.4 }, { passed: false, date: '2024-03-10', result: 0.4 }, { passed: false, date: '2024-06-10', result: 0.4 }] } });
+  const t = earlyWarningTable([exhausted, lastAttempt, simple()]);
+  assertEqual(t.columns.map((c) => c.label), ['Stufe', 'Name', 'Bank', 'Profil', 'Teilprüfung', 'Fehlversuche', 'Letzter Fehlversuch', 'Nächster Termin', 'Status Vorgang', 'Sheet', 'Zeile']);
+  assertEqual(t.rows.map((r) => [r.stufe, r.name, r.teil, r.fehlversuche, r.letzter, r.naechster, r.status]), [
+    ['letzter Versuch', 'Zwei Z', 'WE1', 2, '10.03.2025', '01.10.2026', 'offen'],
+    ['ausgeschöpft', 'Drei D', 'WE2', 3, '10.06.2024', '–', 'nicht bestanden'],
+  ]);
+  assertEqual([t.total, t.lastAttempt, t.exhausted], [2, 1, 1]);
+  const noDate = earlyWarningTable([simple({ weAllPassed: null, we: { 1: [{ passed: false, date: '2025-01-10', result: 0.4 }, { passed: false, date: '2025-03-10', result: 0.45 }] } })]);
+  assertEqual(noDate.rows[0].naechster, 'offen (RUN3)');
+});
+
+test('tables.dropoutTable: Abbruch-Kandidaten mit Tagen seit letzter Prüfung und Schwelle', () => {
+  const today = d('2026-09-05');
+  const stale = simple({ lastName: 'Alt', firstName: 'A', profil: 'PK', employerCanon: 'Testbank AG', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: false, date: '2024-01-10', result: 0.4 }] }, oe: {} });
+  const t = dropoutTable([stale, simple()], today, 365);
+  assertEqual(t.columns.map((c) => c.label), ['Name', 'Bank', 'Profil', 'Offen', 'Letzte Prüfung', 'Tage seit letzter Prüfung', 'Letzter Prüfungstag bestanden', 'Versuche', 'Sheet', 'Zeile']);
+  assertEqual(t.rows.map((r) => [r.name, r.offen, r.letzte, r.letzterRun, r.versuche]), [['Alt A', 'schriftlich und mündlich', '10.01.2024', 'nein', 1]]);
+  assertEqual([t.total, t.thresholdDays], [1, 365]);
+  assert(t.title.includes('365'));
+});
+
+test('tables.throughputTables: Durchlaufzeit je Profil und Jahr (Median, Ø, Quartile, Zertifikat)', () => {
+  const a = simple({ profil: 'PK', we: { 1: [{ passed: true, date: '2024-01-10', result: 0.8 }] }, oe: { 1: [{ passed: true, date: '2024-04-19', result: 0.9 }] }, certStart: d('2024-05-01') });
+  const b = simple({ profil: 'PK', we: { 1: [{ passed: true, date: '2024-01-01', result: 0.8 }] }, oe: { 1: [{ passed: true, date: '2024-12-01', result: 0.9 }] } });
+  const c = simple({ profil: 'IK', weAllPassed: null, oeAllPassed: null });
+  const { byProfil, byYear } = throughputTables([a, b, c]);
+  assertEqual(byProfil.columns.map((x) => x.label), ['Profil', 'n (bestanden)', 'Median Tage', 'Ø Tage', '25 %-Quantil', '75 %-Quantil', 'Min', 'Max', 'n (mit Zertifikatsbeginn)', 'Median Tage bis Zertifikat']);
+  assertEqual(byProfil.rows.map((r) => [r.gruppe, r.n, r.median, r.min, r.max, r.nZert, r.medianZert]), [['Gesamt *', 2, '218', '100', '335', 1, '112'], ['PK *', 2, '218', '100', '335', 1, '112'], ['IK *', 0, '–', '–', '–', 0, '–']]);
+  assertEqual(byYear.rows.map((r) => [r.gruppe, r.n, r.median]), [['2024 *', 2, '218']]);
+});
+
+test('tables.bankReportTables: Bank gegen alle Banken – Kennzahlen, je Profil, Verlauf; ohne Namen und ohne mehrere Profile', () => {
+  const all = cohort();
+  const bank = all.filter((p) => p.employerCanon === 'Testbank AG');
+  const t = bankReportTables(bank, all, 'Testbank AG');
+  assertEqual(t.kpis.title, 'Kennzahlen Testbank AG im Vergleich zu allen Banken');
+  assertEqual(t.kpis.columns.map((c) => c.label), ['Kennzahl', 'Testbank AG', 'n Testbank AG', 'Benchmark: Alle Banken', 'n alle Banken', 'Differenz']);
+  const byLabel = Object.fromEntries(t.kpis.rows.map((r) => [r.kennzahl, r]));
+  assertEqual([byLabel['Vorgänge'].auswahl, byLabel['Vorgänge'].benchmark], ['2', '4']);
+  assertEqual(byLabel['Schriftlich: insgesamt bestanden'].differenz, '+25.0 pp');
+  assertEqual(byLabel['Personen mit mehreren Profilen'], undefined, 'nicht im Bank-Report');
+  assertEqual(t.byProfil.rows.map((r) => [r.profil, r.n, r.gesamt, r.n2, r.gesamt2]), [['PK *', 2, '100.0 %', 2, '100.0 %']]);
+  assertEqual(t.verlauf.title, 'Kennzahlen je Jahr: Testbank AG');
+  assertEqual(t.verlauf.rows.map((r) => [r.gruppe, r.n]), [['2024 *', 2]]);
+  for (const table of [t.kpis, t.byProfil, t.verlauf]) assert(!table.columns.some((c) => c.key === 'name'), 'keine Namensspalte');
+});
+
+test('tables.plannedTables: Kapazität und Auslastung nur, wenn Plätze je Ort hinterlegt sind (b4 vorbereitet)', () => {
+  const a = makePerson({ lastName: 'Alpha', we: { 1: [{ date: new Date(2026, 9, 1, 9, 0), location: 'Bern', planned: true }] } });
+  const b = makePerson({ lastName: 'Beta', we: { 1: [{ date: new Date(2026, 9, 1, 13, 0), location: 'Bern', planned: true }] } });
+  const c = makePerson({ lastName: 'Gamma', we: { 1: [{ date: new Date(2026, 9, 2, 9, 0), location: 'Zürich', planned: true }] } });
+  assertEqual(plannedTables([a, b, c]).summary.columns.map((x) => x.label), ['Datum', 'Ort', 'Prüfungen', 'Anzahl'], 'ohne Kapazitätsdaten keine Spalten');
+  LOCATION_CAPACITY.Bern = 8;
+  try {
+    const t = plannedTables([a, b, c]);
+    assertEqual(t.summary.columns.map((x) => x.label), ['Datum', 'Ort', 'Prüfungen', 'Anzahl', 'Kapazität', 'Auslastung']);
+    assertEqual(t.summary.rows.map((r) => [r.ort, r.anzahl, r.kapazitaet, r.auslastung]), [['Bern', 2, 8, '25.0 %'], ['Zürich', 1, '', '']]);
+    assert(t.summary.note.includes('LOCATION_CAPACITY'));
+  } finally {
+    delete LOCATION_CAPACITY.Bern;
+  }
 });

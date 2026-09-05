@@ -23,12 +23,13 @@ function text(x, y, content, cls, anchor = 'start') {
   return t;
 }
 
-// series: [{ label, points: [{ x: string, y: number|null, n: number, small: boolean }] }] – gleiche x-Reihenfolge je Reihe
+// series: [{ label, short?, points: [{ x: string, y: number|null, n: number, small: boolean }] }] – gleiche x-Reihenfolge je Reihe;
+// short = Kurzbezeichnung für die Direktbeschriftung am Linienende (die Legende trägt den vollen Namen)
 // options: { title, yFormat(v) → string, yMax = 1, height = 260, ariaLabel }
 export function renderLineChart(series, { title = '', yFormat = (v) => String(v), yMax = 1, height = 260, ariaLabel = '' } = {}) {
   const xs = [...new Set(series.flatMap((s) => s.points.map((p) => p.x)))];
-  const width = 720;
-  const pad = { top: 16, right: 150, bottom: 34, left: 48 };
+  const width = 760;
+  const pad = { top: 16, right: 190, bottom: 34, left: 48 };
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
   const xPos = (i) => pad.left + (xs.length === 1 ? plotW / 2 : (plotW * i) / (xs.length - 1));
@@ -64,7 +65,7 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
       root.appendChild(svg('circle', { cx: p.px, cy: p.py, r: 4, class: 'viz-dot' + (p.small ? ' small' : ''), style: p.small ? 'stroke:' + color : 'fill:' + color }));
     }
     const last = [...pts].reverse().find((p) => p.py !== null);
-    if (last) endLabels.push({ y: last.py, x: last.px, label: s.label, value: yFormat(last.y), color });
+    if (last) endLabels.push({ y: last.py, x: last.px, label: s.short || s.label, value: yFormat(last.y), color });
   });
 
   // Direktbeschriftung am Linienende (Textfarbe = Text-Token; Farbe nur über den kurzen Linienschlüssel)
