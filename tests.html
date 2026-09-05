@@ -26,6 +26,9 @@
     <thead><tr><th>Status</th><th>Test</th><th>Details</th></tr></thead>
     <tbody id="results"></tbody>
   </table>
+  <!-- Bibliotheken lokal (kein CDN); für fileAdapter-Tests als Globals XLSX / fflate -->
+  <script src="lib/xlsx.full.min.js"></script>
+  <script src="lib/fflate.umd.js"></script>
   <script type="module">
     import { runAll } from './tests/runner.js';
     import './tests/all.js';
