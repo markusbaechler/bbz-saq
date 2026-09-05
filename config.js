@@ -98,6 +98,19 @@ export const EMPLOYER_ALIASES = {
 // Datumsregeln: plausible Jahre; Zahlen in diesem Bereich gelten als Excel-Serienzahl (Zelle ohne Datumsformat)
 export const DATE_RULES = { minYear: 2000, maxYear: 2100, serialMin: 36526, serialMax: 60000 };
 
+// Geburtsdatum (Personenschlüssel, Entscheid E2): plausible Jahrgänge 1920–2010; Serienzahlen entsprechend
+// (7306 = 01.01.1920, 40179 = 01.01.2010). Eine nackte Jahreszahl wie 1985 ist damit keine Serienzahl.
+export const BIRTH_DATE_RULES = { minYear: 1920, maxYear: 2010, serialMin: 7306, serialMax: 40179 };
+
+// Personenschlüssel (E2): normalisiert aus Last Name, First Name und Geburtsdatum – bewusst NICHT Employer
+// (ein Bankwechsel ist dieselbe Person). Header «Birth Date» am File verifiziert (05.09.2026, beide Sheets) → Pflicht-Header.
+// Leere Geburtsdatum-Zellen ergeben einen Schlüssel nur aus dem Namen (meta.counts.schluesselOhneGeburtsdatum).
+export const PERSON_KEY_FIELDS = ['lastName', 'firstName', 'birthDate'];
+
+// Prüfungsplanung (b4): Kapazität (Plätze) je Prüfungsort und Prüfungstag. Die Excel-Datei enthält keine Kapazitätsdaten
+// [beobachtet: kein Header dafür]; hier pflegen, dann zeigt «Geplante Prüfungen» die Auslastung je Tag und Ort. Leer = aus.
+export const LOCATION_CAPACITY = {};
+
 // VSS/VSM aus Threaded Comment auf B{row}, z. B. «VSM 8718 28.08./05.09.24: Name», «VSS 07.05.2026: Name».
 export const VSS_REGEX = /\bVSS\b/i;
 export const VSM_REGEX = /\bVSM\b/i;
@@ -126,6 +139,7 @@ function buildHeaderFields() {
     { key: 'profil',      candidates: ['Certificate Program'],    required: 'all' },
     { key: 'sprache',     candidates: ['Certificate Language'],   required: 'all' },
     { key: 'commLanguage', candidates: ['Communication Language'], required: 'none' }, // Fallback für leere Certificate Language
+    { key: 'birthDate',   candidates: ['Birth Date'],             required: 'all' }, // Personenschlüssel (E2), am File verifiziert
     { key: 'certNumber',  candidates: ['Certificate Number'],     required: 'none' },
     { key: 'certStart',   candidates: ['Certificate Start Date'], required: 'issued' },
     { key: 'certEnd',     candidates: ['Certificate End Date'],   required: 'none' },

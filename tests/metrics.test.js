@@ -6,6 +6,9 @@ import {
   oralPassRates, oralPerformance, groupBy, byGroup, vssVsmBreakdown,
   awardScore, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, dayKey, partFirstAttempt,
   benchmarkFilter, BENCHMARKS,
+  STATUS, isVorgang, statusCounts, exclusionReason, groupByPerson, personCount, multiProfilePersons, modelComparison,
+  excludedRows, openCases, openCaseState, rankingLimit, rankReason, refYear, yearsOf, timeSeries, timeSeriesBy, partDifficultyByYear,
+  earlyWarnings, durationDays, certificateDays, quantiles, throughputStats, passiveCases, PASSIVE_DAYS, partsByProfile, missingParts,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -208,7 +211,7 @@ test('writtenPassRates: im 1. Versuch bestanden / durchgefallen UND insgesamt be
   assertEqual(r.gesamt.n, 3);
   assertClose(r.gesamt.pct, 2 / 3);
   assertEqual(r.gesamt.small, true);
-  assertEqual(writtenPassRates([]), { erstversuch: ratio(0, 0), erstversuchFailed: ratio(0, 0), gesamt: ratio(0, 0) });
+  assertEqual(writtenPassRates([]), { erstversuch: ratio(0, 0), erstversuchFailed: ratio(0, 0), gesamt: ratio(0, 0), nichtBestanden: ratio(0, 0), offen: 0, passiv: 0, nichtErfasst: 0 });
 });
 
 test('writtenPassRates: Nenner Erstversuch = Personen mit absolviertem WE RUN1', () => {
@@ -254,6 +257,7 @@ test('writtenPerformance: Ø über Personen gemäss Modus, n = Personen mit Wert
 test('writtenPerformanceByPart: Ø pro Teilprüfung WE1–WE6', () => {
   const parts = writtenPerformanceByPart(writtenCohort(), MODE.ERSTVERSUCH);
   assertEqual(parts.map((p) => p.part), [1, 2, 3, 4, 5, 6]);
+  assertEqual(writtenPerformanceByPart([], MODE.ERSTVERSUCH).length, 6, 'Anzahl Teile aus CONFIG, auch ohne Personen (Befund 15)');
   assertClose(parts[0].mean, (0.8 + 0.4 + 0.8) / 3);
   assertEqual(parts[0].n, 3);
   assertClose(parts[1].mean, (0.6 + 0.6 + 0.3) / 3);
@@ -356,7 +360,7 @@ test('awardRanking: pro Profil Top 5, Tie-Break Versuche, dann früheres Referen
   const tieMore = simple({ lastName: 'TieMore', profil: 'PK', we: { 1: [{ passed: false, date: '2024-02-01', result: 0.5 }, { passed: true, date: '2024-03-01', result: 0.8 }], 2: [{ passed: true, date: '2024-03-01', result: 0.6 }] }, oe: { 1: [{ passed: true, date: '2024-04-01', result: 0.9 }] } }); // BESTANDEN: 0.8, 4 Versuche
   const other = simple({ lastName: 'Other', profil: 'IK' });
   const failed = simple({ lastName: 'Failed', profil: 'PK', oeAllPassed: false });
-  const groups = awardRanking([tieLate, other, failed, tieMore, tieEarly, best], MODE.BESTANDEN);
+  const groups = awardRanking([tieLate, other, failed, tieMore, tieEarly, best], MODE.BESTANDEN, 5, { dynamic: false });
   assertEqual(groups.map((g) => g.profil), ['PK', 'IK']);
   const pk = groups[0].entries;
   assertEqual(pk.map((e) => e.person.lastName), ['Best', 'TieEarly', 'TieLate', 'TieMore']);
@@ -370,23 +374,55 @@ test('awardRanking: pro Profil Top 5, Tie-Break Versuche, dann früheres Referen
   assertEqual(groups[1].entries.map((e) => e.person.lastName), ['Other']);
 });
 
-test('awardRanking: begrenzt auf k Einträge', () => {
+test('awardRanking: begrenzt auf k Einträge; dynamisch höchstens die halbe Gruppe (Befund 4)', () => {
   const persons = Array.from({ length: 7 }, (_, i) => simple({ profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.5 + i * 0.05 }] } }));
-  const [pk] = awardRanking(persons, MODE.ERSTVERSUCH, 5);
+  const [pk] = awardRanking(persons, MODE.ERSTVERSUCH, 5, { dynamic: false });
   assertEqual(pk.entries.length, 5);
   assertClose(pk.entries[0].score, (0.8 + 0.9) / 2);
-  assertEqual(awardRanking(persons, MODE.ERSTVERSUCH, 2)[0].entries.length, 2);
+  assertEqual(awardRanking(persons, MODE.ERSTVERSUCH, 2, { dynamic: false })[0].entries.length, 2);
+  const [dyn] = awardRanking(persons, MODE.ERSTVERSUCH, 5);
+  assertEqual([dyn.n, dyn.k, dyn.suppressed, dyn.entries.length, dyn.candidates], [7, 3, false, 3, 7], 'n = 7 → höchstens 3');
+});
+
+test('rankingLimit / Mindestgruppengrösse: unter 5 keine Liste, sonst halbe Gruppe, maximal 5 (Befund 4, E5)', () => {
+  assertEqual([rankingLimit(0), rankingLimit(4), rankingLimit(5), rankingLimit(6), rankingLimit(9), rankingLimit(10), rankingLimit(40)], [0, 0, 2, 3, 4, 5, 5]);
+  assertEqual(rankingLimit(40, 3), 3);
+  const small = Array.from({ length: 4 }, () => simple({ profil: 'PK' }));
+  const [pk] = awardRanking(small, MODE.ERSTVERSUCH);
+  assertEqual([pk.n, pk.k, pk.suppressed, pk.entries], [4, 0, true, []], 'n = 4 < 5: gesperrt');
+  assertEqual(topWritten(small, MODE.ERSTVERSUCH)[0].suppressed, true);
+  assertEqual(topWritten(small, MODE.ERSTVERSUCH, 5, { dynamic: false })[0].entries.length, 4);
+  const one = [simple({ profil: 'AFFL' })];
+  assertEqual(topOral(one, MODE.ERSTVERSUCH)[0].suppressed, true, 'n = 1: nie als «Rang 1 von 1» zeigen');
+});
+
+test('rankReason: Begründung je Rang – Score, Tie-Break 1 Versuche, Tie-Break 2 Referenzdatum, Gleichstand, letzter', () => {
+  const persons = [
+    simple({ lastName: 'Best', profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.9 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } }),
+    simple({ lastName: 'TieEarly', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-05-01', result: 0.9 }] } }),
+    simple({ lastName: 'TieLate', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-07-01', result: 0.9 }] } }),
+    simple({ lastName: 'TieMore', profil: 'PK', oe: { 1: [{ passed: false, date: '2024-05-01', result: 0.4 }, { passed: true, date: '2024-07-01', result: 0.9 }] } }),
+    simple({ lastName: 'Same1', profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.7 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.7 }] } }),
+    simple({ lastName: 'Same2', profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.7 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.7 }] } }),
+  ];
+  const [pk] = awardRanking(persons, MODE.BESTANDEN, 6, { dynamic: false });
+  assertEqual(pk.entries.map((e) => [e.person.lastName, e.reason.by, e.reason.vsRank]), [
+    ['Best', 'score', 2], ['TieEarly', 'refDate', 3], ['TieLate', 'attempts', 4], ['TieMore', 'score', 5], ['Same1', 'none', 6], ['Same2', 'last', null],
+  ]);
+  assertClose(pk.entries[0].reason.next.score, 0.8);
+  assertEqual(pk.entries[2].reason.next.attempts, 4);
+  assertEqual(rankReason({ score: 0.9, attempts: 3, refDate: null }, null, 2), { by: 'last', vsRank: null, next: null });
 });
 
 test('topWritten / topOral: beste Werte je Profil gemäss Modus', () => {
   const strong = simple({ lastName: 'Strong', profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.95 }] } });
   const weak = simple({ lastName: 'Weak', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.6 }] } });
   const noWritten = makePerson({ profil: 'PK', we: { 1: [{ passed: null, date: '2024-03-01' }] } });
-  const w = topWritten([weak, strong, noWritten], MODE.ERSTVERSUCH);
+  const w = topWritten([weak, strong, noWritten], MODE.ERSTVERSUCH, 5, { dynamic: false });
   assertEqual(w[0].profil, 'PK');
   assertEqual(w[0].entries.map((e) => e.person.lastName), ['Strong', 'Weak']);
   assertClose(w[0].entries[0].score, 0.95);
-  const o = topOral([weak, strong], MODE.ERSTVERSUCH);
+  const o = topOral([weak, strong], MODE.ERSTVERSUCH, 5, { dynamic: false });
   assertEqual(o[0].entries.map((e) => e.person.lastName), ['Strong', 'Weak']);
   assertClose(o[0].entries[1].score, 0.6);
 });
@@ -395,7 +431,7 @@ test('topWritten: Tie-Break weniger Versuche, dann früheres Referenzdatum', () 
   const fewer = simple({ lastName: 'Fewer', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } });
   const more = simple({ lastName: 'More', profil: 'PK', oe: { 1: [{ passed: false, date: '2024-05-01', result: 0.4 }, { passed: true, date: '2024-06-01', result: 0.9 }] } });
   const earlier = simple({ lastName: 'Earlier', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-01-01', result: 0.9 }] } });
-  const [pk] = topWritten([more, fewer, earlier], MODE.ERSTVERSUCH);
+  const [pk] = topWritten([more, fewer, earlier], MODE.ERSTVERSUCH, 5, { dynamic: false });
   assertEqual(pk.entries.map((e) => e.person.lastName), ['Earlier', 'Fewer', 'More']);
 });
 
@@ -466,14 +502,17 @@ test('filterPersons: Optionen eligibleOnly und period für die Planungsansicht',
   assertEqual(filterPersons([a, b, c], { ...DEFAULT_FILTER, profil: ['IK'] }, { eligibleOnly: false }).map((p) => p.lastName), ['Beta'], 'übrige Filter gelten weiterhin');
 });
 
-test('oralPassRates: geplante oder ausstehende OE1 RUN1 (Datum ohne Passed) zählen nicht im Nenner', () => {
+test('oralPassRates: geplante oder ausstehende OE1 RUN1 (Datum ohne Passed) sind offen und zählen nicht im Nenner', () => {
   const done = simple();
   const plannedOe = simple({ oeAllPassed: null, oe: { 1: [{ date: '2026-11-05', planned: true }] } });
   const pending = simple({ oeAllPassed: null, oe: { 1: [{ date: '2024-06-01' }] } });
   const undated = simple({ oe: { 1: [{ passed: true, result: 0.9 }] } });
   const r = oralPassRates([done, plannedOe, pending, undated]);
-  assertEqual(r.bestanden.n, 1, 'nur absolvierte, datierte OE1 RUN1');
-  assertEqual(r.bestanden.count, 1);
+  assertEqual(r.bestanden.n, 2, 'abgeschlossen: done und undated (OE All yes), offen zählen nicht');
+  assertEqual(r.bestanden.count, 2);
+  assertEqual(r.offen, 2);
+  assertEqual(r.angetreten, 1, 'angetreten = absolvierte, datierte OE1 RUN1');
+  assertEqual(r.failed1.n, 1);
 });
 
 // ---------------------------------------------------------------------------
@@ -493,4 +532,254 @@ test('BENCHMARKS: Auswahlwerte mit Beschriftung, Standard Bank', () => {
   assertEqual(BENCHMARKS.map((b) => b.id), ['bank', 'profil', 'sprache', 'gesamt']);
   assertEqual(BENCHMARKS[0].label, 'Alle Banken');
   assert(BENCHMARKS.every((b) => typeof b.label === 'string'));
+});
+
+// ---------------------------------------------------------------------------
+// P1 – Status (E4), Personen (E2/E3), Duplikate (E1), Modellvergleich
+// ---------------------------------------------------------------------------
+
+test('STATUS und statusCounts: bestanden / nicht bestanden / offen / nicht erfasst; abgeschlossen = bestanden + nicht bestanden', () => {
+  assertEqual(STATUS, { BESTANDEN: 'bestanden', NICHT_BESTANDEN: 'nicht bestanden', OFFEN: 'offen', NICHT_ERFASST: 'nicht erfasst' });
+  const ps = [simple(), simple({ weAllPassed: false }), simple({ weAllPassed: null }), simple({ weStatus: 'nicht erfasst' })];
+  assertEqual(statusCounts(ps, 'weStatus'), { n: 4, bestanden: 1, nichtBestanden: 1, offen: 1, passiv: 0, nichtErfasst: 1, abgeschlossen: 2 });
+  assertEqual(statusCounts(ps).nichtErfasst, 1, 'Vorgangsstatus folgt dem Teil');
+  assertEqual(statusCounts([]), { n: 0, bestanden: 0, nichtBestanden: 0, offen: 0, passiv: 0, nichtErfasst: 0, abgeschlossen: 0 });
+  assertEqual(statusCounts([simple({ weAllPassed: null, passiv: true }), simple({ weAllPassed: null })], 'weStatus').passiv, 1, 'passiv = Teilmenge von offen');
+  assertEqual(statusCounts([simple({ passiv: true })]).passiv, 0, 'bestandene Vorgänge zählen nie als passiv');
+});
+
+test('writtenPassRates: Nenner «insgesamt bestanden» = abgeschlossene Vorgänge; offen und nicht erfasst separat (E4, Blocker 3)', () => {
+  const ps = [simple(), simple(), simple({ weAllPassed: false }), simple({ weAllPassed: null }), simple({ weStatus: 'nicht erfasst' })];
+  const r = writtenPassRates(ps);
+  assertEqual(r.gesamt, ratio(2, 3), 'offen und nicht erfasst nicht im Nenner');
+  assertEqual(r.nichtBestanden, ratio(1, 3));
+  assertEqual([r.offen, r.passiv, r.nichtErfasst], [1, 0, 1]);
+  assertEqual(writtenPassRates([simple({ weAllPassed: null, passiv: true })]).passiv, 1);
+  assertEqual(r.erstversuch.n, 5, 'Erstversuchsquote unverändert: alle mit absolviertem WE RUN1');
+});
+
+test('oralPassRates: Nenner «bestanden» = abgeschlossene Vorgänge mündlich; Fehlversuche über angetretene Vorgänge (E4)', () => {
+  const ok = simple();
+  const failedOpen = simple({ oeAllPassed: null, oe: { 1: [{ passed: false, date: '2024-05-01', result: 0.4 }] } });
+  const failedFinal = simple({ oeAllPassed: false, oe: { 1: [{ passed: false, date: '2024-05-01', result: 0.4 }, { passed: false, date: '2024-06-01', result: 0.45 }] } });
+  const unreadable = simple({ oeStatus: 'nicht erfasst' });
+  const r = oralPassRates([ok, failedOpen, failedFinal, unreadable]);
+  assertEqual(r.bestanden, ratio(1, 2));
+  assertEqual(r.nichtBestanden, ratio(1, 2));
+  assertEqual([r.offen, r.passiv, r.nichtErfasst, r.angetreten], [1, 0, 1, 4]);
+  assertEqual(r.failed1, ratio(2, 4), '1× durchgefallen zählt auch, wenn der Vorgang noch offen ist');
+  assertEqual(r.failed2, ratio(1, 4));
+  assertEqual(unreadable.status, 'nicht erfasst');
+});
+
+test('eligible / filterPersons / isVorgang: Duplikate (duplicateOf) fliessen nie in Kennzahlen', () => {
+  const v = simple();
+  const dup = simple({ duplicateOf: { sheet: 'First Certification', row: 12 } });
+  assertEqual(isVorgang(dup), false);
+  assertEqual(eligible([v, dup]), [v]);
+  assertEqual(filterPersons([v, dup], DEFAULT_FILTER, { eligibleOnly: false }), [v]);
+});
+
+test('filterPersons: «nur ausgestellte Zertifikate» nutzt das Kennzeichen issued (auch für zusammengeführte Vorgänge)', () => {
+  const merged = simple({ source: 'first', issued: true });
+  const plain = simple({ source: 'first' });
+  assertEqual(filterPersons([merged, plain], { ...DEFAULT_FILTER, onlyIssued: true }), [merged]);
+});
+
+test('exclusionReason: Grund je Zeile, null wenn kennzahlrelevant', () => {
+  assertEqual(exclusionReason(simple()), null);
+  assertEqual(exclusionReason(makePerson()), 'Noch keine Prüfung absolviert');
+  assertEqual(exclusionReason(makePerson({ we: { 1: [{ date: '2030-01-01', planned: true }] } })), 'Noch keine Prüfung absolviert (nur geplante Termine)');
+  assertEqual(exclusionReason(makePerson({ we: { 1: [{ passed: true, result: 0.8 }] } })), 'Schriftlicher Run ohne Prüfungsdatum');
+  assertEqual(exclusionReason(makePerson({ oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } })), 'Nur mündliche Runs erfasst, kein schriftlicher Run');
+  assert(exclusionReason(simple({ duplicateOf: { sheet: 'First Certification', row: 12 } })).startsWith('Duplikat'));
+});
+
+test('groupByPerson / personCount / multiProfilePersons: Personenschlüssel, Profil-Abfolge nach erstem Prüfungsdatum', () => {
+  const ik = simple({ lastName: 'Zwei', firstName: 'Anna', profil: 'IK', we: { 1: [{ passed: true, date: '2023-03-01', result: 0.8 }] }, oe: { 1: [{ passed: true, date: '2023-12-07', result: 0.9 }] } });
+  const cwma = simple({ lastName: 'Zwei', firstName: 'Anna', profil: 'CWMA', employerCanon: 'Andere Bank', we: { 1: [{ passed: true, date: '2026-03-01', result: 0.8 }] }, oe: { 1: [{ passed: true, date: '2026-05-05', result: 0.9 }] } });
+  const other = simple({ lastName: 'Eins', firstName: 'Ben' });
+  const dup = simple({ lastName: 'Eins', firstName: 'Ben', duplicateOf: { sheet: 'x', row: 1 } });
+  assertEqual(ik.personKey, cwma.personKey, 'Bankwechsel ändert den Schlüssel nicht');
+  const people = groupByPerson([cwma, other, ik, dup]);
+  assertEqual(people.map((g) => [g.lastName, g.vorgaenge.length, g.profiles]), [['Zwei', 2, ['IK', 'CWMA']], ['Eins', 1, ['PK']]]);
+  assertEqual(personCount([cwma, other, ik, dup]), 2);
+  assertEqual(multiProfilePersons([cwma, other, ik]).map((m) => [m.lastName, m.sequence, m.vorgaenge.length]), [['Zwei', 'IK → CWMA', 2]]);
+  assertEqual(multiProfilePersons([other]), []);
+});
+
+test('overview: Vorgänge, Personen und Status-Zähler', () => {
+  const a = simple({ lastName: 'Zwei', firstName: 'Anna', profil: 'IK' });
+  const b = simple({ lastName: 'Zwei', firstName: 'Anna', profil: 'CWMA' });
+  const c = simple({ weAllPassed: null, oeAllPassed: null });
+  const o = overview([a, b, c], MODE.ERSTVERSUCH);
+  assertEqual([o.n, o.personen], [3, 2]);
+  assertEqual(o.status, { n: 3, bestanden: 2, nichtBestanden: 0, offen: 1, passiv: 0, nichtErfasst: 0, abgeschlossen: 2 });
+  assertEqual(o.written.gesamt, ratio(2, 2));
+  assertEqual(o.written.offen, 1);
+  assertEqual(o.oral.bestanden, ratio(2, 2));
+});
+
+test('modelComparison: alt (Zeile = Person, Nenner alle) → neu (Vorgänge, Nenner abgeschlossen), gesamt und je Profil', () => {
+  const a = simple({ lastName: 'A', profil: 'PK' });
+  const dupOfA = simple({ lastName: 'A', profil: 'PK', duplicateOf: { sheet: 'x', row: 1 } });
+  const open = simple({ lastName: 'B', profil: 'PK', weAllPassed: null, oeAllPassed: null });
+  const failed = simple({ lastName: 'C', profil: 'IK', weAllPassed: false });
+  const r = modelComparison([a, dupOfA, open, failed]);
+  assertEqual([r.gesamt.alt.n, r.gesamt.neu.n, r.gesamt.neu.personen], [4, 3, 3]);
+  assertEqual(r.gesamt.alt.written, ratio(2, 4), 'alt: Duplikat zählt, offen zählt als nicht bestanden');
+  assertEqual(r.gesamt.neu.written, ratio(1, 2), 'neu: ein Vorgang weniger, offen nicht im Nenner');
+  assertEqual(r.gesamt.alt.oral, ratio(3, 4));
+  assertEqual(r.gesamt.neu.oral, ratio(2, 2));
+  assertEqual(r.byProfil.map((x) => [x.key, x.alt.n, x.neu.n]), [['PK', 3, 2], ['IK', 1, 1]]);
+  assertEqual(r.byProfil[0].alt.written, ratio(2, 3));
+  assertEqual(r.byProfil[0].neu.written, ratio(1, 1));
+  assertEqual(r.gesamt.neu.status.offen, 1);
+});
+
+// ---------------------------------------------------------------------------
+// P3 – Ausschlüsse und offene Vorgänge
+// ---------------------------------------------------------------------------
+
+test('excludedRows: alle nicht kennzahlrelevanten Zeilen mit Grund', () => {
+  const ok = simple();
+  const none = makePerson();
+  const dup = simple({ duplicateOf: { sheet: 'First Certification', row: 12 } });
+  const ex = excludedRows([ok, none, dup]);
+  assertEqual(ex.map((x) => x.person), [none, dup]);
+  assertEqual(ex[0].reason, 'Noch keine Prüfung absolviert');
+  assert(ex[1].reason.startsWith('Duplikat'));
+});
+
+test('openCaseState / openCases: offene Vorgänge mit fehlendem Teil, letzter Prüfung, nächstem Termin; älteste zuerst', () => {
+  const today = d('2026-09-05');
+  const weOnly = simple({ lastName: 'Schriftlich', oeAllPassed: null, oe: {} });                                       // mündlich offen
+  const fresh = makePerson({ lastName: 'Neu', we: { 1: [{ date: '2026-10-01', planned: true }] } });                     // ohne Prüfung, Termin geplant
+  const older = simple({ lastName: 'Alt', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: false, date: '2023-01-10', result: 0.4 }] }, oe: {} });
+  const done = simple();
+  const failed = simple({ weAllPassed: false });
+  const dup = simple({ oeAllPassed: null, duplicateOf: { sheet: 'x', row: 1 } });
+  const cases = openCases([weOnly, fresh, older, done, failed, dup], today);
+  assertEqual(cases.map((c) => c.person.lastName), ['Alt', 'Schriftlich', 'Neu'], 'älteste letzte Prüfung zuerst, ohne Prüfung zuletzt; abgeschlossene und Duplikate fehlen');
+  const alt = cases[0];
+  assertEqual([alt.offen, alt.lastExam, alt.nextPlanned, alt.attempts, alt.eligible], ['schriftlich und mündlich', d('2023-01-10'), null, 1, true]);
+  assertEqual(alt.daysSinceLastExam, Math.floor((today - d('2023-01-10')) / 86400000));
+  assertEqual([cases[1].offen, cases[1].lastExam], ['mündlich', d('2024-03-01')]);
+  assertEqual([cases[2].offen, cases[2].lastExam, cases[2].nextPlanned, cases[2].eligible, cases[2].daysSinceLastExam], ['schriftlich und mündlich', null, d('2026-10-01'), false, null]);
+  assertEqual(openCaseState(done).offen, '');
+});
+
+// ---------------------------------------------------------------------------
+// P6 – Zeitverlauf und Schwierigkeit je Teilprüfung
+// ---------------------------------------------------------------------------
+
+function yearCohort() {
+  return [
+    simple({ lastName: 'A23', profil: 'PK', oe: { 1: [{ passed: true, date: '2023-06-01', result: 0.9 }] } }),
+    simple({ lastName: 'B23', profil: 'PK', weAllPassed: false, we: { 1: [{ passed: false, date: '2023-03-01', result: 0.4 }] }, oeAllPassed: null, oe: {} }), // refDate = lastExam 2023
+    simple({ lastName: 'C24', profil: 'IK', oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.8 }] } }),
+    simple({ lastName: 'D25', profil: 'PK', we: { 1: [{ passed: true, date: '2025-03-01', result: 0.7 }] }, oe: { 1: [{ passed: true, date: '2025-06-01', result: 0.6 }] } }),
+    simple({ lastName: 'E25', profil: 'PK', we: { 1: [{ passed: true, date: '2025-03-01', result: 0.7 }] }, oe: { 1: [{ passed: false, date: '2025-05-01', result: 0.4 }, { passed: true, date: '2025-06-01', result: 0.6 }] } }),
+    makePerson({ lastName: 'NoRef' }),
+  ];
+}
+
+test('refYear / yearsOf / timeSeries: Kennzahlen je Jahr des Referenzdatums, ohne Referenzdatum kein Jahr', () => {
+  const ps = yearCohort();
+  assertEqual(ps.map(refYear), [2023, 2023, 2024, 2025, 2025, null]);
+  assertEqual(yearsOf(ps), [2023, 2024, 2025]);
+  const ts = timeSeries(ps);
+  assertEqual(ts.map((r) => [r.year, r.n, r.personen, r.small]), [[2023, 2, 2, true], [2024, 1, 1, true], [2025, 2, 2, true]]);
+  assertEqual(ts[0].written.gesamt, ratio(1, 2));
+  assertEqual(ts[0].oral.bestanden, ratio(1, 1), 'B23 mündlich offen → nicht im Nenner');
+  assertEqual([ts[0].oral.offen, ts[0].status.offen, ts[0].status.nichtBestanden], [1, 0, 1], 'B23: mündlich offen, Vorgang aber nicht bestanden (schriftlich no dominiert)');
+  assertClose(ts[2].writtenPerf1.mean, 0.7);
+  assertClose(ts[2].oralPerf1.mean, 0.5);
+  assertClose(ts[2].oralPerf2.mean, 0.6);
+  assertEqual(ts[2].oral.failed1, ratio(1, 2));
+  assertEqual(timeSeries([]), []);
+  const byProfil = timeSeriesBy(ps, 'profil');
+  assertEqual(byProfil.map((g) => [g.key, g.series.map((r) => r.year)]), [['PK', [2023, 2025]], ['IK', [2024]]], 'Vorgang ohne Referenzdatum trägt kein Jahr bei');
+});
+
+test('partDifficultyByYear: je Jahr (Datum des 1. Versuchs) und Teilprüfung – n, Durchfallquote, Ø Resultate', () => {
+  const ps = yearCohort();
+  const d = partDifficultyByYear(ps);
+  assertEqual(d.map((c) => [c.year, c.part, c.n]), [
+    [2023, 'WE1', 1], [2023, 'OE1', 1],
+    [2024, 'WE1', 2], [2024, 'WE2', 2], [2024, 'OE1', 1],
+    [2025, 'WE1', 2], [2025, 'OE1', 2],
+  ]);
+  const we1_2023 = d[0];
+  assertEqual([we1_2023.failed, we1_2023.passed], [ratio(1, 1), ratio(0, 1)]);
+  assertClose(we1_2023.meanFirst.mean, 0.4);
+  assertEqual(we1_2023.meanPassed, { mean: null, n: 0 }, 'nie bestanden');
+  const oe1_2025 = d[6];
+  assertEqual(oe1_2025.failed, ratio(1, 2));
+  assertClose(oe1_2025.meanFirst.mean, 0.5);
+  assertClose(oe1_2025.meanPassed.mean, 0.6, 'bestandener Run zählt für den Ø bestanden');
+  assertEqual(oe1_2025.small, true);
+  assertEqual(partDifficultyByYear([makePerson()]), []);
+});
+
+// ---------------------------------------------------------------------------
+// P7 – Frühwarnung, Durchlaufzeit, Abbruch
+// ---------------------------------------------------------------------------
+
+test('earlyWarnings: zwei Fehlversuche ohne bestandenen Run – letzter Versuch, ausgeschöpft, sortiert', () => {
+  const lastAttempt = simple({ lastName: 'Zwei', weAllPassed: null, we: { 1: [{ passed: false, date: '2025-01-10', result: 0.4 }, { passed: false, date: '2025-03-10', result: 0.45 }, { date: '2026-10-01', planned: true }] } });
+  const exhausted = simple({ lastName: 'Drei', weAllPassed: false, we: { 2: [{ passed: false, date: '2024-01-10', result: 0.4 }, { passed: false, date: '2024-03-10', result: 0.4 }, { passed: false, date: '2024-06-10', result: 0.4 }] } });
+  const recovered = simple({ lastName: 'Ok', we: { 1: [{ passed: false, date: '2025-01-10', result: 0.4 }, { passed: false, date: '2025-02-10', result: 0.4 }, { passed: true, date: '2025-03-10', result: 0.7 }] } });
+  const oneFail = simple({ lastName: 'Eins', oe: { 1: [{ passed: false, date: '2025-05-01', result: 0.4 }] } });
+  const dup = simple({ lastName: 'Dup', duplicateOf: { sheet: 'x', row: 1 }, we: { 1: [{ passed: false, date: '2025-01-10', result: 0.4 }, { passed: false, date: '2025-03-10', result: 0.45 }] } });
+  const w = earlyWarnings([exhausted, oneFail, recovered, dup, lastAttempt]);
+  assertEqual(w.map((x) => [x.person.lastName, x.label, x.stage, x.failed, x.remaining, x.nextRun]), [
+    ['Zwei', 'WE1', 'letzter Versuch', 2, 1, 3],
+    ['Drei', 'WE2', 'ausgeschöpft', 3, 0, null],
+  ]);
+  assertEqual(w[0].nextPlanned, d('2026-10-01'));
+  assertEqual(w[0].lastFail, d('2025-03-10'));
+  assertEqual(w[1].nextPlanned, null);
+  assertEqual(earlyWarnings([simple()]), []);
+});
+
+test('durationDays / certificateDays / quantiles / throughputStats: Tage bis bestandene mündliche Prüfung bzw. Zertifikat', () => {
+  const done = simple({ we: { 1: [{ passed: true, date: '2024-01-10', result: 0.8 }] }, oe: { 1: [{ passed: true, date: '2024-04-19', result: 0.9 }] }, certStart: d('2024-05-01') });
+  assertEqual(done.firstExamDate, d('2024-01-10'));
+  assertEqual(durationDays(done), 100);
+  assertEqual(certificateDays(done), 112);
+  const open = simple({ weAllPassed: null, oeAllPassed: null });
+  assertEqual(durationDays(open), null, 'nur bestandene Vorgänge');
+  const failedOral = simple({ oeAllPassed: false, oe: { 1: [{ passed: false, date: '2024-06-01', result: 0.4 }] } });
+  assertEqual(durationDays(failedOral), null);
+  assertEqual(certificateDays(simple()), null, 'ohne Zertifikatsbeginn');
+  assertEqual(quantiles([]), { n: 0, median: null, mean: null, min: null, max: null, p25: null, p75: null });
+  assertEqual(quantiles([5, 1, 3]), { n: 3, median: 3, mean: 3, min: 1, max: 5, p25: 2, p75: 4 });
+  assertEqual(quantiles([4, 2]).median, 3);
+  const st = throughputStats([done, open, simple()]);
+  assertEqual([st.pruefung.n, st.pruefung.median, st.zertifikat.n, st.zertifikat.median], [2, (100 + 92) / 2, 1, 112]);
+});
+
+test('passiveCases: offene Vorgänge mit Kennzeichen passiv (store setzt es beim Laden); Tage aus today', () => {
+  const today = d('2026-09-05');
+  assertEqual(PASSIVE_DAYS, 365);
+  const stale = simple({ lastName: 'Alt', weAllPassed: null, oeAllPassed: null, passiv: true, we: { 1: [{ passed: false, date: '2024-01-10', result: 0.4 }] }, oe: {} });
+  const recent = simple({ lastName: 'Neu', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: true, date: '2026-03-10', result: 0.8 }] }, oe: {} });
+  const closed = simple({ lastName: 'Fertig' });
+  const c = passiveCases([stale, recent, closed], today);
+  assertEqual(c.map((x) => [x.person.lastName, x.daysSinceLastExam > 365, x.lastRunPassed]), [['Alt', true, false]]);
+  assertEqual(openCaseState(recent, today).lastRunPassed, true);
+});
+
+test('partsByProfile / missingParts: Teilprüfungen je Profil aus den Daten (≥ 5 Vorgänge), fehlende Teile je Vorgang', () => {
+  const pk = Array.from({ length: 6 }, (_, i) => simple({ lastName: 'P' + i, profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.8 }], 2: [{ passed: true, date: '2024-03-01', result: 0.7 }], 3: [{ passed: i === 0, date: '2024-03-02', result: 0.6 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } }));
+  pk.push(simple({ lastName: 'Ausreisser', profil: 'PK', we: { 6: [{ passed: true, date: '2024-03-01', result: 0.8 }] } })); // WE6 nur einmal → gehört nicht zum Profil
+  const ik = [simple({ lastName: 'I', profil: 'IK' })]; // zu wenige Vorgänge → keine Teile
+  const parts = partsByProfile(pk.concat(ik));
+  assertEqual(parts.map((x) => [x.profil, x.we, x.oe, x.n]), [['PK', [1, 2, 3], [1], 7], ['IK', [], [], 1]]);
+  const open = simple({ profil: 'PK', weAllPassed: null, we: { 1: [{ passed: true, date: '2025-01-01', result: 0.8 }], 3: [{ passed: false, date: '2025-02-01', result: 0.4 }] }, oe: {} });
+  assertEqual(missingParts(open, parts), ['WE2', 'WE3', 'OE1']);
+  assertEqual(missingParts(pk[0], parts), []);
+  assertEqual(missingParts(simple({ profil: 'CWMA' }), parts), null, 'unbekanntes Profil');
+  assertEqual(partsByProfile([simple({ duplicateOf: { sheet: 'x', row: 1 } })]), [], 'Duplikate zählen nicht');
 });

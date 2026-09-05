@@ -1,10 +1,12 @@
 import { test, assert, assertEqual, assertClose, assertThrows } from './runner.js';
 import { CONFIG } from '../config.js';
 import {
-  parsePassed, parseLanguage, parseProfile, parseEmployer, parseResult, parseScore, parseDate, parseVssVsm,
+  parsePassed, parseLanguage, parseProfile, parseEmployer, parseResult, parseScore, parseDate, parseBirthDate, parseVssVsm,
+  normalizeNamePart, personKeyOf, statusOf, combineStatus, dqImpact,
   resolveHeaders, HeaderError, MissingHeaderError, DuplicateHeaderError,
   normalizeSheet, normalizeWorkbook,
 } from '../store.js';
+import { DEFAULT_FILTER, eligible, filterPersons, exclusionReason, groupByPerson } from '../metrics.js';
 import { makeSheet, headerRowFor, runValues } from './fixtures.js';
 
 // ---------------------------------------------------------------------------
@@ -82,22 +84,28 @@ test('parseEmployer: trim + Alias-Map (case-insensitiv); unbekannt → Rohwert, 
   assertEqual(parseEmployer(null), { employer: null, employerCanon: null });
 });
 
-test('parseResult: Zahl 0–1 direkt, >1 und ≤100 → /100, Text «89.00%» → 0.89', () => {
+test('parseResult: Zahl 0–1 direkt (1 = 100 %), Text mit Prozentzeichen direkt, leer → null', () => {
   assertEqual(parseResult(0.85), { value: 0.85, reason: null });
   assertEqual(parseResult(0), { value: 0, reason: null });
-  assertEqual(parseResult(1), { value: 1, reason: null });
-  assertEqual(parseResult(85), { value: 0.85, reason: null });
-  assertEqual(parseResult(100), { value: 1, reason: null });
+  assertEqual(parseResult(1), { value: 1, reason: null }, 'Grenzfall 1 = 100 % (Anteil), kein Hinweis');
   assertEqual(parseResult('89.00%'), { value: 0.89, reason: null });
   assertEqual(parseResult(' 89 % '), { value: 0.89, reason: null });
   assertEqual(parseResult('89,5%'), { value: 0.895, reason: null });
   assertEqual(parseResult('100%'), { value: 1, reason: null });
-  assertClose(parseResult('71.59').value, 0.7159, 1e-12, 'Zahl als Text ohne Prozentzeichen');
-  assertEqual(parseResult('71.59').reason, null);
   assertEqual(parseResult('0.89'), { value: 0.89, reason: null });
   assertEqual(parseResult('66%%'), { value: 0.66, reason: null }, 'doppeltes Prozentzeichen');
   assertEqual(parseResult(''), { value: null, reason: null });
   assertEqual(parseResult(null), { value: null, reason: null });
+});
+
+test('parseResult: Zahl > 1 ohne Prozentzeichen → /100 mit Hinweis (Umdeutung wird geloggt, Befund 11)', () => {
+  for (const [raw, value] of [[85, 0.85], [100, 1], ['71.59', 0.7159], ['85', 0.85], [1.5, 0.015]]) {
+    const r = parseResult(raw);
+    assertClose(r.value, value, 1e-12, String(raw));
+    assertEqual(r.level, 'hinweis', String(raw));
+    assert(/Prozentwert interpretiert/.test(r.reason), r.reason);
+    assert(r.reason.includes(String(raw).trim()), 'Rohwert im Grund: ' + r.reason);
+  }
 });
 
 test('parseResult: ausserhalb Bereich oder nicht interpretierbar → null + Grund', () => {
@@ -108,7 +116,7 @@ test('parseResult: ausserhalb Bereich oder nicht interpretierbar → null + Grun
   }
 });
 
-test('parseScore: ganze Zahl ≥ 0; sonst null + Grund', () => {
+test('parseScore: ganze Zahl ≥ 0; sonst null + Grund auf Stufe «nicht ausgewertet» (E6 offen)', () => {
   assertEqual(parseScore(12), { value: 12, reason: null });
   assertEqual(parseScore(0), { value: 0, reason: null });
   assertEqual(parseScore(''), { value: null, reason: null });
@@ -117,6 +125,8 @@ test('parseScore: ganze Zahl ≥ 0; sonst null + Grund', () => {
     const r = parseScore(v);
     assertEqual(r.value, null, String(v));
     assert(r.reason, 'Grund fehlt für ' + String(v));
+    assertEqual(r.level, 'nicht-ausgewertet', String(v));
+    assert(/nicht ausgewertet/.test(r.reason) && /Result ist massgebend/.test(r.reason), r.reason);
   }
 });
 
@@ -237,7 +247,7 @@ function fullRow(overrides = {}) {
     weAllPassed: 'yes', oeAllPassed: 'yes',
     'we1.passed': 'yes', 'we2.passed': 'yes',
     ...runValues('we', {
-      1: [{ passed: 'no', date: new Date(2024, 2, 1), score: 40, result: 55 }, { passed: 'yes', date: '15.04.24', score: 61, result: '82.50%' }],
+      1: [{ passed: 'no', date: new Date(2024, 2, 1), score: 40, result: 0.55 }, { passed: 'yes', date: '15.04.24', score: 61, result: '82.50%' }],
       2: [{ passed: 'yes', date: new Date(2024, 2, 1), score: 70, result: 0.9 }],
     }),
     'oe1.passed': 'yes',
@@ -380,7 +390,7 @@ test('normalizeSheet: Zeile mit Daten aber ohne Namen → keine Person, aber DQ-
 
 test('normalizeSheet: Zeile nur mit Inhalt in nicht gemappten Spalten gilt als leer', () => {
   const sheet = makeSheet('first', [{ Nr: 17 }, { Bemerkung: 'x' }]);
-  assertEqual(normalizeSheet(sheet, {}), { persons: [], dq: [] });
+  assertEqual(normalizeSheet(sheet, {}), { persons: [], dq: [], headers: { birthDate: 'Birth Date' } });
 });
 
 test('normalizeSheet: «Name fehlt» nennt auch nicht gemappte Spalten mit Inhalt', () => {
@@ -409,8 +419,9 @@ test('normalizeSheet: nicht interpretierbare Zellen → Data-Quality-Log mit She
   assertEqual(p.we[1].runs[0].score, null);
   assertEqual(p.oe[0].runs[0].date, null);
   assertEqual(dq.length, 6);
+  assertEqual(dq.filter((e) => e.level === 'fehler').length, 5);
+  assertEqual(dq.filter((e) => e.level === 'nicht-ausgewertet').map((e) => e.header), ['WE2 RUN1 Score'], 'Score: nicht ausgewertet statt Fehler (E6)');
   for (const e of dq) {
-    assertEqual(e.level, 'fehler');
     assertEqual(e.sheet, CONFIG.sheets.first);
     assertEqual(e.row, 11);
     assert(typeof e.header === 'string' && e.header, 'Header fehlt');
@@ -471,7 +482,14 @@ test('normalizeWorkbook: beide Sheets → eine Personenliste, DQ gesammelt, Meta
   assertEqual(result.dq[0].sheet, CONFIG.sheets.first);
   assertEqual(result.dq[0].row, 12);
   assertEqual(result.meta.fileName, 'Reporting_KUBA.xlsx');
-  assertEqual(result.meta.counts, { first: 2, issued: 1, persons: 3, dq: 1, fehler: 1, hinweise: 0 });
+  assertEqual(result.meta.counts, {
+    first: 2, issued: 1, zeilen: 3, vorgaenge: 3, personen: 3, duplikate: 0, profilKonflikte: 0, mehrereProfile: 0,
+    bestanden: 3, nichtBestanden: 0, offen: 0, passiv: 0, nichtErfasst: 0, vollstaendigOhneGesamtergebnis: 0, schluesselOhneGeburtsdatum: 3,
+    dq: 1, fehler: 1, hinweise: 0, nichtAusgewertet: 0,
+    wirkungUnsichtbar: 0, wirkungKennzahl: 1, wirkungKeine: 0,
+  });
+  assertEqual(result.meta.personKey.complete, true);
+  assertEqual(result.meta.personKey.birthDateHeaders, { first: 'Birth Date', issued: 'Birth Date' });
 });
 
 test('normalizeWorkbook: unbekanntes Sheet wird abgewiesen', () => {
@@ -482,7 +500,7 @@ test('normalizeWorkbook: unbekanntes Sheet wird abgewiesen', () => {
 test('normalizeWorkbook: Personen ohne Kommentare, wenn comments fehlt', () => {
   const result = normalizeWorkbook({ sheets: [makeSheet('first', [fullRow()])] });
   assertEqual(result.persons[0].vss, false);
-  assertEqual(result.meta.counts.persons, 1);
+  assertEqual(result.meta.counts.zeilen, 1);
 });
 
 test('parseDate: Datum ohne Jahr und dreistelliges Jahr → spezifischer Grund', () => {
@@ -593,4 +611,250 @@ test('normalizeSheet: Sheet 2 ohne «WE6 RUN1 Location» → Ort null, kein Fehl
   const { persons, dq } = normalizeSheet(makeSheet('issued', [fullRow({ certStart: '01.07.2024', ...runValues('we', { 6: [{ passed: 'yes', date: new Date(2024, 1, 1) }] }) })]), {});
   assertEqual(persons[0].we[5].runs[0].location, null);
   assertEqual(dq, []);
+});
+
+// ---------------------------------------------------------------------------
+// P1 – Personenschlüssel (E2), Status (E4), Duplikate über Sheets (E1)
+// ---------------------------------------------------------------------------
+
+test('parseBirthDate: Jahrgänge 1920–2010 als Text, Date oder Serienzahl (Hinweis); Jahreszahl allein → Fehler', () => {
+  assertEqual(parseBirthDate('15.03.1985'), { value: new Date(1985, 2, 15), reason: null });
+  assertEqual(parseBirthDate(new Date(1985, 2, 15)), { value: new Date(1985, 2, 15), reason: null });
+  const serial = parseBirthDate(31121);
+  assertEqual(serial.value, new Date(1985, 2, 15));
+  assertEqual(serial.level, 'hinweis');
+  for (const v of [1985, '15.03.2015', '15.03.1899', 'abc', new Date(1900, 0, 1)]) {
+    const r = parseBirthDate(v);
+    assertEqual(r.value, null, String(v));
+    assert(r.reason, 'Grund fehlt für ' + String(v));
+  }
+  assertEqual(parseBirthDate(''), { value: null, reason: null });
+  assertEqual(parseDate('15.03.1985').value, null, 'Prüfungsdaten behalten ihre eigenen Jahresgrenzen');
+});
+
+test('normalizeNamePart / personKeyOf: Akzente, Bindestrich, Gross-/Kleinschreibung, ß; Geburtsdatum unterscheidet, Employer nicht', () => {
+  assertEqual(normalizeNamePart(' Müller-Meier '), 'muller meier');
+  assertEqual(normalizeNamePart('MULLER   MEIER'), 'muller meier');
+  assertEqual(normalizeNamePart('Strauß'), 'strauss');
+  assertEqual(normalizeNamePart('Çelik Öztürk'), 'celik ozturk');
+  assertEqual(normalizeNamePart(null), '');
+  const key = personKeyOf({ lastName: 'Müller-Meier', firstName: 'Anna', birthDate: new Date(1985, 2, 15) });
+  assertEqual(key, 'muller meier|anna|1985-03-15');
+  assertEqual(personKeyOf({ lastName: 'muller meier', firstName: 'ANNA', birthDate: new Date(1985, 2, 15) }), key);
+  assertEqual(personKeyOf({ lastName: 'Muster', firstName: 'Anna', birthDate: null }), 'muster|anna|', 'ohne Geburtsdatum bleibt der dritte Teil leer');
+  assert(personKeyOf({ lastName: 'Muster', firstName: 'Anna', birthDate: new Date(1985, 2, 15) })
+    !== personKeyOf({ lastName: 'Muster', firstName: 'Anna', birthDate: new Date(1986, 2, 15) }), 'anderes Geburtsdatum = andere Person');
+});
+
+test('normalizeSheet: «Birth Date» ist Pflicht-Header → Schlüssel mit Datum (full); Zelle leer oder unlesbar → nur Name (name-only)', () => {
+  const r = normalizeSheet(makeSheet('first', [fullRow({ birthDate: '15.03.1985' }), fullRow({ lastName: 'Zwei' })]), {});
+  assertEqual(r.headers.birthDate, 'Birth Date');
+  assertEqual(r.persons[0].birthDate, new Date(1985, 2, 15));
+  assertEqual([r.persons[0].personKey, r.persons[0].personKeyLevel], ['muster|anna|1985-03-15', 'full']);
+  assertEqual([r.persons[1].personKey, r.persons[1].personKeyLevel], ['zwei|anna|', 'name-only'], 'Zelle leer → name-only');
+  const without = makeSheet('first', [fullRow()]);
+  without.headerRow = without.headerRow.map((h) => (h === 'Birth Date' ? 'Geburtstag' : h));
+  assertThrows(() => normalizeSheet(without, {}), (e) => e instanceof MissingHeaderError && /Birth Date/.test(e.message), 'fehlender Pflicht-Header = harter Fehler');
+  const bad = normalizeSheet(makeSheet('first', [fullRow({ birthDate: 1985 })]), {});
+  assertEqual([bad.dq[0].level, bad.dq[0].header, bad.dq[0].raw], ['fehler', 'Birth Date', 1985]);
+  assertEqual(bad.persons[0].personKeyLevel, 'name-only');
+});
+
+test('normalizeSheet: Status (E4) – yes/no/leer/unlesbar → bestanden/nicht bestanden/offen/nicht erfasst, je Teil und je Vorgang', () => {
+  const rows = [
+    fullRow(),
+    fullRow({ weAllPassed: 'no' }),
+    fullRow({ oeAllPassed: '' }),
+    fullRow({ oeAllPassed: 'maybe' }),
+    fullRow({ weAllPassed: '', oeAllPassed: 'no' }),
+    fullRow({ weAllPassed: 'maybe', oeAllPassed: '' }),
+  ];
+  const { persons } = normalizeSheet(makeSheet('first', rows), {});
+  assertEqual(persons.map((p) => [p.weStatus, p.oeStatus, p.status]), [
+    ['bestanden', 'bestanden', 'bestanden'],
+    ['nicht bestanden', 'bestanden', 'nicht bestanden'],
+    ['bestanden', 'offen', 'offen'],
+    ['bestanden', 'nicht erfasst', 'nicht erfasst'],
+    ['offen', 'nicht bestanden', 'nicht bestanden'],
+    ['nicht erfasst', 'offen', 'nicht erfasst'],
+  ]);
+  assertEqual(combineStatus('offen', 'offen'), 'offen');
+  assertEqual(statusOf(null, '  '), 'offen');
+  assertEqual(statusOf(null, 'x'), 'nicht erfasst');
+  assertEqual(statusOf(true, 'yes'), 'bestanden');
+  assertEqual(statusOf(false, 'no'), 'nicht bestanden');
+});
+
+test('normalizeSheet: Sheet 2 – leeres OE All gilt als bestanden (Hinweis), «no» bleibt; WE All leer auch ohne OE-Runs abgeleitet', () => {
+  const blank = normalizeSheet(makeSheet('issued', [fullRow({ oeAllPassed: '', certStart: '01.07.2024' })]), {});
+  assertEqual([blank.persons[0].oeAllPassed, blank.persons[0].oeAllDerived, blank.persons[0].oeStatus, blank.persons[0].status], [true, true, 'bestanden', 'bestanden']);
+  assertEqual(blank.dq.map((e) => [e.level, e.header]), [['hinweis', 'OE All yes']]);
+  const no = normalizeSheet(makeSheet('issued', [fullRow({ oeAllPassed: 'no', certStart: '01.07.2024' })]), {});
+  assertEqual([no.persons[0].oeStatus, no.persons[0].status, no.dq.length], ['nicht bestanden', 'nicht bestanden', 0]);
+  const summaryOnly = { lastName: 'A', firstName: 'B', weAllPassed: '', oeAllPassed: '', ...runValues('we', { 1: [{ passed: 'yes', date: '01.03.2024', score: 10, result: 0.9 }] }) };
+  const issued = normalizeSheet(makeSheet('issued', [{ ...summaryOnly, certStart: '01.07.2024' }]), {});
+  assertEqual([issued.persons[0].weAllDerived, issued.persons[0].oeAllDerived, issued.persons[0].status], [true, true, 'bestanden'], 'Zertifikat ausgestellt → bestanden, auch ohne OE-Runs');
+  assertEqual(issued.dq.length, 2);
+  const first = normalizeSheet(makeSheet('first', [summaryOnly]), {});
+  assertEqual([first.persons[0].status, first.dq.length], ['offen', 0], 'Sheet 1: leer bleibt offen, keine Ableitung');
+});
+
+function bothSheets(firstRows, issuedRows, extraFields = []) {
+  return { sheets: [makeSheet('first', firstRows, { extraFields }), makeSheet('issued', issuedRows, { extraFields })], comments: {}, meta: {} };
+}
+
+test('normalizeWorkbook: dieselbe Person in beiden Sheets mit gleichem Profil → ein Vorgang, Duplikat im DQ-Log (E1)', () => {
+  const r = normalizeWorkbook(bothSheets([fullRow({ birthDate: '15.03.1985' })], [fullRow({ birthDate: '15.03.1985', certStart: '01.07.2024', certNumber: 'Z-1' })]));
+  assertEqual([r.meta.counts.zeilen, r.meta.counts.vorgaenge, r.meta.counts.personen, r.meta.counts.duplikate], [2, 1, 1, 1]);
+  const kept = r.persons.find((p) => !p.duplicateOf);
+  const dup = r.persons.find((p) => p.duplicateOf);
+  assertEqual(kept.source, 'issued', 'Gleichstand bei absolvierten Runs → Zeile aus «Ausgestellte Zertifikate» bleibt');
+  assertEqual(dup.duplicateOf, { sheet: CONFIG.sheets.issued, row: 11 });
+  assertEqual(kept.duplicates, [{ sheet: CONFIG.sheets.first, row: 11 }]);
+  assertEqual([kept.issued, kept.certNumber, kept.status], [true, 'Z-1', 'bestanden']);
+  const hint = r.dq.find((e) => e.field === 'duplikat');
+  assertEqual([hint.level, hint.sheet, hint.row, hint.header, hint.raw], ['hinweis', CONFIG.sheets.first, 11, 'Last Name', null]);
+  assert(/Zeile 11/.test(hint.reason) && /nicht doppelt/.test(hint.reason), hint.reason);
+  assertEqual(r.meta.personKey.complete, true);
+  assertEqual(r.meta.personKey.birthDateHeaders, { first: 'Birth Date', issued: 'Birth Date' });
+  assertEqual(r.meta.counts.bestanden, 1);
+});
+
+test('normalizeWorkbook: Zusammenführung füllt Lücken (Gesamtergebnis, Runs, Zertifikat), überschreibt nie', () => {
+  // Sheet 1: alle Prüfungsdaten, OE All leer (offen). Sheet 2: Zusammenfassung mit Zertifikat und OE All yes, andere Bank.
+  const first = fullRow({ birthDate: '15.03.1985', oeAllPassed: '' });
+  const issued = {
+    lastName: 'Muster', firstName: 'Anna', birthDate: '15.03.1985', profil: 'CCoB', employer: 'Andere Bank AG', weAllPassed: 'yes', oeAllPassed: 'yes',
+    certStart: '01.07.2024', certNumber: 'Z-2', ...runValues('oe', { 1: [null, { passed: 'PASSED', date: '20.06.2024 / 10:00' }] }),
+  };
+  const r = normalizeWorkbook(bothSheets([first], [issued]));
+  const kept = r.persons.find((p) => !p.duplicateOf);
+  assertEqual(kept.source, 'first', 'Zeile mit mehr absolvierten Runs bleibt');
+  assertEqual([kept.oeAllPassed, kept.oeStatus, kept.status], [true, 'bestanden', 'bestanden'], 'Gesamtergebnis aus Sheet 2 übernommen');
+  assertEqual([kept.issued, kept.certNumber, kept.certStart], [true, 'Z-2', new Date(2024, 6, 1)]);
+  assertEqual(kept.employerCanon, 'Berner Kantonalbank AG', 'Bankwechsel: Employer der behaltenen Zeile bleibt, dieselbe Person (E2)');
+  assertEqual(kept.attemptsTotal, 5);
+  assertEqual(kept.refDate, new Date(2024, 5, 20, 10, 0));
+  assertEqual(kept.we[0].runs[0].result, 0.55, 'vorhandene Werte bleiben');
+  assertEqual([r.meta.counts.vorgaenge, r.meta.counts.personen, r.meta.counts.duplikate, r.meta.counts.offen, r.meta.counts.bestanden], [1, 1, 1, 0, 1]);
+});
+
+test('normalizeWorkbook: dieselbe Person mit anderem Profil → zwei Vorgänge, eine Person, Profil-Abfolge nach erstem Prüfungsdatum (E3)', () => {
+  const ik = fullRow({ birthDate: '15.03.1985', profil: 'IK' });
+  const cwma = fullRow({
+    birthDate: '15.03.1985', profil: 'CWMA', employer: 'Andere Bank AG',
+    ...runValues('we', { 1: [{ passed: 'yes', date: '01.03.2026', score: 50, result: 0.9 }, { passed: '', date: '', score: '', result: '' }], 2: [{ passed: 'yes', date: '01.03.2026', score: 70, result: 0.9 }] }),
+    ...runValues('oe', { 1: [{ passed: 'yes', date: '01.05.2026', score: 5, result: 0.8 }, { passed: '', date: '', score: '', result: '' }] }),
+  });
+  const r = normalizeWorkbook(bothSheets([cwma], [{ ...ik, certStart: '01.06.2024' }]));
+  assertEqual([r.meta.counts.vorgaenge, r.meta.counts.personen, r.meta.counts.duplikate, r.meta.counts.mehrereProfile], [2, 1, 0, 1]);
+  assertEqual(r.dq.filter((e) => e.field === 'duplikat' || e.field === 'profilKonflikt'), []);
+  const people = groupByPerson(r.persons);
+  assertEqual(people.length, 1);
+  assertEqual(people[0].profiles, ['IK', 'CWMA'], 'zeitliche Reihenfolge, nicht Zeilenreihenfolge');
+});
+
+test('normalizeWorkbook: gleiches Profil, aber widersprüchliche Prüfungsdaten → zwei Vorgänge + Hinweis, keine Zusammenführung', () => {
+  const a = fullRow({ birthDate: '15.03.1985' });
+  const b = fullRow({ birthDate: '15.03.1985', ...runValues('we', { 1: [{ passed: 'no', date: '01.03.2020', score: 40, result: 0.5 }] }) });
+  const r = normalizeWorkbook(bothSheets([a, b], []));
+  assertEqual([r.meta.counts.vorgaenge, r.meta.counts.personen, r.meta.counts.duplikate, r.meta.counts.profilKonflikte], [2, 1, 0, 1]);
+  const hint = r.dq.find((e) => e.field === 'profilKonflikt');
+  assertEqual([hint.level, hint.sheet, hint.row, hint.header, hint.raw], ['hinweis', CONFIG.sheets.first, 12, 'Certificate Program', 'CCoB']);
+  assert(/WE1 RUN1 Date/.test(hint.reason) && /Zeile 11/.test(hint.reason), hint.reason);
+  assertEqual(r.persons.filter((p) => p.duplicateOf), []);
+});
+
+test('normalizeWorkbook: gleicher Name, anderes Geburtsdatum → zwei Personen; ohne Geburtsdatum-Zelle entscheidet der Name', () => {
+  const r = normalizeWorkbook(bothSheets([fullRow({ birthDate: '15.03.1985' })], [fullRow({ birthDate: '16.03.1985', certStart: '01.07.2024' })]));
+  assertEqual([r.meta.counts.vorgaenge, r.meta.counts.personen, r.meta.counts.duplikate, r.meta.counts.schluesselOhneGeburtsdatum], [2, 2, 0, 0]);
+  const nameOnly = normalizeWorkbook({ sheets: [makeSheet('first', [fullRow()]), makeSheet('issued', [fullRow({ certStart: '01.07.2024' })])] });
+  assertEqual([nameOnly.meta.counts.vorgaenge, nameOnly.meta.counts.personen, nameOnly.meta.counts.duplikate, nameOnly.meta.counts.schluesselOhneGeburtsdatum], [1, 1, 1, 1]);
+  assertEqual(nameOnly.meta.personKey.complete, true, 'Header vorhanden, Zellen leer');
+});
+
+test('normalizeWorkbook: Duplikate fliessen nicht in Kennzahlen (eligible, filterPersons), Ausschlussgrund benannt', () => {
+  const r = normalizeWorkbook(bothSheets([fullRow({ birthDate: '15.03.1985' })], [fullRow({ birthDate: '15.03.1985', certStart: '01.07.2024' })]));
+  assertEqual(r.persons.length, 2);
+  assertEqual(eligible(r.persons).length, 1);
+  assertEqual(filterPersons(r.persons, DEFAULT_FILTER, { eligibleOnly: false }).length, 1);
+  assertEqual(filterPersons(r.persons, { ...DEFAULT_FILTER, onlyIssued: true }).length, 1, 'zusammengeführter Vorgang gilt als ausgestellt');
+  const dup = r.persons.find((p) => p.duplicateOf);
+  assert(exclusionReason(dup).startsWith('Duplikat'), exclusionReason(dup));
+  assertEqual(exclusionReason(r.persons.find((p) => !p.duplicateOf)), null);
+});
+
+// ---------------------------------------------------------------------------
+// P3 – Wirkungsklasse je DQ-Eintrag (Befund 7)
+// ---------------------------------------------------------------------------
+
+test('normalizeWorkbook: Wirkungsklasse – unsichtbar / kennzahl / keine je nach Feld, Stufe und Zeilenzustand', () => {
+  const rows = [
+    { profil: 'PK' },                                                                              // kein Name → unsichtbar
+    fullRow({ 'we2.run1.score': 12.5 }),                                                           // Score → keine
+    fullRow({ lastName: 'Umdeutung', 'we2.run1.result': 85 }),                                     // Result > 1 → keine (Interpretation)
+    fullRow({ lastName: 'Serie', 'we2.run1.date': 44125 }),                                        // Serienzahl → keine
+    fullRow({ lastName: 'Sprache', sprache: 'ES' }),                                               // Sprache → kennzahl
+    fullRow({ lastName: 'Datum', 'we1.run1.date': '31.02.2024' }),                                 // Datumsfehler, Zeile bleibt sichtbar (WE2 datiert) → kennzahl
+    { lastName: 'Nur', firstName: 'Datumsfehler', ...runValues('we', { 1: [{ passed: 'yes', date: 'kaputt', score: 1, result: 0.5 }] }) }, // einziger WE-Run → unsichtbar
+    { lastName: 'Ohne', firstName: 'Datum', ...runValues('we', { 1: [{ passed: 'yes', score: 1, result: 0.5 }] }) },                 // Passed ohne Datum → unsichtbar
+  ];
+  const r = normalizeWorkbook({ sheets: [makeSheet('first', rows)] });
+  const by = (row, field) => r.dq.find((e) => e.row === row && e.field === field);
+  assertEqual(by(11, 'lastName').impact, 'unsichtbar');
+  assertEqual(by(12, 'we2.run1.score').impact, 'keine');
+  assertEqual(by(13, 'we2.run1.result').impact, 'keine');
+  assertEqual(by(14, 'we2.run1.date').impact, 'keine');
+  assertEqual(by(15, 'sprache').impact, 'kennzahl');
+  assertEqual(by(16, 'we1.run1.date').impact, 'kennzahl', 'Zeile bleibt kennzahlrelevant');
+  assertEqual(by(17, 'we1.run1.date').impact, 'unsichtbar', 'einziger schriftlicher Run ohne gültiges Datum');
+  assertEqual(by(18, 'we1.run1.date').impact, 'unsichtbar', 'Passed ohne Datum');
+  assert(r.dq.every((e) => ['unsichtbar', 'kennzahl', 'keine'].includes(e.impact)), 'jeder Eintrag hat eine Wirkungsklasse');
+  assertEqual([r.meta.counts.wirkungUnsichtbar, r.meta.counts.wirkungKeine], [3, 3]);
+  assertEqual(r.meta.counts.wirkungKennzahl, r.dq.length - 6);
+});
+
+test('normalizeWorkbook: Duplikat-Hinweise gelten als «verändert Kennzahl», auch wenn die Zeile unsichtbar ist', () => {
+  const r = normalizeWorkbook(bothSheets([fullRow({ birthDate: '15.03.1985' })], [fullRow({ birthDate: '15.03.1985', certStart: '01.07.2024' })]));
+  assertEqual(r.dq.find((e) => e.field === 'duplikat').impact, 'kennzahl');
+  assertEqual(dqImpact({ level: 'hinweis', field: 'we1.run1.date', reason: 'x' }, { duplicateOf: { sheet: 'x', row: 1 }, hasWeDate: false }), 'kennzahl', 'Daten des Duplikats leben im behaltenen Vorgang weiter');
+  assertEqual(dqImpact({ level: 'fehler', field: 'we1.run1.date', reason: 'x' }, null), 'unsichtbar', 'ohne Zeile: unsichtbar');
+  assertEqual(dqImpact({ level: 'fehler', field: 'oe1.run1.date', reason: 'x' }, { hasWeDate: false, duplicateOf: null }), 'kennzahl', 'mündliche Daten machen nie unsichtbar');
+});
+
+// ---------------------------------------------------------------------------
+// Entscheide 05.09.2026: passiv, Teilprüfungen je Profil
+// ---------------------------------------------------------------------------
+
+test('normalizeSheet: passiv = offen, letzte Prüfung > 365 Tage vor dem Stichtag, kein Termin (Stichtag options.today)', () => {
+  const today = new Date(2026, 8, 5);
+  const rows = [
+    { lastName: 'Alt', firstName: 'A', profil: 'PK', ...runValues('we', { 1: [{ passed: 'no', date: '10.01.2024', score: 1, result: 0.4 }] }) },                       // > 365 Tage, kein Termin → passiv
+    { lastName: 'Neu', firstName: 'N', profil: 'PK', ...runValues('we', { 1: [{ passed: 'yes', date: '10.03.2026', score: 1, result: 0.8 }] }) },                      // frisch → nicht passiv
+    { lastName: 'Termin', firstName: 'T', profil: 'PK', ...runValues('we', { 1: [{ passed: 'no', date: '10.01.2024', score: 1, result: 0.4 }, { date: new Date(2026, 10, 1) }] }) }, // Termin geplant → nicht passiv
+    { lastName: 'Nie', firstName: 'X', profil: 'PK', weAllPassed: '' },                                                                                                  // ohne Prüfung → nie passiv
+    { lastName: 'Fertig', firstName: 'F', profil: 'PK', weAllPassed: 'no', ...runValues('we', { 1: [{ passed: 'no', date: '10.01.2024', score: 1, result: 0.4 }] }) },   // nicht bestanden → nicht passiv
+  ];
+  const { persons } = normalizeSheet(makeSheet('first', rows), {}, { today });
+  assertEqual(persons.map((p) => [p.lastName, p.status, p.passiv]), [['Alt', 'offen', true], ['Neu', 'offen', false], ['Termin', 'offen', false], ['Nie', 'offen', false], ['Fertig', 'nicht bestanden', false]]);
+  const early = normalizeSheet(makeSheet('first', rows), {}, { today: new Date(2024, 6, 1) });
+  assertEqual(early.persons[0].passiv, false, 'am früheren Stichtag noch nicht passiv');
+  const wb = normalizeWorkbook({ sheets: [makeSheet('first', rows)] }, { today });
+  assertEqual([wb.meta.counts.offen, wb.meta.counts.passiv], [4, 1]);
+});
+
+test('normalizeWorkbook: Hinweis, wenn alle Teilprüfungen des Profils bestanden sind, aber das Gesamtergebnis leer ist (Entscheid 3)', () => {
+  const done = (name, extra = {}) => ({ lastName: name, firstName: 'D', profil: 'PK', weAllPassed: 'yes', oeAllPassed: 'yes',
+    ...runValues('we', { 1: [{ passed: 'yes', date: '01.03.2024', score: 1, result: 0.8 }], 2: [{ passed: 'yes', date: '01.03.2024', score: 1, result: 0.7 }] }),
+    ...runValues('oe', { 1: [{ passed: 'yes', date: '01.06.2024', score: 1, result: 0.9 }] }), ...extra });
+  const rows = ['A', 'B', 'C', 'D', 'E'].map((n) => done(n));                    // PK: WE1, WE2, OE1 gehören zum Profil
+  rows.push(done('Vergessen', { weAllPassed: '' }));                             // alle WE-Teile bestanden, WE All leer → Hinweis
+  rows.push(done('Unterwegs', { weAllPassed: '', 'we2.run1.passed': 'no' }));    // WE2 nicht bestanden → kein Hinweis
+  rows.push(done('Mund', { oeAllPassed: '' }));                                  // OE1 bestanden, OE All leer → Hinweis
+  const wb = normalizeWorkbook({ sheets: [makeSheet('first', rows)] }, { today: new Date(2026, 8, 5) });
+  const hints = wb.dq.filter((e) => /Gesamtergebnis leer/.test(e.reason));
+  assertEqual(hints.map((e) => [e.row, e.header, e.level, e.impact]), [[16, 'WE All Passed', 'hinweis', 'kennzahl'], [18, 'OE All Passed', 'hinweis', 'kennzahl']]);
+  assert(/WE1, WE2/.test(hints[0].reason) && /OE1/.test(hints[1].reason), hints[0].reason);
+  assertEqual(wb.meta.counts.vollstaendigOhneGesamtergebnis, 2);
+  assertEqual(wb.persons[5].status, 'offen', 'Status bleibt offen (E4), keine Ableitung');
 });

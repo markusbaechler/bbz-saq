@@ -1,5 +1,5 @@
 import { test, assert, assertEqual } from './runner.js';
-import { DQ_COLUMNS, formatRaw, sortDq, filterDq, sheetOptions, summarizeDq, summaryAsText } from '../views/dataQuality.js';
+import { DQ_COLUMNS, LEVEL_LABELS, levelOf, impactOf, formatRaw, sortDq, filterDq, sheetOptions, summarizeDq, summaryAsText, DEFAULT_DQ_STATE } from '../views/dataQuality.js';
 
 const ENTRIES = [
   { level: 'fehler', sheet: 'First Certification', row: 100, header: 'WE1 RUN1 Passed', field: 'we1.run1.passed', raw: 'maybe', reason: 'Passed-Wert nicht in Whitelist' },
@@ -9,9 +9,10 @@ const ENTRIES = [
   { level: 'fehler', sheet: 'First Certification', row: 12, header: 'Last Name', field: 'lastName', raw: null, reason: 'Name fehlt (Zeile enthält Daten)' },
 ];
 
-test('dataQuality.DQ_COLUMNS: Sheet, Zeile, Header, Rohwert, Grund', () => {
-  assertEqual(DQ_COLUMNS.map((c) => c.key), ['level', 'sheet', 'row', 'header', 'raw', 'reason']);
-  assertEqual(DQ_COLUMNS.map((c) => c.label), ['Stufe', 'Sheet', 'Zeile', 'Header', 'Rohwert', 'Grund']);
+test('dataQuality.DQ_COLUMNS: Wirkung, Stufe, Sheet, Zeile, Header, Rohwert, Grund', () => {
+  assertEqual(DQ_COLUMNS.map((c) => c.key), ['impact', 'level', 'sheet', 'row', 'header', 'raw', 'reason']);
+  assertEqual(DQ_COLUMNS.map((c) => c.label), ['Wirkung', 'Stufe', 'Sheet', 'Zeile', 'Header', 'Rohwert', 'Grund']);
+  assertEqual(DEFAULT_DQ_STATE.sortKey, 'impact', 'Standard: nach Wirkung priorisiert');
 });
 
 test('dataQuality.formatRaw: leer, Datum, Zahl, Boolean, Text', () => {
@@ -62,7 +63,7 @@ test('dataQuality.sheetOptions: vorhandene Sheets in Konfigurationsreihenfolge',
 test('dataQuality.summarizeDq: Anzahl je Sheet/Header/Grund, absteigend, ohne Rohwerte und Zeilen', () => {
   const rows = summarizeDq(ENTRIES.concat([{ ...ENTRIES[0], row: 200, raw: 'vielleicht' }]));
   assertEqual(rows.length, 5);
-  assertEqual(rows[0], { level: 'fehler', sheet: 'First Certification', header: 'WE1 RUN1 Passed', reason: 'Passed-Wert nicht in Whitelist', count: 2, examples: ['maybe', 'vielleicht'] });
+  assertEqual(rows[0], { impact: 'kennzahl', level: 'fehler', sheet: 'First Certification', header: 'WE1 RUN1 Passed', reason: 'Passed-Wert nicht in Whitelist', count: 2, examples: ['maybe', 'vielleicht'] });
   assertEqual(rows.map((r) => r.count), [2, 1, 1, 1, 1]);
   assertEqual(rows.slice(1).map((r) => r.sheet), ['First Certification', 'First Certification', 'Ausgestellte Zertifikate', 'Ausgestellte Zertifikate'], 'Gleichstand: Sheet in Konfigurationsreihenfolge');
   assertEqual(rows.slice(1).map((r) => r.header), ['Certificate Language', 'Last Name', 'OE1 RUN1 Date', 'WE2 RUN1 Score'], 'dann Header alphabetisch');
@@ -82,8 +83,8 @@ test('dataQuality.summarizeDq: Beispiele – höchstens 3 verschiedene Rohwerte,
 test('dataQuality.summaryAsText: Tab-getrennt mit Stufe und Beispielen', () => {
   const TAB = String.fromCharCode(9);
   const lines = summaryAsText(summarizeDq(ENTRIES.slice(0, 2))).split(String.fromCharCode(10));
-  assertEqual(lines[0], ['Stufe', 'Sheet', 'Header', 'Grund', 'Anzahl', 'Beispiele'].join(TAB));
-  assertEqual(lines[1], ['fehler', 'First Certification', 'Certificate Language', 'Sprache unbekannt', '1', 'ES'].join(TAB));
+  assertEqual(lines[0], ['Wirkung', 'Stufe', 'Sheet', 'Header', 'Grund', 'Anzahl', 'Beispiele'].join(TAB));
+  assertEqual(lines[1], ['verändert Kennzahl', 'fehler', 'First Certification', 'Certificate Language', 'Sprache unbekannt', '1', 'ES'].join(TAB));
   assertEqual(lines.length, 3);
 });
 
@@ -92,4 +93,37 @@ test('dataQuality.filterDq: Stufe (fehler | hinweis), kombinierbar', () => {
   assertEqual(filterDq(ENTRIES, { level: 'fehler' }).length, 4);
   assertEqual(filterDq(ENTRIES, { level: 'fehler', sheet: 'Ausgestellte Zertifikate' }).length, 1);
   assertEqual(filterDq(ENTRIES, { level: '' }).length, 5);
+});
+
+test('dataQuality.levelOf / LEVEL_LABELS: Stufe «nicht ausgewertet» (E6) wird erkannt, Unbekanntes gilt als Fehler', () => {
+  assertEqual(LEVEL_LABELS['nicht-ausgewertet'], 'Nicht ausgewertet');
+  assertEqual(levelOf({ level: 'nicht-ausgewertet' }), 'nicht-ausgewertet');
+  assertEqual(levelOf({ level: 'hinweis' }), 'hinweis');
+  assertEqual(levelOf({ level: 'fehler' }), 'fehler');
+  assertEqual(levelOf({ level: 'irgendwas' }), 'fehler');
+  assertEqual(levelOf(null), 'fehler');
+  const entries = ENTRIES.concat([{ level: 'nicht-ausgewertet', sheet: 'First Certification', row: 30, header: 'WE1 RUN1 Score', field: 'we1.run1.score', raw: 'x', reason: 'Score …' }]);
+  assertEqual(filterDq(entries, { level: 'nicht-ausgewertet' }).map((e) => e.row), [30]);
+  assertEqual(filterDq(entries, { level: 'fehler' }).length, 4);
+  assertEqual(summarizeDq(entries).find((r) => r.level === 'nicht-ausgewertet').header, 'WE1 RUN1 Score');
+});
+
+test('dataQuality.impactOf / sortDq(impact) / filterDq(impact): Priorisierung nach Wirkung, dann Stufe, dann Zeile', () => {
+  const entries = [
+    { level: 'hinweis', impact: 'keine', sheet: 'First Certification', row: 5, header: 'WE1 RUN1 Result', field: 'we1.run1.result', raw: 85, reason: 'umgedeutet' },
+    { level: 'fehler', impact: 'kennzahl', sheet: 'First Certification', row: 3, header: 'Certificate Language', field: 'sprache', raw: 'ES', reason: 'Sprache unbekannt' },
+    { level: 'hinweis', impact: 'unsichtbar', sheet: 'Ausgestellte Zertifikate', row: 9, header: 'WE1 RUN1 Date', field: 'we1.run1.date', raw: null, reason: 'Passed ohne Datum' },
+    { level: 'fehler', impact: 'unsichtbar', sheet: 'First Certification', row: 7, header: 'Last Name', field: 'lastName', raw: null, reason: 'Name fehlt' },
+    { level: 'fehler', sheet: 'First Certification', row: 1, header: 'WE1 RUN1 Passed', field: 'we1.run1.passed', raw: 'x', reason: 'ohne Wirkungsangabe' },
+  ];
+  assertEqual(impactOf(entries[4]), 'kennzahl', 'ohne Angabe gilt «verändert Kennzahl»');
+  assertEqual(sortDq(entries, 'impact', 'asc').map((e) => e.row), [7, 9, 1, 3, 5], 'unsichtbar (Fehler vor Hinweis), dann Kennzahl nach Zeile, dann keine');
+  assertEqual(sortDq(entries, 'impact', 'desc').map((e) => e.row), [5, 3, 1, 9, 7]);
+  assertEqual(sortDq(entries, 'level', 'asc').map((e) => e.row), [3, 7, 1, 5, 9], 'Stufe: Fehler vor Hinweis, stabil');
+  assertEqual(filterDq(entries, { impact: 'unsichtbar' }).map((e) => e.row), [9, 7]);
+  assertEqual(filterDq(entries, { impact: 'keine' }).length, 1);
+  assertEqual(filterDq(entries, { text: 'unsichtbar' }).length, 2, 'Volltext findet die Wirkungsbezeichnung');
+  const summary = summarizeDq(entries);
+  assertEqual(summary.map((r) => [r.impact, r.count]), [['unsichtbar', 1], ['unsichtbar', 1], ['kennzahl', 1], ['kennzahl', 1], ['keine', 1]]);
+  assert(summaryAsText(summary).startsWith('Wirkung'));
 });

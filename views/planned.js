@@ -10,7 +10,7 @@ export const label = 'Geplante Prüfungen';
 export function build(ctx) {
   const t = plannedTables(ctx.plannedPersons || []);
   const days = new Set(t.summary.rows.map((r) => r.datum)).size;
-  const persons = new Set(t.details.rows.map((r) => r.name)).size;
+  const persons = t.personen;
   return {
     nodes: [
       el('p', { class: 'meta-list', text: 'Geplant = Prüfungsdatum in der Zukunft ohne Passed-Wert. Die Filter Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» gelten; Zeitraum und Versuchsmodus wirken hier nicht.' }),

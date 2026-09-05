@@ -41,7 +41,12 @@ test('createStore.setData: normalisiert Sheets, hält Personen, DQ und Meta nur 
   const s = store.getState();
   assertEqual(s.persons.length, 5);
   assertEqual(s.dq.length, 2, 'ein Fehler (?), ein Hinweis (Passed ohne Datum)');
-  assertEqual(s.meta.counts, { first: 4, issued: 1, persons: 5, dq: 2, fehler: 1, hinweise: 1 });
+  assertEqual(s.meta.counts, {
+    first: 4, issued: 1, zeilen: 5, vorgaenge: 5, personen: 5, duplikate: 0, profilKonflikte: 0, mehrereProfile: 0,
+    bestanden: 5, nichtBestanden: 0, offen: 0, passiv: 0, nichtErfasst: 0, vollstaendigOhneGesamtergebnis: 0, schluesselOhneGeburtsdatum: 5,
+    dq: 2, fehler: 1, hinweise: 1, nichtAusgewertet: 0,
+    wirkungUnsichtbar: 2, wirkungKennzahl: 0, wirkungKeine: 0,
+  });
   assertEqual(s.meta.fileName, 'Reporting_KUBA.xlsx');
   assertEqual(s.persons[1].vss, true);
 });
@@ -112,5 +117,20 @@ test('createStore.clear: entfernt Personen, DQ und Meta aus dem Memory (z. B. be
   assertEqual(s.filter.profil, ['PK'], 'Filter bleibt erhalten');
   assertEqual(store.getFilteredPersons(), []);
   assertEqual(store.getFilterOptions(), { profil: [], sprache: [], bank: [] });
+  assertEqual(calls, 3);
+});
+
+test('createStore.setUi / update: Anzeigezustand im Store; silent ohne Benachrichtigung; update setzt Filter und UI mit einer Benachrichtigung', () => {
+  const store = createStore();
+  let calls = 0;
+  store.subscribe(() => { calls += 1; });
+  assertEqual(store.getState().ui, { benchmark: 'bank', dq: null, compare: null });
+  store.setUi({ benchmark: 'profil' });
+  assertEqual([store.getState().ui.benchmark, calls], ['profil', 1]);
+  store.setUi({ dq: { text: 'x' } }, { silent: true });
+  assertEqual([store.getState().ui.dq, calls], [{ text: 'x' }, 1], 'silent: gemerkt, aber nicht benachrichtigt');
+  store.update({ filter: { profil: ['PK'] }, ui: { compare: { a: 2024, b: 2025 } } });
+  assertEqual([store.getState().filter.profil, store.getState().ui.compare, calls], [['PK'], { a: 2024, b: 2025 }, 2]);
+  store.update({});
   assertEqual(calls, 3);
 });

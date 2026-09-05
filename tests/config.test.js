@@ -84,11 +84,12 @@ test('config: Header-Kandidaten führen Sheet-Varianten (Passed | yes)', () => {
 test('config: Pflicht-Header je Sheet (certStart nur bei «issued»)', () => {
   const first = requiredFieldKeys('first');
   const issued = requiredFieldKeys('issued');
-  // 6 Stammdaten + WE All + 6×(1 + 3×4) + OE All + 2×(1 + 3×4) = 6 + 1 + 78 + 1 + 26 = 112
-  assertEqual(first.length, 112, 'Anzahl Pflicht-Header First Certification');
-  assertEqual(issued.length, 113, 'Anzahl Pflicht-Header Ausgestellte Zertifikate');
+  // 7 Stammdaten (inkl. Birth Date, E2) + WE All + 6×(1 + 3×4) + OE All + 2×(1 + 3×4) = 7 + 1 + 78 + 1 + 26 = 113
+  assertEqual(first.length, 113, 'Anzahl Pflicht-Header First Certification');
+  assertEqual(issued.length, 114, 'Anzahl Pflicht-Header Ausgestellte Zertifikate');
   assert(!first.includes('certStart'));
   assert(issued.includes('certStart'));
+  assert(first.includes('birthDate') && issued.includes('birthDate'), 'Birth Date ist Pflicht in beiden Sheets');
   for (const k of ['lastName', 'firstName', 'role', 'employer', 'profil', 'sprache', 'weAllPassed', 'oeAllPassed',
     'we1.passed', 'we6.passed', 'oe1.passed', 'oe2.passed', 'we6.run3.result', 'oe2.run3.date']) {
     assert(first.includes(k), 'Pflicht-Header fehlt: ' + k);

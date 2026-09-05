@@ -14,14 +14,14 @@ export function build(ctx) {
   const perf = KEYS.map((k) => performanceTable(ctx.persons, k, 'written'));
   return {
     nodes: [
-      section('Bestehensquoten (Anteil Personen)', rates.map((t) => renderTable(t)), {
-        intro: 'Im 1. Versuch bestanden: alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden. Im 1. Versuch durchgefallen: mindestens eine Teilprüfung im ersten Versuch nicht bestanden. Insgesamt bestanden: «WE All Passed» = yes, unabhängig von der Anzahl Versuche.',
+      section('Bestehensquoten (Anteil Vorgänge)', rates.map((t) => renderTable(t)), {
+        intro: 'Im 1. Versuch bestanden: alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden. Im 1. Versuch durchgefallen: mindestens eine Teilprüfung im ersten Versuch nicht bestanden (Nenner: Vorgänge mit absolviertem RUN1). Insgesamt bestanden: «WE All Passed» = yes, unabhängig von der Anzahl Versuche (Nenner: abgeschlossene Vorgänge, d. h. bestanden oder nicht bestanden). Offen = Gesamtergebnis leer, der Prozess läuft noch; nicht erfasst = Gesamtergebnis unlesbar (Data-Quality-Log).',
       }),
       section('Je Teilprüfung WE1–WE6', [renderTable(parts)], {
-        intro: 'Anteile und Ø Resultat je Teilprüfung; n = Personen mit absolviertem ersten Versuch der Teilprüfung.',
+        intro: 'Anteile und Ø Resultat je Teilprüfung; n = Vorgänge mit absolviertem ersten Versuch der Teilprüfung.',
       }),
       section('Ø Resultat (erreichte Punkte in Prozent)', perf.map((t) => renderTable(t)), {
-        intro: 'Je Person Mittel über die vorhandenen Teilprüfungen, danach Mittel über die Personen. Beide Wertungen nebeneinander: Resultat des ersten Versuchs und Resultat des bestandenen Runs.',
+        intro: 'Je Vorgang Mittel über die vorhandenen Teilprüfungen, danach Mittel über die Vorgänge. Beide Wertungen nebeneinander: Resultat des ersten Versuchs und Resultat des bestandenen Runs.',
       }),
     ],
     tables: rates.concat([parts], perf),
