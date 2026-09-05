@@ -404,6 +404,13 @@ async function init() {
     if (file) run(() => loadLocal(file));
   });
   window.addEventListener('hashchange', applyHash);
+  // Druck: eingeklappte Blöcke mit Klasse print-open öffnen, danach wieder schliessen
+  window.addEventListener('beforeprint', () => {
+    for (const d of document.querySelectorAll('details.print-open:not([open])')) { d.dataset.printOpened = '1'; d.open = true; }
+  });
+  window.addEventListener('afterprint', () => {
+    for (const d of document.querySelectorAll('details[data-print-opened]')) { delete d.dataset.printOpened; d.open = false; }
+  });
   store.subscribe(renderAll);
 
   applyHash(); // Filter aus der URL übernehmen und erste Ansicht rendern
