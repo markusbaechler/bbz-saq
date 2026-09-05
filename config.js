@@ -98,6 +98,15 @@ export const EMPLOYER_ALIASES = {
 // Datumsregeln: plausible Jahre; Zahlen in diesem Bereich gelten als Excel-Serienzahl (Zelle ohne Datumsformat)
 export const DATE_RULES = { minYear: 2000, maxYear: 2100, serialMin: 36526, serialMax: 60000 };
 
+// Geburtsdatum (Personenschlüssel, Entscheid E2): plausible Jahrgänge 1920–2010; Serienzahlen entsprechend
+// (7306 = 01.01.1920, 40179 = 01.01.2010). Eine nackte Jahreszahl wie 1985 ist damit keine Serienzahl.
+export const BIRTH_DATE_RULES = { minYear: 1920, maxYear: 2010, serialMin: 7306, serialMax: 40179 };
+
+// Personenschlüssel (E2): normalisiert aus Last Name, First Name und Geburtsdatum – bewusst NICHT Employer
+// (ein Bankwechsel ist dieselbe Person). Header-Kandidaten des Geburtsdatums: [unklar], am File noch nicht verifiziert.
+// Solange der Header fehlt, bildet die App den Schlüssel nur aus dem Namen und meldet das in meta.personKey.
+export const PERSON_KEY_FIELDS = ['lastName', 'firstName', 'birthDate'];
+
 // VSS/VSM aus Threaded Comment auf B{row}, z. B. «VSM 8718 28.08./05.09.24: Name», «VSS 07.05.2026: Name».
 export const VSS_REGEX = /\bVSS\b/i;
 export const VSM_REGEX = /\bVSM\b/i;
@@ -126,6 +135,9 @@ function buildHeaderFields() {
     { key: 'profil',      candidates: ['Certificate Program'],    required: 'all' },
     { key: 'sprache',     candidates: ['Certificate Language'],   required: 'all' },
     { key: 'commLanguage', candidates: ['Communication Language'], required: 'none' }, // Fallback für leere Certificate Language
+    // Geburtsdatum für den Personenschlüssel (E2). Header-Name am File nicht verifiziert [unklar] → optional;
+    // sobald bestätigt, auf required: 'all' setzen (dann harter Fehler bei fehlendem Header).
+    { key: 'birthDate',   candidates: ['Date of Birth', 'Birth Date', 'Birthdate', 'Birthday', 'Geburtsdatum'], required: 'none' },
     { key: 'certNumber',  candidates: ['Certificate Number'],     required: 'none' },
     { key: 'certStart',   candidates: ['Certificate Start Date'], required: 'issued' },
     { key: 'certEnd',     candidates: ['Certificate End Date'],   required: 'none' },

@@ -7,6 +7,7 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 - Live: https://markusbaechler.github.io/bbz-saq/ (Anmeldung mit M365-Konto, Zugriff gemäss SharePoint-Rechten)
 - Lokal: `python -m http.server 3000` → http://localhost:3000
 - Tests: `node tests/run-node.js` oder `tests.html` im Browser (synthetische Daten, keine Personendaten)
+- Modellbericht auf einer lokalen Kopie der Datei (nur Zähler und Quoten): `node tools/modellbericht.js <Datei.xlsx>`
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
 
 ## Ansichten
@@ -35,10 +36,35 @@ Ansichten zeigen beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfu
 dieselben Filter verwendet, nur ohne die gewählte Einschränkung: Alle Banken (Standard), Alle Profile, Alle Sprachen
 oder Gesamt (nur Zeitraum). Differenzen in Prozentpunkten.
 
+## Modell: Vorgänge, Personen, Duplikate, Status (Entscheide E1–E4)
+
+- **Zertifizierungsvorgang (Vorgang)** = eine Zeile der Excel-Datei. Alle prüfungsbezogenen Quoten zählen Vorgänge.
+- **Person** = Mensch, identifiziert über den **Personenschlüssel** aus «Last Name», «First Name» und Geburtsdatum
+  (normalisiert: Akzente, Bindestriche, Gross-/Kleinschreibung, ß). Nicht der Employer: ein Bankwechsel ist dieselbe Person.
+  Eine Person kann mehrere Vorgänge haben (z. B. IK und später CWMA) → Kennzahl «Personen mit mehreren Profilen».
+  Der Header des Geburtsdatums ist am File noch nicht verifiziert (`config.js`, Feld `birthDate`, Kandidaten «Date of Birth»,
+  «Birth Date», «Birthdate», «Birthday», «Geburtsdatum»); fehlt er, bildet die App den Schlüssel nur aus dem Namen und
+  meldet das in der Statuszeile.
+- **Duplikat**: zwei Zeilen derselben Person mit gleichem Profil und ohne widersprüchliche Prüfungsdaten (gleicher Run,
+  anderes Datum oder anderer Passed-Wert) sind derselbe Vorgang – typischerweise je einmal in «First Certification» und in
+  «Ausgestellte Zertifikate». Sie werden zu einem Vorgang zusammengeführt (Lücken auffüllen, nie überschreiben; behalten wird
+  die Zeile mit den meisten absolvierten Runs, bei Gleichstand die aus «Ausgestellte Zertifikate»), im Data-Quality-Log als
+  Hinweis gemeldet und nie doppelt gezählt. Zeilen mit gleichem Profil und widersprüchlichen Daten bleiben eigene Vorgänge
+  (Hinweis «Wiederholung?»).
+- **Status je Vorgang** (getrennt für schriftlich, mündlich und gesamt): **bestanden** (Gesamtergebnis yes),
+  **nicht bestanden** (no), **offen** (Gesamtergebnis leer = Prozess läuft noch), **nicht erfasst** (Zelle gefüllt, aber
+  unlesbar → Fehler im Log). Gesamt: nicht bestanden, sobald ein Teil nicht bestanden ist; bestanden nur, wenn beide
+  bestanden sind. Nenner der Bestehensquoten «insgesamt bestanden» und «mündlich bestanden» = **abgeschlossene Vorgänge**
+  (bestanden + nicht bestanden); offen und nicht erfasst werden als eigene Zahlen ausgewiesen.
+- Im Sheet «Ausgestellte Zertifikate» gelten leere Gesamtergebnisse («WE All yes», «OE All yes») als bestanden (Hinweis),
+  weil ein Zertifikat beides voraussetzt; ein «no» bleibt ein «no».
+- Lokaler Modellbericht (Zähler, Duplikate, offene Vorgänge, Quoten alt → neu je Profil, Score-Beispielwerte; keine Namen):
+  `node tools/modellbericht.js /pfad/zu/Reporting_KUBA.xlsx`
+
 ## Kennzahl-Definitionen
 
-Grundgesamtheit aller Kennzahlen: Personen mit mindestens einem **absolvierten, datierten schriftlichen Run** im aktiven
-Filter. Ein Run gilt als absolviert, wenn ein Passed-Wert vorhanden ist (yes/no, PASSED/FAILED, fulfilled).
+Grundgesamtheit aller Kennzahlen: Vorgänge (keine Duplikate) mit mindestens einem **absolvierten, datierten schriftlichen
+Run** im aktiven Filter. Ein Run gilt als absolviert, wenn ein Passed-Wert vorhanden ist (yes/no, PASSED/FAILED, fulfilled).
 Ein Datum allein ist ein Termin (geplant oder Ergebnis ausstehend), Score/Result allein (Formelvorgaben 0) sind kein Versuch.
 
 | Kennzahl | Definition |
@@ -48,11 +74,11 @@ Ein Datum allein ist ein Termin (geplant oder Ergebnis ausstehend), Score/Result
 | Wertung «Resultat bestandener Run» | Der bestandene Run zählt. Eine Person hat nur dann einen Wert, wenn alle absolvierten Teilprüfungen einen bestandenen Run haben. |
 | Schriftlich: im 1. Versuch bestanden | Anteil Personen, bei denen alle absolvierten WE RUN1 bestanden sind. Nenner: Personen mit mindestens einem absolvierten WE RUN1. |
 | Schriftlich: im 1. Versuch durchgefallen | Anteil Personen mit mindestens einem WE RUN1 = no; gleicher Nenner (Komplement der vorigen Quote). |
-| Schriftlich: insgesamt bestanden | Anteil Personen mit «WE All Passed» = yes. In Sheet 2 gilt ein leeres «WE All yes» bei ausgestelltem Zertifikat als bestanden (Hinweis im Log). |
+| Schriftlich: insgesamt bestanden | Anteil Vorgänge mit Status schriftlich «bestanden» («WE All Passed» = yes). Nenner: abgeschlossene Vorgänge schriftlich (bestanden + nicht bestanden); offen (leer) und nicht erfasst (unlesbar) zählen nicht im Nenner und werden separat ausgewiesen. In Sheet 2 gilt ein leeres «WE All yes» als bestanden (Hinweis im Log). |
 | Schriftlich: Ø Resultat | Erreichte Punkte in Prozent. Je Person Mittel über die vorhandenen Teilprüfungen, dann Mittel über die Personen mit Wert; für beide Wertungen ausgewiesen. |
 | Je Teilprüfung (WE1–WE6, OE1–OE2) | n = Personen mit absolviertem RUN1 des Teils; im 1. Versuch bestanden / durchgefallen; insgesamt bestanden = irgendein Run des Teils bestanden; Ø Resultat für beide Wertungen. |
-| Mündlich: bestanden | Anteil Personen mit «OE All Passed» = yes. Nenner: Personen mit absolviertem, datiertem OE1 RUN1 (geplante Termine zählen nicht). |
-| Mündlich: im 1. Versuch / 2× durchgefallen | OE1 RUN1 = no bzw. OE1 RUN1 = no und OE1 RUN2 = no, unabhängig vom späteren Erfolg; gleicher Nenner. |
+| Mündlich: bestanden | Anteil Vorgänge mit Status mündlich «bestanden» («OE All Passed» = yes). Nenner: abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden); offen und nicht erfasst separat. In Sheet 2 gilt ein leeres «OE All yes» als bestanden (Hinweis im Log). |
+| Mündlich: im 1. Versuch / 2× durchgefallen | OE1 RUN1 = no bzw. OE1 RUN1 = no und OE1 RUN2 = no, unabhängig vom späteren Erfolg. Nenner: angetretene Vorgänge (absolvierter, datierter OE1 RUN1; geplante Termine zählen nicht). |
 | Mündlich: Ø Resultat | Erreichte Punkte in Prozent der mündlichen Prüfung, Mittel über Personen mit Wert; für beide Wertungen ausgewiesen. |
 | bbz-Award | 0.5 · Ø Resultat schriftlich + 0.5 · Ø Resultat mündlich gemäss gewählter Wertung, nur Personen mit bestandener mündlicher Prüfung. Tie-Break 1: weniger Prüfungsversuche gesamt; Tie-Break 2: früheres Referenzdatum. Die Tie-Breaks gelten auch für die schriftlichen und mündlichen Bestenlisten. |
 | VSS / VSM | Aus dem Threaded Comment auf der Namenszelle (Spalte B): `\bVSS\b` bzw. `\bVSM\b`, beides möglich. «ohne» = weder noch. |
@@ -84,13 +110,16 @@ Fehlt ein Pflicht-Header, wird die Datei nicht verarbeitet und die fehlenden Hea
 | Sprache | DE, FR, IT, EN (Kürzel D/F/I/E); sonst Fehler |
 | Profil | PK, IK, CWMA, KMU, AFFL, CCoB und Aliase; sonst Rohwert + Fehler |
 | Employer | Alias-Map (config.js) → kanonischer Bankname; unbekannt → Rohwert |
-| Result | Zahl 0–1 direkt, 1–100 → /100; Text «89.00%», «71.59», «89,5%»; sonst Fehler |
-| Score | ganze Zahl ≥ 0; sonst Fehler |
+| Result | Zahl 0–1 direkt (1 = 100 %); Zahl > 1 bis 100 ohne Prozentzeichen → /100 mit Hinweis (Umdeutung); Text «89.00%», «89,5%» direkt, «71.59» → /100 mit Hinweis; sonst Fehler |
+| Score | ganze Zahl ≥ 0; sonst Stufe «nicht ausgewertet» (Feld fliesst in keine Kennzahl, Entscheid E6 offen) |
+| Geburtsdatum | wie Datum, plausible Jahrgänge 1920–2010 (Serienzahlen entsprechend); nur für den Personenschlüssel |
 | Datum | Excel-Datum oder Text `dd.mm.yy(yy)[ / hh.mm]` (Trenner . oder , Suffix h / Uhr); Excel-Serienzahl ohne Format → Datum + Hinweis; Jahr ausserhalb 2000–2100, ohne Jahr, dreistelliges Jahr → Fehler |
 
 Stufen im Log: **Fehler** = Zelle nicht interpretierbar, Wert wird ignoriert. **Hinweis** = Wert interpretiert oder
-abgeleitet, aber auffällig (z. B. vergangener Termin ohne Ergebnis, Passed ohne Datum, abgeleitete Sprache), oder
-Konsistenzregel verletzt. Die Zusammenfassung nach Header und Grund lässt sich ohne Personendaten kopieren.
+abgeleitet, aber auffällig (z. B. vergangener Termin ohne Ergebnis, Passed ohne Datum, abgeleitete Sprache, Result als
+Prozentwert umgedeutet, Duplikat zusammengeführt), oder Konsistenzregel verletzt. **Nicht ausgewertet** = Zelle nicht
+interpretierbar, aber das Feld fliesst in keine Kennzahl (Score). Die Zusammenfassung nach Header und Grund lässt sich ohne
+Personendaten kopieren.
 
 ## Architektur
 

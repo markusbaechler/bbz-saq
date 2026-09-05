@@ -1,5 +1,5 @@
 import { test, assert, assertEqual } from './runner.js';
-import { DQ_COLUMNS, formatRaw, sortDq, filterDq, sheetOptions, summarizeDq, summaryAsText } from '../views/dataQuality.js';
+import { DQ_COLUMNS, LEVEL_LABELS, levelOf, formatRaw, sortDq, filterDq, sheetOptions, summarizeDq, summaryAsText } from '../views/dataQuality.js';
 
 const ENTRIES = [
   { level: 'fehler', sheet: 'First Certification', row: 100, header: 'WE1 RUN1 Passed', field: 'we1.run1.passed', raw: 'maybe', reason: 'Passed-Wert nicht in Whitelist' },
@@ -92,4 +92,17 @@ test('dataQuality.filterDq: Stufe (fehler | hinweis), kombinierbar', () => {
   assertEqual(filterDq(ENTRIES, { level: 'fehler' }).length, 4);
   assertEqual(filterDq(ENTRIES, { level: 'fehler', sheet: 'Ausgestellte Zertifikate' }).length, 1);
   assertEqual(filterDq(ENTRIES, { level: '' }).length, 5);
+});
+
+test('dataQuality.levelOf / LEVEL_LABELS: Stufe «nicht ausgewertet» (E6) wird erkannt, Unbekanntes gilt als Fehler', () => {
+  assertEqual(LEVEL_LABELS['nicht-ausgewertet'], 'Nicht ausgewertet');
+  assertEqual(levelOf({ level: 'nicht-ausgewertet' }), 'nicht-ausgewertet');
+  assertEqual(levelOf({ level: 'hinweis' }), 'hinweis');
+  assertEqual(levelOf({ level: 'fehler' }), 'fehler');
+  assertEqual(levelOf({ level: 'irgendwas' }), 'fehler');
+  assertEqual(levelOf(null), 'fehler');
+  const entries = ENTRIES.concat([{ level: 'nicht-ausgewertet', sheet: 'First Certification', row: 30, header: 'WE1 RUN1 Score', field: 'we1.run1.score', raw: 'x', reason: 'Score …' }]);
+  assertEqual(filterDq(entries, { level: 'nicht-ausgewertet' }).map((e) => e.row), [30]);
+  assertEqual(filterDq(entries, { level: 'fehler' }).length, 4);
+  assertEqual(summarizeDq(entries).find((r) => r.level === 'nicht-ausgewertet').header, 'WE1 RUN1 Score');
 });

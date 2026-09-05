@@ -1,6 +1,13 @@
-// metrics.js – reine Funktionen: (Personen[], Filter/Modus) → Kennzahlen.
+// metrics.js – reine Funktionen: (Vorgänge[], Filter/Modus) → Kennzahlen.
 // Kein DOM, kein Graph, keine Seiteneffekte. Alle Quoten mit n (Nenner); Gruppen n<5 gekennzeichnet.
-// Voraussetzung: Personen stammen aus store.js (Personenmodell) und wurden mit filterPersons() gefiltert.
+// Voraussetzung: die Einträge stammen aus store.js (eine Zeile = ein Zertifizierungsvorgang, Parametername historisch
+// «persons») und wurden mit filterPersons() gefiltert. Menschen (Personen) liefert groupByPerson() über den Personenschlüssel.
+//
+// Modell (Entscheide E1–E4):
+// - Duplikate (duplicateOf gesetzt) sind keine Vorgänge und fliessen nie in Kennzahlen.
+// - Status je Vorgang: bestanden / nicht bestanden / offen (läuft noch) / nicht erfasst (unlesbar).
+//   Nenner der Bestehensquoten «insgesamt bestanden» und «mündlich bestanden» = abgeschlossene Vorgänge (bestanden + nicht bestanden).
+//   Offene und nicht erfasste Vorgänge werden als eigene Zahlen ausgewiesen.
 //
 // Fachliche Regeln (PROMPT.md):
 // - Referenzdatum: Datum des bestandenen OE-Runs, sonst letztes Prüfungsdatum (store.js, refDate).
@@ -18,6 +25,9 @@
 import { CONFIG, PROFILES } from './config.js';
 
 export const MODE = Object.freeze({ ERSTVERSUCH: 'erstversuch', BESTANDEN: 'bestanden' });
+
+// Status eines Vorgangs bzw. seiner Teile (E4)
+export const STATUS = Object.freeze({ BESTANDEN: 'bestanden', NICHT_BESTANDEN: 'nicht bestanden', OFFEN: 'offen', NICHT_ERFASST: 'nicht erfasst' });
 
 export const SMALL_N = 5; // Gruppen mit n < 5 kennzeichnen
 
@@ -62,9 +72,43 @@ export function formatPct(value, digits = 1) {
 // Filter
 // ---------------------------------------------------------------------------
 
-// In Kennzahlen fliessen nur Personen mit ≥1 WE-RUN-Datum.
+// Kein Duplikat (E1)
+export function isVorgang(p) {
+  return !p.duplicateOf;
+}
+
+// In Kennzahlen fliessen nur Vorgänge (keine Duplikate) mit ≥1 absolviertem, datiertem WE-Run.
 export function eligible(persons) {
-  return persons.filter((p) => p.hasWeDate);
+  return persons.filter((p) => isVorgang(p) && p.hasWeDate);
+}
+
+// Ausschlussgrund einer Zeile (null = kennzahlrelevant)
+export function exclusionReason(p) {
+  if (p.duplicateOf) return 'Duplikat (zusammengeführt mit «' + p.duplicateOf.sheet + '» Zeile ' + p.duplicateOf.row + ')';
+  if (!p.hasWeDate) {
+    const anyTaken = p.we.concat(p.oe).some((part) => part.runs.some((r) => r.taken));
+    const anyWeTaken = p.we.some((part) => part.runs.some((r) => r.taken));
+    const anyPlanned = p.we.concat(p.oe).some((part) => part.runs.some((r) => r.planned));
+    if (anyWeTaken) return 'Schriftlicher Run ohne Prüfungsdatum';
+    if (anyTaken) return 'Nur mündliche Runs erfasst, kein schriftlicher Run';
+    if (anyPlanned) return 'Noch keine Prüfung absolviert (nur geplante Termine)';
+    return 'Noch keine Prüfung absolviert';
+  }
+  return null;
+}
+
+// Status-Zähler über ein Statusfeld ('status' | 'weStatus' | 'oeStatus'); abgeschlossen = bestanden + nicht bestanden
+export function statusCounts(persons, field = 'status') {
+  const c = { n: persons.length, bestanden: 0, nichtBestanden: 0, offen: 0, nichtErfasst: 0, abgeschlossen: 0 };
+  for (const p of persons) {
+    const st = p[field];
+    if (st === STATUS.BESTANDEN) c.bestanden += 1;
+    else if (st === STATUS.NICHT_BESTANDEN) c.nichtBestanden += 1;
+    else if (st === STATUS.NICHT_ERFASST) c.nichtErfasst += 1;
+    else c.offen += 1;
+  }
+  c.abgeschlossen = c.bestanden + c.nichtBestanden;
+  return c;
 }
 
 function endOfDay(date) {
@@ -79,8 +123,8 @@ export function filterPersons(persons, filter = DEFAULT_FILTER, { eligibleOnly =
   const f = { ...DEFAULT_FILTER, ...filter };
   const from = period && f.from ? new Date(f.from).getTime() : null;
   const to = period && f.to ? endOfDay(f.to).getTime() : null;
-  return (eligibleOnly ? eligible(persons) : persons).filter((p) => {
-    if (f.onlyIssued && p.source !== 'issued') return false;
+  return (eligibleOnly ? eligible(persons) : persons.filter(isVorgang)).filter((p) => {
+    if (f.onlyIssued && !p.issued) return false;
     if (f.profil.length && !f.profil.includes(p.profil)) return false;
     if (f.sprache.length && !f.sprache.includes(p.sprache)) return false;
     if (f.bank.length && !f.bank.includes(p.employerCanon)) return false;
@@ -164,14 +208,19 @@ export function firstAttemptPassed(person) {
 // Schriftlich
 // ---------------------------------------------------------------------------
 
-// erstversuch / erstversuchFailed: Nenner = Personen mit mindestens einem absolvierten WE RUN1;
-// gesamt: Nenner = alle Personen im Filter
+// erstversuch / erstversuchFailed: Nenner = Vorgänge mit mindestens einem absolvierten WE RUN1;
+// gesamt / nichtBestanden: Nenner = abgeschlossene Vorgänge schriftlich (weStatus bestanden oder nicht bestanden, E4);
+// offen / nichtErfasst: Anzahl Vorgänge ohne bzw. mit unlesbarem schriftlichem Gesamtergebnis
 export function writtenPassRates(persons) {
   const withRun1 = persons.filter((p) => firstAttemptPassed(p) !== null);
+  const st = statusCounts(persons, 'weStatus');
   return {
     erstversuch: ratio(withRun1.filter((p) => firstAttemptPassed(p) === true).length, withRun1.length),
     erstversuchFailed: ratio(withRun1.filter((p) => firstAttemptPassed(p) === false).length, withRun1.length),
-    gesamt: ratio(persons.filter((p) => p.weAllPassed === true).length, persons.length),
+    gesamt: ratio(st.bestanden, st.abgeschlossen),
+    nichtBestanden: ratio(st.nichtBestanden, st.abgeschlossen),
+    offen: st.offen,
+    nichtErfasst: st.nichtErfasst,
   };
 }
 
@@ -220,14 +269,21 @@ function oe1Run(person, n) {
   return person.oe[0] && person.oe[0].runs[n - 1];
 }
 
-// Nenner: Personen mit absolviertem, datiertem OE1 RUN1 (geplante oder ausstehende Termine zählen nicht)
+// bestanden / nichtBestanden: Nenner = abgeschlossene Vorgänge mündlich (oeStatus bestanden oder nicht bestanden, E4);
+// failed1 / failed2: Nenner = Vorgänge mit absolviertem, datiertem OE1 RUN1 (angetreten; geplante oder ausstehende
+// Termine zählen nicht) – ein Fehlversuch ist unabhängig davon, ob der Vorgang schon abgeschlossen ist.
 export function oralPassRates(persons) {
   const base = persons.filter((p) => oe1Run(p, 1) && oe1Run(p, 1).taken && oe1Run(p, 1).date !== null);
   const n = base.length;
   const failed1 = base.filter((p) => oe1Run(p, 1).passed === false);
   const failed2 = failed1.filter((p) => oe1Run(p, 2) && oe1Run(p, 2).passed === false);
+  const st = statusCounts(persons, 'oeStatus');
   return {
-    bestanden: ratio(base.filter((p) => p.oeAllPassed === true).length, n),
+    bestanden: ratio(st.bestanden, st.abgeschlossen),
+    nichtBestanden: ratio(st.nichtBestanden, st.abgeschlossen),
+    offen: st.offen,
+    nichtErfasst: st.nichtErfasst,
+    angetreten: n,
     failed1: ratio(failed1.length, n),
     failed2: ratio(failed2.length, n),
   };
@@ -274,6 +330,46 @@ export function groupBy(persons, key) {
 // Kennzahl je Gruppe: [{ key, n, small, value }]
 export function byGroup(persons, key, fn) {
   return groupBy(persons, key).map((g) => ({ key: g.key, n: g.persons.length, small: g.persons.length < SMALL_N, value: fn(g.persons) }));
+}
+
+// ---------------------------------------------------------------------------
+// Personen (Menschen) aus Vorgängen (E2, E3)
+// ---------------------------------------------------------------------------
+
+function firstExamTime(p) {
+  return p.firstExamDate ? p.firstExamDate.getTime() : Infinity;
+}
+
+// [{ key, lastName, firstName, birthDate, vorgaenge, profiles }] – profiles in zeitlicher Reihenfolge des ersten
+// Prüfungsdatums (ohne Datum zuletzt, dann Zeilenreihenfolge), Profil null als null. Duplikate werden ignoriert.
+export function groupByPerson(persons) {
+  const map = new Map();
+  for (const p of persons) {
+    if (!isVorgang(p)) continue;
+    let g = map.get(p.personKey);
+    if (!g) {
+      g = { key: p.personKey, lastName: p.lastName, firstName: p.firstName, birthDate: p.birthDate || null, vorgaenge: [], profiles: [] };
+      map.set(p.personKey, g);
+    }
+    g.vorgaenge.push(p);
+  }
+  for (const g of map.values()) {
+    const ordered = g.vorgaenge.slice().sort((a, b) => firstExamTime(a) - firstExamTime(b) || a.row - b.row);
+    g.profiles = [...new Set(ordered.map((v) => (v.profil === undefined ? null : v.profil)))];
+  }
+  return [...map.values()];
+}
+
+export function personCount(persons) {
+  return groupByPerson(persons).length;
+}
+
+// Kennzahl «Personen mit mehreren Profilen»: [{ ...person, sequence: 'IK → CWMA' }], nach Name sortiert
+export function multiProfilePersons(persons) {
+  return groupByPerson(persons)
+    .filter((g) => g.profiles.length > 1)
+    .map((g) => ({ ...g, sequence: g.profiles.map((x) => (x === null ? 'unbekannt' : x)).join(' → ') }))
+    .sort((a, b) => collator.compare((a.lastName || '') + ' ' + (a.firstName || ''), (b.lastName || '') + ' ' + (b.firstName || '')));
 }
 
 // ---------------------------------------------------------------------------
@@ -413,15 +509,49 @@ export function plannedGroups(runs) {
 
 export function overview(persons, mode) {
   return {
-    n: persons.length,
+    n: persons.length,                 // Vorgänge im Filter
+    personen: personCount(persons),    // Menschen im Filter (Personenschlüssel)
     small: persons.length < SMALL_N,
+    status: statusCounts(persons),
     written: writtenPassRates(persons),
     writtenPerf: writtenPerformance(persons, mode),
     oral: oralPassRates(persons),
     oralPerf: oralPerformance(persons, mode),
     vss: persons.filter((p) => p.vss).length,
     vsm: persons.filter((p) => p.vsm).length,
-    issued: persons.filter((p) => p.source === 'issued').length,
+    issued: persons.filter((p) => p.issued).length,
     byProfil: byGroup(persons, 'profil', (ps) => ({ written: writtenPassRates(ps), oral: oralPassRates(ps) })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Modellvergleich alt → neu (Übergangsbericht P1; auf allen Zeilen, auch Duplikaten)
+// alt: Zeile = Person, Duplikate zählen mit, «insgesamt bestanden» = WE All yes / alle, «mündlich bestanden» = OE All yes /
+//      Vorgänge mit absolviertem, datiertem OE1 RUN1.
+// neu: Duplikate zusammengeführt, Nenner = abgeschlossene Vorgänge (E4).
+// ---------------------------------------------------------------------------
+
+function oldWritten(ps) {
+  return ratio(ps.filter((p) => p.weAllPassed === true).length, ps.length);
+}
+
+function oldOral(ps) {
+  const base = ps.filter((p) => oe1Run(p, 1) && oe1Run(p, 1).taken && oe1Run(p, 1).date !== null);
+  return ratio(base.filter((p) => p.oeAllPassed === true).length, base.length);
+}
+
+export function modelComparison(allRows) {
+  const oldBase = allRows.filter((p) => p.hasWeDate);
+  const newBase = eligible(allRows);
+  const row = (key, oldPs, newPs) => ({
+    key,
+    alt: { n: oldPs.length, written: oldWritten(oldPs), oral: oldOral(oldPs) },
+    neu: { n: newPs.length, personen: personCount(newPs), written: writtenPassRates(newPs).gesamt, oral: oralPassRates(newPs).bestanden, status: statusCounts(newPs) },
+  });
+  const oldGroups = groupBy(oldBase, 'profil');
+  const newGroups = new Map(groupBy(newBase, 'profil').map((g) => [g.key, g.persons]));
+  return {
+    gesamt: row('Gesamt', oldBase, newBase),
+    byProfil: oldGroups.map((g) => row(g.key, g.persons, newGroups.get(g.key) || [])),
   };
 }

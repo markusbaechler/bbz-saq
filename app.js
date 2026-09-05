@@ -76,10 +76,13 @@ function renderStatus(text) {
   }
   const source = meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint';
   const counts = meta.counts || {};
+  const keyNote = meta.personKey && !meta.personKey.complete ? ' · Personenschlüssel nur aus Namen (Geburtsdatum-Header nicht gefunden)' : '';
   ui.status.textContent = meta.fileName + ' (' + source + ') · geändert ' + (fmtDateTime(meta.lastModified) || '–') + ' · geladen ' + (fmtTime(meta.loadedAt) || '–')
-    + ' · ' + persons.length + ' Personen (' + (counts.first || 0) + ' First Certification, ' + (counts.issued || 0) + ' Ausgestellte Zertifikate)'
-    + ' · kennzahlrelevant ' + eligible(persons).length
-    + ' · Data-Quality-Log: ' + (counts.fehler || 0) + ' Fehler, ' + (counts.hinweise || 0) + ' Hinweise';
+    + ' · ' + (counts.zeilen || persons.length) + ' Zeilen (' + (counts.first || 0) + ' First Certification, ' + (counts.issued || 0) + ' Ausgestellte Zertifikate)'
+    + ' · ' + (counts.vorgaenge || 0) + ' Vorgänge, ' + (counts.personen || 0) + ' Personen, ' + (counts.duplikate || 0) + ' Duplikate'
+    + ' · kennzahlrelevant ' + eligible(persons).length + ' · offen ' + (counts.offen || 0) + ' · nicht erfasst ' + (counts.nichtErfasst || 0)
+    + ' · Data-Quality-Log: ' + (counts.fehler || 0) + ' Fehler, ' + (counts.hinweise || 0) + ' Hinweise, ' + (counts.nichtAusgewertet || 0) + ' nicht ausgewertet'
+    + keyNote;
 }
 
 // ---------------------------------------------------------------------------

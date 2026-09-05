@@ -12,24 +12,35 @@
 // jede nicht interpretierbare Zelle → Data-Quality-Log; keine Persistenz im Browser (nur Memory).
 //
 // Data-Quality-Log (DQ): ein Eintrag { level, sheet, row, header, field, raw, reason } pro Zelle.
-//   level 'fehler'  = Zelle nicht interpretierbar (Wert wird null)
-//   level 'hinweis' = Wert wurde interpretiert oder abgeleitet, weicht aber von der Erwartung ab,
-//                     bzw. Konsistenzregel verletzt (z. B. mündlich erfasst ohne bestandene schriftliche Prüfung)
+//   level 'fehler'            = Zelle nicht interpretierbar (Wert wird null)
+//   level 'hinweis'           = Wert wurde interpretiert oder abgeleitet, weicht aber von der Erwartung ab,
+//                               bzw. Konsistenzregel verletzt (z. B. mündlich erfasst ohne bestandene schriftliche Prüfung)
+//   level 'nicht-ausgewertet' = Zelle nicht interpretierbar, aber das Feld fliesst in keine Kennzahl (Score, Entscheid E6 offen)
+//
+// Modell (Entscheide E1–E4 des Auftraggebers):
+// - Eine Zeile ist ein Zertifizierungsvorgang (kurz Vorgang). Eine Person (Mensch) hat n Vorgänge – z. B. IK und CWMA.
+// - Personenschlüssel (E2): normalisiert aus Last Name, First Name, Geburtsdatum. Nicht Employer (Bankwechsel = dieselbe Person).
+// - Duplikat (E1): zwei Zeilen derselben Person mit gleichem Profil und ohne widersprüchliche Prüfungsdaten sind derselbe
+//   Vorgang – meist einmal in «First Certification» und einmal in «Ausgestellte Zertifikate». Die App führt sie zu einem
+//   Vorgang zusammen (Lücken auffüllen, nie überschreiben), meldet das im DQ-Log und zählt nichts doppelt.
+// - Status je Vorgang (E4): bestanden / nicht bestanden / offen (Gesamtergebnis leer = Prozess läuft noch) /
+//   nicht erfasst (Gesamtergebnis vorhanden, aber unlesbar → DQ-Fehler). Getrennt für schriftlich (weStatus), mündlich (oeStatus)
+//   und den Vorgang (status).
 //
 // Fachliche Festlegungen (mit dem Auftraggeber abgestimmt bzw. aus der Datei abgeleitet):
 // - Ein Run gilt als absolviert, wenn ein Passed-Wert vorhanden ist. Nur ein Datum (geplanter Termin) oder
 //   nur Score/Result (Formelvorgaben 0) machen keinen Versuch.
 // - Ohne Namen (Last Name und First Name leer) keine Person; Zeilen ohne Inhalt in gemappten Spalten sind leer.
-// - Sheet «Ausgestellte Zertifikate»: leeres «WE All yes» gilt als bestanden (Zertifikat setzt schriftlich
-//   und mündlich voraus) – mit Hinweis im DQ-Log.
+// - Sheet «Ausgestellte Zertifikate»: leere Gesamtergebnisse «WE All yes» / «OE All yes» gelten als bestanden
+//   (Zertifikat setzt schriftlich und mündlich voraus) – mit Hinweis im DQ-Log. Ein «no» bleibt ein «no».
 
 import {
   CONFIG, HEADER_FIELDS, PROFILES, PROFILE_ALIASES, LANGUAGES, LANGUAGE_ALIASES, PROFILE_LANGUAGE_HINTS,
-  PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
+  PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, BIRTH_DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
 } from './config.js';
-import { DEFAULT_FILTER, filterPersons, eligible, groupBy } from './metrics.js';
+import { DEFAULT_FILTER, STATUS, filterPersons, eligible, groupBy, groupByPerson, dayKey } from './metrics.js';
 
-export const LEVEL = Object.freeze({ FEHLER: 'fehler', HINWEIS: 'hinweis' });
+export const LEVEL = Object.freeze({ FEHLER: 'fehler', HINWEIS: 'hinweis', NICHT_AUSGEWERTET: 'nicht-ausgewertet' });
 
 // ---------------------------------------------------------------------------
 // Hilfsfunktionen
@@ -117,9 +128,11 @@ export function parseEmployer(raw) {
 // Zahl als Text, optional mit (auch mehrfachem) Prozentzeichen: «89.00%», «71.59», «66%%», «89,5%»
 const RESULT_TEXT = /^\s*(\d+(?:[.,]\d+)?)\s*(%*)\s*$/;
 
-function resultFromNumber(n) {
+// Zahl ohne Prozentzeichen: 0–1 gilt als Anteil (Grenzfall 1 = 100 %, nicht 1 %); > 1 bis 100 gilt als Prozentwert
+// und wird durch 100 geteilt – diese Umdeutung wird als Hinweis geloggt (Befund 11, analog zur Excel-Serienzahl).
+function resultFromNumber(n, shown) {
   if (n >= 0 && n <= 1) return ok(n);
-  if (n > 1 && n <= 100) return ok(n / 100);
+  if (n > 1 && n <= 100) return note(n / 100, 'Result «' + shown + '» ohne Prozentzeichen und > 1 – als Prozentwert interpretiert (' + n + ' % → ' + (n / 100) + ')');
   return bad(null, 'Result ausserhalb 0–100');
 }
 
@@ -127,7 +140,7 @@ export function parseResult(raw) {
   if (isBlank(raw)) return ok(null);
   if (typeof raw === 'number') {
     if (!Number.isFinite(raw)) return bad(null, 'Result ist keine gültige Zahl');
-    return resultFromNumber(raw);
+    return resultFromNumber(raw, String(raw));
   }
   if (typeof raw === 'string') {
     const m = RESULT_TEXT.exec(raw);
@@ -137,15 +150,17 @@ export function parseResult(raw) {
       if (n < 0 || n > 100) return bad(null, 'Result ausserhalb 0–100 %');
       return ok(n / 100);
     }
-    return resultFromNumber(n);
+    return resultFromNumber(n, raw.trim());
   }
   return bad(null, 'Result hat unerwarteten Typ (' + typeName(raw) + ')');
 }
 
+// Score (Header «WE{n} RUN{r} Score» / «OE{n} RUN{r} Score») fliesst in keine Kennzahl; Entscheid E6 offen.
+// Nicht interpretierbare Werte deshalb auf Stufe «nicht ausgewertet» statt Fehler.
 export function parseScore(raw) {
   if (isBlank(raw)) return ok(null);
   if (typeof raw === 'number' && Number.isInteger(raw) && raw >= 0) return ok(raw);
-  return bad(null, 'Score ist keine ganze Zahl ≥ 0');
+  return { value: null, reason: 'Score ist keine ganze Zahl ≥ 0 – Feld wird nicht ausgewertet (Entscheid E6 offen)', level: LEVEL.NICHT_AUSGEWERTET };
 }
 
 // dd.mm.yy(yy) [ / hh.mm | hh:mm ] [h | Uhr]; Trenner Punkt oder Komma
@@ -153,8 +168,8 @@ const DATE_TEXT = /^\s*(\d{1,2})[.,](\d{1,2})[.,](\d{2}|\d{4})(?:\s*\/\s*(\d{1,2
 const DATE_NO_YEAR = /^\s*\d{1,2}\.\d{1,2}\.\s*(?:\/.*)?$/;
 const DATE_3DIGIT_YEAR = /^\s*\d{1,2}[.,]\d{1,2}[.,]\d{3}\s*(?:\/.*)?$/;
 
-function yearPlausible(year) {
-  return year >= DATE_RULES.minYear && year <= DATE_RULES.maxYear;
+function yearPlausible(year, rules) {
+  return year >= rules.minYear && year <= rules.maxYear;
 }
 
 // Excel-Serienzahl (Tage seit 1899-12-30) → lokales Datum
@@ -163,15 +178,16 @@ function serialToDate(serial) {
   return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate(), utc.getUTCHours(), utc.getUTCMinutes());
 }
 
-export function parseDate(raw) {
+// rules: DATE_RULES (Prüfungsdaten) oder BIRTH_DATE_RULES (Geburtsdatum)
+export function parseDateWith(raw, rules = DATE_RULES) {
   if (isBlank(raw)) return ok(null);
   if (raw instanceof Date) {
     if (Number.isNaN(raw.getTime())) return bad(null, 'Datum ungültig (Invalid Date)');
-    if (!yearPlausible(raw.getFullYear())) return bad(null, 'Jahr unplausibel (' + raw.getFullYear() + '), erwartet ' + DATE_RULES.minYear + '–' + DATE_RULES.maxYear);
+    if (!yearPlausible(raw.getFullYear(), rules)) return bad(null, 'Jahr unplausibel (' + raw.getFullYear() + '), erwartet ' + rules.minYear + '–' + rules.maxYear);
     return ok(raw);
   }
   if (typeof raw === 'number') {
-    if (Number.isFinite(raw) && raw >= DATE_RULES.serialMin && raw <= DATE_RULES.serialMax) {
+    if (Number.isFinite(raw) && raw >= rules.serialMin && raw <= rules.serialMax) {
       return note(serialToDate(raw), 'Datum als Zahl ohne Datumsformat (' + raw + '), als Excel-Serienzahl interpretiert');
     }
     return bad(null, 'Datum liegt als Zahl vor (' + raw + '), keine plausible Excel-Serienzahl');
@@ -191,14 +207,57 @@ export function parseDate(raw) {
   const daysInMonth = new Date(year, month, 0).getDate();
   if (month < 1 || month > 12 || day < 1 || day > daysInMonth) return bad(null, 'Datum ungültig (Tag/Monat)');
   if (hour > 23 || minute > 59) return bad(null, 'Uhrzeit ungültig');
-  if (!yearPlausible(year)) return bad(null, 'Jahr unplausibel (' + year + '), erwartet ' + DATE_RULES.minYear + '–' + DATE_RULES.maxYear);
+  if (!yearPlausible(year, rules)) return bad(null, 'Jahr unplausibel (' + year + '), erwartet ' + rules.minYear + '–' + rules.maxYear);
   return ok(new Date(year, month - 1, day, hour, minute));
+}
+
+export function parseDate(raw) {
+  return parseDateWith(raw, DATE_RULES);
+}
+
+export function parseBirthDate(raw) {
+  return parseDateWith(raw, BIRTH_DATE_RULES);
 }
 
 // VSS/VSM aus Threaded-Comment-Text (beides möglich)
 export function parseVssVsm(text) {
   const t = typeof text === 'string' ? text : '';
   return { vss: VSS_REGEX.test(t), vsm: VSM_REGEX.test(t) };
+}
+
+// ---------------------------------------------------------------------------
+// Personenschlüssel (E2) und Status (E4)
+// ---------------------------------------------------------------------------
+
+// Namensteil normalisieren: Akzente entfernen (NFD), ß → ss, Kleinschreibung, nur Buchstaben/Ziffern, ein Leerzeichen
+// als Trenner. «Müller-Meier», «Muller Meier» und «MÜLLER  MEIER» ergeben denselben Schlüssel.
+export function normalizeNamePart(raw) {
+  return String(raw === null || raw === undefined ? '' : raw)
+    .normalize('NFD').replace(/\p{M}/gu, '').replace(/ß/g, 'ss').toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
+// Schlüssel «nachname|vorname|YYYY-MM-DD». Ohne Geburtsdatum bleibt der dritte Teil leer (Stufe «name-only»).
+export function personKeyOf({ lastName, firstName, birthDate }) {
+  const bd = birthDate instanceof Date && !Number.isNaN(birthDate.getTime()) ? dayKey(birthDate) : '';
+  return normalizeNamePart(lastName) + '|' + normalizeNamePart(firstName) + '|' + bd;
+}
+
+// Status aus einer Gesamtergebnis-Zelle (WE All / OE All): yes → bestanden, no → nicht bestanden,
+// leer → offen (Prozess läuft noch, E4), nicht leer und unlesbar → nicht erfasst (DQ-Fehler)
+export function statusOf(value, raw) {
+  if (value === true) return STATUS.BESTANDEN;
+  if (value === false) return STATUS.NICHT_BESTANDEN;
+  return isBlank(raw) ? STATUS.OFFEN : STATUS.NICHT_ERFASST;
+}
+
+// Status des Vorgangs: nicht bestanden, sobald ein Teil nicht bestanden ist; bestanden nur, wenn beide bestanden sind;
+// nicht erfasst, wenn ein Teil unlesbar ist und keiner nicht bestanden; sonst offen.
+export function combineStatus(weStatus, oeStatus) {
+  if (weStatus === STATUS.NICHT_BESTANDEN || oeStatus === STATUS.NICHT_BESTANDEN) return STATUS.NICHT_BESTANDEN;
+  if (weStatus === STATUS.BESTANDEN && oeStatus === STATUS.BESTANDEN) return STATUS.BESTANDEN;
+  if (weStatus === STATUS.NICHT_ERFASST || oeStatus === STATUS.NICHT_ERFASST) return STATUS.NICHT_ERFASST;
+  return STATUS.OFFEN;
 }
 
 // ---------------------------------------------------------------------------
@@ -376,18 +435,29 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
       profil: field('profil', parseProfile),
       sprache: field('sprache', parseLanguage),
       spracheDerived: false,
+      birthDate: map.birthDate === undefined ? null : field('birthDate', parseBirthDate),
+      personKey: null,          // E2: nachname|vorname|geburtsdatum (siehe personKeyOf)
+      personKeyLevel: null,     // 'full' (mit Geburtsdatum) | 'name-only'
       ...parseVssVsm(comments[CONFIG.commentColumn + row]),
       certStart: map.certStart === undefined ? null : field('certStart', parseDate),
       certNumber: map.certNumber === undefined ? null : asText(get('certNumber')),
+      issued: source === 'issued', // Zertifikat ausgestellt (Sheet 2 oder mit einer Sheet-2-Zeile zusammengeführt)
       we: buildParts('we', CONFIG.we),
       oe: buildParts('oe', CONFIG.oe),
       weAllPassed: field('weAllPassed', parsePassed),
       weAllDerived: false,
       oeAllPassed: field('oeAllPassed', parsePassed),
+      oeAllDerived: false,
+      weStatus: null,           // E4: bestanden | nicht bestanden | offen | nicht erfasst
+      oeStatus: null,
+      status: null,
       refDate: null,
       refDateSource: null,
+      firstExamDate: null,
       attemptsTotal: 0,
       hasWeDate: false,
+      duplicateOf: null,        // E1: { sheet, row } des Vorgangs, in den diese Zeile zusammengeführt wurde
+      duplicates: [],           // E1: zusammengeführte Zeilen [{ sheet, row }]
     };
 
     // Sprache ableiten, wenn «Certificate Language» leer: 1. Programmbezeichnung (z. B. «PK FRZ»),
@@ -411,51 +481,203 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
       }
     }
 
-    // Abgeleitete Felder
-    const weRuns = person.we.flatMap((part) => part.runs);
     const oeRuns = person.oe.flatMap((part) => part.runs);
-    const takenRuns = weRuns.concat(oeRuns).filter((r) => r.taken);
-    person.attemptsTotal = takenRuns.length;
-    person.hasWeDate = weRuns.some((r) => r.taken && r.date !== null);
+    const weAllRaw = get('weAllPassed');
+    const oeAllRaw = get('oeAllPassed');
 
-    // Referenzdatum: Datum des bestandenen OE-Runs (letzter mit passed=true);
-    // ohne bestandene OE: letztes Datum eines absolvierten Runs.
-    const passedOe = latest(oeRuns.filter((r) => r.taken && r.passed === true && r.date).map((r) => r.date));
-    if (passedOe) {
-      person.refDate = passedOe;
-      person.refDateSource = 'oe';
-    } else {
-      const lastExam = latest(takenRuns.filter((r) => r.date).map((r) => r.date));
-      if (lastExam) {
-        person.refDate = lastExam;
-        person.refDateSource = 'lastExam';
+    // Sheet «Ausgestellte Zertifikate»: ein Zertifikat setzt schriftlich und mündlich bestanden voraus (Festlegung
+    // Auftraggeber). Leere Gesamtergebnisse gelten dort als bestanden (Hinweis) – nicht als «offen» (E4). «no» bleibt «no».
+    if (source === 'issued') {
+      if (isBlank(weAllRaw)) {
+        person.weAllPassed = true;
+        person.weAllDerived = true;
+        hint('weAllPassed', weAllRaw, 'WE All leer bei ausgestelltem Zertifikat – schriftlich als bestanden übernommen (Zertifikat setzt schriftlich und mündlich voraus)');
+      }
+      if (isBlank(oeAllRaw)) {
+        person.oeAllPassed = true;
+        person.oeAllDerived = true;
+        hint('oeAllPassed', oeAllRaw, 'OE All leer bei ausgestelltem Zertifikat – mündlich als bestanden übernommen (Zertifikat setzt schriftlich und mündlich voraus)');
       }
     }
 
     // Konsistenzregel: Voraussetzung für mündlich ist die bestandene schriftliche Prüfung.
     // Nur bei tatsächlich absolvierter OE; nicht interpretierbare Werte sind bereits als Fehler geloggt.
-    const weAllRaw = get('weAllPassed');
-    if (oeRuns.some((r) => r.taken) && person.weAllPassed !== true) {
-      if (source === 'issued' && isBlank(weAllRaw)) {
-        person.weAllPassed = true;
-        person.weAllDerived = true;
-        hint('weAllPassed', weAllRaw, 'WE All leer bei ausgestelltem Zertifikat – schriftlich als bestanden übernommen (Zertifikat setzt schriftlich und mündlich voraus)');
-      } else if (person.weAllPassed === false || isBlank(weAllRaw)) {
-        hint('weAllPassed', weAllRaw, 'Mündliche Prüfung mit Ergebnis erfasst, aber schriftliche Prüfung nicht als bestanden markiert (Voraussetzung für mündlich)');
-      }
+    if (oeRuns.some((r) => r.taken) && person.weAllPassed !== true && (person.weAllPassed === false || isBlank(weAllRaw))) {
+      hint('weAllPassed', weAllRaw, 'Mündliche Prüfung mit Ergebnis erfasst, aber schriftliche Prüfung nicht als bestanden markiert (Voraussetzung für mündlich)');
     }
+
+    // Status (E4), Personenschlüssel (E2), abgeleitete Felder
+    person.weStatus = statusOf(person.weAllPassed, weAllRaw);
+    person.oeStatus = statusOf(person.oeAllPassed, oeAllRaw);
+    person.personKey = personKeyOf(person);
+    person.personKeyLevel = person.birthDate ? 'full' : 'name-only';
+    deriveFields(person);
 
     persons.push(person);
   }
 
-  return { persons, dq };
+  return { persons, dq, headers: { birthDate: map.birthDate === undefined ? null : String(headerRow[map.birthDate]).trim() } };
 }
 
-// Beide Sheets → eine Personenliste + gesammeltes Data-Quality-Log
+// Abgeleitete Felder eines Vorgangs (nach Normalisierung und nach jeder Zusammenführung neu berechnet)
+export function deriveFields(person) {
+  const weRuns = person.we.flatMap((part) => part.runs);
+  const oeRuns = person.oe.flatMap((part) => part.runs);
+  const takenRuns = weRuns.concat(oeRuns).filter((r) => r.taken);
+  person.attemptsTotal = takenRuns.length;
+  person.hasWeDate = weRuns.some((r) => r.taken && r.date !== null);
+  const dated = takenRuns.filter((r) => r.date).map((r) => r.date);
+  person.firstExamDate = dated.length ? new Date(Math.min(...dated.map((d) => d.getTime()))) : null;
+
+  // Referenzdatum: Datum des bestandenen OE-Runs (letzter mit passed=true);
+  // ohne bestandene OE: letztes Datum eines absolvierten Runs.
+  const passedOe = latest(oeRuns.filter((r) => r.taken && r.passed === true && r.date).map((r) => r.date));
+  if (passedOe) {
+    person.refDate = passedOe;
+    person.refDateSource = 'oe';
+  } else {
+    const lastExam = latest(dated);
+    person.refDate = lastExam;
+    person.refDateSource = lastExam ? 'lastExam' : null;
+  }
+  person.status = combineStatus(person.weStatus, person.oeStatus);
+  return person;
+}
+
+// ---------------------------------------------------------------------------
+// Personen und Duplikate über beide Sheets (E1, E2, E3)
+// ---------------------------------------------------------------------------
+
+function runList(person) {
+  const out = [];
+  for (const kind of ['we', 'oe']) {
+    for (const part of person[kind]) {
+      for (const r of part.runs) out.push({ label: kind.toUpperCase() + part.part + ' RUN' + r.n, kind, part, run: r });
+    }
+  }
+  return out;
+}
+
+// Widersprüche zwischen zwei Zeilen: derselbe Run hat in beiden ein Datum bzw. einen Passed-Wert, und diese weichen ab.
+// Leere Felder widersprechen nie (die Zeilen ergänzen sich dann).
+export function runConflicts(a, b) {
+  const other = new Map(runList(b).map((x) => [x.label, x.run]));
+  const conflicts = [];
+  for (const { label, run } of runList(a)) {
+    const o = other.get(label);
+    if (!o) continue;
+    if (run.date && o.date && dayKey(run.date) !== dayKey(o.date)) conflicts.push(label + ' Date');
+    if (run.passed !== null && o.passed !== null && run.passed !== o.passed) conflicts.push(label + ' Passed');
+  }
+  return conflicts;
+}
+
+function fillRun(target, sourceRun) {
+  for (const what of ['passed', 'date', 'score', 'result', 'location']) {
+    if (target[what] === null && sourceRun[what] !== null) target[what] = sourceRun[what];
+  }
+  target.taken = target.passed !== null;
+  target.planned = !target.taken && (target.planned || sourceRun.planned);
+}
+
+// Lücken des behaltenen Vorgangs aus dem Duplikat auffüllen – nie überschreiben (Widersprüche wurden vorher ausgeschlossen).
+export function mergeVorgang(keep, dup) {
+  for (const kind of ['we', 'oe']) {
+    keep[kind].forEach((part, i) => {
+      const otherPart = dup[kind][i];
+      if (!otherPart) return;
+      if (part.passed === null && otherPart.passed !== null) part.passed = otherPart.passed;
+      part.runs.forEach((run, r) => { if (otherPart.runs[r]) fillRun(run, otherPart.runs[r]); });
+    });
+  }
+  // Gesamtergebnis: ein vorhandenes Ergebnis (bestanden / nicht bestanden) ersetzt «offen» oder «nicht erfasst»
+  for (const [flag, status, derived] of [['weAllPassed', 'weStatus', 'weAllDerived'], ['oeAllPassed', 'oeStatus', 'oeAllDerived']]) {
+    if (keep[flag] === null && dup[flag] !== null) {
+      keep[flag] = dup[flag];
+      keep[status] = dup[status];
+      keep[derived] = dup[derived];
+    }
+  }
+  for (const key of ['certNumber', 'certStart', 'birthDate', 'profil', 'sprache', 'employer', 'employerCanon', 'role']) {
+    if (keep[key] === null && dup[key] !== null) keep[key] = dup[key];
+  }
+  keep.vss = keep.vss || dup.vss;
+  keep.vsm = keep.vsm || dup.vsm;
+  keep.issued = keep.issued || dup.issued;
+  keep.duplicates.push({ sheet: dup.sheetName, row: dup.row });
+  dup.duplicateOf = { sheet: keep.sheetName, row: keep.row };
+  deriveFields(keep);
+  return keep;
+}
+
+// Zeilen derselben Person (E2) mit gleichem Profil sind Kandidaten für denselben Vorgang (E1). Kompatible Zeilen
+// (keine widersprüchlichen Prüfungsdaten) werden zusammengeführt: behalten wird die Zeile mit den meisten absolvierten
+// Runs, bei Gleichstand die aus «Ausgestellte Zertifikate», sonst die frühere. Widersprüchliche Zeilen bleiben eigene
+// Vorgänge (z. B. Wiederholung desselben Profils) und erhalten einen Hinweis.
+export function linkPersons(persons, dq) {
+  const byKey = new Map();
+  persons.forEach((p, index) => {
+    p.duplicateOf = null;
+    p.duplicates = [];
+    if (!byKey.has(p.personKey)) byKey.set(p.personKey, []);
+    byKey.get(p.personKey).push({ p, index });
+  });
+  let duplikate = 0;
+  let profilKonflikte = 0;
+  for (const items of byKey.values()) {
+    if (items.length < 2) continue;
+    const byProfile = new Map();
+    for (const item of items) {
+      const k = item.p.profil === null ? '' : String(item.p.profil);
+      if (!byProfile.has(k)) byProfile.set(k, []);
+      byProfile.get(k).push(item);
+    }
+    for (const candidates of byProfile.values()) {
+      if (candidates.length < 2) continue;
+      // Cluster kompatibler Zeilen: jede Zeile kommt zum ersten Cluster, dem sie nicht widerspricht
+      const clusters = [];
+      for (const item of candidates) {
+        const target = clusters.find((c) => c.every((o) => runConflicts(item.p, o.p).length === 0));
+        if (target) target.push(item);
+        else clusters.push([item]);
+      }
+      if (clusters.length > 1) {
+        const first = clusters[0][0].p;
+        for (const cluster of clusters.slice(1)) {
+          const p = cluster[0].p;
+          const conflicts = runConflicts(p, first);
+          profilKonflikte += 1;
+          dq.push({
+            level: LEVEL.HINWEIS, sheet: p.sheetName, row: p.row, header: 'Certificate Program', field: 'profilKonflikt', raw: p.profil,
+            reason: 'Gleiche Person und gleiches Profil wie «' + first.sheetName + '» Zeile ' + first.row + ', aber abweichende Prüfungsdaten (' + conflicts.join(', ') + ') – als eigener Vorgang gezählt (Wiederholung?)',
+          });
+        }
+      }
+      for (const cluster of clusters) {
+        if (cluster.length < 2) continue;
+        const sorted = cluster.slice().sort((a, b) => (b.p.attemptsTotal - a.p.attemptsTotal) || ((b.p.source === 'issued') - (a.p.source === 'issued')) || (a.index - b.index));
+        const keep = sorted[0].p;
+        for (const { p: dup } of sorted.slice(1)) {
+          mergeVorgang(keep, dup);
+          duplikate += 1;
+          dq.push({
+            level: LEVEL.HINWEIS, sheet: dup.sheetName, row: dup.row, header: 'Last Name', field: 'duplikat', raw: null,
+            reason: 'Duplikat: derselbe Zertifizierungsvorgang wie «' + keep.sheetName + '» Zeile ' + keep.row + ' (gleiche Person, gleiches Profil, keine abweichenden Prüfungsdaten) – zusammengeführt, zählt nicht doppelt',
+          });
+        }
+      }
+    }
+  }
+  return { duplikate, profilKonflikte };
+}
+
+// Beide Sheets → eine Liste von Vorgängen (persons[]; Duplikate bleiben mit duplicateOf markiert enthalten)
+// + gesammeltes Data-Quality-Log + Zähler. Kennzahlen arbeiten nur auf Vorgängen ohne duplicateOf (metrics.eligible/filterPersons).
 export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}, options = {}) {
   const persons = [];
   const dq = [];
-  const counts = { first: 0, issued: 0, persons: 0, dq: 0, fehler: 0, hinweise: 0 };
+  const birthDateHeaders = {};
+  const counts = { first: 0, issued: 0 };
   for (const sheet of sheets) {
     if (!SOURCES.includes(sheet.source)) {
       throw new Error('Unbekanntes Sheet «' + sheet.sheetName + '» – erlaubt sind nur ' + Object.values(CONFIG.sheets).join(', '));
@@ -464,12 +686,31 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
     persons.push(...result.persons);
     dq.push(...result.dq);
     counts[sheet.source] += result.persons.length;
+    birthDateHeaders[sheet.source] = result.headers.birthDate;
   }
-  counts.persons = persons.length;
-  counts.dq = dq.length;
-  counts.fehler = dq.filter((e) => e.level === LEVEL.FEHLER).length;
-  counts.hinweise = dq.filter((e) => e.level === LEVEL.HINWEIS).length;
-  return { persons, dq, meta: { ...meta, counts } };
+  const { duplikate, profilKonflikte } = linkPersons(persons, dq);
+  const vorgaenge = persons.filter((p) => !p.duplicateOf);
+  const people = groupByPerson(vorgaenge);
+  const byStatus = (st) => vorgaenge.filter((p) => p.status === st).length;
+  Object.assign(counts, {
+    zeilen: persons.length,
+    vorgaenge: vorgaenge.length,
+    personen: people.length,
+    duplikate,
+    profilKonflikte,
+    mehrereProfile: people.filter((g) => g.profiles.length > 1).length,
+    bestanden: byStatus(STATUS.BESTANDEN),
+    nichtBestanden: byStatus(STATUS.NICHT_BESTANDEN),
+    offen: byStatus(STATUS.OFFEN),
+    nichtErfasst: byStatus(STATUS.NICHT_ERFASST),
+    schluesselOhneGeburtsdatum: vorgaenge.filter((p) => p.personKeyLevel !== 'full').length,
+    dq: dq.length,
+    fehler: dq.filter((e) => e.level === LEVEL.FEHLER).length,
+    hinweise: dq.filter((e) => e.level === LEVEL.HINWEIS).length,
+    nichtAusgewertet: dq.filter((e) => e.level === LEVEL.NICHT_AUSGEWERTET).length,
+  });
+  const personKey = { fields: ['Last Name', 'First Name', 'Geburtsdatum'], birthDateHeaders, complete: Object.values(birthDateHeaders).every((h) => h !== null) };
+  return { persons, dq, meta: { ...meta, counts, personKey } };
 }
 
 // ---------------------------------------------------------------------------

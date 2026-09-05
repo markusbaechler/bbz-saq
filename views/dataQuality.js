@@ -3,10 +3,12 @@
 
 import { CONFIG } from '../config.js';
 
-export const LEVEL_LABELS = { fehler: 'Fehler', hinweis: 'Hinweis' };
+// Stufen: Fehler (nicht interpretierbar, Wert ignoriert), Hinweis (interpretiert/abgeleitet, auffällig),
+// Nicht ausgewertet (nicht interpretierbar, aber Feld fliesst in keine Kennzahl – Score, Entscheid E6 offen)
+export const LEVEL_LABELS = { fehler: 'Fehler', hinweis: 'Hinweis', 'nicht-ausgewertet': 'Nicht ausgewertet' };
 
 export function levelOf(entry) {
-  return entry && entry.level === 'hinweis' ? 'hinweis' : 'fehler';
+  return entry && LEVEL_LABELS[entry.level] ? entry.level : 'fehler';
 }
 
 export const DQ_COLUMNS = [
@@ -132,9 +134,10 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
   ]);
   sheetSelect.value = s.sheet;
   const levelSelect = el('select', { class: 'dq-level', 'aria-label': 'Stufe filtern', onchange: (ev) => onChange({ ...s, level: ev.target.value }) }, [
-    el('option', { value: '', text: 'Fehler und Hinweise' }),
+    el('option', { value: '', text: 'Alle Stufen' }),
     el('option', { value: 'fehler', text: 'Nur Fehler' }),
     el('option', { value: 'hinweis', text: 'Nur Hinweise' }),
+    el('option', { value: 'nicht-ausgewertet', text: 'Nur nicht ausgewertete' }),
   ]);
   levelSelect.value = s.level;
   const textInput = el('input', {
@@ -142,7 +145,9 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
     oninput: (ev) => onChange({ ...s, text: ev.target.value }),
   });
   const nFehler = entries.filter((e) => levelOf(e) === 'fehler').length;
-  const count = el('span', { class: 'dq-count', text: visible.length + ' von ' + entries.length + ' Einträgen (' + nFehler + ' Fehler, ' + (entries.length - nFehler) + ' Hinweise)' });
+  const nHinweise = entries.filter((e) => levelOf(e) === 'hinweis').length;
+  const nNa = entries.length - nFehler - nHinweise;
+  const count = el('span', { class: 'dq-count', text: visible.length + ' von ' + entries.length + ' Einträgen (' + nFehler + ' Fehler, ' + nHinweise + ' Hinweise, ' + nNa + ' nicht ausgewertet)' });
   container.appendChild(el('div', { class: 'toolbar dq-toolbar' }, [sheetSelect, levelSelect, textInput, count]));
   if (restoreFocus) {
     textInput.focus();
