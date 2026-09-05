@@ -2,7 +2,7 @@ import { test, assert, assertEqual } from './runner.js';
 import { MODE } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
-  rankingTables, plannedTables, overviewModel, SMALL_MARK,
+  rankingTables, plannedTables, overviewModel, comparisonTable, SMALL_MARK,
 } from '../views/tables.js';
 import { makePerson } from './fixtures.js';
 
@@ -136,6 +136,10 @@ test('tables.overviewModel: KPIs mit n und Kennzeichnung, Tabelle je Profil', ()
   assertEqual(byLabel['Schriftlich: Ø Resultat 1. Versuch'].count, null, 'Mittelwerte haben keine absolute Zahl');
   assertEqual(byLabel['Personen'].count, null);
   assert(m.kpis.every((x) => 'count' in x));
+  assertEqual([k.kind, k.raw], ['ratio', 0.5], 'Art und Rohwert für Vergleiche');
+  assertEqual(byLabel['Schriftlich: Ø Resultat 1. Versuch'].kind, 'mean');
+  assertEqual(byLabel['Personen'].kind, 'count');
+  assertEqual(byLabel['Personen'].raw, 4);
   assert(m.kpis.every((x) => typeof x.hint === 'string' && x.hint.length > 0));
   assertEqual(byLabel['Schriftlich: im 1. Versuch durchgefallen'].value, '50.0 %');
   assertEqual(byLabel['Schriftlich: insgesamt bestanden'].value, '75.0 %');
@@ -149,4 +153,29 @@ test('tables.overviewModel: KPIs mit n und Kennzeichnung, Tabelle je Profil', ()
   assertEqual(byLabel['Ausgestellte Zertifikate'].value, '0');
   assertEqual(m.byProfil.columns.map((c) => c.label), ['Profil', 'n', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich im 1. Versuch durchgefallen', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden']);
   assertEqual(m.byProfil.rows.map((r) => r.gruppe), ['PK *', 'IK *', 'unbekannt *']);
+});
+
+test('tables.comparisonTable: Auswahl gegen Benchmark je Kennzahl, Differenz in Prozentpunkten', () => {
+  const selection = overviewModel(cohort().filter((p) => p.employerCanon === 'Testbank AG'));
+  const benchmark = overviewModel(cohort());
+  const t = comparisonTable(selection.kpis, benchmark.kpis, 'Alle Banken');
+  assertEqual(t.columns.map((c) => c.label), ['Kennzahl', 'Auswahl', 'n (Auswahl)', 'Benchmark: Alle Banken', 'n (Benchmark)', 'Differenz']);
+  const byLabel = Object.fromEntries(t.rows.map((r) => [r.kennzahl, r]));
+  // Testbank: A, B → im 1. Versuch bestanden A (50.0 %); alle: 50.0 % → Differenz 0
+  assertEqual(byLabel['Schriftlich: im 1. Versuch bestanden'], { kennzahl: 'Schriftlich: im 1. Versuch bestanden', auswahl: '50.0 %', n: 2, benchmark: '50.0 %', n2: 4, differenz: '0.0 pp', small: true });
+  // insgesamt bestanden: Testbank 100 % (A, B) vs alle 75 % → +25.0 pp
+  assertEqual(byLabel['Schriftlich: insgesamt bestanden'].differenz, '+25.0 pp');
+  // Ø Resultat 1. Versuch: Testbank (0.7+0.5)/2 = 0.6 vs alle 0.6125 → −1.3 pp
+  assertEqual(byLabel['Schriftlich: Ø Resultat 1. Versuch'].differenz, '−1.3 pp');
+  assertEqual(byLabel['Personen'].differenz, '', 'Zählungen ohne Differenz');
+  assertEqual(byLabel['Personen'].auswahl, '2');
+  assertEqual(t.rows.length, selection.kpis.length);
+});
+
+test('tables.comparisonTable: fehlender Wert → Strich statt Differenz', () => {
+  const none = overviewModel([]);
+  const all = overviewModel(cohort());
+  const t = comparisonTable(none.kpis, all.kpis, 'Alle Banken');
+  const row = t.rows.find((r) => r.kennzahl === 'Schriftlich: im 1. Versuch bestanden');
+  assertEqual([row.auswahl, row.differenz], ['–', '–']);
 });

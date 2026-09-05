@@ -27,9 +27,13 @@ Druckansicht. Der Filterzustand steht im Kopf jedes Exports.
 ## Globale Filter
 
 Zeitraum (Von–Bis, Jahres-Shortcuts, «Alle»; wirkt auf das Referenzdatum), Profil, Sprache, Bank, VSS/VSM,
-Versuche (alle | nur 1. Versuch | mehrere Versuche), Wertung Bestenlisten (Resultat 1. Versuch | Resultat bestandener Run),
-«nur ausgestellte Zertifikate» (Sheet 2). Die Wertung wirkt nur auf die Bestenlisten; alle anderen Ansichten zeigen
-beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfungen» wirken Zeitraum und Wertung nicht.
+Versuche (alle | nur 1. Versuch | mehrere Versuche), «nur ausgestellte Zertifikate» (Sheet 2).
+Die Wertung (Resultat 1. Versuch | Resultat bestandener Run) wird nur in der Ansicht «Bestenlisten» gewählt; alle anderen
+Ansichten zeigen beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfungen» wirkt der Zeitraum nicht.
+
+**Benchmark (Übersicht):** Die Kacheln und eine Vergleichstabelle stellen die Auswahl einem Benchmark gegenüber, der
+dieselben Filter verwendet, nur ohne die gewählte Einschränkung: Alle Banken (Standard), Alle Profile, Alle Sprachen
+oder Gesamt (nur Zeitraum). Differenzen in Prozentpunkten.
 
 ## Kennzahl-Definitionen
 

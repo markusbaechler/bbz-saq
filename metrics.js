@@ -99,6 +99,24 @@ export function filterPersons(persons, filter = DEFAULT_FILTER, { eligibleOnly =
   });
 }
 
+// Benchmark (Übersicht): gleiche Filter wie die Auswahl, aber ohne die gewählte Einschränkung
+export const BENCHMARKS = [
+  { id: 'bank', label: 'Alle Banken', hint: 'gleicher Zeitraum und gleiche übrigen Filter, ohne Bank-Filter' },
+  { id: 'profil', label: 'Alle Profile', hint: 'gleicher Zeitraum und gleiche übrigen Filter, ohne Profil-Filter' },
+  { id: 'sprache', label: 'Alle Sprachen', hint: 'gleicher Zeitraum und gleiche übrigen Filter, ohne Sprach-Filter' },
+  { id: 'gesamt', label: 'Gesamt (nur Zeitraum)', hint: 'alle Personen im Zeitraum, ohne weitere Filter' },
+];
+
+export function benchmarkFilter(filter, kind = 'bank') {
+  const f = { ...DEFAULT_FILTER, ...filter };
+  switch (kind) {
+    case 'profil': return { ...f, profil: [] };
+    case 'sprache': return { ...f, sprache: [] };
+    case 'gesamt': return { ...f, profil: [], sprache: [], bank: [], vssVsm: 'alle', versuche: 'alle', onlyIssued: false };
+    default: return { ...f, bank: [] };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Pro Person (Versuchsmodus)
 // ---------------------------------------------------------------------------

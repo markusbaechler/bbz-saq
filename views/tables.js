@@ -184,22 +184,24 @@ export function overviewModel(persons) {
   const op1 = oralPerformance(persons, MODE.ERSTVERSUCH);
   const op2 = oralPerformance(persons, MODE.BESTANDEN);
   // count: absolute Zahl bei Anteilen (x von n Personen), null bei Mittelwerten und Zählungen
-  const kpi = (label, value, n, hint, count = null) => ({ label, value, n, small: n < SMALL_N, hint, count });
-  const rate = (label, r, hint) => kpi(label, formatPct(r.pct), r.n, hint, r.count);
+  // kind/raw: Art und Rohwert für Vergleiche (ratio: Anteil 0..1, mean: Mittel 0..1, count: Zahl)
+  const kpi = (label, value, n, hint, extra = {}) => ({ label, value, n, small: n < SMALL_N, hint, count: null, kind: 'count', raw: null, ...extra });
+  const rate = (label, r, hint) => kpi(label, formatPct(r.pct), r.n, hint, { count: r.count, kind: 'ratio', raw: r.pct });
+  const avg = (label, m, hint) => kpi(label, formatPct(m.mean), m.n, hint, { kind: 'mean', raw: m.mean });
   const kpis = [
-    kpi('Personen', String(o.n), o.n, 'Personen im Filter mit mindestens einem absolvierten, datierten schriftlichen Run'),
+    kpi('Personen', String(o.n), o.n, 'Personen im Filter mit mindestens einem absolvierten, datierten schriftlichen Run', { raw: o.n }),
     rate('Schriftlich: im 1. Versuch bestanden', o.written.erstversuch, 'Anteil Personen, die alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden haben'),
     rate('Schriftlich: im 1. Versuch durchgefallen', o.written.erstversuchFailed, 'Anteil Personen mit mindestens einer Teilprüfung, die im ersten Versuch nicht bestanden wurde'),
     rate('Schriftlich: insgesamt bestanden', o.written.gesamt, 'Anteil Personen mit «WE All Passed» = yes, unabhängig von der Anzahl Versuche'),
-    kpi('Schriftlich: Ø Resultat 1. Versuch', formatPct(wp1.mean), wp1.n, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des ersten Versuchs je Teilprüfung'),
-    kpi('Schriftlich: Ø Resultat bestandener Run', formatPct(wp2.mean), wp2.n, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des bestandenen Runs; nur Personen, deren Teilprüfungen alle bestanden sind'),
+    avg('Schriftlich: Ø Resultat 1. Versuch', wp1, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des ersten Versuchs je Teilprüfung'),
+    avg('Schriftlich: Ø Resultat bestandener Run', wp2, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des bestandenen Runs; nur Personen, deren Teilprüfungen alle bestanden sind'),
     rate('Mündlich: bestanden', o.oral.bestanden, 'Anteil Personen mit «OE All Passed» = yes; n = Personen mit absolvierter mündlicher Prüfung OE1'),
     rate('Mündlich: im 1. Versuch durchgefallen', o.oral.failed1, 'OE1 im ersten Versuch nicht bestanden, unabhängig vom späteren Erfolg'),
     rate('Mündlich: 2× durchgefallen', o.oral.failed2, 'OE1 im ersten und im zweiten Versuch nicht bestanden'),
-    kpi('Mündlich: Ø Resultat 1. Versuch', formatPct(op1.mean), op1.n, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), erster Versuch'),
-    kpi('Mündlich: Ø Resultat bestandener Run', formatPct(op2.mean), op2.n, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), bestandener Run'),
+    avg('Mündlich: Ø Resultat 1. Versuch', op1, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), erster Versuch'),
+    avg('Mündlich: Ø Resultat bestandener Run', op2, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), bestandener Run'),
     kpi('VSS / VSM', o.vss + ' / ' + o.vsm, o.n, 'Anzahl Personen mit Kennzeichnung VSS bzw. VSM aus dem Kommentar auf der Namenszelle'),
-    kpi('Ausgestellte Zertifikate', String(o.issued), o.n, 'Personen aus dem Sheet «Ausgestellte Zertifikate» im Filter'),
+    kpi('Ausgestellte Zertifikate', String(o.issued), o.n, 'Personen aus dem Sheet «Ausgestellte Zertifikate» im Filter', { raw: o.issued }),
   ];
   const byProfil = {
     title: 'Kennzahlen je Profil',
@@ -212,4 +214,35 @@ export function overviewModel(persons) {
     note: SMALL_NOTE,
   };
   return { kpis, byProfil };
+}
+
+// ---------------------------------------------------------------------------
+// Benchmark-Vergleich (Übersicht): Auswahl gegen Benchmark je Kennzahl
+// ---------------------------------------------------------------------------
+
+function isNum(v) {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+// Differenz in Prozentpunkten: «+25.0 pp», «−1.3 pp», «0.0 pp»
+export function formatPp(delta) {
+  const rounded = Math.round(Math.abs(delta) * 10 + 1e-9) / 10;
+  const sign = rounded === 0 ? '' : (delta > 0 ? '+' : '−');
+  return sign + rounded.toFixed(1) + ' pp';
+}
+
+export function comparisonTable(selectionKpis, benchmarkKpis, benchmarkLabel) {
+  const byLabel = new Map(benchmarkKpis.map((k) => [k.label, k]));
+  const rows = selectionKpis.map((k) => {
+    const b = byLabel.get(k.label);
+    let differenz = '';
+    if (k.kind !== 'count') differenz = isNum(k.raw) && b && isNum(b.raw) ? formatPp((k.raw - b.raw) * 100) : '–';
+    return { kennzahl: k.label, auswahl: k.value, n: k.n, benchmark: b ? b.value : '–', n2: b ? b.n : 0, differenz, small: k.small };
+  });
+  return {
+    title: 'Auswahl im Vergleich zum Benchmark',
+    columns: [col('kennzahl', 'Kennzahl'), col('auswahl', 'Auswahl'), col('n', 'n (Auswahl)'), col('benchmark', 'Benchmark: ' + benchmarkLabel), col('n2', 'n (Benchmark)'), col('differenz', 'Differenz')],
+    rows,
+    note: 'Differenz in Prozentpunkten (Auswahl minus Benchmark); ' + SMALL_NOTE,
+  };
 }

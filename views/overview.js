@@ -1,7 +1,8 @@
 // views/overview.js – View 1 «Übersicht»: KPIs gesamt für den aktiven Filter, Kennzahlen je Profil.
 
-import { overviewModel, plannedTables } from './tables.js';
+import { overviewModel, plannedTables, comparisonTable } from './tables.js';
 import { renderKpis, renderTable, section, el } from './common.js';
+import { BENCHMARKS } from '../metrics.js';
 
 export const id = 'uebersicht';
 export const label = 'Übersicht';
@@ -9,7 +10,26 @@ export const label = 'Übersicht';
 export function build(ctx) {
   const m = overviewModel(ctx.persons);
   const planned = plannedTables(ctx.plannedPersons || []);
+  const bench = ctx.benchmark || null;
+  let comparison = null;
+  if (bench) {
+    const bm = overviewModel(bench.persons);
+    comparison = comparisonTable(m.kpis, bm.kpis, bench.label);
+    const byLabel = new Map(bm.kpis.map((k) => [k.label, k]));
+    for (const k of m.kpis) {
+      const b = byLabel.get(k.label);
+      if (b && k.kind !== 'count') k.benchmark = b.value;
+    }
+  }
   const kpis = m.kpis.concat([{ label: 'Geplante Prüfungstermine', value: String(planned.total), n: planned.total, small: false, hint: 'Termine in der Zukunft ohne Ergebnis (Filter Profil, Sprache, Bank, VSS/VSM)' }]);
+  const benchmarkBar = bench ? el('div', { class: 'toolbar benchmark-bar' }, [
+    el('label', { class: 'inline' }, ['Benchmark ', (() => {
+      const select = el('select', { onchange: (ev) => ctx.onBenchmarkChange && ctx.onBenchmarkChange(ev.target.value) }, BENCHMARKS.map((b) => el('option', { value: b.id, text: b.label })));
+      select.value = bench.kind;
+      return select;
+    })()]),
+    el('span', { class: 'meta-list', text: (BENCHMARKS.find((b) => b.id === bench.kind) || {}).hint + ' · Benchmark: ' + bench.persons.length + ' Personen' + (bench.persons.length === ctx.persons.length ? ' (entspricht der Auswahl, kein entsprechender Filter aktiv)' : '') }),
+  ]) : null;
   const kpiTable = {
     title: 'Kennzahlen gesamt',
     columns: [{ key: 'label', label: 'Kennzahl' }, { key: 'value', label: 'Wert' }, { key: 'count', label: 'Anzahl' }, { key: 'n', label: 'n' }, { key: 'hint', label: 'Beschreibung' }],
@@ -18,10 +38,12 @@ export function build(ctx) {
   return {
     nodes: [
       el('p', { class: 'meta-list', text: 'Kennzahlen für Personen mit mindestens einem absolvierten, datierten schriftlichen Run im aktiven Filter. Quoten sind Anteile von Personen; Ø Resultat ist der Mittelwert der erreichten Punkte in Prozent.' }),
+      benchmarkBar,
       renderKpis(kpis),
       el('p', { class: 'note', text: '* Kennzahl auf Basis von n < 5 Personen (Aussagekraft eingeschränkt)' }),
+      comparison ? section('Auswahl im Vergleich zum Benchmark', [renderTable(comparison)], { intro: 'Differenz in Prozentpunkten: Auswahl minus Benchmark. Der Benchmark verwendet dieselben Filter wie die Auswahl, nur ohne die gewählte Einschränkung.' }) : null,
       section('Kennzahlen je Profil', [renderTable(m.byProfil)]),
     ],
-    tables: [kpiTable, m.byProfil],
+    tables: comparison ? [kpiTable, comparison, m.byProfil] : [kpiTable, m.byProfil],
   };
 }

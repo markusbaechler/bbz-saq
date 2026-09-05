@@ -5,7 +5,7 @@ import { GraphError, AuthExpiredError } from './graph.js';
 import { load, loadFromFile } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
-import { DEFAULT_FILTER, MODE, filterPersons, eligible, dayKey } from './metrics.js';
+import { filterPersons, eligible, dayKey, benchmarkFilter, BENCHMARKS } from './metrics.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { el, exportBar } from './views/common.js';
 import { renderDataQuality, DEFAULT_DQ_STATE } from './views/dataQuality.js';
@@ -25,6 +25,7 @@ const ui = {};
 let authReady = false;
 let busy = false;
 let dqState = { ...DEFAULT_DQ_STATE };
+let benchmarkKind = 'bank';
 
 function $(id) {
   return document.getElementById(id);
@@ -128,13 +129,12 @@ function renderFilterBar() {
     selectControl('Bank', single(filter.bank), listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] })),
     selectControl('VSS/VSM', filter.vssVsm, [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v })),
     selectControl('Versuche', filter.versuche, [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v })),
-    selectControl('Wertung Bestenlisten', filter.mode, [{ value: MODE.ERSTVERSUCH, label: 'Resultat 1. Versuch' }, { value: MODE.BESTANDEN, label: 'Resultat bestandener Run' }], (v) => set({ mode: v })),
     el('label', { class: 'check' }, [el('input', { type: 'checkbox', onchange: (ev) => set({ onlyIssued: ev.target.checked }) }), 'Nur ausgestellte Zertifikate']),
     el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() }),
   );
   bar.querySelector('input[type="checkbox"]').checked = !!filter.onlyIssued;
   const n = store.getFilteredPersons().length;
-  bar.appendChild(el('div', { class: 'summary', text: n + ' Personen im Filter (mit absolviertem, datiertem WE-Run) · ' + filterLines(filter, store.getState().meta).slice(1).join(' · ') }));
+  bar.appendChild(el('div', { class: 'summary', text: n + ' Personen im Filter (mit absolviertem, datiertem WE-Run) · ' + filterLines(filter, store.getState().meta).slice(1).filter((l) => !l.startsWith('Wertung')).join(' · ') }));
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +180,16 @@ function renderView() {
     filter,
     meta: state.meta,
     headerLines,
+    benchmark: {
+      kind: benchmarkKind,
+      label: (BENCHMARKS.find((b) => b.id === benchmarkKind) || BENCHMARKS[0]).label,
+      persons: filterPersons(state.persons, benchmarkFilter(filter, benchmarkKind)),
+    },
+    onBenchmarkChange: (kind) => {
+      benchmarkKind = kind;
+      renderView();
+    },
+    onModeChange: (mode) => store.setFilter({ mode }),
   };
   let built;
   try {

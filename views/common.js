@@ -43,6 +43,7 @@ export function renderKpis(kpis) {
     el('div', { class: 'kpi-label', text: k.label }),
     el('div', { class: 'kpi-value', text: k.value }),
     el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' Personen' : 'n = ' + k.n) + (k.small ? ' *' : '') }),
+    k.benchmark ? el('div', { class: 'kpi-bench', text: 'Benchmark: ' + k.benchmark }) : null,
     k.hint ? el('div', { class: 'kpi-hint', text: k.hint }) : null,
   ])));
 }

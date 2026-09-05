@@ -5,6 +5,7 @@ import {
   writtenPassRates, writtenPerformance, writtenPerformanceByPart,
   oralPassRates, oralPerformance, groupBy, byGroup, vssVsmBreakdown,
   awardScore, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, dayKey, partFirstAttempt,
+  benchmarkFilter, BENCHMARKS,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -473,4 +474,23 @@ test('oralPassRates: geplante oder ausstehende OE1 RUN1 (Datum ohne Passed) zäh
   const r = oralPassRates([done, plannedOe, pending, undated]);
   assertEqual(r.bestanden.n, 1, 'nur absolvierte, datierte OE1 RUN1');
   assertEqual(r.bestanden.count, 1);
+});
+
+// ---------------------------------------------------------------------------
+// Benchmark (Übersicht)
+// ---------------------------------------------------------------------------
+
+test('benchmarkFilter: Bank-Benchmark hebt nur den Bank-Filter auf, übrige Filter bleiben', () => {
+  const f = { ...DEFAULT_FILTER, from: d('2025-01-01'), to: d('2025-12-31'), profil: ['PK'], sprache: ['DE'], bank: ['Testbank AG'], vssVsm: 'vss', versuche: 'erstversuch', onlyIssued: true, mode: MODE.BESTANDEN };
+  assertEqual(benchmarkFilter(f, 'bank'), { ...f, bank: [] });
+  assertEqual(benchmarkFilter(f, 'profil'), { ...f, profil: [] });
+  assertEqual(benchmarkFilter(f, 'sprache'), { ...f, sprache: [] });
+  assertEqual(benchmarkFilter(f, 'gesamt'), { ...f, profil: [], sprache: [], bank: [], vssVsm: 'alle', versuche: 'alle', onlyIssued: false }, 'nur Zeitraum und Wertung bleiben');
+  assertEqual(benchmarkFilter(f, 'unbekannt'), { ...f, bank: [] }, 'Standard = Bank');
+});
+
+test('BENCHMARKS: Auswahlwerte mit Beschriftung, Standard Bank', () => {
+  assertEqual(BENCHMARKS.map((b) => b.id), ['bank', 'profil', 'sprache', 'gesamt']);
+  assertEqual(BENCHMARKS[0].label, 'Alle Banken');
+  assert(BENCHMARKS.every((b) => typeof b.label === 'string'));
 });
