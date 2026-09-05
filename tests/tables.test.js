@@ -5,8 +5,9 @@ import {
   rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
-  earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns,
+  earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
 } from '../views/tables.js';
+import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
 import { LOCATION_CAPACITY } from '../config.js';
 
@@ -502,4 +503,34 @@ test('tables.numericColumns: Zählspalten per Schlüssel, Prozent-/pp-Spalten pe
   const mixed = { columns: [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }], rows: [{ a: '12.5 %', b: 'Bern' }, { a: '–', b: '3' }] };
   assertEqual([...numericColumns(mixed)], ['a']);
   assertEqual([...numericColumns({ columns: [{ key: 'x', label: 'X' }], rows: [] })], [], 'ohne Zeilen keine Inhaltsanalyse');
+});
+
+test('tables.historyTables: Stichtage chronologisch neben «Heute», Anteile mit n und Kennzeichnung, Differenz in pp bzw. absolut; Zahlen rechtsbündig', () => {
+  const alt = buildSnapshot({ persons: cohort().slice(0, 2), meta: { counts: { zeilen: 2, fehler: 3, offen: 0 } }, today: d('2026-01-31') });
+  const neu = buildSnapshot({ persons: cohort(), meta: { counts: { zeilen: 4, fehler: 1, offen: 0 } }, today: d('2026-05-31') });
+  const heute = buildSnapshot({ persons: cohort().concat([simple({ lastName: 'Neu', profil: 'PK', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: true, date: '2026-07-01', result: 0.8 }] }, oe: {} })]), meta: { counts: { zeilen: 5, fehler: 0, offen: 1 } }, today: d('2026-09-05') });
+  const t = historyTables([neu, alt], heute);
+  assertEqual(t.kennzahlen.columns.map((c) => c.label), ['Kennzahl', '31.01.2026', '31.05.2026', 'Heute (05.09.2026)', 'Differenz zum letzten Snapshot']);
+  const row = (tbl, label, key) => tbl.rows.find((r) => r[key] === label);
+  const vorg = row(t.kennzahlen, 'Vorgänge', 'kennzahl');
+  assertEqual([vorg.s0, vorg.s1, vorg.heute, vorg.differenz], [2, 4, 5, '+1']);
+  const ges = row(t.kennzahlen, 'Schriftlich: insgesamt bestanden', 'kennzahl');
+  assertEqual([ges.s0, ges.s1, ges.heute, ges.differenz], ['100.0 % * (n 2)', '75.0 % * (n 4)', '75.0 % * (n 4)', '0.0 pp'], 'offener Vorgang nicht im Nenner');
+  const offen = row(t.kennzahlen, 'Vorgänge offen', 'kennzahl');
+  assertEqual([offen.s0, offen.heute, offen.differenz], [0, 1, '+1']);
+  const zeilen = row(t.zaehler, 'Zeilen (beide Sheets)', 'zaehler');
+  assertEqual([zeilen.s0, zeilen.s1, zeilen.heute, zeilen.differenz], [2, 4, 5, '+1']);
+  assertEqual(row(t.zaehler, 'Data-Quality: Fehler', 'zaehler').differenz, '−1');
+  assertEqual(row(t.zaehler, 'Duplikate zusammengeführt', 'zaehler').heute, '–', 'fehlender Zähler → Strich');
+  assertEqual(t.jeProfil.map((x) => x.title), ['Je Profil: Schriftlich: insgesamt bestanden', 'Je Profil: Mündlich: bestanden', 'Je Profil: Vorgänge', 'Je Profil: Vorgänge offen']);
+  const pk = row(t.jeProfil[2], 'PK', 'profil');
+  assertEqual([pk.s0, pk.s1, pk.heute, pk.differenz], [2, 2, 3, '+1']);
+  const ik = row(t.jeProfil[2], 'IK', 'profil');
+  assertEqual([ik.s0, ik.s1, ik.heute, ik.differenz], ['–', 1, 1, '±0'], 'Profil im alten Snapshot ohne Vorgänge → Strich');
+  const numeric = numericColumns(t.kennzahlen);
+  assertEqual([...numeric].sort(), ['differenz', 'heute', 's0', 's1'], 'Prozent mit «(n 12)» und Differenzen gelten als Zahlen');
+  assert(!numericColumns(t.jeProfil[0]).has('profil'));
+  const ohne = historyTables([], heute);
+  assertEqual(ohne.kennzahlen.columns.map((c) => c.label), ['Kennzahl', 'Heute (05.09.2026)', 'Differenz zum letzten Snapshot']);
+  assertEqual(row(ohne.kennzahlen, 'Vorgänge', 'kennzahl').differenz, '–');
 });

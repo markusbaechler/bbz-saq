@@ -8,7 +8,8 @@
 import { DEFAULT_FILTER, MODE, BENCHMARKS, dayKey } from './metrics.js';
 
 // compare: zwei Jahre für den Zeitraumvergleich (a6), null = automatisch die zwei jüngsten Jahre mit Daten
-export const DEFAULT_UI = Object.freeze({ benchmark: 'bank', dq: null, compare: null });
+// snapshots / snapshotErrors (Historie, b7): nur im Memory, nie in der URL (Aggregate, aber Datei-Inhalte gehören nicht in Links)
+export const DEFAULT_UI = Object.freeze({ benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [] });
 
 const VSS_VALUES = ['alle', 'vss', 'vsm', 'ohne'];
 const VERSUCHE_VALUES = ['alle', 'erstversuch', 'mehrere'];

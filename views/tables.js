@@ -9,6 +9,7 @@ import {
   multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
   timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
   earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS, profileParts, personIndex, passerelleFrom } from '../metrics.js';
+import { compareKennzahlen, compareZaehler, compareByGroup } from '../snapshot.js';
 import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
 import { LOCATION_CAPACITY } from '../config.js';
 
@@ -20,7 +21,7 @@ export const GROUP_LABELS = { profil: 'Profil', sprache: 'Sprache', employerCano
 // Numerische Spalten eines Tabellenmodells (Befund 13): Zählspalten per Schlüssel sowie Spalten, deren nicht leere Werte
 // alle Zahlen, Prozentwerte («83.3 %»), Prozentpunkte («+1.3 pp») oder der Strich «–» sind. Rechtsbündig mit Tabellenziffern.
 const COUNT_KEYS = /^(n|n2|anzahl|rang|versuche|abgeschlossen|angetreten|offen|nichtErfasst|personen|vorgaenge|count|row|fehlversuche|tage|kapazitaet|nZert)$/;
-const NUMERIC_TEXT = /^\s*[−+-]?\d+([.,]\d+)?\s*(%|pp)?\s*\*?\s*$|^–$|^\d+\s*\/\s*\d+$/; // Zahl, Prozent, pp, Strich, «a / b»
+const NUMERIC_TEXT = /^\s*[−+±-]?\d+([.,]\d+)?\s*(%|pp)?\s*\*?\s*(\(n \d+\))?\s*$|^–$|^\d+\s*\/\s*\d+$/; // Zahl (auch ±0), Prozent, pp, Strich, «a / b», optional «(n 12)»
 
 export function numericColumns(table) {
   const out = new Set();
@@ -799,4 +800,66 @@ export function bankReportTables(bankPersons, benchmarkPersons, bankLabel) {
   const verlauf = timeSeriesTable(bankPersons);
   verlauf.title = 'Kennzahlen je Jahr: ' + bankLabel;
   return { kpis, byProfil, verlauf };
+}
+
+// ---------------------------------------------------------------------------
+// Historie (b7): Snapshots je Stichtag neben dem heutigen Stand
+// ---------------------------------------------------------------------------
+
+function stichtagLabel(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+  return m ? m[3] + '.' + m[2] + '.' + m[1] : String(s || '–');
+}
+
+function signed(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '–';
+  return (n > 0 ? '+' : n < 0 ? '−' : '±') + Math.abs(n);
+}
+
+// Zelle einer Kennzahl: count als Zahl; ratio/mean als Prozent mit n und Kennzeichnung kleiner Gruppen
+function kpiCell(kind, v) {
+  if (!v || v.value === null || v.value === undefined) return '–';
+  if (kind === 'count') return v.value;
+  return formatPct(v.value) + (v.n < SMALL_N ? ' ' + SMALL_MARK : '') + ' (n ' + v.n + ')';
+}
+
+function deltaCell(kind, d) {
+  if (d === null || d === undefined) return '–';
+  return kind === 'count' ? signed(d) : formatPp(d);
+}
+
+// snapshots: geladene Snapshots (snapshot.parseSnapshot), current: buildSnapshot des heutigen Stands
+export function historyTables(snapshots, current) {
+  const list = snapshots.slice().sort((a, b) => a.stichtag.localeCompare(b.stichtag) || String(a.erstellt || '').localeCompare(String(b.erstellt || '')));
+  const stichtage = list.map((s, i) => col('s' + i, stichtagLabel(s.stichtag)));
+  const heute = col('heute', 'Heute (' + stichtagLabel(current.stichtag) + ')');
+  const differenz = col('differenz', 'Differenz zum letzten Snapshot');
+  const fill = (row, cells, cur, d, kind) => {
+    cells.forEach((c, i) => { row['s' + i] = kind === 'zaehler' ? (c === null || c === undefined ? '–' : c) : kpiCell(kind, c); });
+    row.heute = kind === 'zaehler' ? (cur === null || cur === undefined ? '–' : cur) : kpiCell(kind, cur);
+    row.differenz = kind === 'zaehler' ? signed(d) : deltaCell(kind, d);
+    return row;
+  };
+  const kennzahlen = {
+    title: 'Kennzahlen je Stichtag (gesamt, ohne Filter)',
+    columns: [col('kennzahl', 'Kennzahl')].concat(stichtage, [heute, differenz]),
+    rows: compareKennzahlen(list, current).map((r) => fill({ kennzahl: r.label }, r.cells, r.current, r.delta, r.kind)),
+    note: 'Anteile mit n (Nenner wie in der Übersicht), ' + SMALL_NOTE + '; Differenz heute gegenüber dem jüngsten Snapshot, Anteile in Prozentpunkten, Zählungen absolut.',
+  };
+  const zaehler = {
+    title: 'Datei-Zähler je Stichtag (Zeilen, Status, Datenqualität)',
+    columns: [col('zaehler', 'Zähler')].concat(stichtage, [heute, differenz]),
+    rows: compareZaehler(list, current).map((r) => fill({ zaehler: r.label }, r.cells, r.current, r.delta, 'zaehler')),
+    note: 'Zeigt, wie sich die Datei zwischen den Stichtagen verändert hat (Zeilen, Duplikate, offene Vorgänge, Data-Quality-Einträge).',
+  };
+  const jeProfil = [['weGesamt', 'Schriftlich: insgesamt bestanden'], ['oeBestanden', 'Mündlich: bestanden'], ['vorgaenge', 'Vorgänge'], ['offen', 'Vorgänge offen']].map(([key, label]) => {
+    const kind = key === 'vorgaenge' || key === 'offen' ? 'count' : 'ratio';
+    return {
+      title: 'Je Profil: ' + label,
+      columns: [col('profil', 'Profil')].concat(stichtage, [heute, differenz]),
+      rows: compareByGroup(list, current, 'jeProfil', 'profil', key).map((r) => fill({ profil: groupLabel(r.group) }, r.cells, r.current, r.delta, kind)),
+      note: kind === 'ratio' ? 'Anteil mit n je Profil und Stichtag, ' + SMALL_NOTE : 'Anzahl je Profil und Stichtag; «–» = Profil an diesem Stichtag ohne Vorgänge',
+    };
+  });
+  return { kennzahlen, zaehler, jeProfil };
 }
