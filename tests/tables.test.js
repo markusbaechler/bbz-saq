@@ -126,8 +126,16 @@ test('tables.overviewModel: KPIs mit n und Kennzeichnung, Tabelle je Profil', ()
   const byLabel = Object.fromEntries(m.kpis.map((k) => [k.label, k]));
   assertEqual(byLabel['Personen'].value, '4');
   const k = byLabel['Schriftlich: im 1. Versuch bestanden'];
-  assertEqual([k.value, k.n, k.small], ['50.0 %', 4, true]);
+  assertEqual([k.value, k.n, k.small, k.count], ['50.0 %', 4, true, 2], 'Prozent und absolute Zahl');
   assert(typeof k.hint === 'string' && k.hint.length > 20, 'jede Kachel hat eine Beschreibung');
+  assertEqual(byLabel['Schriftlich: im 1. Versuch durchgefallen'].count, 2);
+  assertEqual(byLabel['Schriftlich: insgesamt bestanden'].count, 3);
+  assertEqual(byLabel['Mündlich: bestanden'].count, 3);
+  assertEqual(byLabel['Mündlich: im 1. Versuch durchgefallen'].count, 1);
+  assertEqual(byLabel['Mündlich: 2× durchgefallen'].count, 0);
+  assertEqual(byLabel['Schriftlich: Ø Resultat 1. Versuch'].count, null, 'Mittelwerte haben keine absolute Zahl');
+  assertEqual(byLabel['Personen'].count, null);
+  assert(m.kpis.every((x) => 'count' in x));
   assert(m.kpis.every((x) => typeof x.hint === 'string' && x.hint.length > 0));
   assertEqual(byLabel['Schriftlich: im 1. Versuch durchgefallen'].value, '50.0 %');
   assertEqual(byLabel['Schriftlich: insgesamt bestanden'].value, '75.0 %');

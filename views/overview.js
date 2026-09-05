@@ -12,8 +12,8 @@ export function build(ctx) {
   const kpis = m.kpis.concat([{ label: 'Geplante Prüfungstermine', value: String(planned.total), n: planned.total, small: false, hint: 'Termine in der Zukunft ohne Ergebnis (Filter Profil, Sprache, Bank, VSS/VSM)' }]);
   const kpiTable = {
     title: 'Kennzahlen gesamt',
-    columns: [{ key: 'label', label: 'Kennzahl' }, { key: 'value', label: 'Wert' }, { key: 'n', label: 'n' }, { key: 'hint', label: 'Beschreibung' }],
-    rows: kpis.map((k) => ({ label: k.label, value: k.value, n: k.n, hint: k.hint, small: k.small })),
+    columns: [{ key: 'label', label: 'Kennzahl' }, { key: 'value', label: 'Wert' }, { key: 'count', label: 'Anzahl' }, { key: 'n', label: 'n' }, { key: 'hint', label: 'Beschreibung' }],
+    rows: kpis.map((k) => ({ label: k.label, value: k.value, count: k.count === null || k.count === undefined ? '' : k.count, n: k.n, hint: k.hint, small: k.small })),
   };
   return {
     nodes: [

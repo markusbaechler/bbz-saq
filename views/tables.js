@@ -183,17 +183,19 @@ export function overviewModel(persons) {
   const wp2 = writtenPerformance(persons, MODE.BESTANDEN);
   const op1 = oralPerformance(persons, MODE.ERSTVERSUCH);
   const op2 = oralPerformance(persons, MODE.BESTANDEN);
-  const kpi = (label, value, n, hint) => ({ label, value, n, small: n < SMALL_N, hint });
+  // count: absolute Zahl bei Anteilen (x von n Personen), null bei Mittelwerten und Zählungen
+  const kpi = (label, value, n, hint, count = null) => ({ label, value, n, small: n < SMALL_N, hint, count });
+  const rate = (label, r, hint) => kpi(label, formatPct(r.pct), r.n, hint, r.count);
   const kpis = [
     kpi('Personen', String(o.n), o.n, 'Personen im Filter mit mindestens einem absolvierten, datierten schriftlichen Run'),
-    kpi('Schriftlich: im 1. Versuch bestanden', formatPct(o.written.erstversuch.pct), o.written.erstversuch.n, 'Anteil Personen, die alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden haben'),
-    kpi('Schriftlich: im 1. Versuch durchgefallen', formatPct(o.written.erstversuchFailed.pct), o.written.erstversuchFailed.n, 'Anteil Personen mit mindestens einer Teilprüfung, die im ersten Versuch nicht bestanden wurde'),
-    kpi('Schriftlich: insgesamt bestanden', formatPct(o.written.gesamt.pct), o.written.gesamt.n, 'Anteil Personen mit «WE All Passed» = yes, unabhängig von der Anzahl Versuche'),
+    rate('Schriftlich: im 1. Versuch bestanden', o.written.erstversuch, 'Anteil Personen, die alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden haben'),
+    rate('Schriftlich: im 1. Versuch durchgefallen', o.written.erstversuchFailed, 'Anteil Personen mit mindestens einer Teilprüfung, die im ersten Versuch nicht bestanden wurde'),
+    rate('Schriftlich: insgesamt bestanden', o.written.gesamt, 'Anteil Personen mit «WE All Passed» = yes, unabhängig von der Anzahl Versuche'),
     kpi('Schriftlich: Ø Resultat 1. Versuch', formatPct(wp1.mean), wp1.n, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des ersten Versuchs je Teilprüfung'),
     kpi('Schriftlich: Ø Resultat bestandener Run', formatPct(wp2.mean), wp2.n, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des bestandenen Runs; nur Personen, deren Teilprüfungen alle bestanden sind'),
-    kpi('Mündlich: bestanden', formatPct(o.oral.bestanden.pct), o.oral.bestanden.n, 'Anteil Personen mit «OE All Passed» = yes; n = Personen mit absolvierter mündlicher Prüfung OE1'),
-    kpi('Mündlich: im 1. Versuch durchgefallen', formatPct(o.oral.failed1.pct), o.oral.failed1.n, 'OE1 im ersten Versuch nicht bestanden, unabhängig vom späteren Erfolg'),
-    kpi('Mündlich: 2× durchgefallen', formatPct(o.oral.failed2.pct), o.oral.failed2.n, 'OE1 im ersten und im zweiten Versuch nicht bestanden'),
+    rate('Mündlich: bestanden', o.oral.bestanden, 'Anteil Personen mit «OE All Passed» = yes; n = Personen mit absolvierter mündlicher Prüfung OE1'),
+    rate('Mündlich: im 1. Versuch durchgefallen', o.oral.failed1, 'OE1 im ersten Versuch nicht bestanden, unabhängig vom späteren Erfolg'),
+    rate('Mündlich: 2× durchgefallen', o.oral.failed2, 'OE1 im ersten und im zweiten Versuch nicht bestanden'),
     kpi('Mündlich: Ø Resultat 1. Versuch', formatPct(op1.mean), op1.n, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), erster Versuch'),
     kpi('Mündlich: Ø Resultat bestandener Run', formatPct(op2.mean), op2.n, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), bestandener Run'),
     kpi('VSS / VSM', o.vss + ' / ' + o.vsm, o.n, 'Anzahl Personen mit Kennzeichnung VSS bzw. VSM aus dem Kommentar auf der Namenszelle'),

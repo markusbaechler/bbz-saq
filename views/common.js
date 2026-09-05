@@ -42,7 +42,7 @@ export function renderKpis(kpis) {
   return el('div', { class: 'kpis' }, kpis.map((k) => el('div', { class: 'kpi' + (k.small ? ' small' : ''), title: k.hint || null }, [
     el('div', { class: 'kpi-label', text: k.label }),
     el('div', { class: 'kpi-value', text: k.value }),
-    el('div', { class: 'kpi-n', text: 'n = ' + k.n + (k.small ? ' *' : '') }),
+    el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' Personen' : 'n = ' + k.n) + (k.small ? ' *' : '') }),
     k.hint ? el('div', { class: 'kpi-hint', text: k.hint }) : null,
   ])));
 }
