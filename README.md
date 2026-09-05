@@ -1,5 +1,7 @@
 # bbz Zertifizierungs-Cockpit «Reporting KUBA»
 
+[![Tests](https://github.com/markusbaechler/bbz-saq/actions/workflows/tests.yml/badge.svg)](https://github.com/markusbaechler/bbz-saq/actions/workflows/tests.yml)
+
 Read-only Dashboard (Single-Page-App ohne Build-Schritt) für die Prüfungskennzahlen der bbz-Zertifizierung.
 Datenquelle ist die Excel-Datei `Reporting_KUBA.xlsx` auf der SharePoint-Site bbz-Zertifizierung; gelesen werden
 ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikate». Die Datei wird nie verändert.
@@ -7,6 +9,7 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 - Live: https://markusbaechler.github.io/bbz-saq/ (Anmeldung mit M365-Konto, Zugriff gemäss SharePoint-Rechten)
 - Lokal: `python -m http.server 3000` → http://localhost:3000
 - Tests: `node tests/run-node.js` oder `tests.html` im Browser (synthetische Daten, keine Personendaten)
+- CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Syntaxprüfung aller Module, `node tests/run-node.js`, README-Glossar-Abgleich
 - Modellbericht auf einer lokalen Kopie der Datei (nur Zähler und Quoten): `node tools/modellbericht.js <Datei.xlsx>`
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
 
