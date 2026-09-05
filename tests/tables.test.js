@@ -3,6 +3,7 @@ import { MODE } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
   rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
+  awardDossierTable, rankReasonText, vorgangExportTables,
 } from '../views/tables.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -102,7 +103,7 @@ test('tables.vssVsmTable: VSS / VSM / ohne, je Profil, mit beiden Quoten', () =>
 
 test('tables.rankingTables: Top-Listen je Profil mit Rang, Name, Bank, Wert, Versuchen, Referenzdatum', () => {
   const persons = cohort();
-  const r = rankingTables(persons, MODE.ERSTVERSUCH, 5);
+  const r = rankingTables(persons, MODE.ERSTVERSUCH, 5, { dynamic: false });
   assertEqual(Object.keys(r), ['written', 'oral', 'award']);
   assertEqual(r.written.map((t) => t.profil), ['PK', 'IK', 'unbekannt']);
   assertEqual(r.written[0].columns.map((c) => c.label), ['Rang', 'Name', 'Bank', 'Schriftlich', 'Versuche', 'Referenzdatum']);
@@ -256,4 +257,62 @@ test('tables.openCasesTables: offene Vorgänge je Profil und Teilnehmende, ohne 
   assertEqual([t.details.rows[0].offen, t.details.rows[0].letzte, t.details.rows[0].naechste, t.details.rows[0].versuche], ['mündlich', '01.03.2024', '', 2]);
   assertEqual([t.details.rows[1].name, t.details.rows[1].letzte, t.details.rows[1].tage, t.details.rows[1].naechste], ['Neu Nora', '', '', '01.10.2026']);
   assertEqual(openCasesTables(cohort(), today).total, 0);
+});
+
+test('tables.rankingTables: Mindestgruppengrösse und dynamisches k – kleine Gruppen ohne Liste, Hinweis statt Rangliste (Befund 4)', () => {
+  const small = rankingTables(cohort(), MODE.ERSTVERSUCH, 5);
+  assertEqual(small.award.map((t) => [t.profil, t.n, t.k, t.suppressed, t.rows.length]), [['PK', 2, 0, true, 0], ['IK', 1, 0, true, 0], ['unbekannt', 1, 0, true, 0]]);
+  assertEqual(small.award[0].note, null, 'gesperrt: Grund steht im Leertext');
+  assert(small.award[0].empty.includes('n = 2 < 5'), small.award[0].empty);
+  const six = Array.from({ length: 6 }, (_, i) => simple({ lastName: 'P' + i, profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.5 + i * 0.05 }] } }));
+  const r = rankingTables(six, MODE.ERSTVERSUCH, 5);
+  assertEqual([r.written[0].n, r.written[0].k, r.written[0].suppressed, r.written[0].rows.length], [6, 3, false, 3]);
+  assertEqual(r.written[0].rows.map((x) => x.rang), [1, 2, 3]);
+  assert(r.written[0].note.startsWith('Top 3 von 6 Vorgängen'), r.written[0].note);
+});
+
+test('tables.awardDossierTable / rankReasonText: Begründung je Rang, gesperrte Gruppen im Hinweis', () => {
+  const persons = [
+    simple({ lastName: 'Best', firstName: 'B', profil: 'PK', employerCanon: 'Testbank AG', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.9 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } }),
+    simple({ lastName: 'TieEarly', firstName: 'E', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-05-01', result: 0.9 }] } }),
+    simple({ lastName: 'TieLate', firstName: 'L', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-07-01', result: 0.9 }] } }),
+    simple({ lastName: 'TieMore', firstName: 'M', profil: 'PK', oe: { 1: [{ passed: false, date: '2024-05-01', result: 0.4 }, { passed: true, date: '2024-07-01', result: 0.9 }] } }),
+    simple({ lastName: 'Last', firstName: 'X', profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.5 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.5 }] } }),
+    simple({ lastName: 'Small', firstName: 'S', profil: 'IK' }),
+  ];
+  const t = awardDossierTable(persons, MODE.BESTANDEN, 5, { dynamic: false });
+  assertEqual(t.columns.map((c) => c.label), ['Profil', 'Rang', 'Name', 'Bank', 'Sprache', 'Award-Score', 'Schriftlich', 'Mündlich', 'Versuche', 'Referenzdatum', 'Sheet', 'Zeile', 'Begründung Rang']);
+  assertEqual(t.rows.map((r) => [r.profil, r.rang, r.name]), [['PK', 1, 'Best B'], ['PK', 2, 'TieEarly E'], ['PK', 3, 'TieLate L'], ['PK', 4, 'TieMore M'], ['PK', 5, 'Last X'], ['IK', 1, 'Small S']]);
+  assertEqual(t.rows[0].begruendung, 'Score höher als Rang 2 (80.0 %)');
+  assertEqual(t.rows[1].begruendung, 'Gleicher Score und gleiche Versuche wie Rang 3 – Tie-Break 2: früheres Referenzdatum (01.05.2024 statt 01.07.2024)');
+  assertEqual(t.rows[2].begruendung, 'Gleicher Score wie Rang 4 – Tie-Break 1: weniger Prüfungsversuche (3 statt 4)');
+  assertEqual(t.rows[3].begruendung, 'Score höher als Rang 5 (50.0 %)');
+  assertEqual(t.rows[4].begruendung, 'Letzter gewerteter Vorgang der Gruppe; kein weiterer Vorgang mit Wert');
+  assert(t.note.includes('Bestanden (der bestandene Run zählt)') && t.note.includes('Tie-Break 1'), t.note);
+  const dyn = awardDossierTable(persons, MODE.BESTANDEN, 5);
+  assertEqual(dyn.rows.map((r) => [r.profil, r.rang]), [['PK', 1], ['PK', 2]], 'PK n = 5 → Top 2; IK n = 1 gesperrt');
+  assert(dyn.note.includes('Ohne Liste (Gruppe zu klein): IK (n = 1)'), dyn.note);
+  assertEqual(dyn.groups, [{ profil: 'PK', n: 5, k: 2, suppressed: false }, { profil: 'IK', n: 1, k: 0, suppressed: true }]);
+  assertEqual(rankReasonText({ reason: { by: 'none', vsRank: 2, next: {} } }), 'Vollständiger Gleichstand mit Rang 2 (Score, Versuche, Referenzdatum) – Reihenfolge alphabetisch, fachlich unentschieden');
+});
+
+test('tables.vorgangExportTables: eine Zeile je Vorgang und je Run, mit Status, Quoten-Bausteinen und Zertifikat', () => {
+  const p = simple({ lastName: 'Export', firstName: 'Eva', profil: 'PK', employerCanon: 'Testbank AG', employer: 'Testbank', vss: true, issued: true, certNumber: 'Z-9', certStart: d('2024-07-01'), duplicates: [{ sheet: 'First Certification', row: 12 }], personKeyLevel: 'full' });
+  const q = makePerson({ lastName: 'Plan', firstName: 'P', we: { 1: [{ date: '2030-01-01', planned: true, location: 'Bern' }] } });
+  const [cases, runs] = vorgangExportTables([p, q]);
+  assertEqual(cases.title, 'Vorgänge');
+  assertEqual(cases.rows.length, 2);
+  const r = cases.rows[0];
+  assertEqual([r.name, r.bank, r.employer, r.vss, r.vsm, r.status, r.weStatus, r.oeStatus, r.erstversuch], ['Export Eva', 'Testbank AG', 'Testbank', 'ja', 'nein', 'bestanden', 'bestanden', 'bestanden', 'ja']);
+  assertEqual([r.wr1, r.wr2, r.or1, r.or2, r.versuche], ['70.0 %', '70.0 %', '90.0 %', '90.0 %', 3]);
+  assertEqual([r.first, r.refDate, r.issued, r.certNumber, r.certStart, r.personKey, r.duplicates], ['01.03.2024', '01.06.2024', 'ja', 'Z-9', '01.07.2024', 'Name + Geburtsdatum', 'First Certification Zeile 12']);
+  assertEqual([cases.rows[1].status, cases.rows[1].erstversuch, cases.rows[1].wr1, cases.rows[1].personKey], ['offen', '', '–', 'nur Name']);
+  assertEqual(runs.title, 'Runs');
+  assertEqual(runs.rows.map((x) => [x.name, x.teil, x.run, x.datum, x.passed, x.result, x.geplant, x.ort]), [
+    ['Export Eva', 'WE1', 1, '01.03.2024', 'ja', '80.0 %', 'nein', ''],
+    ['Export Eva', 'WE2', 1, '01.03.2024', 'ja', '60.0 %', 'nein', ''],
+    ['Export Eva', 'OE1', 1, '01.06.2024', 'ja', '90.0 %', 'nein', ''],
+    ['Plan P', 'WE1', 1, '01.01.2030', '', '–', 'ja', 'Bern'],
+  ]);
+  assertEqual(vorgangExportTables([])[0].rows, []);
 });

@@ -63,7 +63,17 @@ export const GLOSSARY = [
   {
     kind: 'Begriff', term: 'Kleine Gruppe (n < 5)',
     definition: 'Kennzahlen auf Basis von weniger als 5 Vorgängen sind mit «*» markiert (Aussagekraft eingeschränkt). Dieselbe Schwelle gilt als Mindestgruppengrösse für Bestenlisten (E5).',
-    nenner: '–', grenzfaelle: '–',
+    nenner: '–', grenzfaelle: 'Bestenlisten: unter 5 Vorgängen im Profil keine Liste; sonst höchstens die Hälfte der Gruppe (abgerundet, maximal 5), damit eine Bestenliste nie zur vollständigen Rangliste wird.',
+  },
+  {
+    kind: 'Begriff', term: 'Award-Dossier',
+    definition: 'Vorschlagsliste je Profil für die Prämierung: alle gezeigten Award-Ränge mit Score, Teilwerten, Versuchen, Referenzdatum, Fundstelle (Sheet, Zeile) und Begründung, warum der Vorgang vor dem nächsten steht (Score höher, Tie-Break 1 Versuche, Tie-Break 2 Referenzdatum oder fachlich unentschiedener Gleichstand).',
+    nenner: '–', grenzfaelle: 'Ein vollständiger Gleichstand wird alphabetisch geordnet und im Dossier als «fachlich unentschieden» markiert; Profile ohne Liste (Gruppe zu klein) sind im Hinweis genannt.',
+  },
+  {
+    kind: 'Begriff', term: 'Export auf Vorgangsebene',
+    definition: 'Zusätzlich zu den Aggregaten jeder Ansicht: eine Zeile je Vorgang im aktiven Filter (Blatt «Vorgänge»: Stammdaten, Status, Quoten-Bausteine, Versuche, Daten, Zertifikat, Schlüssel-Stufe, zusammengeführte Zeilen) und eine Zeile je absolviertem oder geplantem Run (Blatt «Runs»).',
+    nenner: '–', grenzfaelle: 'Enthält Namen; Nutzerkreis bbz-intern (E5). Der Filterzustand steht im Kopf jeder Datei.',
   },
   {
     kind: 'Begriff', term: 'Benchmark (Übersicht)',
@@ -126,7 +136,7 @@ export const GLOSSARY = [
   { kind: 'Kennzahl', term: 'Ausgestellte Zertifikate', definition: 'Anzahl Vorgänge im Filter mit ausgestelltem Zertifikat (Sheet «Ausgestellte Zertifikate» oder damit zusammengeführt).', nenner: '–', grenzfaelle: '–' },
   { kind: 'Kennzahl', term: 'Personen mit mehreren Profilen', definition: 'Anzahl Personen im Filter mit Vorgängen in mehr als einem Profil; Tabelle mit Profil-Abfolge (zeitlich nach erstem Prüfungsdatum) und Anzahl Personen je Abfolge.', nenner: '–', grenzfaelle: 'Berücksichtigt alle kennzahlrelevanten Vorgänge der Person, auch ausserhalb eines aktiven Profil-Filters; zählt Menschen, nicht Vorgänge (E3).' },
   { kind: 'Kennzahl', term: 'Geplante Prüfungstermine', definition: 'Anzahl geplanter Runs (Datum in der Zukunft ohne Passed-Wert) für die Filter Profil, Sprache, Bank, VSS/VSM.', nenner: '–', grenzfaelle: 'Zeitraum und Versuchsmodus wirken nicht.' },
-  { kind: 'Kennzahl', term: 'bbz-Award', definition: '0.5 · Ø Resultat schriftlich + 0.5 · Ø Resultat mündlich gemäss gewählter Wertung; Rangliste je Profil.', nenner: 'Vorgänge mit bestandener mündlicher Prüfung und beiden Werten.', grenzfaelle: 'Tie-Break 1: weniger Prüfungsversuche gesamt; Tie-Break 2: früheres Referenzdatum; gilt auch für die schriftlichen und mündlichen Bestenlisten. Mindestgruppengrösse gemäss «Kleine Gruppe».' },
+  { kind: 'Kennzahl', term: 'bbz-Award', definition: '0.5 · Ø Resultat schriftlich + 0.5 · Ø Resultat mündlich gemäss gewählter Wertung; Rangliste je Profil (Top k, k = höchstens halbe Gruppe, maximal 5).', nenner: 'Vorgänge mit bestandener mündlicher Prüfung und beiden Werten.', grenzfaelle: 'Tie-Break 1: weniger Prüfungsversuche gesamt; Tie-Break 2: früheres Referenzdatum; gilt auch für die schriftlichen und mündlichen Bestenlisten. Unter 5 Vorgängen im Profil keine Liste (Mindestgruppengrösse, E5). Begründung je Rang im Award-Dossier.' },
 ];
 
 export function glossaryTerms(kind = null) {

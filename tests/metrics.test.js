@@ -7,7 +7,7 @@ import {
   awardScore, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, dayKey, partFirstAttempt,
   benchmarkFilter, BENCHMARKS,
   STATUS, isVorgang, statusCounts, exclusionReason, groupByPerson, personCount, multiProfilePersons, modelComparison,
-  excludedRows, openCases, openCaseState,
+  excludedRows, openCases, openCaseState, rankingLimit, rankReason,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -358,7 +358,7 @@ test('awardRanking: pro Profil Top 5, Tie-Break Versuche, dann früheres Referen
   const tieMore = simple({ lastName: 'TieMore', profil: 'PK', we: { 1: [{ passed: false, date: '2024-02-01', result: 0.5 }, { passed: true, date: '2024-03-01', result: 0.8 }], 2: [{ passed: true, date: '2024-03-01', result: 0.6 }] }, oe: { 1: [{ passed: true, date: '2024-04-01', result: 0.9 }] } }); // BESTANDEN: 0.8, 4 Versuche
   const other = simple({ lastName: 'Other', profil: 'IK' });
   const failed = simple({ lastName: 'Failed', profil: 'PK', oeAllPassed: false });
-  const groups = awardRanking([tieLate, other, failed, tieMore, tieEarly, best], MODE.BESTANDEN);
+  const groups = awardRanking([tieLate, other, failed, tieMore, tieEarly, best], MODE.BESTANDEN, 5, { dynamic: false });
   assertEqual(groups.map((g) => g.profil), ['PK', 'IK']);
   const pk = groups[0].entries;
   assertEqual(pk.map((e) => e.person.lastName), ['Best', 'TieEarly', 'TieLate', 'TieMore']);
@@ -372,23 +372,55 @@ test('awardRanking: pro Profil Top 5, Tie-Break Versuche, dann früheres Referen
   assertEqual(groups[1].entries.map((e) => e.person.lastName), ['Other']);
 });
 
-test('awardRanking: begrenzt auf k Einträge', () => {
+test('awardRanking: begrenzt auf k Einträge; dynamisch höchstens die halbe Gruppe (Befund 4)', () => {
   const persons = Array.from({ length: 7 }, (_, i) => simple({ profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.5 + i * 0.05 }] } }));
-  const [pk] = awardRanking(persons, MODE.ERSTVERSUCH, 5);
+  const [pk] = awardRanking(persons, MODE.ERSTVERSUCH, 5, { dynamic: false });
   assertEqual(pk.entries.length, 5);
   assertClose(pk.entries[0].score, (0.8 + 0.9) / 2);
-  assertEqual(awardRanking(persons, MODE.ERSTVERSUCH, 2)[0].entries.length, 2);
+  assertEqual(awardRanking(persons, MODE.ERSTVERSUCH, 2, { dynamic: false })[0].entries.length, 2);
+  const [dyn] = awardRanking(persons, MODE.ERSTVERSUCH, 5);
+  assertEqual([dyn.n, dyn.k, dyn.suppressed, dyn.entries.length, dyn.candidates], [7, 3, false, 3, 7], 'n = 7 → höchstens 3');
+});
+
+test('rankingLimit / Mindestgruppengrösse: unter 5 keine Liste, sonst halbe Gruppe, maximal 5 (Befund 4, E5)', () => {
+  assertEqual([rankingLimit(0), rankingLimit(4), rankingLimit(5), rankingLimit(6), rankingLimit(9), rankingLimit(10), rankingLimit(40)], [0, 0, 2, 3, 4, 5, 5]);
+  assertEqual(rankingLimit(40, 3), 3);
+  const small = Array.from({ length: 4 }, () => simple({ profil: 'PK' }));
+  const [pk] = awardRanking(small, MODE.ERSTVERSUCH);
+  assertEqual([pk.n, pk.k, pk.suppressed, pk.entries], [4, 0, true, []], 'n = 4 < 5: gesperrt');
+  assertEqual(topWritten(small, MODE.ERSTVERSUCH)[0].suppressed, true);
+  assertEqual(topWritten(small, MODE.ERSTVERSUCH, 5, { dynamic: false })[0].entries.length, 4);
+  const one = [simple({ profil: 'AFFL' })];
+  assertEqual(topOral(one, MODE.ERSTVERSUCH)[0].suppressed, true, 'n = 1: nie als «Rang 1 von 1» zeigen');
+});
+
+test('rankReason: Begründung je Rang – Score, Tie-Break 1 Versuche, Tie-Break 2 Referenzdatum, Gleichstand, letzter', () => {
+  const persons = [
+    simple({ lastName: 'Best', profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.9 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } }),
+    simple({ lastName: 'TieEarly', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-05-01', result: 0.9 }] } }),
+    simple({ lastName: 'TieLate', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-07-01', result: 0.9 }] } }),
+    simple({ lastName: 'TieMore', profil: 'PK', oe: { 1: [{ passed: false, date: '2024-05-01', result: 0.4 }, { passed: true, date: '2024-07-01', result: 0.9 }] } }),
+    simple({ lastName: 'Same1', profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.7 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.7 }] } }),
+    simple({ lastName: 'Same2', profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.7 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.7 }] } }),
+  ];
+  const [pk] = awardRanking(persons, MODE.BESTANDEN, 6, { dynamic: false });
+  assertEqual(pk.entries.map((e) => [e.person.lastName, e.reason.by, e.reason.vsRank]), [
+    ['Best', 'score', 2], ['TieEarly', 'refDate', 3], ['TieLate', 'attempts', 4], ['TieMore', 'score', 5], ['Same1', 'none', 6], ['Same2', 'last', null],
+  ]);
+  assertClose(pk.entries[0].reason.next.score, 0.8);
+  assertEqual(pk.entries[2].reason.next.attempts, 4);
+  assertEqual(rankReason({ score: 0.9, attempts: 3, refDate: null }, null, 2), { by: 'last', vsRank: null, next: null });
 });
 
 test('topWritten / topOral: beste Werte je Profil gemäss Modus', () => {
   const strong = simple({ lastName: 'Strong', profil: 'PK', we: { 1: [{ passed: true, date: '2024-03-01', result: 0.95 }] } });
   const weak = simple({ lastName: 'Weak', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.6 }] } });
   const noWritten = makePerson({ profil: 'PK', we: { 1: [{ passed: null, date: '2024-03-01' }] } });
-  const w = topWritten([weak, strong, noWritten], MODE.ERSTVERSUCH);
+  const w = topWritten([weak, strong, noWritten], MODE.ERSTVERSUCH, 5, { dynamic: false });
   assertEqual(w[0].profil, 'PK');
   assertEqual(w[0].entries.map((e) => e.person.lastName), ['Strong', 'Weak']);
   assertClose(w[0].entries[0].score, 0.95);
-  const o = topOral([weak, strong], MODE.ERSTVERSUCH);
+  const o = topOral([weak, strong], MODE.ERSTVERSUCH, 5, { dynamic: false });
   assertEqual(o[0].entries.map((e) => e.person.lastName), ['Strong', 'Weak']);
   assertClose(o[0].entries[1].score, 0.6);
 });
@@ -397,7 +429,7 @@ test('topWritten: Tie-Break weniger Versuche, dann früheres Referenzdatum', () 
   const fewer = simple({ lastName: 'Fewer', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } });
   const more = simple({ lastName: 'More', profil: 'PK', oe: { 1: [{ passed: false, date: '2024-05-01', result: 0.4 }, { passed: true, date: '2024-06-01', result: 0.9 }] } });
   const earlier = simple({ lastName: 'Earlier', profil: 'PK', oe: { 1: [{ passed: true, date: '2024-01-01', result: 0.9 }] } });
-  const [pk] = topWritten([more, fewer, earlier], MODE.ERSTVERSUCH);
+  const [pk] = topWritten([more, fewer, earlier], MODE.ERSTVERSUCH, 5, { dynamic: false });
   assertEqual(pk.entries.map((e) => e.person.lastName), ['Earlier', 'Fewer', 'More']);
 });
 

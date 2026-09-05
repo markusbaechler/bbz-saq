@@ -445,15 +445,33 @@ function compareEntries(a, b) {
   return collator.compare((a.person.lastName || '') + ' ' + (a.person.firstName || ''), (b.person.lastName || '') + ' ' + (b.person.firstName || ''));
 }
 
-function rankByProfile(persons, entryFn, k) {
+// Mindestgruppengrösse und dynamische Länge der Bestenlisten (Befund 4, E5): unter SMALL_N Vorgängen keine Liste,
+// sonst höchstens die Hälfte der Gruppe (maximal kMax) – eine «Bestenliste» wird so nie zur vollständigen Rangliste.
+export function rankingLimit(n, kMax = 5) {
+  if (n < SMALL_N) return 0;
+  return Math.max(1, Math.min(kMax, Math.floor(n / 2)));
+}
+
+// Begründung eines Rangs gegenüber dem nächsten gewerteten Vorgang (Award-Dossier, b3):
+// { by: 'score' | 'attempts' | 'refDate' | 'none' | 'last', vsRank, next: { score, attempts, refDate } | null }
+export function rankReason(entry, next, vsRank) {
+  if (!next) return { by: 'last', vsRank: null, next: null };
+  const info = { vsRank, next: { score: next.score, attempts: next.attempts, refDate: next.refDate } };
+  if (Math.abs(entry.score - next.score) > EPS) return { by: 'score', ...info };
+  if (entry.attempts !== next.attempts) return { by: 'attempts', ...info };
+  const ta = entry.refDate ? entry.refDate.getTime() : Infinity;
+  const tb = next.refDate ? next.refDate.getTime() : Infinity;
+  if (ta !== tb) return { by: 'refDate', ...info };
+  return { by: 'none', ...info };
+}
+
+// options.dynamic (Standard true): Mindestgruppengrösse und dynamisches k anwenden; false = feste Länge k
+function rankByProfile(persons, entryFn, k, { dynamic = true } = {}) {
   return groupBy(persons, 'profil').map((g) => {
-    const entries = g.persons
-      .map(entryFn)
-      .filter((e) => e && isNum(e.score))
-      .sort(compareEntries)
-      .slice(0, k)
-      .map((e, i) => ({ rank: i + 1, ...e }));
-    return { profil: g.key, n: g.persons.length, entries };
+    const sorted = g.persons.map(entryFn).filter((e) => e && isNum(e.score)).sort(compareEntries);
+    const limit = dynamic ? rankingLimit(g.persons.length, k) : k;
+    const entries = sorted.slice(0, limit).map((e, i) => ({ rank: i + 1, ...e, reason: rankReason(e, sorted[i + 1], i + 2) }));
+    return { profil: g.key, n: g.persons.length, k: limit, suppressed: dynamic && limit === 0, candidates: sorted.length, entries };
   });
 }
 
@@ -461,12 +479,12 @@ function baseEntry(person, score) {
   return { person, score, attempts: person.attemptsTotal, refDate: person.refDate };
 }
 
-export function topWritten(persons, mode, k = 5) {
-  return rankByProfile(persons, (p) => baseEntry(p, writtenScore(p, mode)), k);
+export function topWritten(persons, mode, k = 5, options = {}) {
+  return rankByProfile(persons, (p) => baseEntry(p, writtenScore(p, mode)), k, options);
 }
 
-export function topOral(persons, mode, k = 5) {
-  return rankByProfile(persons, (p) => baseEntry(p, oralScore(p, mode)), k);
+export function topOral(persons, mode, k = 5, options = {}) {
+  return rankByProfile(persons, (p) => baseEntry(p, oralScore(p, mode)), k, options);
 }
 
 // Award-Score: 0.5·Schriftlich + 0.5·Mündlich; nur Personen mit bestandener OE, beide Werte nötig
@@ -478,12 +496,12 @@ export function awardScore(person, mode) {
   return 0.5 * w + 0.5 * o;
 }
 
-export function awardRanking(persons, mode, k = 5) {
+export function awardRanking(persons, mode, k = 5, options = {}) {
   return rankByProfile(persons, (p) => {
     const score = awardScore(p, mode);
     if (score === null) return null;
     return { ...baseEntry(p, score), written: writtenScore(p, mode), oral: oralScore(p, mode) };
-  }, k);
+  }, k, options);
 }
 
 // ---------------------------------------------------------------------------

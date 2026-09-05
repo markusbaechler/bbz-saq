@@ -9,6 +9,7 @@ import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount } fro
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
 import { el, exportBar } from './views/common.js';
+import { vorgangExportTables } from './views/tables.js';
 import { renderDataQuality } from './views/dataQuality.js';
 import * as overview from './views/overview.js';
 import * as written from './views/written.js';
@@ -268,7 +269,7 @@ function renderView() {
     return;
   }
   container.appendChild(el('div', { class: 'print-filter', text: headerLines.join(' · ') }));
-  container.appendChild(exportBar({ viewId: view.id, tables: built.tables, headerLines }));
+  container.appendChild(exportBar({ viewId: view.id, tables: built.tables, headerLines, extra: { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) } }));
   for (const node of built.nodes) container.appendChild(node);
 }
 

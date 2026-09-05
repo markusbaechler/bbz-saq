@@ -6,9 +6,9 @@
 import {
   MODE, SMALL_N, formatPct, writtenPassRates, writtenPerformance, partFirstAttempt, oralPassRates, oralPerformance,
   byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups,
-  multiProfilePersons, personCount, excludedRows, openCases, STATUS,
+  multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
 } from '../metrics.js';
-import { fmtDate, fmtTime } from '../export.js';
+import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
 
 export const SMALL_MARK = '*';
 export const SMALL_NOTE = SMALL_MARK + ' Gruppe mit n < ' + SMALL_N + ' (Aussagekraft eingeschränkt)';
@@ -146,22 +146,126 @@ function baseRankingRow(e) {
   return { rang: e.rank, name: personName(e.person), bank: e.person.employerCanon || '', wert: formatPct(e.score), versuche: e.attempts, refDate: fmtDate(e.refDate) };
 }
 
-export function rankingTables(persons, mode, k = 5) {
+// Begründung eines Rangs in Worten (Award-Dossier, b3)
+export function rankReasonText(entry) {
+  const r = entry.reason;
+  if (!r || r.by === 'last') return 'Letzter gewerteter Vorgang der Gruppe; kein weiterer Vorgang mit Wert';
+  const n = r.next;
+  switch (r.by) {
+    case 'score': return 'Score höher als Rang ' + r.vsRank + ' (' + formatPct(n.score) + ')';
+    case 'attempts': return 'Gleicher Score wie Rang ' + r.vsRank + ' – Tie-Break 1: weniger Prüfungsversuche (' + entry.attempts + ' statt ' + n.attempts + ')';
+    case 'refDate': return 'Gleicher Score und gleiche Versuche wie Rang ' + r.vsRank + ' – Tie-Break 2: früheres Referenzdatum (' + fmtDate(entry.refDate) + ' statt ' + (fmtDate(n.refDate) || 'ohne Datum') + ')';
+    default: return 'Vollständiger Gleichstand mit Rang ' + r.vsRank + ' (Score, Versuche, Referenzdatum) – Reihenfolge alphabetisch, fachlich unentschieden';
+  }
+}
+
+// Hinweis unter der Tabelle; bei gesperrten Gruppen steht der Grund bereits im Leertext (empty), darum kein zweiter Hinweis
+function groupNote(g) {
+  if (g.suppressed) return null;
+  return 'Top ' + g.k + ' von ' + g.n + ' Vorgängen (höchstens die Hälfte der Gruppe, maximal 5); ' + g.candidates + ' mit Wert';
+}
+
+// options.dynamic (Standard true): Mindestgruppengrösse SMALL_N und dynamisches k (siehe metrics.rankingLimit)
+export function rankingTables(persons, mode, k = 5, options = {}) {
   const simpleColumns = (label) => [col('rang', 'Rang'), col('name', 'Name'), col('bank', 'Bank'), col('wert', label), col('versuche', 'Versuche'), col('refDate', 'Referenzdatum')];
   const build = (groups, title, columns, mapEntry) => groups.map((g) => ({
     profil: groupLabel(g.profil),
     n: g.n,
+    k: g.k,
+    suppressed: g.suppressed,
     title: title + ' – ' + groupLabel(g.profil),
     columns,
     rows: g.entries.map(mapEntry),
+    note: groupNote(g),
+    empty: g.suppressed ? 'Keine Bestenliste: Gruppe zu klein (n = ' + g.n + ' < ' + SMALL_N + ')' : 'Keine Vorgänge mit Wert im aktiven Filter.',
   }));
   return {
-    written: build(topWritten(persons, mode, k), 'Beste schriftliche Prüfung', simpleColumns('Schriftlich'), baseRankingRow),
-    oral: build(topOral(persons, mode, k), 'Beste mündliche Prüfung', simpleColumns('Mündlich'), baseRankingRow),
-    award: build(awardRanking(persons, mode, k), 'bbz-Award',
+    written: build(topWritten(persons, mode, k, options), 'Beste schriftliche Prüfung', simpleColumns('Schriftlich'), baseRankingRow),
+    oral: build(topOral(persons, mode, k, options), 'Beste mündliche Prüfung', simpleColumns('Mündlich'), baseRankingRow),
+    award: build(awardRanking(persons, mode, k, options), 'bbz-Award',
       [col('rang', 'Rang'), col('name', 'Name'), col('bank', 'Bank'), col('wert', 'Award-Score'), col('schriftlich', 'Schriftlich'), col('muendlich', 'Mündlich'), col('versuche', 'Versuche'), col('refDate', 'Referenzdatum')],
       (e) => ({ ...baseRankingRow(e), schriftlich: formatPct(e.written), muendlich: formatPct(e.oral) })),
   };
+}
+
+// Award-Dossier (b3): Vorschlagsliste je Profil mit nachvollziehbarer Begründung je Rang, als eine Tabelle exportierbar
+export function awardDossierTable(persons, mode, k = 5, options = {}) {
+  const groups = awardRanking(persons, mode, k, options);
+  const rows = [];
+  for (const g of groups) {
+    for (const e of g.entries) {
+      rows.push({
+        profil: groupLabel(g.profil), rang: e.rank, name: personName(e.person), bank: e.person.employerCanon || '', sprache: groupLabel(e.person.sprache),
+        wert: formatPct(e.score), schriftlich: formatPct(e.written), muendlich: formatPct(e.oral), versuche: e.attempts, refDate: fmtDate(e.refDate),
+        sheet: e.person.sheetName, row: e.person.row, begruendung: rankReasonText(e),
+      });
+    }
+  }
+  const suppressed = groups.filter((g) => g.suppressed).map((g) => groupLabel(g.profil) + ' (n = ' + g.n + ')');
+  return {
+    title: 'Award-Dossier',
+    columns: [
+      col('profil', 'Profil'), col('rang', 'Rang'), col('name', 'Name'), col('bank', 'Bank'), col('sprache', 'Sprache'), col('wert', 'Award-Score'), col('schriftlich', 'Schriftlich'),
+      col('muendlich', 'Mündlich'), col('versuche', 'Versuche'), col('refDate', 'Referenzdatum'), col('sheet', 'Sheet'), col('row', 'Zeile'), col('begruendung', 'Begründung Rang'),
+    ],
+    rows,
+    note: 'Award-Score = 0.5 · Ø Resultat schriftlich + 0.5 · Ø Resultat mündlich; Wertung: ' + (MODE_LABELS[mode] || mode) + '. Nur Vorgänge mit bestandener mündlicher Prüfung. '
+      + 'Tie-Break 1: weniger Prüfungsversuche gesamt; Tie-Break 2: früheres Referenzdatum. Mindestgruppengrösse ' + SMALL_N + ', Liste höchstens halbe Gruppe (maximal ' + k + ').'
+      + (suppressed.length ? ' Ohne Liste (Gruppe zu klein): ' + suppressed.join(', ') + '.' : ''),
+    groups: groups.map((g) => ({ profil: groupLabel(g.profil), n: g.n, k: g.k, suppressed: g.suppressed })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Export auf Vorgangsebene (a7): eine Zeile je Vorgang, eine Zeile je absolviertem Run
+// ---------------------------------------------------------------------------
+
+function yesNo(v) {
+  return v === true ? 'ja' : v === false ? 'nein' : '';
+}
+
+export function vorgangExportTables(persons) {
+  const cases = {
+    title: 'Vorgänge',
+    columns: [
+      col('sheet', 'Sheet'), col('row', 'Zeile'), col('name', 'Name'), col('bank', 'Bank'), col('employer', 'Employer (Rohwert)'), col('profil', 'Profil'), col('sprache', 'Sprache'), col('role', 'Role'),
+      col('vss', 'VSS'), col('vsm', 'VSM'), col('status', 'Status'), col('weStatus', 'Status schriftlich'), col('oeStatus', 'Status mündlich'),
+      col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('wr1', 'Ø Resultat schriftlich 1. Versuch'), col('wr2', 'Ø Resultat schriftlich bestandener Run'),
+      col('or1', 'Ø Resultat mündlich 1. Versuch'), col('or2', 'Ø Resultat mündlich bestandener Run'), col('versuche', 'Versuche gesamt'),
+      col('first', 'Erstes Prüfungsdatum'), col('refDate', 'Referenzdatum'), col('issued', 'Zertifikat ausgestellt'), col('certNumber', 'Zertifikat-Nr.'), col('certStart', 'Zertifikatsbeginn'),
+      col('personKey', 'Personenschlüssel-Stufe'), col('duplicates', 'Zusammengeführte Zeilen'),
+    ],
+    rows: persons.map((p) => ({
+      sheet: p.sheetName, row: p.row, name: personName(p), bank: p.employerCanon || '', employer: p.employer || '', profil: groupLabel(p.profil), sprache: groupLabel(p.sprache), role: p.role || '',
+      vss: yesNo(p.vss), vsm: yesNo(p.vsm), status: p.status, weStatus: p.weStatus, oeStatus: p.oeStatus,
+      erstversuch: yesNo(firstAttemptPassed(p)), wr1: formatPct(writtenScore(p, MODE.ERSTVERSUCH)), wr2: formatPct(writtenScore(p, MODE.BESTANDEN)),
+      or1: formatPct(oralScore(p, MODE.ERSTVERSUCH)), or2: formatPct(oralScore(p, MODE.BESTANDEN)), versuche: p.attemptsTotal,
+      first: fmtDate(p.firstExamDate), refDate: fmtDate(p.refDate), issued: yesNo(p.issued), certNumber: p.certNumber || '', certStart: fmtDate(p.certStart),
+      personKey: p.personKeyLevel === 'full' ? 'Name + Geburtsdatum' : 'nur Name', duplicates: (p.duplicates || []).map((d) => d.sheet + ' Zeile ' + d.row).join('; '),
+    })),
+    note: 'Eine Zeile je Zertifizierungsvorgang im aktiven Filter (Duplikate zusammengeführt). Enthält Namen – nur für den internen Gebrauch (E5).',
+  };
+  const runRows = [];
+  for (const p of persons) {
+    for (const kind of ['we', 'oe']) {
+      for (const part of p[kind]) {
+        for (const r of part.runs) {
+          if (!r.taken && !r.planned) continue;
+          runRows.push({
+            sheet: p.sheetName, row: p.row, name: personName(p), profil: groupLabel(p.profil), teil: kind.toUpperCase() + part.part, run: r.n,
+            datum: fmtDate(r.date), zeit: fmtTime(r.date), passed: yesNo(r.passed), result: formatPct(r.result), geplant: yesNo(r.planned), ort: r.location || '',
+          });
+        }
+      }
+    }
+  }
+  const runs = {
+    title: 'Runs',
+    columns: [col('sheet', 'Sheet'), col('row', 'Zeile'), col('name', 'Name'), col('profil', 'Profil'), col('teil', 'Teilprüfung'), col('run', 'Run'), col('datum', 'Datum'), col('zeit', 'Zeit'), col('passed', 'Bestanden'), col('result', 'Resultat'), col('geplant', 'Geplant'), col('ort', 'Ort')],
+    rows: runRows,
+    note: 'Eine Zeile je absolviertem oder geplantem Run (Passed-Wert vorhanden bzw. Datum in der Zukunft). Score wird nicht ausgewertet (E6).',
+  };
+  return [cases, runs];
 }
 
 // ---------------------------------------------------------------------------
