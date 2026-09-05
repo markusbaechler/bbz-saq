@@ -8,3 +8,5 @@ import './auth.test.js';
 import './threadedComments.test.js';
 import './fileAdapter.test.js';
 import './dataQuality.test.js';
+import './export.test.js';
+import './tables.test.js';

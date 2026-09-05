@@ -55,7 +55,7 @@ export function mean(values) {
 export function formatPct(value, digits = 1) {
   if (!isNum(value)) return '–';
   const factor = Math.pow(10, digits);
-  return (Math.round(value * 100 * factor) / factor).toFixed(digits) + ' %';
+  return (Math.round(value * 100 * factor + 1e-9) / factor).toFixed(digits) + ' %';
 }
 
 // ---------------------------------------------------------------------------
