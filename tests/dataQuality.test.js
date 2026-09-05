@@ -2,16 +2,16 @@ import { test, assert, assertEqual } from './runner.js';
 import { DQ_COLUMNS, formatRaw, sortDq, filterDq, sheetOptions, summarizeDq, summaryAsText } from '../views/dataQuality.js';
 
 const ENTRIES = [
-  { sheet: 'First Certification', row: 100, header: 'WE1 RUN1 Passed', field: 'we1.run1.passed', raw: 'maybe', reason: 'Passed-Wert nicht in Whitelist' },
-  { sheet: 'First Certification', row: 9, header: 'Certificate Language', field: 'sprache', raw: 'ES', reason: 'Sprache unbekannt' },
-  { sheet: 'Ausgestellte Zertifikate', row: 10, header: 'OE1 RUN1 Date', field: 'oe1.run1.date', raw: '31.02.2024', reason: 'Datum ungültig (Tag/Monat)' },
-  { sheet: 'Ausgestellte Zertifikate', row: 10, header: 'WE2 RUN1 Score', field: 'we2.run1.score', raw: 12.5, reason: 'Score ist keine ganze Zahl ≥ 0' },
-  { sheet: 'First Certification', row: 12, header: 'Last Name', field: 'lastName', raw: null, reason: 'Name fehlt (Zeile enthält Daten)' },
+  { level: 'fehler', sheet: 'First Certification', row: 100, header: 'WE1 RUN1 Passed', field: 'we1.run1.passed', raw: 'maybe', reason: 'Passed-Wert nicht in Whitelist' },
+  { level: 'fehler', sheet: 'First Certification', row: 9, header: 'Certificate Language', field: 'sprache', raw: 'ES', reason: 'Sprache unbekannt' },
+  { level: 'fehler', sheet: 'Ausgestellte Zertifikate', row: 10, header: 'OE1 RUN1 Date', field: 'oe1.run1.date', raw: '31.02.2024', reason: 'Datum ungültig (Tag/Monat)' },
+  { level: 'hinweis', sheet: 'Ausgestellte Zertifikate', row: 10, header: 'WE2 RUN1 Score', field: 'we2.run1.score', raw: 12.5, reason: 'Score ist keine ganze Zahl ≥ 0' },
+  { level: 'fehler', sheet: 'First Certification', row: 12, header: 'Last Name', field: 'lastName', raw: null, reason: 'Name fehlt (Zeile enthält Daten)' },
 ];
 
 test('dataQuality.DQ_COLUMNS: Sheet, Zeile, Header, Rohwert, Grund', () => {
-  assertEqual(DQ_COLUMNS.map((c) => c.key), ['sheet', 'row', 'header', 'raw', 'reason']);
-  assertEqual(DQ_COLUMNS.map((c) => c.label), ['Sheet', 'Zeile', 'Header', 'Rohwert', 'Grund']);
+  assertEqual(DQ_COLUMNS.map((c) => c.key), ['level', 'sheet', 'row', 'header', 'raw', 'reason']);
+  assertEqual(DQ_COLUMNS.map((c) => c.label), ['Stufe', 'Sheet', 'Zeile', 'Header', 'Rohwert', 'Grund']);
 });
 
 test('dataQuality.formatRaw: leer, Datum, Zahl, Boolean, Text', () => {
@@ -62,7 +62,7 @@ test('dataQuality.sheetOptions: vorhandene Sheets in Konfigurationsreihenfolge',
 test('dataQuality.summarizeDq: Anzahl je Sheet/Header/Grund, absteigend, ohne Rohwerte und Zeilen', () => {
   const rows = summarizeDq(ENTRIES.concat([{ ...ENTRIES[0], row: 200, raw: 'vielleicht' }]));
   assertEqual(rows.length, 5);
-  assertEqual(rows[0], { sheet: 'First Certification', header: 'WE1 RUN1 Passed', reason: 'Passed-Wert nicht in Whitelist', count: 2, examples: ['maybe', 'vielleicht'] });
+  assertEqual(rows[0], { level: 'fehler', sheet: 'First Certification', header: 'WE1 RUN1 Passed', reason: 'Passed-Wert nicht in Whitelist', count: 2, examples: ['maybe', 'vielleicht'] });
   assertEqual(rows.map((r) => r.count), [2, 1, 1, 1, 1]);
   assertEqual(rows.slice(1).map((r) => r.sheet), ['First Certification', 'First Certification', 'Ausgestellte Zertifikate', 'Ausgestellte Zertifikate'], 'Gleichstand: Sheet in Konfigurationsreihenfolge');
   assertEqual(rows.slice(1).map((r) => r.header), ['Certificate Language', 'Last Name', 'OE1 RUN1 Date', 'WE2 RUN1 Score'], 'dann Header alphabetisch');
@@ -79,10 +79,17 @@ test('dataQuality.summarizeDq: Beispiele – höchstens 3 verschiedene Rohwerte,
   assertEqual(summarizeDq([{ ...ENTRIES[2], raw: new Date(2024, 8, 5, 10, 30) }])[0].examples, ['05.09.2024 10:30']);
 });
 
-test('dataQuality.summaryAsText: Tab-getrennt mit Beispielen', () => {
-  const text = summaryAsText(summarizeDq(ENTRIES.slice(0, 2)));
-  const lines = text.split('\n');
-  assertEqual(lines[0], ['Sheet', 'Header', 'Grund', 'Anzahl', 'Beispiele'].join('\t'));
-  assertEqual(lines[1], ['First Certification', 'Certificate Language', 'Sprache unbekannt', '1', 'ES'].join('\t'));
+test('dataQuality.summaryAsText: Tab-getrennt mit Stufe und Beispielen', () => {
+  const TAB = String.fromCharCode(9);
+  const lines = summaryAsText(summarizeDq(ENTRIES.slice(0, 2))).split(String.fromCharCode(10));
+  assertEqual(lines[0], ['Stufe', 'Sheet', 'Header', 'Grund', 'Anzahl', 'Beispiele'].join(TAB));
+  assertEqual(lines[1], ['fehler', 'First Certification', 'Certificate Language', 'Sprache unbekannt', '1', 'ES'].join(TAB));
   assertEqual(lines.length, 3);
+});
+
+test('dataQuality.filterDq: Stufe (fehler | hinweis), kombinierbar', () => {
+  assertEqual(filterDq(ENTRIES, { level: 'hinweis' }).map((e) => e.header), ['WE2 RUN1 Score']);
+  assertEqual(filterDq(ENTRIES, { level: 'fehler' }).length, 4);
+  assertEqual(filterDq(ENTRIES, { level: 'fehler', sheet: 'Ausgestellte Zertifikate' }).length, 1);
+  assertEqual(filterDq(ENTRIES, { level: '' }).length, 5);
 });

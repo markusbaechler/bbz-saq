@@ -78,11 +78,18 @@ function readPackageXml(data, fflate) {
   return files;
 }
 
+// Zellen exakt auf Header-Breite (Spalten ohne Header werden nie gelesen)
 function padRow(cells, width) {
   const out = [];
-  const length = Math.max(width, cells.length);
-  for (let i = 0; i < length; i++) out.push(cells[i] === undefined ? null : cells[i]);
+  for (let i = 0; i < width; i++) out.push(cells[i] === undefined ? null : cells[i]);
   return out;
+}
+
+// Header-Zeile bis zum letzten nicht leeren Header (Excel-Blattbereiche reichen oft bis Spalte XFD)
+function trimHeader(rawHeader) {
+  let last = rawHeader.length - 1;
+  while (last >= 0 && (rawHeader[last] === null || rawHeader[last] === undefined || String(rawHeader[last]).trim() === '')) last -= 1;
+  return rawHeader.slice(0, last + 1).map((v) => (v === null || v === undefined ? '' : v));
 }
 
 // ArrayBuffer/Uint8Array → { sheets, comments, meta: { sheetNames } }
@@ -97,7 +104,7 @@ export function parseWorkbook(buffer, { XLSX, fflate, config = CONFIG }) {
     const ws = wb.Sheets[sheetName];
     if (!ws) throw new SheetMissingError(sheetName);
     const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, range: config.headerRow - 1, defval: null, blankrows: true, raw: true });
-    const headerRow = (aoa[0] || []).map((v) => (v === null || v === undefined ? '' : v));
+    const headerRow = trimHeader(aoa[0] || []);
     const rows = aoa.slice(1).map((cells, i) => ({ row: config.headerRow + 1 + i, cells: padRow(cells, headerRow.length) }));
     sheets.push({ source, sheetName, headerRow, rows });
   }

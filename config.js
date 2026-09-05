@@ -39,11 +39,14 @@ export const PROFILES = ['PK', 'IK', 'CWMA', 'KMU', 'AFFL', 'CCoB'];
 export const PROFILE_ALIASES = {
   CCOB: 'CCoB',
   Affluent: 'AFFL',
+  Affl: 'AFFL',
+  AFF: 'AFFL',
+  'PK FRZ': 'PK', // französische Durchführung des PK-Profils (in der Datei so erfasst)
 };
 
 export const LANGUAGES = ['DE', 'FR', 'IT', 'EN'];
 
-// Passed-Felder: exakte Schreibweisen nach trim. Alles andere → null + Data-Quality-Log.
+// Passed-Felder: Schreibweisen nach trim, Vergleich ohne Gross-/Kleinschreibung. Alles andere → null + Data-Quality-Log.
 export const PASSED_TRUE = ['yes', 'YES', 'Yes', 'PASSED', 'fulfilled', 'FULFILLED'];
 export const PASSED_FALSE = ['no', 'No', 'FAILED'];
 
@@ -53,7 +56,40 @@ export const EMPLOYER_ALIASES = {
   'BEKB': 'Berner Kantonalbank AG',
   'Raiffeisen KB': 'Raiffeisen',
   'SZKB': 'Schwyzer Kantonalbank (SZKB)',
+  'Schwyzer Kantonalbank': 'Schwyzer Kantonalbank (SZKB)',
+  'BKB': 'Basler Kantonalbank',
+  'GKB': 'Graubündner Kantonalbank',
+  'LUKB': 'Luzerner Kantonalbank AG',
+  'TKB': 'Thurgauer Kantonalbank',
+  'UKB': 'Urner Kantonalbank (UKB)',
+  'Urner Kantonalbank': 'Urner Kantonalbank (UKB)',
+  'NKB': 'Nidwaldner Kantonalbank',
+  'OWKB': 'Obwaldner Kantonalbank (OWKB)',
+  'Obwaldner Kantonalbank': 'Obwaldner Kantonalbank (OWKB)',
+  'APPKB': 'Appenzeller Kantonalbank',
+  'Appenzeller Kantonalbank AG': 'Appenzeller Kantonalbank',
+  'SGKB': 'St. Galler Kantonalbank',
+  'Zuger KB': 'Zuger Kantonalbank',
+  'Hypothekarbank Lenzburg': 'Hypothekarbank Lenzburg AG',
+  'Banca dello Stato del Canton Ticino': 'Banca dello Stato del Cantone Ticino',
+  'Banque Cantonale du Valais': 'Walliser Kantonalbank',
+  'Banque cantonale Vaudoise': 'Banque Cantonale Vaudoise',
+  'Banca Popolare di Sondrio (SUISSE) SA': 'Banca Popolare di Sondrio (Suisse) SA',
+  'BPS Sondrio (Suisse)': 'Banca Popolare di Sondrio (Suisse) SA',
+  'BPS (Suisse)': 'Banca Popolare di Sondrio (Suisse) SA',
+  'Banca Cramer': 'Banca Cramer & Cie',
+  'acrevis Bank St. Gallen': 'acrevis Bank AG',
+  'WIR Bank': 'WIR Bank Genossenschaft',
+  'Banca Cler': 'Bank Cler AG',
+  'PKB Privatbank': 'PKB Privatbank SA',
+  'PKB Private Bank SA': 'PKB Privatbank SA',
+  'Corner Banca SA': 'Cornèr Banca SA',
+  'Corner Banca': 'Cornèr Banca SA',
+  'Cornér Banca SA': 'Cornèr Banca SA',
 };
+
+// Datumsregeln: plausible Jahre; Zahlen in diesem Bereich gelten als Excel-Serienzahl (Zelle ohne Datumsformat)
+export const DATE_RULES = { minYear: 2000, maxYear: 2100, serialMin: 36526, serialMax: 60000 };
 
 // VSS/VSM aus Threaded Comment auf B{row}, z. B. «VSM 8718 28.08./05.09.24: Name», «VSS 07.05.2026: Name».
 export const VSS_REGEX = /\bVSS\b/i;

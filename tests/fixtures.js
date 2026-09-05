@@ -101,6 +101,7 @@ export function makePerson(overrides = {}) {
     we: Array.from({ length: CONFIG.we.parts }, (_, i) => emptyPart(i + 1, CONFIG.we.runs)),
     oe: Array.from({ length: CONFIG.oe.parts }, (_, i) => emptyPart(i + 1, CONFIG.oe.runs)),
     weAllPassed: null,
+    weAllDerived: false,
     oeAllPassed: null,
     refDate: null,
     refDateSource: null,
@@ -114,14 +115,14 @@ export function makePerson(overrides = {}) {
   // abgeleitete Felder wie in store.js (bewusst nachgebaut, damit Tests unabhängig bleiben)
   const allRuns = [...p.we, ...p.oe].flatMap((part) => part.runs);
   p.attemptsTotal = allRuns.filter((r) => r.taken).length;
-  p.hasWeDate = p.we.some((part) => part.runs.some((r) => r.date));
+  p.hasWeDate = p.we.some((part) => part.runs.some((r) => r.taken && r.date));
   if (overrides.refDate === undefined) {
-    const passedOe = p.oe.flatMap((part) => part.runs).filter((r) => r.passed === true && r.date);
+    const passedOe = p.oe.flatMap((part) => part.runs).filter((r) => r.taken && r.passed === true && r.date);
     if (passedOe.length) {
       p.refDate = new Date(Math.max(...passedOe.map((r) => r.date.getTime())));
       p.refDateSource = 'oe';
     } else {
-      const dated = allRuns.filter((r) => r.date);
+      const dated = allRuns.filter((r) => r.taken && r.date);
       if (dated.length) {
         p.refDate = new Date(Math.max(...dated.map((r) => r.date.getTime())));
         p.refDateSource = 'lastExam';
@@ -144,7 +145,7 @@ function applyRuns(parts, spec) {
       if (r.date !== undefined) run.date = typeof r.date === 'string' ? d(r.date) : r.date;
       if (r.score !== undefined) run.score = r.score;
       if (r.result !== undefined) run.result = r.result;
-      run.taken = run.date !== null || run.passed !== null || run.result !== null || run.score !== null;
+      run.taken = run.passed !== null;
     });
     if (!Array.isArray(entry) && entry.passed !== undefined) {
       part.passed = entry.passed;

@@ -87,7 +87,7 @@ function renderStatus(text) {
   const source = meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint';
   const counts = meta.counts || { first: 0, issued: 0 };
   el.status.textContent = meta.fileName + ' (' + source + ') · geändert ' + fmtDateTime(meta.lastModified) + ' · geladen ' + fmtTime(meta.loadedAt)
-    + ' · ' + persons.length + ' Personen (' + counts.first + ' First Certification, ' + counts.issued + ' Ausgestellte Zertifikate) · ' + dq.length + ' Einträge im Data-Quality-Log';
+    + ' · ' + persons.length + ' Personen (' + counts.first + ' First Certification, ' + counts.issued + ' Ausgestellte Zertifikate) · Data-Quality-Log: ' + (counts.fehler || 0) + ' Fehler, ' + (counts.hinweise || 0) + ' Hinweise';
 }
 
 // Nur die DQ-Tabelle neu rendern (nicht die ganze View), damit der Fokus im Suchfeld erhalten bleibt

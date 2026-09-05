@@ -3,7 +3,14 @@
 
 import { CONFIG } from '../config.js';
 
+export const LEVEL_LABELS = { fehler: 'Fehler', hinweis: 'Hinweis' };
+
+export function levelOf(entry) {
+  return entry && entry.level === 'hinweis' ? 'hinweis' : 'fehler';
+}
+
 export const DQ_COLUMNS = [
+  { key: 'level', label: 'Stufe' },
   { key: 'sheet', label: 'Sheet' },
   { key: 'row', label: 'Zeile' },
   { key: 'header', label: 'Header' },
@@ -50,10 +57,11 @@ export function sortDq(entries, key = 'row', dir = 'asc') {
     .map((x) => x.e);
 }
 
-export function filterDq(entries, { text = '', sheet = '' } = {}) {
+export function filterDq(entries, { text = '', sheet = '', level = '' } = {}) {
   const needle = String(text || '').trim().toLowerCase();
   return entries.filter((e) => {
     if (sheet && e.sheet !== sheet) return false;
+    if (level && levelOf(e) !== level) return false;
     if (!needle) return true;
     return DQ_COLUMNS.some((c) => formatRaw(e[c.key]).toLowerCase().includes(needle));
   });
@@ -75,8 +83,8 @@ const MAX_EXAMPLES = 3;
 export function summarizeDq(entries) {
   const groups = new Map();
   for (const e of entries) {
-    const key = [e.sheet, e.header, e.reason].join('\u0000');
-    const g = groups.get(key) || { sheet: e.sheet, header: e.header, reason: e.reason, count: 0, examples: [] };
+    const key = [levelOf(e), e.sheet, e.header, e.reason].join('\u0000');
+    const g = groups.get(key) || { level: levelOf(e), sheet: e.sheet, header: e.header, reason: e.reason, count: 0, examples: [] };
     g.count += 1;
     if (!NAME_FIELDS.has(e.field)) {
       const shown = formatRaw(e.raw);
@@ -86,15 +94,15 @@ export function summarizeDq(entries) {
   }
   const order = Object.values(CONFIG.sheets);
   const rank = (name) => (order.includes(name) ? order.indexOf(name) : order.length);
-  return [...groups.values()].sort((a, b) => b.count - a.count || rank(a.sheet) - rank(b.sheet)
+  return [...groups.values()].sort((a, b) => b.count - a.count || (a.level === b.level ? 0 : a.level === 'fehler' ? -1 : 1) || rank(a.sheet) - rank(b.sheet)
     || collator.compare(a.header, b.header) || collator.compare(a.reason, b.reason));
 }
 
 export function summaryAsText(summary) {
-  return ['Sheet\tHeader\tGrund\tAnzahl\tBeispiele'].concat(summary.map((r) => [r.sheet, r.header, r.reason, r.count, r.examples.join(' | ')].join('\t'))).join('\n');
+  return ['Stufe\tSheet\tHeader\tGrund\tAnzahl\tBeispiele'].concat(summary.map((r) => [r.level, r.sheet, r.header, r.reason, r.count, r.examples.join(' | ')].join('\t'))).join('\n');
 }
 
-export const DEFAULT_DQ_STATE = Object.freeze({ sortKey: 'row', sortDir: 'asc', text: '', sheet: '' });
+export const DEFAULT_DQ_STATE = Object.freeze({ sortKey: 'row', sortDir: 'asc', text: '', sheet: '', level: '' });
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -123,12 +131,19 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
     ...sheetOptions(entries).map((name) => el('option', { value: name, text: name })),
   ]);
   sheetSelect.value = s.sheet;
+  const levelSelect = el('select', { class: 'dq-level', 'aria-label': 'Stufe filtern', onchange: (ev) => onChange({ ...s, level: ev.target.value }) }, [
+    el('option', { value: '', text: 'Fehler und Hinweise' }),
+    el('option', { value: 'fehler', text: 'Nur Fehler' }),
+    el('option', { value: 'hinweis', text: 'Nur Hinweise' }),
+  ]);
+  levelSelect.value = s.level;
   const textInput = el('input', {
     type: 'search', class: 'dq-text', placeholder: 'Suchen (Header, Rohwert, Grund …)', 'aria-label': 'Volltext filtern', value: s.text,
     oninput: (ev) => onChange({ ...s, text: ev.target.value }),
   });
-  const count = el('span', { class: 'dq-count', text: visible.length + ' von ' + entries.length + ' Einträgen' });
-  container.appendChild(el('div', { class: 'toolbar dq-toolbar' }, [sheetSelect, textInput, count]));
+  const nFehler = entries.filter((e) => levelOf(e) === 'fehler').length;
+  const count = el('span', { class: 'dq-count', text: visible.length + ' von ' + entries.length + ' Einträgen (' + nFehler + ' Fehler, ' + (entries.length - nFehler) + ' Hinweise)' });
+  container.appendChild(el('div', { class: 'toolbar dq-toolbar' }, [sheetSelect, levelSelect, textInput, count]));
   if (restoreFocus) {
     textInput.focus();
     if (typeof caret === 'number') textInput.setSelectionRange(caret, caret);
@@ -150,9 +165,9 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
     },
   });
   const summaryTable = el('table', { class: 'dq-summary' }, [
-    el('thead', {}, [el('tr', {}, ['Sheet', 'Header', 'Grund', 'Anzahl', 'Beispiele'].map((t) => el('th', { scope: 'col', text: t })))]),
-    el('tbody', {}, summary.map((r) => el('tr', {}, [
-      el('td', { text: r.sheet }), el('td', { text: r.header }), el('td', { text: r.reason }), el('td', { class: 'col-row', text: String(r.count) }),
+    el('thead', {}, [el('tr', {}, ['Stufe', 'Sheet', 'Header', 'Grund', 'Anzahl', 'Beispiele'].map((t) => el('th', { scope: 'col', text: t })))]),
+    el('tbody', {}, summary.map((r) => el('tr', { class: 'level-' + r.level }, [
+      el('td', { class: 'col-level', text: LEVEL_LABELS[r.level] }), el('td', { text: r.sheet }), el('td', { text: r.header }), el('td', { text: r.reason }), el('td', { class: 'col-row', text: String(r.count) }),
       el('td', { class: 'col-raw', text: r.examples.join(' | ') }),
     ]))),
   ]);
@@ -171,9 +186,10 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
       onclick: () => onChange({ ...s, sortKey: c.key, sortDir: active && s.sortDir === 'asc' ? 'desc' : 'asc' }),
     }, [el('button', { type: 'button', text: c.label + arrow })]);
   }));
-  const body = el('tbody', {}, visible.map((e) => el('tr', {}, DQ_COLUMNS.map((c) => {
+  const body = el('tbody', {}, visible.map((e) => el('tr', { class: 'level-' + levelOf(e) }, DQ_COLUMNS.map((c) => {
     const td = el('td', { class: 'col-' + c.key, text: formatRaw(e[c.key]) });
     if (c.key === 'raw' && formatRaw(e.raw) === '') td.textContent = '(leer)';
+    if (c.key === 'level') td.textContent = LEVEL_LABELS[levelOf(e)];
     return td;
   }))));
   container.appendChild(el('div', { class: 'table-wrap' }, [el('table', { class: 'dq-table' }, [el('thead', {}, [headRow]), body])]));

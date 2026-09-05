@@ -1,7 +1,7 @@
 import { test, assert, assertEqual } from './runner.js';
 import {
   CONFIG, PROFILES, PROFILE_ALIASES, LANGUAGES, PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES,
-  VSS_REGEX, VSM_REGEX, HEADER_FIELDS, headerCandidates, requiredFieldKeys, partKey, runKey,
+  VSS_REGEX, VSM_REGEX, HEADER_FIELDS, headerCandidates, requiredFieldKeys, partKey, runKey, DATE_RULES,
 } from '../config.js';
 
 test('config: Sheet-Namen und Header-Zeile gemäss Spezifikation', () => {
@@ -23,13 +23,21 @@ test('config: Datei-Referenz ohne hardcodierte Item-IDs', () => {
 
 test('config: Whitelists der Normalisierungstabelle', () => {
   assertEqual(PROFILES, ['PK', 'IK', 'CWMA', 'KMU', 'AFFL', 'CCoB']);
-  assertEqual(PROFILE_ALIASES, { CCOB: 'CCoB', Affluent: 'AFFL' });
+  assertEqual(PROFILE_ALIASES, { CCOB: 'CCoB', Affluent: 'AFFL', Affl: 'AFFL', AFF: 'AFFL', 'PK FRZ': 'PK' });
   assertEqual(LANGUAGES, ['DE', 'FR', 'IT', 'EN']);
   assertEqual(PASSED_TRUE, ['yes', 'YES', 'Yes', 'PASSED', 'fulfilled', 'FULFILLED']);
   assertEqual(PASSED_FALSE, ['no', 'No', 'FAILED']);
   assertEqual(EMPLOYER_ALIASES['BEKB'], 'Berner Kantonalbank AG');
   assertEqual(EMPLOYER_ALIASES['Raiffeisen KB'], 'Raiffeisen');
   assertEqual(EMPLOYER_ALIASES['SZKB'], 'Schwyzer Kantonalbank (SZKB)');
+  assertEqual(EMPLOYER_ALIASES['BKB'], 'Basler Kantonalbank');
+  assertEqual(EMPLOYER_ALIASES['GKB'], 'Graubündner Kantonalbank');
+  assertEqual(EMPLOYER_ALIASES['LUKB'], 'Luzerner Kantonalbank AG');
+  assertEqual(EMPLOYER_ALIASES['TKB'], 'Thurgauer Kantonalbank');
+  assertEqual(EMPLOYER_ALIASES['UKB'], 'Urner Kantonalbank (UKB)');
+  assertEqual(EMPLOYER_ALIASES['Hypothekarbank Lenzburg'], 'Hypothekarbank Lenzburg AG');
+  assertEqual(EMPLOYER_ALIASES['Zuger KB'], 'Zuger Kantonalbank');
+  assertEqual(DATE_RULES, { minYear: 2000, maxYear: 2100, serialMin: 36526, serialMax: 60000 });
 });
 
 test('config: VSS/VSM-Regex erkennt ganze Wörter, case-insensitiv', () => {

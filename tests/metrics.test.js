@@ -184,7 +184,7 @@ test('firstAttemptPassed: alle vorhandenen WE RUN1 bestanden', () => {
   const oneFailed = simple({ we: { 1: [{ passed: false, date: '2024-03-01', result: 0.4 }, { passed: true, date: '2024-04-01', result: 0.7 }], 2: [{ passed: true, date: '2024-03-01', result: 0.6 }] } });
   assertEqual(firstAttemptPassed(oneFailed), false);
   const unknown = simple({ we: { 1: [{ passed: null, date: '2024-03-01', result: 0.6 }] } });
-  assertEqual(firstAttemptPassed(unknown), false, 'RUN1 ohne interpretierbares Passed zählt nicht als bestanden');
+  assertEqual(firstAttemptPassed(unknown), null, 'RUN1 ohne Passed-Wert ist nicht absolviert');
   assertEqual(firstAttemptPassed(makePerson()), null, 'ohne WE RUN1 keine Aussage');
 });
 

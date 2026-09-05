@@ -40,8 +40,8 @@ test('createStore.setData: normalisiert Sheets, hält Personen, DQ und Meta nur 
   store.setData(loadResult());
   const s = store.getState();
   assertEqual(s.persons.length, 5);
-  assertEqual(s.dq.length, 1);
-  assertEqual(s.meta.counts, { first: 4, issued: 1, persons: 5, dq: 1 });
+  assertEqual(s.dq.length, 2, 'ein Fehler (?), ein Hinweis (Passed ohne Datum)');
+  assertEqual(s.meta.counts, { first: 4, issued: 1, persons: 5, dq: 2, fehler: 1, hinweise: 1 });
   assertEqual(s.meta.fileName, 'Reporting_KUBA.xlsx');
   assertEqual(s.persons[1].vss, true);
 });
@@ -49,7 +49,7 @@ test('createStore.setData: normalisiert Sheets, hält Personen, DQ und Meta nur 
 test('createStore.getFilteredPersons: wendet Filter an (nur Personen mit WE-Datum)', () => {
   const store = createStore();
   store.setData(loadResult());
-  assertEqual(store.getFilteredPersons().map((p) => p.lastName), ['Muster', 'Beispiel', 'Fehler', 'Zertifikat']);
+  assertEqual(store.getFilteredPersons().map((p) => p.lastName), ['Muster', 'Beispiel', 'Zertifikat'], 'RUN1 ohne Passed-Wert gilt nicht als absolviert');
   store.setFilter({ profil: ['IK', 'KMU'] });
   assertEqual(store.getFilteredPersons().map((p) => p.lastName), ['Beispiel', 'Zertifikat']);
   store.setFilter({ onlyIssued: true });
@@ -63,7 +63,7 @@ test('createStore.resetFilter: zurück auf DEFAULT_FILTER', () => {
   store.setFilter({ profil: ['IK'], mode: MODE.BESTANDEN });
   store.resetFilter();
   assertEqual(store.getState().filter, { ...DEFAULT_FILTER });
-  assertEqual(store.getFilteredPersons().length, 4);
+  assertEqual(store.getFilteredPersons().length, 3);
 });
 
 test('createStore.getFilterOptions: Auswahlwerte aus den Daten (sortiert, ohne null)', () => {
@@ -92,10 +92,10 @@ test('createStore: Kennzahlen laufen auf gefilterten Personen (End-to-End synthe
   const store = createStore();
   store.setData(loadResult());
   const o = overview(store.getFilteredPersons(), store.getState().filter.mode);
-  assertEqual(o.n, 4);
-  assertEqual(o.written.gesamt.count, 4);
-  assertEqual(o.written.erstversuch.count, 3, 'Person mit nicht interpretierbarem RUN1-Passed zählt nicht als Erstversuch');
-  assertEqual(o.oral.bestanden.n, 4);
+  assertEqual(o.n, 3);
+  assertEqual(o.written.gesamt.count, 3);
+  assertEqual(o.written.erstversuch.count, 3);
+  assertEqual(o.oral.bestanden.n, 3);
   assertEqual(o.issued, 1);
   assertEqual(o.vss, 1);
 });

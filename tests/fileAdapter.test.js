@@ -43,7 +43,7 @@ const ROW3 = { ...ROW1, lastName: 'Zertifikat', firstName: 'Zoe', certStart: new
 
 // Excel-Datei im Speicher: Zeilen 1–9 Titel/Legende, Header in Zeile 10, Daten ab 11, Threaded Comments auf B{row},
 // plus ein drittes Sheet, das ignoriert werden muss.
-async function buildWorkbook({ withIssued = true } = {}) {
+async function buildWorkbook({ withIssued = true, wide = false } = {}) {
   const { XLSX } = await libs();
   const wb = XLSX.utils.book_new();
   const addSheet = (source, rows, comments) => {
@@ -53,6 +53,13 @@ async function buildWorkbook({ withIssued = true } = {}) {
     const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true });
     for (const [ref, text] of Object.entries(comments)) {
       ws[ref].c = [{ a: 'Tester', t: text, T: true }];
+    }
+    if (wide) {
+      // Wert weit rechts in Zeile 5 vergrössert den Blattbereich (wie Formatierungen in der echten Datei)
+      ws.ZZ5 = { t: 's', v: 'weit' };
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      range.e.c = Math.max(range.e.c, XLSX.utils.decode_col('ZZ'));
+      ws['!ref'] = XLSX.utils.encode_range(range);
     }
     XLSX.utils.book_append_sheet(wb, ws, CONFIG.sheets[source]);
   };
@@ -124,7 +131,7 @@ test('parseWorkbook → normalizeWorkbook: End-to-End mit synthetischer Datei', 
   assert(sameLocalTime(persons[2].certStart, 2024, 7, 1));
   assertEqual(dq.length, 1);
   assertEqual([dq[0].sheet, dq[0].row, dq[0].header, dq[0].raw], [CONFIG.sheets.first, 12, 'WE1 RUN1 Passed', 'maybe']);
-  assertEqual(meta.counts, { first: 2, issued: 1, persons: 3, dq: 1 });
+  assertEqual(meta.counts, { first: 2, issued: 1, persons: 3, dq: 1, fehler: 1, hinweise: 0 });
 });
 
 // ---------------------------------------------------------------------------
@@ -241,4 +248,11 @@ test('fileAdapter.write: Phase 2, NotImplementedError', async () => {
   const adapter = createFileAdapter({ graph: fakeGraph(), ...(await libs()) });
   const e = await rejects(adapter.write({}));
   assertEqual(e.name, 'NotImplementedError');
+});
+
+test('parseWorkbook: Header-Zeile wird auf den letzten nicht leeren Header gekürzt', async () => {
+  const out = parseWorkbook(await buildWorkbook({ wide: true }), await libs());
+  const expected = headerRowFor('first').length;
+  assertEqual(out.sheets[0].headerRow.length, expected);
+  assert(out.sheets[0].rows.every((r) => r.cells.length === expected), 'Zellen auf Header-Länge gekürzt/aufgefüllt');
 });

@@ -1,4 +1,4 @@
-import { test, assert, assertEqual, assertThrows } from './runner.js';
+import { test, assert, assertEqual, assertClose, assertThrows } from './runner.js';
 import { CONFIG } from '../config.js';
 import {
   parsePassed, parseLanguage, parseProfile, parseEmployer, parseResult, parseScore, parseDate, parseVssVsm,
@@ -23,8 +23,15 @@ test('parsePassed: Whitelist → true/false, leer → null ohne Grund', () => {
   }
 });
 
-test('parsePassed: unbekannte Werte → null + Grund (auch NO, Passed, Booleans, Zahlen)', () => {
-  for (const v of ['NO', 'Passed', 'maybe', 'x', true, false, 1, 0]) {
+test('parsePassed: Vergleich case-insensitiv (NO, Passed, Fulfilled)', () => {
+  assertEqual(parsePassed('NO'), { value: false, reason: null });
+  assertEqual(parsePassed('Passed'), { value: true, reason: null });
+  assertEqual(parsePassed('Fulfilled '), { value: true, reason: null });
+  assertEqual(parsePassed('failed'), { value: false, reason: null });
+});
+
+test('parsePassed: unbekannte Werte → null + Grund (Tippfehler, Booleans, Zahlen)', () => {
+  for (const v of ['yyes', 'ys', 'maybe', 'x', true, false, 1, 0]) {
     const r = parsePassed(v);
     assertEqual(r.value, null, String(v));
     assert(typeof r.reason === 'string' && r.reason.length > 0, 'Grund fehlt für ' + String(v));
@@ -82,12 +89,16 @@ test('parseResult: Zahl 0–1 direkt, >1 und ≤100 → /100, Text «89.00%» �
   assertEqual(parseResult(' 89 % '), { value: 0.89, reason: null });
   assertEqual(parseResult('89,5%'), { value: 0.895, reason: null });
   assertEqual(parseResult('100%'), { value: 1, reason: null });
+  assertClose(parseResult('71.59').value, 0.7159, 1e-12, 'Zahl als Text ohne Prozentzeichen');
+  assertEqual(parseResult('71.59').reason, null);
+  assertEqual(parseResult('0.89'), { value: 0.89, reason: null });
+  assertEqual(parseResult('66%%'), { value: 0.66, reason: null }, 'doppeltes Prozentzeichen');
   assertEqual(parseResult(''), { value: null, reason: null });
   assertEqual(parseResult(null), { value: null, reason: null });
 });
 
 test('parseResult: ausserhalb Bereich oder nicht interpretierbar → null + Grund', () => {
-  for (const v of [101, -0.1, 250, NaN, '0.89', 'abc', '110%', '-5%', true]) {
+  for (const v of [101, -0.1, 250, NaN, '101', 'abc', '110%', '-5%', 'Luzern', 'missed', true]) {
     const r = parseResult(v);
     assertEqual(r.value, null, String(v));
     assert(r.reason, 'Grund fehlt für ' + String(v));
@@ -122,12 +133,16 @@ test('parseDate: Text dd.mm.yy(yy)[ / hh.mm|hh:mm] → Date (lokal)', () => {
   assertEqual(parseDate('05.09.2024 / 14:30'), { value: new Date(2024, 8, 5, 14, 30), reason: null });
   assertEqual(parseDate('05.09.2024/14:30'), { value: new Date(2024, 8, 5, 14, 30), reason: null });
   assertEqual(parseDate(' 01.01.2025 '), { value: new Date(2025, 0, 1), reason: null });
+  assertEqual(parseDate('19.04.2018 / 09:00h'), { value: new Date(2018, 3, 19, 9, 0), reason: null }, 'Suffix h');
+  assertEqual(parseDate('13.6.18 / 9.00 Uhr'), { value: new Date(2018, 5, 13, 9, 0), reason: null }, 'Suffix Uhr');
+  assertEqual(parseDate('4.6.18 / 15:00 Uhr'), { value: new Date(2018, 5, 4, 15, 0), reason: null });
+  assertEqual(parseDate('28,04,2023'), { value: new Date(2023, 3, 28), reason: null }, 'Kommas als Trenner');
   assertEqual(parseDate(''), { value: null, reason: null });
   assertEqual(parseDate(null), { value: null, reason: null });
 });
 
 test('parseDate: ungültige Kalenderdaten, ISO-Text und Zahlen → null + Grund', () => {
-  for (const v of ['31.02.2024', '00.01.2024', '01.13.2024', '2024-09-05', '05/09/2024', 45000, 'Mo 05.09.', '05.09.2024 / 25.00']) {
+  for (const v of ['31.02.2024', '00.01.2024', '01.13.2024', '2024-09-05', '05/09/2024', 2020, 12.2021, 87, 'Mo 05.09.', '05.09.2024 / 25.00', 'HFBF 2016', 'Sept/Okt 2017']) {
     const r = parseDate(v);
     assertEqual(r.value, null, String(v));
     assert(r.reason, 'Grund fehlt für ' + String(v));
@@ -294,12 +309,30 @@ test('normalizeSheet: attemptsTotal zählt absolvierte Runs (WE + OE), hasWeDate
   assertEqual(persons[0].hasWeDate, true);
 });
 
-test('normalizeSheet: Run ohne Datum, aber mit Result gilt als absolviert', () => {
-  const row = { lastName: 'A', firstName: 'B', ...runValues('we', { 3: [{ result: 0.7 }] }) };
-  const { persons } = normalizeSheet(makeSheet('first', [row]), {});
-  assertEqual(persons[0].we[2].runs[0].taken, true);
-  assertEqual(persons[0].attemptsTotal, 1);
-  assertEqual(persons[0].hasWeDate, false);
+test('normalizeSheet: absolviert = Passed-Wert vorhanden; nur Datum oder nur Result/Score zählt nicht', () => {
+  const row = { lastName: 'A', firstName: 'B', ...runValues('we', { 1: [{ date: new Date(2024, 2, 1) }], 2: [{ result: 0.7, score: 0 }], 3: [{ passed: 'yes' }] }) };
+  const { persons } = normalizeSheet(makeSheet('first', [row]), {}, { today: new Date(2026, 8, 5) });
+  const p = persons[0];
+  assertEqual([p.we[0].runs[0].taken, p.we[1].runs[0].taken, p.we[2].runs[0].taken], [false, false, true]);
+  assertEqual(p.attemptsTotal, 1);
+  assertEqual(p.hasWeDate, false, 'absolvierter Run ohne Datum');
+  assertEqual(p.refDate, null, 'nur geplante/ausstehende Daten ergeben kein Referenzdatum');
+});
+
+test('normalizeSheet: Hinweise – Datum vergangen ohne Passed, Passed ohne Datum, Passed mit Zukunftsdatum, geplant ohne Eintrag', () => {
+  const today = new Date(2026, 8, 5);
+  const row = fullRow({
+    ...runValues('we', { 3: [{ date: new Date(2026, 7, 1) }] }),
+    ...runValues('we', { 4: [{ passed: 'yes', result: 0.8 }] }),
+    ...runValues('we', { 5: [{ passed: 'yes', date: new Date(2026, 10, 1) }] }),
+    ...runValues('we', { 6: [{ date: new Date(2027, 1, 1), score: 0, result: 0 }] }),
+  });
+  const { persons, dq } = normalizeSheet(makeSheet('first', [row]), {}, { today });
+  assertEqual(dq.filter((e) => e.level === 'fehler'), []);
+  assertEqual(dq.filter((e) => e.level === 'hinweis').map((e) => e.header).sort(), ['WE3 RUN1 Passed', 'WE4 RUN1 Date', 'WE5 RUN1 Date']);
+  assertEqual(persons[0].we[5].runs[0].taken, false, 'geplanter Run');
+  assertEqual(persons[0].we[4].runs[0].taken, true);
+  assertEqual(persons[0].we[2].runs[0].taken, false, 'vergangenes Datum ohne Passed ist nicht absolviert');
 });
 
 test('normalizeSheet: Sheet 2 («yes»-Varianten, certStart) → source issued', () => {
@@ -331,21 +364,26 @@ test('normalizeSheet: komplett leere Zeilen werden übersprungen (ohne DQ)', () 
   assertEqual(dq, []);
 });
 
-test('normalizeSheet: Zeile mit Daten aber ohne Namen → Person + DQ-Eintrag', () => {
+test('normalizeSheet: Zeile mit Daten aber ohne Namen → keine Person, aber DQ-Fehler', () => {
   const sheet = makeSheet('first', [{ profil: 'PK' }]);
   const { persons, dq } = normalizeSheet(sheet, {});
-  assertEqual(persons.length, 1);
-  assertEqual(persons[0].lastName, null);
+  assertEqual(persons.length, 0);
   assertEqual(dq.length, 1);
+  assertEqual(dq[0].level, 'fehler');
   assertEqual(dq[0].header, 'Last Name');
   assertEqual(dq[0].row, 11);
   assert(dq[0].reason.includes('Certificate Program'), 'Grund nennt die gefüllten Spalten: ' + dq[0].reason);
 });
 
+test('normalizeSheet: Zeile nur mit Inhalt in nicht gemappten Spalten gilt als leer', () => {
+  const sheet = makeSheet('first', [{ Nr: 17 }, { Bemerkung: 'x', 'WE6 RUN1 Location': 'Bern' }]);
+  assertEqual(normalizeSheet(sheet, {}), { persons: [], dq: [] });
+});
+
 test('normalizeSheet: «Name fehlt» nennt auch nicht gemappte Spalten mit Inhalt', () => {
-  const sheet = makeSheet('first', [{ Nr: 17, Bemerkung: 'x' }]);
+  const sheet = makeSheet('first', [{ Nr: 17, profil: 'PK', Bemerkung: 'x' }]);
   const { persons, dq } = normalizeSheet(sheet, {});
-  assertEqual(persons.length, 1);
+  assertEqual(persons.length, 0);
   assertEqual(dq.length, 1);
   assert(dq[0].reason.includes('Nr') && dq[0].reason.includes('Bemerkung'), dq[0].reason);
 });
@@ -369,6 +407,7 @@ test('normalizeSheet: nicht interpretierbare Zellen → Data-Quality-Log mit She
   assertEqual(p.oe[0].runs[0].date, null);
   assertEqual(dq.length, 6);
   for (const e of dq) {
+    assertEqual(e.level, 'fehler');
     assertEqual(e.sheet, CONFIG.sheets.first);
     assertEqual(e.row, 11);
     assert(typeof e.header === 'string' && e.header, 'Header fehlt');
@@ -385,10 +424,12 @@ test('normalizeSheet: nicht interpretierbare Zellen → Data-Quality-Log mit She
   assertEqual(byHeader['OE1 RUN1 Date'].raw, '31.02.2024');
 });
 
-test('normalizeSheet: mündliche Prüfung ohne bestandene schriftliche Prüfung → DQ-Eintrag (Konsistenzregel)', () => {
+test('normalizeSheet: mündliche Prüfung ohne bestandene schriftliche Prüfung → DQ-Hinweis (Konsistenzregel)', () => {
   const { persons, dq } = normalizeSheet(makeSheet('first', [fullRow({ weAllPassed: 'no' })]), {});
   assertEqual(persons[0].weAllPassed, false);
+  assertEqual(persons[0].weAllDerived, false);
   assertEqual(dq.length, 1);
+  assertEqual(dq[0].level, 'hinweis');
   assertEqual(dq[0].header, 'WE All Passed');
   assertEqual(dq[0].field, 'weAllPassed');
   assertEqual(dq[0].raw, 'no');
@@ -427,7 +468,7 @@ test('normalizeWorkbook: beide Sheets → eine Personenliste, DQ gesammelt, Meta
   assertEqual(result.dq[0].sheet, CONFIG.sheets.first);
   assertEqual(result.dq[0].row, 12);
   assertEqual(result.meta.fileName, 'Reporting_KUBA.xlsx');
-  assertEqual(result.meta.counts, { first: 2, issued: 1, persons: 3, dq: 1 });
+  assertEqual(result.meta.counts, { first: 2, issued: 1, persons: 3, dq: 1, fehler: 1, hinweise: 0 });
 });
 
 test('normalizeWorkbook: unbekanntes Sheet wird abgewiesen', () => {
@@ -439,4 +480,68 @@ test('normalizeWorkbook: Personen ohne Kommentare, wenn comments fehlt', () => {
   const result = normalizeWorkbook({ sheets: [makeSheet('first', [fullRow()])] });
   assertEqual(result.persons[0].vss, false);
   assertEqual(result.meta.counts.persons, 1);
+});
+
+test('parseDate: Datum ohne Jahr und dreistelliges Jahr → spezifischer Grund', () => {
+  for (const v of ['27.04. / 09:00', '11.04. / 13:30', '07.05.']) {
+    const r = parseDate(v);
+    assertEqual(r.value, null, v);
+    assert(/ohne Jahr/.test(r.reason), v + ': ' + r.reason);
+  }
+  for (const v of ['03.12.024', '03.02.207', '23.9.021']) {
+    const r = parseDate(v);
+    assertEqual(r.value, null, v);
+    assert(/dreistellig/.test(r.reason), v + ': ' + r.reason);
+  }
+});
+
+test('parseDate: Excel-Serienzahl ohne Datumsformat → Datum mit Hinweis', () => {
+  const r = parseDate(44125);
+  assertEqual(r.value, new Date(2020, 9, 21));
+  assertEqual(r.level, 'hinweis');
+  assert(/Serienzahl/.test(r.reason), r.reason);
+  assertEqual(parseDate(36526).value, new Date(2000, 0, 1));
+  assertEqual(parseDate(36525).value, null, 'unter serialMin');
+  assertEqual(parseDate(60001).value, null, 'über serialMax');
+});
+
+test('parseDate: Jahr ausserhalb 2000–2100 → Fehler (auch bei Date-Objekten)', () => {
+  const r = parseDate(new Date(1900, 0, 1));
+  assertEqual(r.value, null);
+  assert(/Jahr/.test(r.reason), r.reason);
+  assertEqual(parseDate('01.01.1999').value, null);
+  assertEqual(parseDate('01.01.2000').value, new Date(2000, 0, 1));
+});
+
+test('parse*: Fehler haben level «fehler», Hinweise level «hinweis», ok kein level', () => {
+  assertEqual(parsePassed('maybe').level, 'fehler');
+  assertEqual(parseDate('x').level, 'fehler');
+  assertEqual(parseDate(44125).level, 'hinweis');
+  assertEqual(parseDate('01.01.2024').level, undefined);
+  assertEqual(parseResult('abc').level, 'fehler');
+});
+
+test('normalizeSheet: Konsistenzregel nur bei absolvierter OE (geplante OE löst nichts aus)', () => {
+  const planned = fullRow({ weAllPassed: '', 'oe1.passed': '', oeAllPassed: '', ...runValues('oe', { 1: [{ passed: '', date: new Date(2027, 0, 1), score: 0, result: 0 }, { passed: '', date: '', score: '', result: '' }] }) });
+  const { dq } = normalizeSheet(makeSheet('first', [planned]), {}, { today: new Date(2026, 8, 5) });
+  assertEqual(dq, []);
+});
+
+test('normalizeSheet: Sheet 2 – WE All yes leer bei Zertifikat → schriftlich als bestanden übernommen + Hinweis', () => {
+  const { persons, dq } = normalizeSheet(makeSheet('issued', [fullRow({ weAllPassed: '', certStart: '01.07.2024' })]), {});
+  assertEqual(persons[0].weAllPassed, true);
+  assertEqual(persons[0].weAllDerived, true);
+  assertEqual(dq.length, 1);
+  assertEqual([dq[0].level, dq[0].header], ['hinweis', 'WE All yes']);
+  assert(/Zertifikat/.test(dq[0].reason), dq[0].reason);
+  const no = normalizeSheet(makeSheet('issued', [fullRow({ weAllPassed: 'no', certStart: '01.07.2024' })]), {});
+  assertEqual([no.persons[0].weAllPassed, no.persons[0].weAllDerived, no.dq[0].level], [false, false, 'hinweis']);
+});
+
+test('normalizeWorkbook: today wird durchgereicht (geplante Runs)', () => {
+  const row = fullRow({ ...runValues('we', { 3: [{ date: new Date(2026, 7, 1) }] }) });
+  const late = normalizeWorkbook({ sheets: [makeSheet('first', [row])] }, { today: new Date(2026, 8, 5) });
+  const early = normalizeWorkbook({ sheets: [makeSheet('first', [row])] }, { today: new Date(2026, 6, 1) });
+  assertEqual(late.meta.counts.hinweise, 1, 'vergangen ohne Passed');
+  assertEqual(early.meta.counts.hinweise, 0, 'noch geplant');
 });
