@@ -168,7 +168,9 @@ sortiert; die Zusammenfassung nach Wirkung, Header und Grund lässt sich ohne Pe
 ## Architektur
 
 Vanilla JS (ES-Module), kein Framework, kein Build-Schritt, GitHub Pages. Bibliotheken lokal unter `lib/`:
-MSAL.js 3.30.0 (MIT), SheetJS 0.20.3 (Apache-2.0), fflate 0.8.3 (MIT).
+MSAL.js 3.30.0 (MIT), SheetJS 0.20.3 (Apache-2.0), fflate 0.8.3 (MIT). Diagramme sind Inline-SVG ohne Bibliothek
+(`views/chart.js`), Farben nach validierter Palette. Dark Mode folgt der Systemeinstellung (`prefers-color-scheme`);
+der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern.
 
 ```
 index.html / app.js / styles.css   Shell, Filterleiste, Navigation, Fehleranzeige

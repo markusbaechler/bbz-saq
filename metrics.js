@@ -359,7 +359,7 @@ export function writtenPerformance(persons, mode) {
 }
 
 export function writtenPerformanceByPart(persons, mode) {
-  const partCount = persons.length ? persons[0].we.length : 6;
+  const partCount = CONFIG.we.parts; // Befund 15: aus der Konfiguration, nicht aus der ersten Person
   const out = [];
   for (let i = 0; i < partCount; i++) {
     const m = mean(persons.map((p) => (p.we[i] ? partResult(p.we[i], mode) : null)));

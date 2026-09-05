@@ -787,9 +787,11 @@ export function createStore() {
       notify();
     },
 
-    setUi(partial) {
+    // options.silent: Zustand merken, ohne alle Abonnenten neu rendern zu lassen (z. B. Sortierung/Suche im DQ-Log,
+    // die nur ihren eigenen Block betrifft und deren Eingabefeld den Fokus behalten muss)
+    setUi(partial, { silent = false } = {}) {
       state.ui = { ...state.ui, ...partial };
-      notify();
+      if (!silent) notify();
     },
 
     // Filter und Anzeigezustand zusammen setzen (z. B. aus der URL), eine Benachrichtigung

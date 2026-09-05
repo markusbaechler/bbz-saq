@@ -257,6 +257,7 @@ test('writtenPerformance: Ø über Personen gemäss Modus, n = Personen mit Wert
 test('writtenPerformanceByPart: Ø pro Teilprüfung WE1–WE6', () => {
   const parts = writtenPerformanceByPart(writtenCohort(), MODE.ERSTVERSUCH);
   assertEqual(parts.map((p) => p.part), [1, 2, 3, 4, 5, 6]);
+  assertEqual(writtenPerformanceByPart([], MODE.ERSTVERSUCH).length, 6, 'Anzahl Teile aus CONFIG, auch ohne Personen (Befund 15)');
   assertClose(parts[0].mean, (0.8 + 0.4 + 0.8) / 3);
   assertEqual(parts[0].n, 3);
   assertClose(parts[1].mean, (0.6 + 0.6 + 0.3) / 3);

@@ -2,6 +2,7 @@
 // Nur Rendering; Zahlen und Texte kommen aus views/tables.js.
 
 import { downloadCsv, downloadXlsx, exportFileName, printPage, tablesToCsv } from '../export.js';
+import { numericColumns } from './tables.js';
 
 export function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -25,7 +26,7 @@ function cellText(v) {
 
 // Tabellenmodell → <div class="table-wrap"><table>…; Zeilen mit small=true erhalten die Klasse «small»
 export function renderTable(table, { caption = true } = {}) {
-  const numeric = new Set(table.columns.filter((c) => /^(n|n2|anzahl|rang|versuche|abgeschlossen|angetreten|offen|nichtErfasst|personen|vorgaenge|count)$/.test(c.key)).map((c) => c.key));
+  const numeric = numericColumns(table); // Befund 13: Zahlen- und Prozentspalten rechtsbündig
   const thead = el('thead', {}, [el('tr', {}, table.columns.map((c) => el('th', { scope: 'col', class: numeric.has(c.key) ? 'num' : null, text: c.label })))]);
   const tbody = el('tbody', {}, table.rows.map((row) => el('tr', { class: row.small ? 'small' : null }, table.columns.map((c) => el('td', { class: numeric.has(c.key) ? 'num' : null, text: cellText(row[c.key]) })))));
   const children = [];

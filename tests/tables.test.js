@@ -5,7 +5,7 @@ import {
   rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
-  earlyWarningTable, dropoutTable, throughputTables, bankReportTables,
+  earlyWarningTable, dropoutTable, throughputTables, bankReportTables, numericColumns,
 } from '../views/tables.js';
 import { makePerson, d } from './fixtures.js';
 import { LOCATION_CAPACITY } from '../config.js';
@@ -440,4 +440,19 @@ test('tables.plannedTables: Kapazität und Auslastung nur, wenn Plätze je Ort h
   } finally {
     delete LOCATION_CAPACITY.Bern;
   }
+});
+
+test('tables.numericColumns: Zählspalten per Schlüssel, Prozent-/pp-Spalten per Inhalt; Text bleibt linksbündig (Befund 13)', () => {
+  const t = passRateTable(cohort(), 'profil');
+  const numeric = numericColumns(t);
+  assertEqual([...numeric].sort(), ['abgeschlossen', 'durchgefallen', 'erstversuch', 'gesamt', 'n', 'nichtErfasst', 'offen'].sort());
+  assert(!numeric.has('gruppe'), 'Gruppenbezeichnung ist Text');
+  const cmp = comparisonTable(overviewModel(cohort()).kpis, overviewModel(cohort()).kpis, 'Alle Banken');
+  const nc = numericColumns(cmp);
+  assert(nc.has('differenz') && nc.has('n') && nc.has('n2'), 'Prozentpunkte und n');
+  assert(!nc.has('kennzahl'));
+  assert(nc.has('auswahl'), 'Werte wie «4», «50.0 %», «0 / 0» … gemischt');
+  const mixed = { columns: [{ key: 'a', label: 'A' }, { key: 'b', label: 'B' }], rows: [{ a: '12.5 %', b: 'Bern' }, { a: '–', b: '3' }] };
+  assertEqual([...numericColumns(mixed)], ['a']);
+  assertEqual([...numericColumns({ columns: [{ key: 'x', label: 'X' }], rows: [] })], [], 'ohne Zeilen keine Inhaltsanalyse');
 });

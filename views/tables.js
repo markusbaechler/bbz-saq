@@ -18,6 +18,21 @@ export const SMALL_NOTE = SMALL_MARK + ' Gruppe mit n < ' + SMALL_N + ' (Aussage
 
 export const GROUP_LABELS = { profil: 'Profil', sprache: 'Sprache', employerCanon: 'Bank' };
 
+// Numerische Spalten eines Tabellenmodells (Befund 13): Zählspalten per Schlüssel sowie Spalten, deren nicht leere Werte
+// alle Zahlen, Prozentwerte («83.3 %»), Prozentpunkte («+1.3 pp») oder der Strich «–» sind. Rechtsbündig mit Tabellenziffern.
+const COUNT_KEYS = /^(n|n2|anzahl|rang|versuche|abgeschlossen|angetreten|offen|nichtErfasst|personen|vorgaenge|count|row|fehlversuche|tage|kapazitaet|nZert)$/;
+const NUMERIC_TEXT = /^\s*[−+-]?\d+([.,]\d+)?\s*(%|pp)?\s*\*?\s*$|^–$|^\d+\s*\/\s*\d+$/; // Zahl, Prozent, pp, Strich, «a / b»
+
+export function numericColumns(table) {
+  const out = new Set();
+  for (const c of table.columns) {
+    if (COUNT_KEYS.test(c.key)) { out.add(c.key); continue; }
+    const values = table.rows.map((r) => r[c.key]).filter((v) => v !== null && v !== undefined && v !== '');
+    if (values.length && values.every((v) => typeof v === 'number' || (typeof v === 'string' && NUMERIC_TEXT.test(v)))) out.add(c.key);
+  }
+  return out;
+}
+
 export function groupLabel(value) {
   return value === null || value === undefined || value === '' ? 'unbekannt' : String(value);
 }

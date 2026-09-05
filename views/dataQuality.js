@@ -135,6 +135,10 @@ export function summaryAsText(summary) {
 
 export const DEFAULT_DQ_STATE = Object.freeze({ sortKey: 'impact', sortDir: 'asc', text: '', sheet: '', level: '', impact: '' });
 
+// Volltextsuche entprellt (Befund 14): erst 150 ms nach dem letzten Tastendruck neu rendern
+export const SEARCH_DEBOUNCE_MS = 150;
+let searchTimer = null;
+
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -190,7 +194,11 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
   impactSelect.value = s.impact;
   const textInput = el('input', {
     type: 'search', class: 'dq-text', placeholder: 'Suchen (Header, Rohwert, Grund …)', 'aria-label': 'Volltext filtern', value: s.text,
-    oninput: (ev) => onChange({ ...s, text: ev.target.value }),
+    oninput: (ev) => {
+      const value = ev.target.value;
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => onChange({ ...s, text: value }), SEARCH_DEBOUNCE_MS);
+    },
   });
   const nFehler = entries.filter((e) => levelOf(e) === 'fehler').length;
   const nHinweise = entries.filter((e) => levelOf(e) === 'hinweis').length;

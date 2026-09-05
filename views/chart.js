@@ -28,8 +28,8 @@ function text(x, y, content, cls, anchor = 'start') {
 // options: { title, yFormat(v) → string, yMax = 1, height = 260, ariaLabel }
 export function renderLineChart(series, { title = '', yFormat = (v) => String(v), yMax = 1, height = 260, ariaLabel = '' } = {}) {
   const xs = [...new Set(series.flatMap((s) => s.points.map((p) => p.x)))];
-  const width = 760;
-  const pad = { top: 16, right: 190, bottom: 34, left: 48 };
+  const width = 820;
+  const pad = { top: 16, right: 250, bottom: 34, left: 48 };
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
   const xPos = (i) => pad.left + (xs.length === 1 ? plotW / 2 : (plotW * i) / (xs.length - 1));

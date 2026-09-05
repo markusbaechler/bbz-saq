@@ -212,7 +212,11 @@ function updateFilterBar() {
 
 function renderDq(table) {
   const { dq, persons, ui: uiState } = store.getState();
-  renderDataQuality(table, dq, uiState.dq || {}, (next) => store.setUi({ dq: next }), { persons });
+  // Sortierung/Filter des Logs: im Store merken, aber nur diesen Block neu rendern – so bleibt der Fokus im Suchfeld
+  renderDataQuality(table, dq, uiState.dq || {}, (next) => {
+    store.setUi({ dq: next }, { silent: true });
+    renderDq(table);
+  }, { persons });
 }
 
 function renderView() {

@@ -119,3 +119,18 @@ test('createStore.clear: entfernt Personen, DQ und Meta aus dem Memory (z. B. be
   assertEqual(store.getFilterOptions(), { profil: [], sprache: [], bank: [] });
   assertEqual(calls, 3);
 });
+
+test('createStore.setUi / update: Anzeigezustand im Store; silent ohne Benachrichtigung; update setzt Filter und UI mit einer Benachrichtigung', () => {
+  const store = createStore();
+  let calls = 0;
+  store.subscribe(() => { calls += 1; });
+  assertEqual(store.getState().ui, { benchmark: 'bank', dq: null, compare: null });
+  store.setUi({ benchmark: 'profil' });
+  assertEqual([store.getState().ui.benchmark, calls], ['profil', 1]);
+  store.setUi({ dq: { text: 'x' } }, { silent: true });
+  assertEqual([store.getState().ui.dq, calls], [{ text: 'x' }, 1], 'silent: gemerkt, aber nicht benachrichtigt');
+  store.update({ filter: { profil: ['PK'] }, ui: { compare: { a: 2024, b: 2025 } } });
+  assertEqual([store.getState().filter.profil, store.getState().ui.compare, calls], [['PK'], { a: 2024, b: 2025 }, 2]);
+  store.update({});
+  assertEqual(calls, 3);
+});
