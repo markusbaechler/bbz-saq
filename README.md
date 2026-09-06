@@ -258,3 +258,6 @@ Datenschutz: Personendaten bleiben im Browser-Speicher (kein localStorage/Indexe
 für Tokens. Namen erscheinen nur in den Ansichten Personen, Offene Vorgänge, Geplante Prüfungen und Bestenlisten, im
 Data-Quality-Log und in Exporten «nur intern» (E5, E7); Suchtext und gewählte Person der Personensuche stehen nie in der URL.
 Das Repository enthält keine Personendaten; `*.xlsx` und `local/` sind ausgeschlossen.
+
+Phase 2 (Schreibpfad, Paket E) ist nur vorbereitet: `CONFIG.features.write` (Standard `false`) und die dokumentierte Signatur
+`write({ sheet, row, header, value, expected, reason })` in `datasource/index.js`; ohne Flag rendert die App keine Bearbeiten-Elemente.

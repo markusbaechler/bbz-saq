@@ -106,3 +106,7 @@ test('config: HEADER_FIELDS ist vollständig und eindeutig', () => {
   assertEqual(new Set(all).size, all.length, 'Header-Namen eindeutig über alle Felder');
   assert(keys.includes('certNumber') && keys.includes('certEnd'), 'optionale Sheet-2-Felder vorhanden');
 });
+
+test('config.features: Schreibpfad (Phase 2) standardmässig aus – ohne Flag keine Bearbeiten-Elemente (PROMPT-2 C.8)', () => {
+  assertEqual(CONFIG.features, { write: false });
+});

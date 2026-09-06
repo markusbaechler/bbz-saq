@@ -212,6 +212,7 @@ try {
   check((await page.locator('#view details.vorgang-card').count()) === 2 && (await page.locator('#view details.vorgang-card[open]').count()) === 1, 'Personen: zwei Karten je Vorgang, nur der jüngste offen');
   check((await page.locator('#view details.vorgang-card[open] .person-grid td .badge').count()) >= 1 && (await page.locator('#view details.vorgang-card[open] table.data').count()) >= 2, 'Personen: Raster mit Badges und Zeitachse in der offenen Karte');
   check(/Ende 30\.06\.2028/.test(await page.textContent('#view details.vorgang-card:not([open])')), 'Personen: Zertifikatsende (certEnd) in der Karte PK');
+  check((await page.locator('#view .run-edit').count()) === 0, 'Personen: ohne Feature-Flag keine Bearbeiten-Elemente (Phase 2)');
   await page.locator('#view .person-results tr.expandable').first().click();
   check(await page.locator('#view tr.event-detail').first().isHidden(), 'Personen: Detail wieder zugeklappt');
   await page.fill('#view .person-search', 'zwilling');
