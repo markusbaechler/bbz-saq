@@ -13,7 +13,7 @@ function table(kind) {
   const rows = GLOSSARY.filter((g) => g.kind === kind).map((g) => ({ term: g.term, definition: g.definition, nenner: g.nenner, grenzfaelle: g.grenzfaelle }));
   return {
     title: kind === 'Kennzahl' ? 'Kennzahlen' : 'Begriffe',
-    columns: [{ key: 'term', label: kind }, { key: 'definition', label: 'Definition' }, { key: 'nenner', label: 'Nenner' }, { key: 'grenzfaelle', label: 'Grenzfälle / Hinweise' }],
+    columns: [{ key: 'term', label: kind, prio: 1 }, { key: 'definition', label: 'Definition', prio: 1 }, { key: 'nenner', label: 'Nenner', prio: 2 }, { key: 'grenzfaelle', label: 'Grenzfälle / Hinweise', prio: 2 }],
     rows,
   };
 }

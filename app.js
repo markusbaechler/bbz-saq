@@ -31,7 +31,10 @@ const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, 
     {
       id: 'datenqualitaet', label: 'Datenqualität', group: 'Daten', glossar: 'Data-Quality-Stufen',
       intro: 'Jede nicht interpretierbare oder auffällige Zelle mit Wirkung, Stufe, Fundstelle und Grund; unabhängig vom Filter.',
-      hints: ['Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit ihrer Wirkung auf die Kennzahlen, Stufe, Sheet, Excel-Zeile, Header, Rohwert und Grund – Wichtigstes zuerst. Unabhängig vom Filter.'],
+      hints: [
+        'Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit ihrer Wirkung auf die Kennzahlen, Stufe, Sheet, Excel-Zeile, Header, Rohwert und Grund – Wichtigstes zuerst. Unabhängig vom Filter.',
+        'Nicht in den Kennzahlen – Zeilen: Zeilen ohne absolvierten, datierten schriftlichen Run sowie zusammengeführte Duplikate. Zeilen ohne Namen erscheinen nur im Log (Fehler «Name fehlt»).',
+      ],
     },
     { id: glossar.id, label: glossar.label, group: glossar.group, intro: glossar.intro, build: glossar.build, isStatic: true },
   ]);
@@ -296,7 +299,13 @@ function hashWithParam(viewId, key, value) {
   return base + (base.includes('?') ? '&' : '?') + key + '=' + encodeURIComponent(value);
 }
 
-// Legende am Ende der View (PROMPT-2 A.3/A.5): verschobene Einleitungs- und Abschnittstexte; im Druck geöffnet
+// Hinweise der View plus die eindeutigen Fussnoten ihrer Tabellen (Befund B9: nicht mehr unter jeder Tabelle)
+function legendHints(built) {
+  const notes = [...new Set((built.tables || []).map((t) => t && t.note).filter(Boolean))];
+  return (built.hints || []).concat(notes);
+}
+
+// Legende am Ende der View (PROMPT-2 A.3/A.5): verschobene Einleitungs- und Abschnittstexte, Fussnoten; im Druck geöffnet
 function appendLegend(container, hints) {
   if (!hints || !hints.length) return;
   const legend = renderCollapsible('Hinweise und Definitionen', [el('ul', { class: 'legend-list' }, hints.map((h) => el('li', { text: h })))], { printOpen: true });
@@ -333,7 +342,7 @@ function renderView() {
     const built = view.build({});
     actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines: [] }));
     for (const node of built.nodes) container.appendChild(node);
-    appendLegend(container, built.hints);
+    appendLegend(container, legendHints(built));
     jumpToGlossaryTerm();
     return;
   }
@@ -390,7 +399,7 @@ function renderView() {
   if (definitionen) actions.append(definitionen);
   container.appendChild(el('div', { class: 'print-filter', text: headerLines.join(' · ') }));
   for (const node of built.nodes) container.appendChild(node);
-  appendLegend(container, built.hints);
+  appendLegend(container, legendHints(built));
 }
 
 function renderAll() {

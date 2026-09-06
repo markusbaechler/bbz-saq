@@ -6,7 +6,7 @@ import {
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
-  deltaView,
+  deltaView, col, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, directionOfLabel,
 } from '../views/tables.js';
 import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
@@ -224,7 +224,7 @@ test('tables.comparisonTable: Auswahl gegen Benchmark je Kennzahl, Differenz in 
   assertEqual(t.columns.map((c) => c.label), ['Kennzahl', 'Auswahl', 'n (Auswahl)', 'Benchmark: Alle Banken', 'n (Benchmark)', 'Differenz']);
   const byLabel = Object.fromEntries(t.rows.map((r) => [r.kennzahl, r]));
   // Testbank: A, B → im 1. Versuch bestanden A (50.0 %); alle: 50.0 % → Differenz 0
-  assertEqual(byLabel['Schriftlich: im 1. Versuch bestanden'], { kennzahl: 'Schriftlich: im 1. Versuch bestanden', auswahl: '50.0 %', n: 2, benchmark: '50.0 %', n2: 4, differenz: '0.0 pp', small: true });
+  assertEqual(byLabel['Schriftlich: im 1. Versuch bestanden'], { kennzahl: 'Schriftlich: im 1. Versuch bestanden', auswahl: '50.0 %', n: 2, benchmark: '50.0 %', n2: 4, differenz: '0.0 pp', small: true, direction: 'up' });
   // insgesamt bestanden: Testbank 100 % (A, B) vs alle 75 % → +25.0 pp
   assertEqual(byLabel['Schriftlich: insgesamt bestanden'].differenz, '+25.0 pp');
   // Ø Resultat 1. Versuch: Testbank (0.7+0.5)/2 = 0.6 vs alle 0.6125 → −1.3 pp
@@ -547,4 +547,65 @@ test('tables.deltaView: Symbol nach Vorzeichen, Ton nach Richtung, unter 0.5 pp 
   assertEqual(deltaView(-0.49, 'down'), { symbol: '●', tone: 'neutral', text: '−0.5 pp' });
   assertEqual(deltaView(0, 'up'), { symbol: '●', tone: 'neutral', text: '0.0 pp' });
   assertEqual(deltaView(5, 'neutral'), { symbol: '▲', tone: 'neutral', text: '+5.0 pp' });
+});
+
+test('tables.col: Priorität Standard 2, explizit 1 oder 3, Zusatzfelder (A.5)', () => {
+  assertEqual(col('n', 'n'), { key: 'n', label: 'n', prio: 2 });
+  assertEqual(col('gruppe', 'Profil', 1), { key: 'gruppe', label: 'Profil', prio: 1 });
+  assertEqual(col('differenz', 'Differenz', 1, { direction: 'up' }), { key: 'differenz', label: 'Differenz', prio: 1, direction: 'up' });
+});
+
+test('tables: Spaltenprioritäten gemäss Anhang A1 – erste Spalte immer 1, Kernspalten 1, Details 3', () => {
+  const pr = (t, key) => { const c = t.columns.find((x) => x.key === key); return c ? c.prio : undefined; };
+  const pass = passRateTable(cohort(), 'profil');
+  assertEqual([pr(pass, 'gruppe'), pr(pass, 'n'), pr(pass, 'erstversuch'), pr(pass, 'gesamt')], [1, 1, 1, 1], 'passRateTable Prio 1');
+  assertEqual([pr(pass, 'durchgefallen'), pr(pass, 'abgeschlossen'), pr(pass, 'offen')], [2, 2, 2], 'passRateTable Prio 2');
+  assertEqual([pr(pass, 'passiv'), pr(pass, 'nichtErfasst')], [3, 3], 'passRateTable Prio 3');
+  const ov = overviewModel(cohort()).byProfil;
+  assertEqual([pr(ov, 'gruppe'), pr(ov, 'n'), pr(ov, 'erstversuch'), pr(ov, 'muendlich')], [1, 1, 1, 1], 'Kennzahlen je Profil Prio 1');
+  assertEqual([pr(ov, 'personen'), pr(ov, 'gesamt'), pr(ov, 'offen')], [2, 2, 2], 'Kennzahlen je Profil Prio 2');
+  assertEqual([pr(ov, 'durchgefallen'), pr(ov, 'passiv')], [3, 3], 'Kennzahlen je Profil Prio 3');
+  const oral = oralRateTable(cohort(), 'profil');
+  assertEqual([pr(oral, 'gruppe'), pr(oral, 'n'), pr(oral, 'bestanden'), pr(oral, 'failed1')], [1, 1, 1, 1], 'oralRateTable Prio 1');
+  const ts = timeSeriesTable(cohort());
+  assertEqual([pr(ts, 'gruppe'), pr(ts, 'n'), pr(ts, 'erstversuch'), pr(ts, 'muendlich'), pr(ts, 'personen'), pr(ts, 'op2')], [1, 1, 1, 1, 2, 3], 'timeSeriesTable');
+  const warn = earlyWarningTable(cohort());
+  assertEqual([pr(warn, 'stufe'), pr(warn, 'name'), pr(warn, 'teil'), pr(warn, 'naechster'), pr(warn, 'bank'), pr(warn, 'row')], [1, 1, 1, 1, 2, 3], 'earlyWarningTable');
+  const tables = [pass, ov, oral, ts, warn, partTable(cohort(), 'we'), vssVsmTable(cohort()), performanceTable(cohort(), 'profil'), passiveTable(cohort()), profilePartsTable(cohort()), throughputTables(cohort()).byProfil];
+  for (const t of tables) {
+    assertEqual(t.columns[0].prio, 1, t.title + ': erste Spalte Prio 1');
+    assert(t.columns.every((c) => [1, 2, 3].includes(c.prio)), t.title + ': jede Spalte hat eine Priorität');
+  }
+});
+
+test('tables.isDeltaColumn / statusTone / directionOfLabel (A.5)', () => {
+  assert(isDeltaColumn({ key: 'differenz', label: 'Differenz' }));
+  assert(isDeltaColumn({ key: 'x', label: 'Δ Durchfallquote' }));
+  assert(isDeltaColumn({ key: 'differenz', label: 'Differenz zum letzten Snapshot' }));
+  assert(!isDeltaColumn({ key: 'n', label: 'n' }));
+  assertEqual(statusTone('bestanden'), 'bestanden');
+  assertEqual(statusTone('nicht bestanden'), 'nicht');
+  assertEqual(statusTone('offen'), 'offen');
+  assertEqual(statusTone('nicht erfasst'), 'passiv');
+  assertEqual(statusTone('geplant 29.09.2026'), 'geplant');
+  assertEqual(statusTone('letzter Versuch'), 'nicht');
+  assertEqual(statusTone('ausgeschöpft'), 'nicht');
+  assertEqual(statusTone('ja', 'Passiv'), 'passiv');
+  assertEqual(statusTone('', 'Passiv'), null);
+  assertEqual(statusTone('–'), null);
+  assert(STATUS_COLUMN_LABELS.includes('Stufe') && STATUS_COLUMN_LABELS.includes('Status Vorgang'));
+  assertEqual(directionOfLabel('Schriftlich: im 1. Versuch bestanden'), 'up');
+  assertEqual(directionOfLabel('Mündlich: 2× durchgefallen'), 'down');
+  assertEqual(directionOfLabel('Vorgänge'), 'neutral');
+  assertEqual(directionOfLabel('gibt es nicht'), 'neutral');
+});
+
+test('tables.comparisonTable: Differenzspalte hat Priorität 1 und jede Zeile ihre Richtung (A.5)', () => {
+  const t = comparisonTable(overviewModel(cohort()).kpis, overviewModel(cohort()).kpis, 'Alle Banken');
+  const diff = t.columns.find((c) => c.key === 'differenz');
+  assert(isDeltaColumn(diff) && diff.prio === 1);
+  assert(t.rows.every((r) => ['up', 'down', 'neutral'].includes(r.direction)), 'Richtung je Zeile');
+  assertEqual(t.rows.find((r) => r.kennzahl === 'Schriftlich: im 1. Versuch durchgefallen').direction, 'down');
+  const h = historyTables([], buildSnapshot({ persons: cohort() }));
+  assert(h.kennzahlen.rows.every((r) => ['up', 'down', 'neutral'].includes(r.direction)), 'Historie: Richtung je Kennzahl');
 });

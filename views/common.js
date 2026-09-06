@@ -2,7 +2,7 @@
 // Nur Rendering; Zahlen und Texte kommen aus views/tables.js.
 
 import { downloadCsv, downloadXlsx, exportFileName, printPage, tablesToCsv } from '../export.js';
-import { numericColumns, deltaView } from './tables.js';
+import { numericColumns, deltaView, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS } from './tables.js';
 import { glossaryEntry } from '../glossary.js';
 
 export function el(tag, attrs = {}, children = []) {
@@ -25,28 +25,79 @@ function cellText(v) {
   return v === null || v === undefined ? '' : String(v);
 }
 
-// Tabellenmodell → <div class="table-wrap"><table>…; Zeilen mit small=true erhalten die Klasse «small»
+const PCT = /^\s*(\d+(?:[.,]\d+)?)\s*%/;
+
+// Zelle eines Tabellenmodells (PROMPT-2 A.5): data-prio; Differenzen mit Symbol, Vorzeichen und Farbe nach Richtung
+// (row.direction, sonst column.direction); Statuszellen als Badge; Prozentwerte mit Datenbalken (--v). Farbe nie allein.
+function cell(c, row, numeric) {
+  const text = cellText(row[c.key]);
+  const attrs = { 'data-prio': String(c.prio || 2) };
+  const cls = numeric.has(c.key) ? ['num'] : [];
+  if (isDeltaColumn(c) && /\d/.test(text)) {
+    const value = Number(text.replace('−', '-').replace('±', '').replace(/[^0-9.-]/g, ''));
+    if (Number.isFinite(value)) {
+      const d = deltaView(value, row.direction || c.direction || 'neutral');
+      return el('td', { ...attrs, class: cls.concat(['delta', d.tone]).join(' ') }, [el('span', { class: 'delta-symbol', 'aria-hidden': 'true', text: d.symbol + ' ' }), text]);
+    }
+  }
+  if (STATUS_COLUMN_LABELS.includes(c.label)) {
+    const tone = statusTone(text, c.label);
+    if (tone) return el('td', { ...attrs, class: cls.join(' ') || null }, [el('span', { class: 'badge status-' + tone, text })]);
+  }
+  const pct = !isDeltaColumn(c) && PCT.exec(text);
+  if (pct) {
+    cls.push('pct');
+    attrs.style = '--v: ' + Math.min(100, Number(pct[1].replace(',', '.')));
+  }
+  return el('td', { ...attrs, class: cls.join(' ') || null, text });
+}
+
+function headerCell(c, numeric) {
+  return el('th', { scope: 'col', 'data-prio': String(c.prio || 2), class: numeric.has(c.key) ? 'num' : null, text: c.label });
+}
+
+// Tabellentitel mit ⓘ (Fussnote als Tooltip; der Text steht zusätzlich in der Legende der View, Befund B9)
+function captionNode(title, note) {
+  return el('caption', {}, [el('span', { class: 'caption-text', text: title }), note ? infoIcon(note) : null]);
+}
+
+// Schalter «Alle Spalten»: hebt die Ausblendung nach data-prio auf (Paket B blendet Prio 2/3 per Breakpoint aus;
+// auf dem Desktop sind alle Spalten sichtbar und der Schalter ist ausgeblendet)
+function allColumnsToggle(wrap, columns) {
+  if (!columns.some((c) => (c.prio || 2) > 1)) return null;
+  const btn = el('button', { type: 'button', class: 'link all-columns', 'aria-pressed': 'false', text: 'Alle Spalten' });
+  btn.addEventListener('click', () => {
+    const on = wrap.classList.toggle('all-columns');
+    btn.setAttribute('aria-pressed', String(on));
+    btn.textContent = on ? 'Weniger Spalten' : 'Alle Spalten';
+  });
+  return btn;
+}
+
+// Tabellenmodell → <div class="table-wrap"><table>…; Zeilen mit small=true erhalten die Klasse «small».
+// Fussnoten (note) erscheinen nicht mehr unter der Tabelle, sondern als ⓘ am Titel und in der Legende der View.
 export function renderTable(table, { caption = true } = {}) {
   const numeric = numericColumns(table); // Befund 13: Zahlen- und Prozentspalten rechtsbündig
-  const thead = el('thead', {}, [el('tr', {}, table.columns.map((c) => el('th', { scope: 'col', class: numeric.has(c.key) ? 'num' : null, text: c.label })))]);
-  const tbody = el('tbody', {}, table.rows.map((row) => el('tr', { class: row.small ? 'small' : null }, table.columns.map((c) => el('td', { class: numeric.has(c.key) ? 'num' : null, text: cellText(row[c.key]) })))));
+  const thead = el('thead', {}, [el('tr', {}, table.columns.map((c) => headerCell(c, numeric)))]);
+  const tbody = el('tbody', {}, table.rows.map((row) => el('tr', { class: row.small ? 'small' : null }, table.columns.map((c) => cell(c, row, numeric)))));
   const children = [];
-  if (caption && table.title) children.push(el('caption', { text: table.title }));
+  if (caption && table.title) children.push(captionNode(table.title, table.note));
   children.push(thead, tbody);
   const wrap = el('div', { class: 'table-wrap' }, [el('table', { class: 'data' }, children)]);
+  const toggle = allColumnsToggle(wrap, table.columns);
+  if (toggle) wrap.appendChild(toggle);
   if (!table.rows.length) wrap.appendChild(el('p', { class: 'empty', text: table.empty || 'Keine Daten für den aktiven Filter.' }));
-  if (table.note) wrap.appendChild(el('p', { class: 'note', text: table.note }));
   return wrap;
 }
 
 // Tabelle mit aufklappbaren Zeilen: detail(row, i) liefert den Inhalt unter der Zeile (oder null → nicht aufklappbar).
 // Die Zeile ist ein Button (Klick, Enter, Leertaste) mit aria-expanded/aria-controls; die Detailzeile ist bis zum Aufklappen hidden.
+// hint: Bedienhinweis, erscheint mit der Fussnote als ⓘ am Titel.
 let expandableSeq = 0;
 export function renderExpandableTable(table, { detail, hint = null } = {}) {
   const numeric = numericColumns(table);
   const cols = table.columns;
-  const thead = el('thead', {}, [el('tr', {}, [el('th', { scope: 'col', class: 'toggle', 'aria-label': 'Aufklappen' })]
-    .concat(cols.map((c) => el('th', { scope: 'col', class: numeric.has(c.key) ? 'num' : null, text: c.label }))))]);
+  const thead = el('thead', {}, [el('tr', {}, [el('th', { scope: 'col', class: 'toggle', 'data-prio': '1', 'aria-label': 'Aufklappen' })].concat(cols.map((c) => headerCell(c, numeric))))]);
   const tbody = el('tbody');
   table.rows.forEach((row, i) => {
     const content = detail ? detail(row, i) : null;
@@ -54,7 +105,7 @@ export function renderExpandableTable(table, { detail, hint = null } = {}) {
     const tr = el('tr', {
       class: 'expandable' + (row.small ? ' small' : ''),
       role: content ? 'button' : null, tabindex: content ? '0' : null, 'aria-expanded': content ? 'false' : null, 'aria-controls': content ? id : null,
-    }, [el('td', { class: 'toggle' })].concat(cols.map((c) => el('td', { class: numeric.has(c.key) ? 'num' : null, text: cellText(row[c.key]) }))));
+    }, [el('td', { class: 'toggle', 'data-prio': '1' })].concat(cols.map((c) => cell(c, row, numeric))));
     tbody.appendChild(tr);
     if (!content) return;
     const detailRow = el('tr', { class: 'event-detail', id, hidden: true }, [el('td', { colspan: String(cols.length + 1) }, [content])]);
@@ -68,12 +119,13 @@ export function renderExpandableTable(table, { detail, hint = null } = {}) {
     tr.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
   });
   const children = [];
-  if (table.title) children.push(el('caption', { text: table.title }));
+  const info = [table.rows.length && hint ? hint : null, table.note].filter(Boolean).join(' ');
+  if (table.title) children.push(captionNode(table.title, info || null));
   children.push(thead, tbody);
   const wrap = el('div', { class: 'table-wrap' }, [el('table', { class: 'data expandable-table' }, children)]);
+  const columnsToggle = allColumnsToggle(wrap, cols);
+  if (columnsToggle) wrap.appendChild(columnsToggle);
   if (!table.rows.length) wrap.appendChild(el('p', { class: 'empty', text: table.empty || 'Keine Daten für den aktiven Filter.' }));
-  const note = [table.rows.length && hint ? hint : null, table.note].filter(Boolean).join(' ');
-  if (note) wrap.appendChild(el('p', { class: 'note', text: note }));
   return wrap;
 }
 
@@ -118,7 +170,16 @@ export function infoIcon(text, prefix = 'Hinweis: ') {
 // der View) und optionalem Kurzwert (meta, z. B. «5 Termine an 3 Prüfungstagen»). Keine Erklärungsabsätze mehr im Fluss.
 export function section(title, nodes, { info = null, meta = null } = {}) {
   const head = el('h3', {}, [title, info ? infoIcon(info) : null, meta ? el('span', { class: 'section-meta', text: meta }) : null]);
-  return el('section', { class: 'block' }, [head].concat(nodes));
+  const node = el('section', { class: 'block' }, [head].concat(nodes));
+  // Kein Doppeltitel (Befund B8): eine caption mit dem Titel des Abschnitts bleibt nur für Screenreader; ihr ⓘ wandert an den Titel
+  for (const cap of node.querySelectorAll('table > caption')) {
+    const text = cap.querySelector('.caption-text');
+    if (!text || text.textContent !== title) continue;
+    cap.classList.add('visually-hidden');
+    const icon = cap.querySelector('.info');
+    if (icon && !head.querySelector('.info')) head.insertBefore(icon, head.querySelector('.section-meta'));
+  }
+  return node;
 }
 
 // Sammelt Abschnitts-Erklärungen für die Legende der View (app.js): sec(title, nodes, intro, meta)

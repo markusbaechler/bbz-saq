@@ -19,14 +19,15 @@ export function impactOf(entry) {
   return entry && IMPACT_ORDER[entry.impact] !== undefined ? entry.impact : 'kennzahl';
 }
 
+// prio (PROMPT-2 A.5, Anhang A1): 1 = immer sichtbar, 2 = ab Tablet, 3 = ab Desktop
 export const DQ_COLUMNS = [
-  { key: 'impact', label: 'Wirkung' },
-  { key: 'level', label: 'Stufe' },
-  { key: 'sheet', label: 'Sheet' },
-  { key: 'row', label: 'Zeile' },
-  { key: 'header', label: 'Header' },
-  { key: 'raw', label: 'Rohwert' },
-  { key: 'reason', label: 'Grund' },
+  { key: 'impact', label: 'Wirkung', prio: 1 },
+  { key: 'level', label: 'Stufe', prio: 1 },
+  { key: 'sheet', label: 'Sheet', prio: 2 },
+  { key: 'row', label: 'Zeile', prio: 1 },
+  { key: 'header', label: 'Header', prio: 2 },
+  { key: 'raw', label: 'Rohwert', prio: 3 },
+  { key: 'reason', label: 'Grund', prio: 1 },
 ];
 
 const collator = new Intl.Collator('de-CH', { numeric: true });
@@ -245,12 +246,12 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
     const active = s.sortKey === c.key;
     const arrow = active ? (s.sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     return el('th', {
-      scope: 'col', class: 'sortable' + (active ? ' active' : ''), 'aria-sort': active ? (s.sortDir === 'asc' ? 'ascending' : 'descending') : 'none',
+      scope: 'col', 'data-prio': String(c.prio), class: 'sortable' + (active ? ' active' : ''), 'aria-sort': active ? (s.sortDir === 'asc' ? 'ascending' : 'descending') : 'none',
       onclick: () => onChange({ ...s, sortKey: c.key, sortDir: active && s.sortDir === 'asc' ? 'desc' : 'asc' }),
     }, [el('button', { type: 'button', text: c.label + arrow })]);
   }));
   const body = el('tbody', {}, visible.map((e) => el('tr', { class: 'level-' + levelOf(e) + ' impact-' + impactOf(e) }, DQ_COLUMNS.map((c) => {
-    const td = el('td', { class: 'col-' + c.key, text: formatRaw(e[c.key]) });
+    const td = el('td', { class: 'col-' + c.key, 'data-prio': String(c.prio), text: formatRaw(e[c.key]) });
     if (c.key === 'raw' && formatRaw(e.raw) === '') td.textContent = '(leer)';
     if (c.key === 'level') td.textContent = LEVEL_LABELS[levelOf(e)];
     if (c.key === 'impact') td.textContent = IMPACT_LABELS[impactOf(e)];

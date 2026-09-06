@@ -39,7 +39,10 @@ function kindSection(title, part, artWort) {
 
 export function build(ctx) {
   const t = plannedTables(ctx.plannedPersons || []);
-  const hints = ['Geplant = Prüfungsdatum in der Zukunft ohne Passed-Wert. Zuerst schriftliche (WE), dann mündliche (OE) Prüfungen. Die Filter Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» gelten; Zeitraum und Versuchsmodus wirken hier nicht.'];
+  const hints = [
+    'Geplant = Prüfungsdatum in der Zukunft ohne Passed-Wert. Zuerst schriftliche (WE), dann mündliche (OE) Prüfungen. Die Filter Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» gelten; Zeitraum und Versuchsmodus wirken hier nicht.',
+    'Prüfungsereignisse: Zeile anklicken (oder Enter) zeigt die zugeteilten Personen des Ereignisses.',
+  ];
   return {
     nodes: [
       renderKpis([

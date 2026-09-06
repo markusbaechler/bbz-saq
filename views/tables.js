@@ -44,8 +44,34 @@ function personName(p) {
   return [p.lastName, p.firstName].filter((x) => x).join(' ');
 }
 
-function col(key, label) {
-  return { key, label };
+// Spalte eines Tabellenmodells (PROMPT-2 A.5): prio 1 = immer sichtbar (Phone), 2 = ab 601 px, 3 = ab 901 px (CSS in Paket B);
+// extra z. B. direction für Differenzspalten
+export function col(key, label, prio = 2, extra = {}) {
+  return { key, label, prio, ...extra };
+}
+
+// Differenzspalten (Δ in Prozentpunkten oder absolut): Symbol, Vorzeichen und Farbe nach Richtung (views/common.js)
+export function isDeltaColumn(column) {
+  if (!column) return false;
+  return /^(differenz|delta)/i.test(String(column.key || '')) || /^(Differenz|Δ)/.test(String(column.label || ''));
+}
+
+// Spalten, deren Zellen als Status-Badge erscheinen (Text bleibt, Farbe kommt dazu)
+export const STATUS_COLUMN_LABELS = ['Status', 'Status Vorgang', 'Status schriftlich', 'Status mündlich', 'Stufe', 'Bestanden', 'Passiv'];
+
+// Farbton einer Statuszelle: bestanden | nicht | offen | passiv | geplant | null (kein Badge)
+export function statusTone(text, label = '') {
+  const t = String(text === null || text === undefined ? '' : text).trim().toLowerCase();
+  if (!t || t === '–' || t === '-') return null;
+  if (label === 'Passiv') return t === 'ja' ? 'passiv' : null;
+  if (label === 'Bestanden') return t === 'ja' ? 'bestanden' : t === 'nein' ? 'nicht' : null;
+  if (t.startsWith('nicht bestanden') || t === 'nein' || t.startsWith('letzter versuch') || t.startsWith('ausgeschöpft')) return 'nicht';
+  if (t.startsWith('nicht erfasst')) return 'passiv';
+  if (t.startsWith('bestanden') || t === 'ja') return 'bestanden';
+  if (t.startsWith('geplant')) return 'geplant';
+  if (t.startsWith('offen')) return 'offen';
+  if (t.startsWith('passiv')) return 'passiv';
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,8 +91,8 @@ export function passRateTable(persons, key) {
   return {
     title: 'Bestehensquote schriftlich nach ' + GROUP_LABELS[key],
     columns: [
-      col('gruppe', GROUP_LABELS[key]), col('n', 'n (Vorgänge)'), col('erstversuch', 'Im 1. Versuch bestanden'), col('durchgefallen', 'Im 1. Versuch durchgefallen'),
-      col('gesamt', 'Insgesamt bestanden'), col('abgeschlossen', 'n (abgeschlossen)'), col('offen', 'Offen'), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)'), col('nichtErfasst', 'Nicht erfasst'),
+      col('gruppe', GROUP_LABELS[key], 1), col('n', 'n (Vorgänge)', 1), col('erstversuch', 'Im 1. Versuch bestanden', 1), col('durchgefallen', 'Im 1. Versuch durchgefallen', 2),
+      col('gesamt', 'Insgesamt bestanden', 1), col('abgeschlossen', 'n (abgeschlossen)', 2), col('offen', 'Offen', 2), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)', 3), col('nichtErfasst', 'Nicht erfasst', 3),
     ],
     rows,
     note: SMALL_NOTE + '; 1. Versuch: Nenner sind Vorgänge mit absolviertem RUN1; insgesamt bestanden: Nenner sind abgeschlossene Vorgänge (bestanden + nicht bestanden); offen = Gesamtergebnis leer (läuft noch), passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen und kein Termin; nicht erfasst = Gesamtergebnis unlesbar',
@@ -85,7 +111,7 @@ export function performanceTable(persons, key, kind = 'written') {
   for (const g of byGroup(persons, key, (ps) => ps)) rows.push(row(groupLabel(g.key), g.value));
   return {
     title: 'Ø Resultat ' + (kind === 'oral' ? 'mündlich' : 'schriftlich') + ' nach ' + GROUP_LABELS[key],
-    columns: [col('gruppe', GROUP_LABELS[key]), col('n', 'n (1. Versuch)'), col('mean1', 'Ø Resultat 1. Versuch'), col('n2', 'n (bestanden)'), col('mean2', 'Ø Resultat bestandener Run')],
+    columns: [col('gruppe', GROUP_LABELS[key], 1), col('n', 'n (1. Versuch)', 2), col('mean1', 'Ø Resultat 1. Versuch', 1), col('n2', 'n (bestanden)', 2), col('mean2', 'Ø Resultat bestandener Run', 1)],
     rows,
     note: SMALL_NOTE + '; Resultat = erreichte Punkte in Prozent; n = Vorgänge mit Wert; «bestandener Run» nur für Vorgänge, deren absolvierte Teilprüfungen alle bestanden sind',
   };
@@ -100,7 +126,7 @@ export function partTable(persons, kind = 'we') {
   }));
   return {
     title: (kind === 'oe' ? 'Mündlich' : 'Schriftlich') + ' je Teilprüfung',
-    columns: [col('gruppe', 'Teilprüfung'), col('n', 'n'), col('bestanden1', 'Im 1. Versuch bestanden'), col('durchgefallen1', 'Im 1. Versuch durchgefallen'), col('gesamt', 'Insgesamt bestanden'), col('mean1', 'Ø Resultat 1. Versuch'), col('mean2', 'Ø Resultat bestandener Run')],
+    columns: [col('gruppe', 'Teilprüfung', 1), col('n', 'n', 1), col('bestanden1', 'Im 1. Versuch bestanden', 1), col('durchgefallen1', 'Im 1. Versuch durchgefallen', 2), col('gesamt', 'Insgesamt bestanden', 2), col('mean1', 'Ø Resultat 1. Versuch', 1), col('mean2', 'Ø Resultat bestandener Run', 3)],
     rows,
     note: SMALL_NOTE + '; n = Vorgänge mit absolviertem RUN1 der Teilprüfung',
   };
@@ -125,8 +151,8 @@ export function oralRateTable(persons, key) {
   return {
     title: 'Bestehensquote mündlich nach ' + GROUP_LABELS[key],
     columns: [
-      col('gruppe', GROUP_LABELS[key]), col('n', 'n (abgeschlossen)'), col('bestanden', 'Bestanden'), col('nichtBestanden', 'Nicht bestanden'), col('offen', 'Offen'), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)'), col('nichtErfasst', 'Nicht erfasst'),
-      col('angetreten', 'n (angetreten)'), col('failed1', 'Im 1. Versuch durchgefallen'), col('failed2', '2× durchgefallen'),
+      col('gruppe', GROUP_LABELS[key], 1), col('n', 'n (abgeschlossen)', 1), col('bestanden', 'Bestanden', 1), col('nichtBestanden', 'Nicht bestanden', 2), col('offen', 'Offen', 2), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)', 3), col('nichtErfasst', 'Nicht erfasst', 3),
+      col('angetreten', 'n (angetreten)', 2), col('failed1', 'Im 1. Versuch durchgefallen', 1), col('failed2', '2× durchgefallen', 2),
     ],
     rows,
     note: SMALL_NOTE + '; bestanden / nicht bestanden: Nenner sind abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden); passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen, kein Termin; durchgefallen: Nenner sind angetretene Vorgänge (absolvierter, datierter OE1 RUN1)',
@@ -149,7 +175,7 @@ export function vssVsmTable(persons) {
   }
   return {
     title: 'Bestehensquoten VSS / VSM / ohne, je Profil',
-    columns: [col('gruppe', 'Gruppe'), col('profil', 'Profil'), col('n', 'n (Vorgänge)'), col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('gesamt', 'Schriftlich insgesamt bestanden'), col('muendlich', 'Mündlich bestanden')],
+    columns: [col('gruppe', 'Gruppe', 1), col('profil', 'Profil', 1), col('n', 'n (Vorgänge)', 1), col('erstversuch', 'Schriftlich im 1. Versuch bestanden', 1), col('gesamt', 'Schriftlich insgesamt bestanden', 2), col('muendlich', 'Mündlich bestanden', 2)],
     rows,
     note: 'Vorgänge mit VSS und VSM zählen in beiden Gruppen; Zeilen mit n < ' + SMALL_N + ' sind eingeschränkt aussagekräftig; Nenner der Quoten wie in den Ansichten Schriftlich und Mündlich',
   };
@@ -184,7 +210,7 @@ function groupNote(g) {
 
 // options.dynamic (Standard true): Mindestgruppengrösse SMALL_N und dynamisches k (siehe metrics.rankingLimit)
 export function rankingTables(persons, mode, k = 5, options = {}) {
-  const simpleColumns = (label) => [col('rang', 'Rang'), col('name', 'Name'), col('bank', 'Bank'), col('wert', label), col('versuche', 'Versuche'), col('refDate', 'Referenzdatum')];
+  const simpleColumns = (label) => [col('rang', 'Rang', 1), col('name', 'Name', 1), col('bank', 'Bank', 2), col('wert', label, 1), col('versuche', 'Versuche', 2), col('refDate', 'Referenzdatum', 3)];
   const build = (groups, title, columns, mapEntry) => groups.map((g) => ({
     profil: groupLabel(g.profil),
     n: g.n,
@@ -200,7 +226,7 @@ export function rankingTables(persons, mode, k = 5, options = {}) {
     written: build(topWritten(persons, mode, k, options), 'Beste schriftliche Prüfung', simpleColumns('Schriftlich'), baseRankingRow),
     oral: build(topOral(persons, mode, k, options), 'Beste mündliche Prüfung', simpleColumns('Mündlich'), baseRankingRow),
     award: build(awardRanking(persons, mode, k, options), 'bbz-Award',
-      [col('rang', 'Rang'), col('name', 'Name'), col('bank', 'Bank'), col('wert', 'Award-Score'), col('schriftlich', 'Schriftlich'), col('muendlich', 'Mündlich'), col('versuche', 'Versuche'), col('refDate', 'Referenzdatum')],
+      [col('rang', 'Rang', 1), col('name', 'Name', 1), col('bank', 'Bank', 2), col('wert', 'Award-Score', 1), col('schriftlich', 'Schriftlich', 2), col('muendlich', 'Mündlich', 2), col('versuche', 'Versuche', 2), col('refDate', 'Referenzdatum', 3)],
       (e) => ({ ...baseRankingRow(e), schriftlich: formatPct(e.written), muendlich: formatPct(e.oral) })),
   };
 }
@@ -222,8 +248,8 @@ export function awardDossierTable(persons, mode, k = 5, options = {}) {
   return {
     title: 'Award-Dossier',
     columns: [
-      col('profil', 'Profil'), col('rang', 'Rang'), col('name', 'Name'), col('bank', 'Bank'), col('sprache', 'Sprache'), col('wert', 'Award-Score'), col('schriftlich', 'Schriftlich'),
-      col('muendlich', 'Mündlich'), col('versuche', 'Versuche'), col('refDate', 'Referenzdatum'), col('sheet', 'Sheet'), col('row', 'Zeile'), col('begruendung', 'Begründung Rang'),
+      col('profil', 'Profil', 1), col('rang', 'Rang', 1), col('name', 'Name', 1), col('bank', 'Bank', 2), col('sprache', 'Sprache', 3), col('wert', 'Award-Score', 1), col('schriftlich', 'Schriftlich', 2),
+      col('muendlich', 'Mündlich', 2), col('versuche', 'Versuche', 2), col('refDate', 'Referenzdatum', 3), col('sheet', 'Sheet', 3), col('row', 'Zeile', 3), col('begruendung', 'Begründung Rang', 3),
     ],
     rows,
     note: 'Award-Score = 0.5 · Ø Resultat schriftlich + 0.5 · Ø Resultat mündlich; Wertung: ' + (MODE_LABELS[mode] || mode) + '. Nur Vorgänge mit bestandener mündlicher Prüfung. '
@@ -331,14 +357,14 @@ function plannedKindTables(runs, kind) {
     personen: new Set(runs.map((r) => r.person.personKey)).size,
     summary: {
       title: k.titel + ' je Tag und Ort',
-      columns: [col('datum', 'Datum'), col('ort', 'Ort'), col('teile', 'Teilprüfungen (Anzahl)'), col('anzahl', 'Anzahl'), col('wiederholung', 'davon Wiederholung')],
+      columns: [col('datum', 'Datum', 1), col('ort', 'Ort', 1), col('teile', 'Teilprüfungen (Anzahl)', 2), col('anzahl', 'Anzahl', 1), col('wiederholung', 'davon Wiederholung', 2)],
       rows: groups.map((g) => ({ datum: fmtDate(g.day), ort: groupLabel(g.location), teile: g.parts.map((p) => p.label + ' (' + p.count + ')').join(', '), anzahl: g.count, wiederholung: g.repeats })),
       empty: k.leer,
       note: 'Wiederholung = Termin für Versuch 2 oder 3 (RUN2/RUN3).',
     },
     details: {
       title: k.titel + ' – Teilnehmende',
-      columns: [col('datum', 'Datum'), col('zeit', 'Zeit'), col('ort', 'Ort'), col('teil', 'Teilprüfung'), col('versuch', 'Versuch'), col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache')],
+      columns: [col('datum', 'Datum', 1), col('zeit', 'Zeit', 2), col('ort', 'Ort', 2), col('teil', 'Teilprüfung', 1), col('versuch', 'Versuch', 2), col('name', 'Name', 1), col('bank', 'Bank', 3), col('profil', 'Profil', 2), col('sprache', 'Sprache', 3)],
       rows: runs.map(plannedRow),
       empty: k.leer,
       note: 'Sortiert nach Datum und Zeit, Ort, Teilprüfung, Name. Ohne Zeit = Termin ohne Uhrzeit in der Datei.',
@@ -349,7 +375,7 @@ function plannedKindTables(runs, kind) {
       label: fmtDate(g.day) + ', ' + groupLabel(g.location),
       teilnehmende: {
         title: 'Zugeteilte Personen: ' + fmtDate(g.day) + ', ' + groupLabel(g.location) + ' (' + g.count + ')',
-        columns: [col('zeit', 'Zeit'), col('teil', 'Teilprüfung'), col('versuch', 'Versuch'), col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache')],
+        columns: [col('zeit', 'Zeit', 1), col('teil', 'Teilprüfung', 1), col('versuch', 'Versuch', 2), col('name', 'Name', 1), col('bank', 'Bank', 3), col('profil', 'Profil', 2), col('sprache', 'Sprache', 3)],
         rows: g.entries.map(plannedRow),
       },
     })),
@@ -375,7 +401,7 @@ export function multiProfileTable(persons, allPersons = persons) {
   const collator = new Intl.Collator('de-CH');
   return {
     title: 'Personen mit mehreren Profilen',
-    columns: [col('sequence', 'Profil-Abfolge'), col('personen', 'Personen'), col('vorgaenge', 'Vorgänge')],
+    columns: [col('sequence', 'Profil-Abfolge', 1), col('personen', 'Personen', 1), col('vorgaenge', 'Vorgänge', 2)],
     rows: [...bySeq.values()].sort((a, b) => b.personen - a.personen || collator.compare(a.sequence, b.sequence)),
     note: 'Zählt Menschen (Personenschlüssel aus Name und Geburtsdatum, nicht Employer), nicht Vorgänge. Abfolge nach dem ersten Prüfungsdatum je Vorgang; berücksichtigt alle kennzahlrelevanten Vorgänge der Person, auch ausserhalb des aktiven Profil-Filters.',
     total: multi.length,
@@ -419,8 +445,8 @@ export function overviewModel(persons, allPersons = persons) {
   const byProfil = {
     title: 'Kennzahlen je Profil',
     columns: [
-      col('gruppe', 'Profil'), col('n', 'n (Vorgänge)'), col('personen', 'Personen'), col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('durchgefallen', 'Schriftlich im 1. Versuch durchgefallen'),
-      col('gesamt', 'Schriftlich insgesamt bestanden'), col('muendlich', 'Mündlich bestanden'), col('offen', 'Offen'), col('passiv', 'davon passiv'),
+      col('gruppe', 'Profil', 1), col('n', 'n (Vorgänge)', 1), col('personen', 'Personen', 2), col('erstversuch', 'Schriftlich im 1. Versuch bestanden', 1), col('durchgefallen', 'Schriftlich im 1. Versuch durchgefallen', 3),
+      col('gesamt', 'Schriftlich insgesamt bestanden', 2), col('muendlich', 'Mündlich bestanden', 1), col('offen', 'Offen', 2), col('passiv', 'davon passiv', 3),
     ],
     rows: o.byProfil.map((g) => ({
       gruppe: mark(groupLabel(g.key), g.small), n: g.n, small: g.small, personen: personCount(persons.filter((p) => (p.profil === undefined ? null : p.profil) === g.key)),
@@ -457,17 +483,24 @@ export function deltaView(delta, direction = 'neutral') {
   return { symbol, tone: better === null ? 'neutral' : (better ? 'pos' : 'neg'), text };
 }
 
+// Richtung einer Kennzahl nach ihrer Beschriftung (Kacheln der Übersicht); unbekannt → neutral
+let directionByLabel = null;
+export function directionOfLabel(label) {
+  if (!directionByLabel) directionByLabel = new Map(overviewModel([]).kpis.map((k) => [k.label, k.direction]));
+  return directionByLabel.get(label) || 'neutral';
+}
+
 export function comparisonTable(selectionKpis, benchmarkKpis, benchmarkLabel) {
   const byLabel = new Map(benchmarkKpis.map((k) => [k.label, k]));
   const rows = selectionKpis.map((k) => {
     const b = byLabel.get(k.label);
     let differenz = '';
     if (k.kind !== 'count') differenz = isNum(k.raw) && b && isNum(b.raw) ? formatPp((k.raw - b.raw) * 100) : '–';
-    return { kennzahl: k.label, auswahl: k.value, n: k.n, benchmark: b ? b.value : '–', n2: b ? b.n : 0, differenz, small: k.small };
+    return { kennzahl: k.label, auswahl: k.value, n: k.n, benchmark: b ? b.value : '–', n2: b ? b.n : 0, differenz, small: k.small, direction: k.direction || 'neutral' };
   });
   return {
     title: 'Auswahl im Vergleich zum Benchmark',
-    columns: [col('kennzahl', 'Kennzahl'), col('auswahl', 'Auswahl'), col('n', 'n (Auswahl)'), col('benchmark', 'Benchmark: ' + benchmarkLabel), col('n2', 'n (Benchmark)'), col('differenz', 'Differenz')],
+    columns: [col('kennzahl', 'Kennzahl', 1), col('auswahl', 'Auswahl', 1), col('n', 'n (Auswahl)', 3), col('benchmark', 'Benchmark: ' + benchmarkLabel, 2), col('n2', 'n (Benchmark)', 3), col('differenz', 'Differenz', 1)],
     rows,
     note: 'Differenz in Prozentpunkten (Auswahl minus Benchmark); ' + SMALL_NOTE,
   };
@@ -490,12 +523,12 @@ export function excludedTables(persons, dq = []) {
   if (nameless) counts.set('Kein Name (Zeile zählt nicht als Person)', nameless);
   const summary = {
     title: 'Nicht in den Kennzahlen – Gründe',
-    columns: [col('grund', 'Grund'), col('anzahl', 'Zeilen')],
+    columns: [col('grund', 'Grund', 1), col('anzahl', 'Zeilen', 1)],
     rows: [...counts.entries()].map(([grund, anzahl]) => ({ grund, anzahl })).sort((a, b) => b.anzahl - a.anzahl || collatorDe.compare(a.grund, b.grund)),
   };
   const details = {
     title: 'Nicht in den Kennzahlen – Zeilen',
-    columns: [col('sheet', 'Sheet'), col('row', 'Zeile'), col('name', 'Name'), col('profil', 'Profil'), col('bank', 'Bank'), col('grund', 'Grund'), col('status', 'Status')],
+    columns: [col('sheet', 'Sheet', 1), col('row', 'Zeile', 1), col('name', 'Name', 2), col('profil', 'Profil', 2), col('bank', 'Bank', 3), col('grund', 'Grund', 1), col('status', 'Status', 3)],
     rows: rows
       .map(({ person: p, reason }) => ({ sheet: p.sheetName, row: p.row, name: personName(p), profil: groupLabel(p.profil), bank: p.employerCanon || '', grund: reason, status: p.status }))
       .sort((a, b) => collatorDe.compare(a.grund, b.grund) || collatorDe.compare(a.sheet, b.sheet) || a.row - b.row),
@@ -529,15 +562,15 @@ export function openCasesTables(persons, today = new Date(), allPersons = person
   }
   const summary = {
     title: 'Offene Vorgänge je Profil',
-    columns: [col('profil', 'Profil'), col('offen', 'Offen'), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)'), col('schriftlich', 'davon schriftlich offen'), col('muendlich', 'davon mündlich offen'), col('ohnePruefung', 'ohne Prüfung'), col('geplant', 'mit geplantem Termin'), col('kennzahlrelevant', 'kennzahlrelevant')],
+    columns: [col('profil', 'Profil', 1), col('offen', 'Offen', 1), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)', 1), col('schriftlich', 'davon schriftlich offen', 2), col('muendlich', 'davon mündlich offen', 2), col('ohnePruefung', 'ohne Prüfung', 3), col('geplant', 'mit geplantem Termin', 2), col('kennzahlrelevant', 'kennzahlrelevant', 3)],
     rows: [...byProfil.values()].sort((a, b) => b.offen - a.offen || collatorDe.compare(a.profil, b.profil)),
     note: 'Offen = Gesamtergebnis leer (schriftlich und/oder mündlich), kein «no» und kein unlesbarer Wert. Passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen, kein Termin. Kennzahlrelevant = mindestens ein absolvierter, datierter schriftlicher Run.',
   };
   const details = {
     title: 'Offene Vorgänge – Teilnehmende',
     columns: [
-      col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('sprache', 'Sprache'), col('offen', 'Offen'), col('fehlend', 'Fehlende Teile'), col('passerelle', 'Passerelle'), col('passiv', 'Passiv'), col('letzte', 'Letzte Prüfung'),
-      col('tage', 'Tage seit letzter Prüfung'), col('naechste', 'Nächster Termin'), col('versuche', 'Versuche'), col('sheet', 'Sheet'), col('row', 'Zeile'),
+      col('name', 'Name', 1), col('bank', 'Bank', 2), col('profil', 'Profil', 1), col('sprache', 'Sprache', 3), col('offen', 'Offen', 2), col('fehlend', 'Fehlende Teile', 1), col('passerelle', 'Passerelle', 3), col('passiv', 'Passiv', 2), col('letzte', 'Letzte Prüfung', 2),
+      col('tage', 'Tage seit letzter Prüfung', 3), col('naechste', 'Nächster Termin', 1), col('versuche', 'Versuche', 2), col('sheet', 'Sheet', 3), col('row', 'Zeile', 3),
     ],
     rows: cases.map((c) => {
       const missing = missingParts(c.person, parts);
@@ -585,7 +618,7 @@ export function profilePartsTable(persons) {
   }
   return {
     title: 'Teilprüfungen je Profil: Vorgabe und Nutzung in den Daten',
-    columns: [col('profil', 'Profil'), col('we', 'Schriftlich (Vorgabe)'), col('oe', 'Mündlich (Vorgabe)'), col('anzahl', 'Anzahl Teile'), col('n', 'n (Vorgänge)'), col('daten', 'In den Daten (Vorgänge je Teil)'), col('abweichung', 'Abweichung')],
+    columns: [col('profil', 'Profil', 1), col('we', 'Schriftlich (Vorgabe)', 1), col('oe', 'Mündlich (Vorgabe)', 2), col('anzahl', 'Anzahl Teile', 2), col('n', 'n (Vorgänge)', 2), col('daten', 'In den Daten (Vorgänge je Teil)', 3), col('abweichung', 'Abweichung', 1)],
     rows,
     note: 'Vorgabe laut Auftraggeber 05.09.2026 (config.js, PROFILE_PARTS); Annahme: die Teile stehen von links in WE1–WEn [hypothese]. «In den Daten» = Anzahl Vorgänge mit absolviertem Run je Teil. Abweichung = absolvierte Runs ausserhalb der Vorgabe, je Vorgang als Hinweis im Data-Quality-Log.',
   };
@@ -605,9 +638,9 @@ function seriesRow(label, r) {
 }
 
 const TIME_COLUMNS = [
-  col('n', 'n (Vorgänge)'), col('personen', 'Personen'), col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('gesamt', 'Schriftlich insgesamt bestanden'),
-  col('muendlich', 'Mündlich bestanden'), col('wp1', 'Ø schriftlich 1. Versuch'), col('wp2', 'Ø schriftlich bestandener Run'), col('op1', 'Ø mündlich 1. Versuch'),
-  col('op2', 'Ø mündlich bestandener Run'), col('offen', 'Offen'), col('passiv', 'Passiv'), col('nichtErfasst', 'Nicht erfasst'),
+  col('n', 'n (Vorgänge)', 1), col('personen', 'Personen', 2), col('erstversuch', 'Schriftlich im 1. Versuch bestanden', 1), col('gesamt', 'Schriftlich insgesamt bestanden', 2),
+  col('muendlich', 'Mündlich bestanden', 1), col('wp1', 'Ø schriftlich 1. Versuch', 2), col('wp2', 'Ø schriftlich bestandener Run', 2), col('op1', 'Ø mündlich 1. Versuch', 3),
+  col('op2', 'Ø mündlich bestandener Run', 3), col('offen', 'Offen', 3), col('passiv', 'Passiv', 3), col('nichtErfasst', 'Nicht erfasst', 3),
 ];
 
 // persons: kennzahlrelevante Vorgänge ohne Zeitraumfilter
@@ -615,7 +648,7 @@ export function timeSeriesTable(persons) {
   const rows = timeSeries(persons).map((r) => seriesRow(String(r.year), r));
   return {
     title: 'Kennzahlen je Jahr',
-    columns: [col('gruppe', 'Jahr')].concat(TIME_COLUMNS),
+    columns: [col('gruppe', 'Jahr', 1)].concat(TIME_COLUMNS),
     rows,
     note: SMALL_NOTE + '; Jahr = Jahr des Referenzdatums (bestandene mündliche Prüfung, sonst letzte Prüfung); Nenner wie in der Übersicht',
   };
@@ -628,7 +661,7 @@ export function timeSeriesByProfileTable(persons) {
   }
   return {
     title: 'Kennzahlen je Profil und Jahr',
-    columns: [col('profil', 'Profil'), col('gruppe', 'Jahr')].concat(TIME_COLUMNS),
+    columns: [col('profil', 'Profil', 1), col('gruppe', 'Jahr', 1)].concat(TIME_COLUMNS),
     rows,
     note: SMALL_NOTE,
   };
@@ -658,7 +691,7 @@ export function yearComparisonTable(persons, yearA, yearB) {
   const b = overviewModel(ofYear(yearB), persons);
   const t = comparisonTable(a.kpis, b.kpis, String(yearB));
   t.title = 'Vergleich ' + yearA + ' gegenüber ' + yearB;
-  t.columns = t.columns.map((c) => (c.key === 'auswahl' ? col('auswahl', String(yearA)) : c.key === 'n' ? col('n', 'n ' + yearA) : c.key === 'n2' ? col('n2', 'n ' + yearB) : c));
+  t.columns = t.columns.map((c) => (c.key === 'auswahl' ? col('auswahl', String(yearA), c.prio) : c.key === 'n' ? col('n', 'n ' + yearA, c.prio) : c.key === 'n2' ? col('n2', 'n ' + yearB, c.prio) : c));
   t.note = 'Differenz in Prozentpunkten (' + yearA + ' minus ' + yearB + '); Jahr = Jahr des Referenzdatums; ' + SMALL_NOTE;
   return t;
 }
@@ -675,7 +708,7 @@ export function difficultyTables(persons) {
   const cells = partDifficultyByYear(persons);
   const long = {
     title: 'Schwierigkeit je Teilprüfung und Jahr',
-    columns: [col('jahr', 'Jahr'), col('teil', 'Teilprüfung'), col('n', 'n'), col('durchgefallen', 'Im 1. Versuch durchgefallen'), col('bestanden', 'Im 1. Versuch bestanden'), col('mean1', 'Ø Resultat 1. Versuch'), col('mean2', 'Ø Resultat bestandener Run')],
+    columns: [col('jahr', 'Jahr', 1), col('teil', 'Teilprüfung', 1), col('n', 'n', 2), col('durchgefallen', 'Im 1. Versuch durchgefallen', 1), col('bestanden', 'Im 1. Versuch bestanden', 3), col('mean1', 'Ø Resultat 1. Versuch', 2), col('mean2', 'Ø Resultat bestandener Run', 3)],
     rows: cells.map((c) => ({ jahr: c.year, teil: mark(c.part, c.small), n: c.n, small: c.small, durchgefallen: formatPct(c.failed.pct), bestanden: formatPct(c.passed.pct), mean1: formatPct(c.meanFirst.mean), mean2: formatPct(c.meanPassed.mean) })),
     note: SMALL_NOTE + '; Jahr = Datum des ersten Versuchs (RUN1) der Teilprüfung; n = Vorgänge mit absolviertem, datiertem RUN1',
   };
@@ -683,7 +716,7 @@ export function difficultyTables(persons) {
   const parts = [...new Set(cells.map((c) => c.part))];
   const pivot = {
     title: 'Durchfallquote im 1. Versuch je Teilprüfung und Jahr',
-    columns: [col('teil', 'Teilprüfung')].concat(years.map((y) => col('y' + y, String(y)))),
+    columns: [col('teil', 'Teilprüfung', 1)].concat(years.map((y) => col('y' + y, String(y)))),
     rows: parts.map((part) => {
       const row = { teil: part };
       for (const y of years) {
@@ -706,8 +739,8 @@ export function earlyWarningTable(persons) {
   return {
     title: 'Frühwarnung: zweiter Fehlversuch',
     columns: [
-      col('stufe', 'Stufe'), col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('teil', 'Teilprüfung'), col('fehlversuche', 'Fehlversuche'),
-      col('letzter', 'Letzter Fehlversuch'), col('naechster', 'Nächster Termin'), col('status', 'Status Vorgang'), col('sheet', 'Sheet'), col('row', 'Zeile'),
+      col('stufe', 'Stufe', 1), col('name', 'Name', 1), col('bank', 'Bank', 2), col('profil', 'Profil', 2), col('teil', 'Teilprüfung', 1), col('fehlversuche', 'Fehlversuche', 2),
+      col('letzter', 'Letzter Fehlversuch', 2), col('naechster', 'Nächster Termin', 1), col('status', 'Status Vorgang', 3), col('sheet', 'Sheet', 3), col('row', 'Zeile', 3),
     ],
     rows: items.map((w) => ({
       stufe: w.stage, name: personName(w.person), bank: w.person.employerCanon || '', profil: groupLabel(w.person.profil), teil: w.label, fehlversuche: w.failed,
@@ -727,8 +760,8 @@ export function passiveTable(persons, today = new Date()) {
   return {
     title: 'Passiv seit über ' + thresholdDays + ' Tagen (keine Prüfung, kein Termin)',
     columns: [
-      col('name', 'Name'), col('bank', 'Bank'), col('profil', 'Profil'), col('offen', 'Offen'), col('letzte', 'Letzte Prüfung'), col('tage', 'Tage seit letzter Prüfung'),
-      col('letzterRun', 'Letzter Prüfungstag bestanden'), col('versuche', 'Versuche'), col('sheet', 'Sheet'), col('row', 'Zeile'),
+      col('name', 'Name', 1), col('bank', 'Bank', 2), col('profil', 'Profil', 1), col('offen', 'Offen', 2), col('letzte', 'Letzte Prüfung', 2), col('tage', 'Tage seit letzter Prüfung', 1),
+      col('letzterRun', 'Letzter Prüfungstag bestanden', 3), col('versuche', 'Versuche', 3), col('sheet', 'Sheet', 3), col('row', 'Zeile', 3),
     ],
     rows: items.map((c) => ({
       name: personName(c.person), bank: c.person.employerCanon || '', profil: groupLabel(c.person.profil), offen: c.offen, letzte: fmtDate(c.lastExam), tage: c.daysSinceLastExam,
@@ -756,8 +789,8 @@ export function throughputTables(persons) {
     };
   };
   const columns = (first) => [
-    col('gruppe', first), col('n', 'n (bestanden)'), col('median', 'Median Tage'), col('mean', 'Ø Tage'), col('p25', '25 %-Quantil'), col('p75', '75 %-Quantil'), col('min', 'Min'), col('max', 'Max'),
-    col('nZert', 'n (mit Zertifikatsbeginn)'), col('medianZert', 'Median Tage bis Zertifikat'),
+    col('gruppe', first, 1), col('n', 'n (bestanden)', 1), col('median', 'Median Tage', 1), col('mean', 'Ø Tage', 2), col('p25', '25 %-Quantil', 2), col('p75', '75 %-Quantil', 2), col('min', 'Min', 3), col('max', 'Max', 3),
+    col('nZert', 'n (mit Zertifikatsbeginn)', 3), col('medianZert', 'Median Tage bis Zertifikat', 3),
   ];
   const note = SMALL_NOTE + '; Tage vom ersten Prüfungsdatum bis zur bestandenen mündlichen Prüfung (Referenzdatum); bis Zertifikat nur mit «Certificate Start Date»';
   const byProfil = {
@@ -782,14 +815,14 @@ export function bankReportTables(bankPersons, benchmarkPersons, bankLabel) {
   const bench = overviewModel(benchmarkPersons, benchmarkPersons);
   const kpis = comparisonTable(own.kpis, bench.kpis, 'Alle Banken');
   kpis.title = 'Kennzahlen ' + bankLabel + ' im Vergleich zu allen Banken';
-  kpis.columns = kpis.columns.map((c) => (c.key === 'auswahl' ? col('auswahl', bankLabel) : c.key === 'n' ? col('n', 'n ' + bankLabel) : c.key === 'n2' ? col('n2', 'n alle Banken') : c));
+  kpis.columns = kpis.columns.map((c) => (c.key === 'auswahl' ? col('auswahl', bankLabel, c.prio) : c.key === 'n' ? col('n', 'n ' + bankLabel, c.prio) : c.key === 'n2' ? col('n2', 'n alle Banken', c.prio) : c));
   kpis.rows = kpis.rows.filter((r) => r.kennzahl !== 'Personen mit mehreren Profilen');
   const benchByProfil = new Map(bench.byProfil.rows.map((r) => [r.gruppe.replace(/ \*$/, ''), r]));
   const byProfil = {
     title: 'Je Profil: ' + bankLabel + ' und alle Banken',
     columns: [
-      col('profil', 'Profil'), col('n', 'n ' + bankLabel), col('erstversuch', 'Schriftlich 1. Versuch bestanden'), col('gesamt', 'Schriftlich insgesamt bestanden'), col('muendlich', 'Mündlich bestanden'),
-      col('n2', 'n alle Banken'), col('erstversuch2', 'Schriftlich 1. Versuch bestanden (alle)'), col('gesamt2', 'Schriftlich insgesamt bestanden (alle)'), col('muendlich2', 'Mündlich bestanden (alle)'),
+      col('profil', 'Profil', 1), col('n', 'n ' + bankLabel, 1), col('erstversuch', 'Schriftlich 1. Versuch bestanden', 1), col('gesamt', 'Schriftlich insgesamt bestanden', 2), col('muendlich', 'Mündlich bestanden', 1),
+      col('n2', 'n alle Banken', 2), col('erstversuch2', 'Schriftlich 1. Versuch bestanden (alle)', 3), col('gesamt2', 'Schriftlich insgesamt bestanden (alle)', 3), col('muendlich2', 'Mündlich bestanden (alle)', 3),
     ],
     rows: own.byProfil.rows.map((r) => {
       const key = r.gruppe.replace(/ \*$/, '');
@@ -832,9 +865,10 @@ function deltaCell(kind, d) {
 // snapshots: geladene Snapshots (snapshot.parseSnapshot), current: buildSnapshot des heutigen Stands
 export function historyTables(snapshots, current) {
   const list = snapshots.slice().sort((a, b) => a.stichtag.localeCompare(b.stichtag) || String(a.erstellt || '').localeCompare(String(b.erstellt || '')));
-  const stichtage = list.map((s, i) => col('s' + i, stichtagLabel(s.stichtag)));
-  const heute = col('heute', 'Heute (' + stichtagLabel(current.stichtag) + ')');
-  const differenz = col('differenz', 'Differenz zum letzten Snapshot');
+  // Prioritäten (A.5): erste Spalte, jüngster Stichtag, Heute und Differenz immer; ältere Stichtage ab Tablet
+  const stichtage = list.map((s, i) => col('s' + i, stichtagLabel(s.stichtag), i === list.length - 1 ? 1 : 2));
+  const heute = col('heute', 'Heute (' + stichtagLabel(current.stichtag) + ')', 1);
+  const differenz = col('differenz', 'Differenz zum letzten Snapshot', 1);
   const fill = (row, cells, cur, d, kind) => {
     cells.forEach((c, i) => { row['s' + i] = kind === 'zaehler' ? (c === null || c === undefined ? '–' : c) : kpiCell(kind, c); });
     row.heute = kind === 'zaehler' ? (cur === null || cur === undefined ? '–' : cur) : kpiCell(kind, cur);
@@ -843,22 +877,22 @@ export function historyTables(snapshots, current) {
   };
   const kennzahlen = {
     title: 'Kennzahlen je Stichtag (gesamt, ohne Filter)',
-    columns: [col('kennzahl', 'Kennzahl')].concat(stichtage, [heute, differenz]),
-    rows: compareKennzahlen(list, current).map((r) => fill({ kennzahl: r.label }, r.cells, r.current, r.delta, r.kind)),
+    columns: [col('kennzahl', 'Kennzahl', 1)].concat(stichtage, [heute, differenz]),
+    rows: compareKennzahlen(list, current).map((r) => fill({ kennzahl: r.label, direction: directionOfLabel(r.label) }, r.cells, r.current, r.delta, r.kind)),
     note: 'Anteile mit n (Nenner wie in der Übersicht), ' + SMALL_NOTE + '; Differenz heute gegenüber dem jüngsten Snapshot, Anteile in Prozentpunkten, Zählungen absolut.',
   };
   const zaehler = {
     title: 'Datei-Zähler je Stichtag (Zeilen, Status, Datenqualität)',
-    columns: [col('zaehler', 'Zähler')].concat(stichtage, [heute, differenz]),
-    rows: compareZaehler(list, current).map((r) => fill({ zaehler: r.label }, r.cells, r.current, r.delta, 'zaehler')),
+    columns: [col('zaehler', 'Zähler', 1)].concat(stichtage, [heute, differenz]),
+    rows: compareZaehler(list, current).map((r) => fill({ zaehler: r.label, direction: 'neutral' }, r.cells, r.current, r.delta, 'zaehler')),
     note: 'Zeigt, wie sich die Datei zwischen den Stichtagen verändert hat (Zeilen, Duplikate, offene Vorgänge, Data-Quality-Einträge).',
   };
   const jeProfil = [['weGesamt', 'Schriftlich: insgesamt bestanden'], ['oeBestanden', 'Mündlich: bestanden'], ['vorgaenge', 'Vorgänge'], ['offen', 'Vorgänge offen']].map(([key, label]) => {
     const kind = key === 'vorgaenge' || key === 'offen' ? 'count' : 'ratio';
     return {
       title: 'Je Profil: ' + label,
-      columns: [col('profil', 'Profil')].concat(stichtage, [heute, differenz]),
-      rows: compareByGroup(list, current, 'jeProfil', 'profil', key).map((r) => fill({ profil: groupLabel(r.group) }, r.cells, r.current, r.delta, kind)),
+      columns: [col('profil', 'Profil', 1)].concat(stichtage, [heute, differenz]),
+      rows: compareByGroup(list, current, 'jeProfil', 'profil', key).map((r) => fill({ profil: groupLabel(r.group), direction: kind === 'ratio' ? 'up' : 'neutral' }, r.cells, r.current, r.delta, kind)),
       note: kind === 'ratio' ? 'Anteil mit n je Profil und Stichtag, ' + SMALL_NOTE : 'Anzahl je Profil und Stichtag; «–» = Profil an diesem Stichtag ohne Vorgänge',
     };
   });
