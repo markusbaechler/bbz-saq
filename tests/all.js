@@ -13,3 +13,4 @@ import './tables.test.js';
 import './glossary.test.js';
 import './urlState.test.js';
 import './snapshot.test.js';
+import './contrast.test.js';

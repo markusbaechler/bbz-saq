@@ -38,6 +38,9 @@ jobs:
       - name: Tests (tests/run-node.js)
         run: node tests/run-node.js
 
+      - name: Kontrast der Farb-Tokens (Light, Dark, Druck)
+        run: node tools/contrast.js
+
       - name: README-Glossar aktuell (aus glossary.js erzeugt)
         run: |
           node tools/glossar-readme.js --write
