@@ -143,15 +143,18 @@ Modellbericht gelesen werden `[entscheid 06.09.2026]`. Nie Zellwerte ausgeben, n
 
 **Schritt 0** (vor Paket A; ein Bericht, dann Freigabe):
 
-- [ ] **0.1 Synchronisieren:** `git status` (sauber) · `git fetch origin` · `git pull --ff-only origin main` · `git log -1` zeigt `7bb9966` oder neuer.
+- [x] **0.1 Synchronisieren:** `git status` (sauber) · `git fetch origin` · `git pull --ff-only origin main` · `git log -1` zeigt `7bb9966` oder neuer.
       Bei lokalem Vorsprung, Konflikt oder unsauberem Arbeitsbaum: ⛔ (nichts verwerfen).
-- [ ] **0.2 Test-Tooling:** `cd tests/smoke && npm ci`. `npx playwright install chromium` nur, wenn `node tests/smoke/run.mjs` den Browser nicht findet.
-- [ ] **0.3 Baseline:** `node tests/run-node.js`, `node tests/smoke/run.mjs`, `node tools/glossar-readme.js --write` (danach `git status` unverändert).
+- [x] **0.2 Test-Tooling:** `cd tests/smoke && npm ci`. `npx playwright install chromium` nur, wenn `node tests/smoke/run.mjs` den Browser nicht findet.
+      Auf dem Gerät des Auftraggebers bleibt `playwright install` beim Entpacken nach `chrome.dll` hängen (06.09.2026 zweimal reproduziert,
+      vermutlich Virenschutz); lokal stattdessen `SMOKE_CHROMIUM=%LOCALAPPDATA%ms-playwrightchromium_headless_shell-1234chrome-headless-shell-win64chrome-headless-shell.exe`
+      setzen (Headless-Shell wie in der CI; die CI unter Linux ist nicht betroffen).
+- [x] **0.3 Baseline:** `node tests/run-node.js`, `node tests/smoke/run.mjs`, `node tools/glossar-readme.js --write` (danach `git status` unverändert).
       `tools/snapshot-synth.js` anlegen (Muster `tools/modellbericht.js`: synthetische Datei aus `tests/smoke/synth.mjs` → `parseWorkbook()` →
       `normalizeWorkbook()` → `buildSnapshot({ persons, meta, today: fester Stichtag })` → JSON nach stdout oder Datei). Baseline-Snapshot und
       Smoke-Screenshots lokal ablegen (`tests/smoke/output/`, nicht committen). Alles grün, sonst ⛔.
       `[optional]` Golden-File `tests/fixtures/snapshot-synth.json` als Regressionstest in Job `tests` (nur synthetische Daten).
-- [ ] **0.4 Branch und Auftrag:** Branch `paket-a-design-system` von `main`; diese Datei als `PROMPT-2.md` ins Repo-Wurzelverzeichnis;
+- [x] **0.4 Branch und Auftrag:** Branch `paket-a-design-system` von `main`; diese Datei als `PROMPT-2.md` ins Repo-Wurzelverzeichnis;
       Commit «Füge PROMPT-2.md hinzu: Auftrag Ausbau, Pakete A–E»; Push; Draft-PR «Paket A – Design-System und Informationsarchitektur» (0.7).
       Bericht nach 0.8 → Freigabe → Schritt A.1.
 
