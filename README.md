@@ -35,6 +35,7 @@ der Navigation und lässt sich zu allen Zählern aufklappen.
 | Historie | Snapshots der Aggregate (ohne Namen) als JSON erzeugen, ablegen (z. B. SharePoint) und später wieder laden: Kennzahlen gesamt, Datei-Zähler und je Profil je Stichtag nebeneinander, Differenz zum letzten Snapshot; ohne Filter, nur im Memory (b7) |
 | Bestenlisten | Je Profil: bbz-Award, beste schriftliche, beste mündliche Prüfung (mit Namen); Mindestgruppengrösse 5, Liste höchstens halbe Gruppe (maximal 5); Award-Dossier mit Begründung je Rang |
 | Bank-Report | Kennzahlen einer gewählten Bank gegen den anonymen Benchmark «alle Banken», je Profil und je Jahr; ohne Namen; Druck/PDF |
+| Personen | Eine Person suchen (Name, Bank, Profil, Sprache, Zertifikat-Nr., Status; ab 2 Zeichen, mehrere Begriffe = UND) und ihren Weg nachvollziehen: Pfad über alle Vorgänge, je Vorgang Stammdaten, Status, Prüfungsraster (Teilprüfungen × RUN1–RUN3), Zeitachse, Datenqualität und Export «Diese Person»; mit Namen (E7). Ohne Suchtext leer, ausser eine Bank ist gefiltert (dann alle Personen der Bank); Geburtsjahr nur bei Namensgleichen |
 | Offene Vorgänge | Laufende Zertifizierungsprozesse (Gesamtergebnis leer) je Profil und mit Teilnehmenden: fehlende Teile, letzte Prüfung, nächster Termin, Versuche (mit Namen); Teilprüfungen je Profil; Frühwarnung «zweiter Fehlversuch»; passiv seit über 365 Tagen |
 | Geplante Prüfungen | Termine in der Zukunft ohne Ergebnis, zuerst schriftlich (WE), dann mündlich (OE): je Art die Prüfungsereignisse je Tag und Ort (Teilprüfungen mit Anzahl, Wiederholungen; Zeile anklicken → zugeteilte Personen) und die vollständige Teilnehmendenliste zum Aufklappen (mit Namen, Bank, Profil, Sprache) |
 | Datenqualität | «Nicht in den Kennzahlen» mit Grund je Zeile; jede nicht interpretierbare oder auffällige Zelle mit Wirkung auf die Kennzahlen, Stufe, Sheet, Zeile, Header, Rohwert, Grund; nach Wirkung priorisiert, sortier- und filterbar |
@@ -59,7 +60,7 @@ ihrem Rahmen). Die Navigation ist ein Auswahlfeld mit den vier Gruppen, die Filt
 zeigen nur Spalten der Priorität 1 (Tablet: 1 und 2); «Alle Spalten» blendet die übrigen ein und scrollt die Tabelle
 horizontal. Die Kacheln der Übersicht stehen in aufklappbaren Blöcken (Schriftlich und Mündlich offen, Mengen zu) mit
 nur Label, Wert, n und Delta-Symbol; Diagramme sind kompakt (360 × 200, Tooltip darunter). Vollständig für das Phone
-gestaltet sind Übersicht, Offene Vorgänge und Geplante Prüfungen (Nebenabschnitte eingeklappt); die übrigen Ansichten
+gestaltet sind Übersicht, Offene Vorgänge, Geplante Prüfungen und Personen (Nebenabschnitte eingeklappt); die übrigen Ansichten
 funktionieren ohne Überlauf. Die Anmeldung auf dem Phone läuft direkt über den Redirect-Flow von MSAL (kein Popup); der
 manuelle Gerätetest liegt beim Auftraggeber. Der Smoke-Test prüft die Viewports 1400 × 1000, 820 × 1180 und 390 × 844.
 
@@ -82,7 +83,11 @@ Ansichten zeigen beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfu
 dieselben Filter verwendet, nur ohne die gewählte Einschränkung: Alle Banken (Standard), Alle Profile, Alle Sprachen
 oder Gesamt (nur Zeitraum). Differenzen in Prozentpunkten.
 
-## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E10)
+In der Ansicht «Personen» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» auf die Trefferliste; Zeitraum,
+Versuche und Wertung wirken nicht. Das Detail zeigt immer alle Vorgänge der Person. Suchtext und gewählte Person stehen nie in der
+URL (nur im Memory) und werden beim Neuladen der Daten geleert.
+
+## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E11)
 
 Eine Zeile der Datei ist ein **Zertifizierungsvorgang**; eine **Person** (Mensch) kann mehrere Vorgänge haben und wird über
 den **Personenschlüssel** aus «Last Name», «First Name» und Geburtsdatum identifiziert (nicht Employer). Zeilen derselben
@@ -109,6 +114,7 @@ Nenner der Bestehensquoten sind abgeschlossene Vorgänge. Definitionen und Grenz
 - **E8 (06.09.2026)** Expertennamen in der Ansicht «Experten» (Paket D).
 - **E9 (06.09.2026)** Die mündliche Prüfung prüft Methodik → profilübergreifend vergleichbar; Benchmark je Experte über alle Experten im Filter, getrennt nach Erstversuch und Wiederholung.
 - **E10 (06.09.2026)** Regel 1 präzisiert: die Struktur der Excel-Datei wird nie geändert; Zellwerte nur über den Schreibpfad (Paket E) mit Feature-Flag, Validierung, Konfliktprüfung und Audit. Scope `Files.ReadWrite.All` ist in Azure gesetzt.
+- **E11 (06.09.2026)** Personensuche: ohne Suchtext leere Liste, ausser der Bank-Filter ist gesetzt (alle Personen der Bank); Profil, Sprache, Bank, VSS/VSM und Zertifikate wirken auf die Trefferliste, Zeitraum, Versuche und Wertung nicht, das Detail zeigt alle Vorgänge; Geburtsjahr nur bei Namensgleichen, nie das volle Datum; Export «Diese Person» mit Dateiname ohne Namen, Inhalt «nur intern».
 
 ## Kennzahl-Definitionen
 
@@ -243,10 +249,12 @@ datasource/threadedComments.js     VSS/VSM aus xl/threadedComments/*.xml
 store.js                           Normalisierung → Personenmodell, Data-Quality-Log, Memory-State
 metrics.js                         Reine Kennzahlfunktionen
 views/tables.js                    Tabellenmodelle je View (rein), views/*.js Rendering
+views/personen.js                  Ansicht «Personen»: Suche, Pfad, Karten je Vorgang, Export «Diese Person» (Paket C)
 export.js                          CSV, XLSX, Druck
 config.js                          IDs, Pfade, Sheet-Namen, Header-Mapping, Whitelists, Aliase
 ```
 
 Datenschutz: Personendaten bleiben im Browser-Speicher (kein localStorage/IndexedDB); MSAL nutzt sessionStorage nur
-für Tokens. Namen erscheinen nur in Bestenlisten, geplanten Prüfungen und im Data-Quality-Log. Das Repository enthält
-keine Personendaten; `*.xlsx` und `local/` sind ausgeschlossen.
+für Tokens. Namen erscheinen nur in den Ansichten Personen, Offene Vorgänge, Geplante Prüfungen und Bestenlisten, im
+Data-Quality-Log und in Exporten «nur intern» (E5, E7); Suchtext und gewählte Person der Personensuche stehen nie in der URL.
+Das Repository enthält keine Personendaten; `*.xlsx` und `local/` sind ausgeschlossen.
