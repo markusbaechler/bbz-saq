@@ -777,7 +777,7 @@ CC protokolliert nur Ergebnisse ohne Personendaten.
 ### E.3 Schritte
 
 - [x] **E.1** Entscheide vor Start einholen (eine Nachricht). Spike-Dokument inkl. Test auf der Testkopie. ⛔ Go/No-Go.
-- [ ] **E.2** Adapter + Tests. Vorlegen.
+- [x] **E.2** Adapter + Tests. Vorlegen.
 - [ ] **E.3** UI hinter Flag + Smoke. Vorlegen.
 - [ ] **E.4** Doku, Regeln (`CLAUDE.md` Regel 1 gemäss E10, `DEPLOY.md`), PR «Ready for review». ⛔ Abnahme Paket E; Flag-Aktivierung durch den Auftraggeber.
 

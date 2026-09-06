@@ -120,3 +120,22 @@ export function appendAuditJson(text, entry) {
   arr.push(entry);
   return JSON.stringify(arr, null, 2) + '\n';
 }
+
+// Schreibweise der Zielspalte aus Zielzelle und Nachbarzellen (cells = [{ type, format, text }] aus valueTypes/numberFormat/text):
+// Datum als Serienzahl (Double) oder Text; Passed in der Gross-/Kleinschreibung des Sheets; Result als Bruch oder Prozenttext
+export function detectStyle(field, cells = []) {
+  const list = Array.isArray(cells) ? cells : [];
+  if (field === 'date') {
+    return { dateStyle: list.some((c) => c.type === 'Double') ? 'serial' : list.some((c) => c.type === 'String') ? 'text' : 'serial' };
+  }
+  if (field === 'passed') {
+    const sample = list.map((c) => String(c.text === null || c.text === undefined ? '' : c.text).trim()).find((t) => /^(yes|no)$/i.test(t));
+    if (!sample) return { passedStyle: ['yes', 'no'] };
+    const caseOf = (word) => (sample === sample.toUpperCase() ? word.toUpperCase() : sample[0] === sample[0].toUpperCase() ? word[0].toUpperCase() + word.slice(1) : word);
+    return { passedStyle: [caseOf('yes'), caseOf('no')] };
+  }
+  if (field === 'result') {
+    return { resultStyle: list.some((c) => c.type === 'String' && String(c.text || '').includes('%')) ? 'percent' : 'fraction' };
+  }
+  return {};
+}

@@ -1,7 +1,7 @@
 // tests/workbookApi.test.js – reine Helfer des Schreibpfads (PROMPT-2 Paket E): Range-Adressen, Pfade, Zellwerte je Feld,
 // Session-Ablauf als Request-Liste, Konfliktprüfung, Audit-Eintrag ohne Personendaten
 import { test, assert, assertEqual } from './runner.js';
-import { rangeAddress, workbookPaths, cellValueFor, writePlan, conflictOf, auditEntry, appendAuditJson } from '../datasource/workbookApi.js';
+import { rangeAddress, workbookPaths, cellValueFor, writePlan, conflictOf, auditEntry, appendAuditJson, detectStyle } from '../datasource/workbookApi.js';
 
 test('workbookApi.rangeAddress: Spaltenindex + Excel-Zeile → Adresse', () => {
   assertEqual([rangeAddress(0, 12), rangeAddress(25, 11), rangeAddress(26, 500), rangeAddress(183, 21)], ['A12', 'Z11', 'AA500', 'GB21']);
@@ -68,4 +68,19 @@ test('workbookApi.auditEntry / appendAuditJson: Eintrag ohne Kandidatennamen, Ap
   let threw = false;
   try { appendAuditJson('{kaputt', e); } catch { threw = true; }
   assert(threw, 'ungültiges JSON wird nicht überschrieben');
+});
+
+test('workbookApi.detectStyle: Schreibweise je Feld aus Zielzelle und Nachbarzellen (Typ, Format, Text)', () => {
+  const dbl = (x) => ({ type: 'Double', format: 'dd.mm.yyyy', text: x });
+  assertEqual(detectStyle('date', [dbl('15.03.2023'), { type: 'Empty', format: 'General', text: '' }]), { dateStyle: 'serial' });
+  assertEqual(detectStyle('date', [{ type: 'String', format: 'General', text: '15.03.2023' }]), { dateStyle: 'text' });
+  assertEqual(detectStyle('date', []), { dateStyle: 'serial' }, 'ohne Anhaltspunkt Serienzahl');
+  assertEqual(detectStyle('passed', [{ type: 'String', format: 'General', text: 'Yes' }, { type: 'String', format: 'General', text: 'No' }]), { passedStyle: ['Yes', 'No'] });
+  assertEqual(detectStyle('passed', [{ type: 'String', format: 'General', text: 'NO' }]), { passedStyle: ['YES', 'NO'] }, 'Grossschreibung abgeleitet');
+  assertEqual(detectStyle('passed', [{ type: 'String', format: 'General', text: 'yes' }]), { passedStyle: ['yes', 'no'] });
+  assertEqual(detectStyle('passed', []), { passedStyle: ['yes', 'no'] });
+  assertEqual(detectStyle('result', [{ type: 'Double', format: '0%', text: '85%' }]), { resultStyle: 'fraction' });
+  assertEqual(detectStyle('result', [{ type: 'String', format: 'General', text: '85 %' }]), { resultStyle: 'percent' });
+  assertEqual(detectStyle('result', []), { resultStyle: 'fraction' });
+  assertEqual(detectStyle('location', [{ type: 'String', format: 'General', text: 'Bern' }]), {});
 });

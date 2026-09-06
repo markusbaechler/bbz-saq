@@ -107,25 +107,28 @@ export function createAuth({ msal, authConfig = CONFIG.auth, location = globalTh
     if (pca && current) await pca.logoutPopup({ account: current });
   }
 
-  // Silent → bei InteractionRequired Popup → bei blockiertem Popup Redirect
-  async function getToken({ forceRefresh = false } = {}) {
+  // Silent → bei InteractionRequired Popup → bei blockiertem Popup Redirect.
+  // options.scopes (Paket E): zusätzliche Scopes für den Schreibpfad (inkrementelle Zustimmung, z. B. Files.ReadWrite.All);
+  // ohne Angabe die Standard-Scopes des Lesepfads
+  async function getToken({ forceRefresh = false, scopes: requested = null } = {}) {
     await ensureInit();
     if (!account) throw new Error('Nicht angemeldet – bitte zuerst anmelden.');
+    const useScopes = Array.isArray(requested) && requested.length ? requested.map(qualify) : scopes;
     try {
-      const resp = await pca.acquireTokenSilent({ scopes, account, forceRefresh: !!forceRefresh });
+      const resp = await pca.acquireTokenSilent({ scopes: useScopes, account, forceRefresh: !!forceRefresh });
       return resp.accessToken;
     } catch (e) {
       const interactionRequired = msal.InteractionRequiredAuthError && e instanceof msal.InteractionRequiredAuthError;
       if (!interactionRequired) throw e;
       if (phone()) {
-        await pca.acquireTokenRedirect({ scopes, account });
+        await pca.acquireTokenRedirect({ scopes: useScopes, account });
         throw new Error('Weiterleitung zur Anmeldung – die Seite wird neu geladen.');
       }
       try {
-        const resp = await pca.acquireTokenPopup({ scopes, account });
+        const resp = await pca.acquireTokenPopup({ scopes: useScopes, account });
         return resp.accessToken;
       } catch (popupError) {
-        if (isPopupBlocked(popupError)) await pca.acquireTokenRedirect({ scopes, account });
+        if (isPopupBlocked(popupError)) await pca.acquireTokenRedirect({ scopes: useScopes, account });
         throw popupError;
       }
     }

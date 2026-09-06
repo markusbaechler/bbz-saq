@@ -19,3 +19,4 @@ import './filterChips.test.js';
 import './common.test.js';
 import './headers.test.js';
 import './workbookApi.test.js';
+import './workbookAdapter.test.js';

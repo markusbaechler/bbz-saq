@@ -212,3 +212,21 @@ test('createAuth.getToken: auf Phone bei InteractionRequired direkt acquireToken
   await rejects(auth.getToken());
   assert(calls.some((c) => c[0] === 'acquireTokenRedirect') && !calls.some((c) => c[0] === 'acquireTokenPopup'), calls.map((c) => c[0]).join(','));
 });
+
+test('auth.getToken({ scopes }): Token für zusätzliche Scopes (inkrementelle Zustimmung, Paket E); Standard-Scopes bleiben', async () => {
+  const { msal, calls } = fakeMsal({ accounts: [{ username: 'a@example.org' }] });
+  const auth = createAuth({ msal, authConfig: CONFIGURED, location: LOCATION });
+  await auth.init();
+  assertEqual(await auth.getToken({ scopes: ['Files.ReadWrite.All'] }), 'tok-silent');
+  assertEqual(calls.filter((c) => c[0] === 'acquireTokenSilent').pop()[1].scopes, ['https://graph.microsoft.com/Files.ReadWrite.All']);
+  await auth.getToken();
+  assertEqual(calls.filter((c) => c[0] === 'acquireTokenSilent').pop()[1].scopes, ['https://graph.microsoft.com/Files.Read.All']);
+});
+
+test('auth.getToken({ scopes }): bei InteractionRequired Popup mit denselben Scopes', async () => {
+  const { msal, calls } = fakeMsal({ accounts: [{ username: 'a@example.org' }], silentError: 'interaction_required' });
+  const auth = createAuth({ msal, authConfig: CONFIGURED, location: LOCATION });
+  await auth.init();
+  assertEqual(await auth.getToken({ scopes: ['Files.ReadWrite.All'] }), 'tok-popup');
+  assertEqual(calls.filter((c) => c[0] === 'acquireTokenPopup').pop()[1].scopes, ['https://graph.microsoft.com/Files.ReadWrite.All']);
+});
