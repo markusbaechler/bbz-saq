@@ -4,8 +4,10 @@ Dashboard-SPA für bbz-Zertifizierungskennzahlen. Datenquelle: Reporting_KUBA.xl
 Vollständige Spezifikation: `PROMPT.md`. Bei Widerspruch gilt diese Datei.
 
 ## Unverhandelbar
-1. **Excel-Datei nie verändern.** Keine Spalten hinzufügen, umbenennen, verschieben, keine Formate ändern.
-   Alle Normalisierung im Code (config.js / store.js).
+1. **Struktur der Excel-Datei nie verändern** (E10). Keine Spalten hinzufügen, umbenennen, verschieben, keine Formate ändern,
+   keine neuen Zeilen oder Sheets. Alle Normalisierung im Code (config.js / store.js). Zellwerte nur über den Schreibpfad
+   (`datasource/workbookAdapter.js`, Paket E): Feature-Flag `CONFIG.features.write` (Standard false), Validierung mit den Parsern,
+   Konfliktprüfung (eTag, Zellwert), Audit-Datei neben der Excel, danach Neuladen – nie ein direkter Schreibzugriff aus Views.
 2. **Spalten nur über Header-Namen (Zeile 10) mappen.** Nie über Spaltenbuchstaben oder Indizes.
    Die zwei Sheets sind nicht spaltenidentisch. Fehlender Pflicht-Header = harter Fehler, kein Fallback.
 3. **Keine Personendaten im Repo.** Keine echten Namen in Tests, Fixtures, Kommentaren, Screenshots, Commits.

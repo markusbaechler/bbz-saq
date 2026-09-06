@@ -76,7 +76,7 @@ function vorgangCard(v, ctx, open) {
       tr.querySelectorAll('td').forEach((td, j) => {
         if (j < 1 || j > 3) return;
         td.appendChild(el('button', {
-          type: 'button', class: 'run-edit', title: 'Zelle in der Datei ändern', 'aria-label': 'Bearbeiten ' + spec.label + ' RUN' + j, text: 'Bearbeiten',
+          type: 'button', class: 'secondary run-edit', title: 'Zelle in der Datei ändern', 'aria-label': 'Bearbeiten ' + spec.label + ' RUN' + j, text: 'Bearbeiten',
           onclick: () => openEditDialog({ vorgang: v, kind: spec.kind, part: spec.part, run: j, onWrite: ctx.onWrite }),
         }));
       });
