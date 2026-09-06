@@ -16,3 +16,4 @@ import './snapshot.test.js';
 import './contrast.test.js';
 import './views-meta.test.js';
 import './filterChips.test.js';
+import './common.test.js';

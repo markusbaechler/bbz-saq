@@ -9,7 +9,7 @@ import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount } fro
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
-import { el, renderExportMenu, renderCollapsible, renderEmptyState } from './views/common.js';
+import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials } from './views/common.js';
 import { glossarySlug } from './glossary.js';
 import { vorgangExportTables } from './views/tables.js';
 import { renderDataQuality } from './views/dataQuality.js';
@@ -94,7 +94,11 @@ function renderNav() {
   const current = viewFromHash();
   const { filter, ui: uiState } = store.getState();
   const groups = NAV_GROUPS.map((name) => ({ name, views: VIEWS.filter((v) => v.group === name) })).filter((g) => g.views.length);
-  ui.nav.replaceChildren(...groups.map((g) => el('div', { class: 'nav-group', role: 'group', 'aria-label': g.name }, [
+  // Phone (PROMPT-2 B.2): Auswahlfeld mit optgroup je Gruppe; die Links bleiben im DOM und sind auf Phone per CSS ausgeblendet
+  const select = el('select', { id: 'nav-select', class: 'nav-select', 'aria-label': 'Ansicht', onchange: (ev) => { location.hash = buildHash(ev.target.value, filter, uiState); } },
+    groups.map((g) => el('optgroup', { label: g.name }, g.views.map((v) => el('option', { value: v.id, text: v.label })))));
+  select.value = current;
+  ui.nav.replaceChildren(select, ...groups.map((g) => el('div', { class: 'nav-group', role: 'group', 'aria-label': g.name }, [
     el('span', { class: 'nav-group-label', 'aria-hidden': 'true', text: g.name }),
     el('div', { class: 'nav-links' }, g.views.map((v) => {
       // Links tragen den Filterzustand mit, damit der Ansichtswechsel ihn behält
@@ -107,9 +111,15 @@ function renderNav() {
 
 function renderSession() {
   const account = auth.getAccount();
-  ui.account.textContent = account ? (account.name || account.username || '') : (authReady ? 'Nicht angemeldet' : '');
+  const name = account ? (account.name || account.username || '') : '';
+  ui.account.textContent = account ? name : (authReady ? 'Nicht angemeldet' : '');
   ui.signin.hidden = !authReady || !!account;
   ui.signout.hidden = !account;
+  // Phone (B.2): Konto als Initialen-Button mit Menü (Name, Abmelden)
+  ui.accountMenu.hidden = !account;
+  ui.accountInitials.textContent = account ? initials(name) : '';
+  ui.accountInitials.title = name;
+  ui.accountMenuName.textContent = name;
   ui.load.disabled = busy || !account;
   ui.load.title = account ? '' : (authReady ? 'Zuerst anmelden' : 'Azure-Konfiguration fehlt (config.js)');
 }
@@ -223,15 +233,20 @@ function buildFilterBar() {
   c.count = el('span', { class: 'summary-count' });
   c.chips = el('span', { class: 'chips' });
   c.summary = el('div', { class: 'summary' }, [c.count, c.chips]);
-  bar.append(
-    el('label', {}, ['Von', c.from]),
-    el('label', {}, ['Bis', c.to]),
-    jahr.node,
-    profil.node, sprache.node, bank.node, vssVsm.node, versuche.node,
-    el('label', { class: 'check' }, [c.onlyIssued, 'Nur ausgestellte Zertifikate']),
-    c.reset,
-    c.summary,
-  );
+  // Phone (B.2): Steuerelemente in einem Drawer (details), auf Phone zu; auf Desktop/Tablet offen mit unsichtbarer Kopfzeile
+  c.drawerLabel = el('span', { text: 'Filter' });
+  c.drawer = el('details', { class: 'filter-drawer', open: isPhone() ? null : '' }, [
+    el('summary', { class: 'filter-summary' }, [c.drawerLabel]),
+    el('div', { class: 'filter-controls' }, [
+      el('label', {}, ['Von', c.from]),
+      el('label', {}, ['Bis', c.to]),
+      jahr.node,
+      profil.node, sprache.node, bank.node, vssVsm.node, versuche.node,
+      el('label', { class: 'check' }, [c.onlyIssued, 'Nur ausgestellte Zertifikate']),
+      c.reset,
+    ]),
+  ]);
+  bar.append(c.drawer, c.summary);
   filterBar.controls = c;
 }
 
@@ -277,6 +292,7 @@ function updateFilterBar() {
     ch.label, el('span', { class: 'chip-x', 'aria-hidden': 'true', text: '✕' }),
   ])));
   c.reset.hidden = chips.length === 0;
+  c.drawerLabel.textContent = chips.length ? 'Filter (' + chips.length + ' aktiv)' : 'Filter';
 }
 
 // ---------------------------------------------------------------------------
@@ -521,9 +537,20 @@ async function init() {
   ui.nav = $('nav');
   ui.filterbar = $('filterbar');
   ui.view = $('view');
+  ui.accountMenu = $('account-menu');
+  ui.accountInitials = $('account-initials');
+  ui.accountMenuName = $('account-menu-name');
+  ui.signoutPhone = $('btn-signout-phone');
 
   ui.signin.addEventListener('click', () => run(signIn));
   ui.signout.addEventListener('click', () => run(signOut));
+  ui.signoutPhone.addEventListener('click', () => { ui.accountMenu.open = false; run(signOut); });
+  // Wechsel Phone ↔ grösser (Drehen, Fenstergrösse): Drawer-Zustand setzen und neu rendern (B.2)
+  onViewportChange((phone) => {
+    if (window.matchMedia('print').matches) return; // Druck: kein Neurendern, die geöffneten Blöcke bleiben
+    if (filterBar.controls) filterBar.controls.drawer.open = !phone;
+    renderAll();
+  });
   ui.load.addEventListener('click', () => run(loadGraph));
   ui.file.addEventListener('change', (ev) => {
     const file = ev.target.files && ev.target.files[0];

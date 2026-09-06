@@ -161,6 +161,46 @@ export function renderKpis(kpis, { glossaryHref = null } = {}) {
   return el('div', { class: 'kpi-groups' }, groups.map(({ g, list }) => el('section', { class: 'kpi-group' }, [el('h3', { text: g }), el('div', { class: 'kpis' }, list.map(tile))])));
 }
 
+// Geräteklasse (PROMPT-2 B.1): Phone ≤ 600 px über matchMedia (nur Bildschirm, nicht im Druck); in Node (kein matchMedia) nie Phone
+const PHONE_QUERY = 'screen and (max-width: 600px)';
+export function isPhone(mm = globalThis.matchMedia) {
+  return typeof mm === 'function' ? !!mm(PHONE_QUERY).matches : false;
+}
+
+// Ruft fn(phone) auf, wenn die Geräteklasse dauerhaft wechselt (Phone ↔ grösser); gibt eine Abmeldefunktion zurück.
+// Entprellt (delay): kurze Hin-und-her-Wechsel (z. B. Vollseiten-Screenshots, Browser-Leisten) lösen kein Neurendern aus.
+export function onViewportChange(fn, mm = globalThis.matchMedia, { delay = 150, setTimer = globalThis.setTimeout, clearTimer = globalThis.clearTimeout } = {}) {
+  if (typeof mm !== 'function') return () => {};
+  const mql = mm(PHONE_QUERY);
+  let last = !!mql.matches;
+  let timer = null;
+  const handler = () => {
+    clearTimer(timer);
+    timer = setTimer(() => {
+      const now = !!mql.matches;
+      if (now === last) return;
+      last = now;
+      fn(now);
+    }, delay);
+  };
+  if (mql.addEventListener) mql.addEventListener('change', handler);
+  else if (mql.addListener) mql.addListener(handler);
+  return () => {
+    clearTimer(timer);
+    if (mql.removeEventListener) mql.removeEventListener('change', handler);
+    else if (mql.removeListener) mql.removeListener(handler);
+  };
+}
+
+// Initialen für den Konto-Button auf Phone (B.2): «Anna Muster» → AM, «Muster, Anna» → MA, «anna.muster@…» → AM, leer → ?
+export function initials(name) {
+  const s = String(name || '').trim();
+  if (!s) return '?';
+  const local = s.includes('@') ? s.split('@')[0] : s;
+  const parts = local.split(/[\s.,_-]+/).filter(Boolean);
+  return parts.slice(0, 2).map((p) => p[0].toUpperCase()).join('') || '?';
+}
+
 // Leerzustand (PROMPT-2 A.7): eine Karte mit zwei Aktionen statt Fliesstext. canLoad = Azure-Konfiguration vorhanden.
 export function renderEmptyState({ canLoad = true, onLoad, onFile }) {
   return el('div', { class: 'empty-card', role: 'region', 'aria-label': 'Keine Daten geladen' }, [
