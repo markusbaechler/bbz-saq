@@ -1026,8 +1026,8 @@ export function expertTables(runs, { deltaDirection = 'neutral' } = {}) {
     kpi('Experten', String(bench.experten), bench.experten, { hint: 'Experten mit mindestens einem Einsatz im aktiven Filter' }),
     kpi('Einsätze', String(runs.length), runs.length, { hint: 'Absolvierte mündliche Runs mit mindestens einem Experten; ein Einsatz zählt für beide Experten' }),
     kpi('Ø Einsätze je Experte', isNum(avg.mean) ? (Math.round(avg.mean * 10) / 10).toFixed(1) + ' (Median ' + (Math.round(med * 10) / 10) + ')' : '–', bench.experten, { hint: 'Einsätze geteilt durch Experten; Median in Klammern' }),
-    kpi('Durchfallquote 1. Versuch', pctOrDash(bench.fail.erst), bench.fail.erst.n, { kind: 'ratio', count: bench.fail.erst.count, small: bench.fail.erst.small, hint: 'Benchmark aller Experten: Anteil nicht bestandener Einsätze im ersten Versuch (RUN1)' }),
-    kpi('Durchfallquote Wiederholung', pctOrDash(bench.fail.wdh), bench.fail.wdh.n, { kind: 'ratio', count: bench.fail.wdh.count, small: bench.fail.wdh.small, hint: 'Benchmark aller Experten: Anteil nicht bestandener Einsätze bei Wiederholungen (RUN2, RUN3)' }),
+    kpi('Durchfallquote 1. Versuch', pctOrDash(bench.fail.erst), bench.fail.erst.n, { kind: 'ratio', unit: 'Einsätzen', count: bench.fail.erst.count, small: bench.fail.erst.small, hint: 'Benchmark aller Experten: Anteil nicht bestandener Einsätze im ersten Versuch (RUN1)' }),
+    kpi('Durchfallquote Wiederholung', pctOrDash(bench.fail.wdh), bench.fail.wdh.n, { kind: 'ratio', unit: 'Einsätzen', count: bench.fail.wdh.count, small: bench.fail.wdh.small, hint: 'Benchmark aller Experten: Anteil nicht bestandener Einsätze bei Wiederholungen (RUN2, RUN3)' }),
     kpi('Ø Resultat (Experten)', meanOrDash(bench.result), bench.result.n, { kind: 'mean', hint: 'Mittel der Resultate aller Einsätze mit Wert (Result, E6)' }),
   ];
   const delta = (key, label, prio) => col(key, label, prio, { direction: deltaDirection });

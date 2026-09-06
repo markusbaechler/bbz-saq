@@ -706,6 +706,7 @@ test('tables.expertTables: KPIs, Haupttabelle mit Prioritäten und neutralen Δ 
   assertEqual(t.kpis.map((k) => k.label), ['Experten', 'Einsätze', 'Ø Einsätze je Experte', 'Durchfallquote 1. Versuch', 'Durchfallquote Wiederholung', 'Ø Resultat (Experten)']);
   assertEqual([t.kpis[0].value, t.kpis[1].value, t.kpis[2].value, t.kpis[3].value, t.kpis[3].n, t.kpis[4].value, t.kpis[4].n], ['3', '8', '4.7 (Median 5)', '42.9 %', 7, '0.0 %', 1]);
   assert(t.kpis.every((k) => k.group === 'Experten' && k.direction === 'neutral'));
+  assertEqual([t.kpis[3].unit, t.kpis[4].unit], ['Einsätzen', 'Einsätzen'], 'Kachel «x von n Einsätzen» statt Vorgängen');
   assertEqual(t.main.columns.map((c) => [c.label, c.prio]), [['Experte', 1], ['Einsätze', 1], ['als Experte 1', 2], ['als Experte 2', 2], ['Anteil Experte 1', 2], ['Durchfallquote 1. Versuch', 1], ['Δ 1. Versuch', 1], ['Durchfallquote Wiederholung', 2], ['Δ Wiederholung', 2], ['Ø Resultat', 2], ['Δ Ø Resultat', 3], ['Erster Einsatz', 3], ['Letzter Einsatz', 3]]);
   assertEqual(t.main.rows.map((r) => [r.experte, r.small]), [['Experte Emil', false], ['Prüfer Pia', false], ['Beisitz Bruno', true]]);
   const pia = t.main.rows.find((r) => r.experte === 'Prüfer Pia');

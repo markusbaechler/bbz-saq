@@ -160,7 +160,7 @@ function kpiTile(k, glossaryHref) {
   return el('div', { class: 'kpi' + (k.small ? ' small' : '') + (isCount ? ' count' : '') }, [
     el('div', { class: 'kpi-label' }, [label, k.hint ? infoIcon(k.hint, 'Definition: ') : null]),
     el('div', { class: 'kpi-value', text: k.value }),
-    el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' Vorgängen' : 'n = ' + k.n) + (k.small ? ' *' : '') }),
+    el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' ' + (k.unit || 'Vorgängen') : 'n = ' + k.n) + (k.small ? ' *' : '') }),
     d ? el('div', { class: 'kpi-delta ' + d.tone }, [
       el('span', { class: 'kpi-delta-symbol', 'aria-hidden': 'true', text: d.symbol + ' ' }),
       el('span', { class: 'kpi-delta-value', text: d.text }),
