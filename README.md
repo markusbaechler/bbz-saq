@@ -52,6 +52,17 @@ Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die er
 Scrollen stehen. Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
 Desktop) für die mobile Darstellung.
 
+**Mobile:** Phone bis 600 px, Tablet 601–900 px, darüber Desktop; der Druck behält immer das Desktop-Layout. Auf dem
+Phone gilt: Grundschrift 16 px, Touch-Ziele mindestens 44 px, nie horizontaler Seitenscroll (nur Tabellen scrollen in
+ihrem Rahmen). Die Navigation ist ein Auswahlfeld mit den vier Gruppen, die Filter liegen in einem Drawer «Filter
+(n aktiv)» mit Chips darunter, der Datenstand ist ein Einzeiler, das Konto ein Initialen-Button mit «Abmelden». Tabellen
+zeigen nur Spalten der Priorität 1 (Tablet: 1 und 2); «Alle Spalten» blendet die übrigen ein und scrollt die Tabelle
+horizontal. Die Kacheln der Übersicht stehen in aufklappbaren Blöcken (Schriftlich und Mündlich offen, Mengen zu) mit
+nur Label, Wert, n und Delta-Symbol; Diagramme sind kompakt (360 × 200, Tooltip darunter). Vollständig für das Phone
+gestaltet sind Übersicht, Offene Vorgänge und Geplante Prüfungen (Nebenabschnitte eingeklappt); die übrigen Ansichten
+funktionieren ohne Überlauf. Die Anmeldung auf dem Phone läuft direkt über den Redirect-Flow von MSAL (kein Popup); der
+manuelle Gerätetest liegt beim Auftraggeber. Der Smoke-Test prüft die Viewports 1400 × 1000, 820 × 1180 und 390 × 844.
+
 ## Globale Filter
 
 Zeitraum (Von–Bis, Jahr als Auswahlfeld mit «Alle» und den Jahren; wirkt auf das Referenzdatum), Profil, Sprache, Bank,

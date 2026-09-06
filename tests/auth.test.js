@@ -186,3 +186,29 @@ test('createAuth.signOut: logoutPopup, Konto entfernt', async () => {
   assertEqual(calls.at(-1), ['logoutPopup', { account }]);
   assertEqual(auth.isAuthenticated(), false);
 });
+
+// Phone (PROMPT-2 B.4): kein Popup-Versuch, direkt Redirect; matchMedia wird injiziert (in Node nicht vorhanden)
+test('createAuth.signIn: auf Phone (matchMedia max-width 600px) direkt loginRedirect, kein Popup', async () => {
+  const { msal, calls } = fakeMsal();
+  const auth = createAuth({ msal, authConfig: CONFIGURED, location: LOCATION, matchMedia: () => ({ matches: true }) });
+  await auth.init();
+  assertEqual(await auth.signIn(), null);
+  assert(calls.some((c) => c[0] === 'loginRedirect') && !calls.some((c) => c[0] === 'loginPopup'), calls.map((c) => c[0]).join(','));
+  assertEqual(calls.find((c) => c[0] === 'loginRedirect')[1].scopes, SCOPES);
+});
+
+test('createAuth.signIn: auf Desktop (matchMedia false) weiterhin Popup mit Redirect-Fallback', async () => {
+  const { msal, calls } = fakeMsal();
+  const auth = createAuth({ msal, authConfig: CONFIGURED, location: LOCATION, matchMedia: () => ({ matches: false }) });
+  await auth.init();
+  await auth.signIn();
+  assert(calls.some((c) => c[0] === 'loginPopup') && !calls.some((c) => c[0] === 'loginRedirect'), calls.map((c) => c[0]).join(','));
+});
+
+test('createAuth.getToken: auf Phone bei InteractionRequired direkt acquireTokenRedirect, kein Popup', async () => {
+  const { msal, calls } = fakeMsal({ accounts: [{ username: 'a@example.org' }], silentError: 'interaction_required' });
+  const auth = createAuth({ msal, authConfig: CONFIGURED, location: LOCATION, matchMedia: () => ({ matches: true }) });
+  await auth.init();
+  await rejects(auth.getToken());
+  assert(calls.some((c) => c[0] === 'acquireTokenRedirect') && !calls.some((c) => c[0] === 'acquireTokenPopup'), calls.map((c) => c[0]).join(','));
+});
