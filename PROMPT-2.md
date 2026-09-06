@@ -592,7 +592,7 @@ Statusfarbe je Schritt (A.1), Passerelle-Kennzeichen aus `passerelleFrom()`, feh
       `tests/smoke/synth.mjs` ergänzen; bestehende Smoke-Prüfungen mitziehen. Tests. Vorlegen.
 - [x] **C.2** `views/tables.js`: `personResultsTable()`, `personGridTable()`, `personTimelineTable()`, `personDqTable()`; `urlState.js`
       `DEFAULT_UI.personen`, nicht serialisiert; Tests. Vorlegen.
-- [ ] **C.3** `views/personen.js`: Suche, Trefferliste, Detail, Export; `app.js` `VIEWS` (Gruppe Personen, `noPersonExport: true`, eigener Export). Vorlegen.
+- [x] **C.3** `views/personen.js`: Suche, Trefferliste, Detail, Export; `app.js` `VIEWS` (Gruppe Personen, `noPersonExport: true`, eigener Export). Vorlegen.
 - [ ] **C.4** Phone-Layout (Zeitachse vertikal, Raster als `details`). Smoke-Test: Suche mit synthetischem Namen, Detail öffnen,
       Raster/Zeitachse vorhanden, URL ohne Suchtext, Speicher leer. Vorlegen.
 - [ ] **C.5** Glossar (Anhang A3: «Pfad einer Person», «Prüfungsraster», «Zeitachse»), README (Ansichten, Datenschutz, E7), `PROMPT.md` Harte Regeln. Vorlegen.

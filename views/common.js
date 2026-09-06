@@ -104,7 +104,8 @@ export function renderTable(table, { caption = true } = {}) {
 // Die Zeile ist ein Button (Klick, Enter, Leertaste) mit aria-expanded/aria-controls; die Detailzeile ist bis zum Aufklappen hidden.
 // hint: Bedienhinweis, erscheint mit der Fussnote als ⓘ am Titel.
 let expandableSeq = 0;
-export function renderExpandableTable(table, { detail, hint = null } = {}) {
+// isOpen(row) → Zeile initial aufgeklappt (z. B. gewählte Person); onToggle(row, open) nach jedem Umschalten (Paket C)
+export function renderExpandableTable(table, { detail, hint = null, isOpen = null, onToggle = null } = {}) {
   const numeric = numericColumns(table);
   const cols = table.columns;
   const thead = el('thead', {}, [el('tr', {}, [el('th', { scope: 'col', class: 'toggle', 'data-prio': '1', 'aria-label': 'Aufklappen' })].concat(cols.map((c) => headerCell(c, numeric))))]);
@@ -120,10 +121,15 @@ export function renderExpandableTable(table, { detail, hint = null } = {}) {
     if (!content) return;
     const detailRow = el('tr', { class: 'event-detail', id, hidden: true }, [el('td', { colspan: String(cols.length + 1) }, [content])]);
     tbody.appendChild(detailRow);
+    if (isOpen && isOpen(row)) {
+      detailRow.hidden = false;
+      tr.setAttribute('aria-expanded', 'true');
+    }
     const toggle = () => {
       const open = detailRow.hidden;
       detailRow.hidden = !open;
       tr.setAttribute('aria-expanded', String(open));
+      if (onToggle) onToggle(row, open);
     };
     tr.addEventListener('click', toggle);
     tr.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
@@ -266,12 +272,13 @@ export function hinted(hints) {
 // Export-Menü (PROMPT-2 A.3, Befund B5): ein Aufklappmenü statt Button-Leiste – CSV (alle Tabellen in einer Datei),
 // XLSX (ein Blatt je Tabelle), Druckansicht; extra = { label, tables }: Vorgangsebene (mit Namen, nur intern), eigene
 // Dateien mit Suffix «-vorgaenge». Per Tastatur bedienbar (details/summary); schliesst nach der Wahl.
-export function renderExportMenu({ viewId, tables, headerLines, extra = null }) {
+// label/note (Paket C): eigener Titel und Hinweis, z. B. Export «Diese Person»
+export function renderExportMenu({ viewId, tables, headerLines, extra = null, label = 'Export', note = 'Aggregate dieser Ansicht, Filterzustand im Kopf' }) {
   const disabled = !tables.length;
   const menu = el('details', { class: 'menu export-menu' });
   const item = (text, onclick, dis = false) => el('button', { type: 'button', class: 'menu-item', disabled: dis, text, onclick: () => { menu.open = false; onclick(); } });
   const items = [
-    el('div', { class: 'menu-note', text: 'Aggregate dieser Ansicht, Filterzustand im Kopf' }),
+    el('div', { class: 'menu-note', text: note }),
     item('CSV', () => downloadCsv(exportFileName(viewId, 'csv'), tablesToCsv(tables, headerLines)), disabled),
     item('XLSX', () => downloadXlsx(exportFileName(viewId, 'xlsx'), tables, headerLines), disabled),
     item('Druckansicht', () => printPage()),
@@ -284,6 +291,6 @@ export function renderExportMenu({ viewId, tables, headerLines, extra = null }) 
       item('XLSX (Vorgangsebene)', () => downloadXlsx(exportFileName(viewId + '-vorgaenge', 'xlsx'), extra.tables, headerLines), !rows),
     );
   }
-  menu.append(el('summary', { text: 'Export' }), el('div', { class: 'menu-list', role: 'group', 'aria-label': 'Export' }, items));
+  menu.append(el('summary', { text: label }), el('div', { class: 'menu-list', role: 'group', 'aria-label': label }, items));
   return menu;
 }

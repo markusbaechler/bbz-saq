@@ -140,6 +140,22 @@ export const GLOSSARY = [
     definition: 'Verkürzter Weg in ein Nachfolgeprofil (PK→IK, AFFL→CWMA, KMU→CCoB) mit nur einem schriftlichen Teil. Das Cockpit kennzeichnet einen Vorgang als «Passerelle möglich», wenn dieselbe Person das Vorgängerprofil bestanden hat (Status bestanden oder Zertifikat).',
     nenner: '–', grenzfaelle: 'Wie eine Passerelle in der Datei erfasst ist und welche Spalte der Teil belegt, ist [unklar]; deshalb keine reduzierte Teileliste, «Fehlende Teile» zeigt weiterhin die volle Vorgabe.',
   },
+  // Personen-Layer (PROMPT-2 Paket C, Anhang A3)
+  {
+    kind: 'Begriff', term: 'Pfad einer Person',
+    definition: 'Zeitliche Abfolge aller Vorgänge (Profile) einer Person nach erstem Prüfungsdatum, mit Status je Vorgang, Zertifikat und Passerelle-Kennzeichen.',
+    nenner: '–', grenzfaelle: 'Ansicht «Personen». Namen sichtbar (E7). Suchtext und gewählte Person stehen nie in der URL.',
+  },
+  {
+    kind: 'Begriff', term: 'Prüfungsraster',
+    definition: 'Tabelle Teilprüfungen × Versuche (RUN1–RUN3) eines Vorgangs mit Datum, Resultat und Ergebnis je Run; Runs ausserhalb der Profilvorgabe sind markiert.',
+    nenner: '–', grenzfaelle: 'Grundlage: Vorgabe je Profil (config.js, PROFILE_PARTS). Ohne Vorgabe (unbekanntes Profil) erscheinen die genutzten Teile.',
+  },
+  {
+    kind: 'Begriff', term: 'Zeitachse (Person)',
+    definition: 'Alle datierten Runs eines Vorgangs chronologisch, absolviert und geplant, plus Zertifikatsbeginn.',
+    nenner: '–', grenzfaelle: 'Entspricht dem Blatt «Runs» des Exports (gleiche Anzahl datierter Runs).',
+  },
   {
     kind: 'Begriff', term: 'Bank-Report',
     definition: 'Ansicht für die Weitergabe an ein Institut: Kennzahlen einer gewählten Bank im Vergleich zum Benchmark «alle Banken» (gleicher Zeitraum, gleiche übrigen Filter), je Profil und je Jahr. Ohne Namen, andere Banken nur als Aggregat. PDF über die Druckansicht des Browsers.',

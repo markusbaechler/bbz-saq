@@ -5,7 +5,7 @@ import { GraphError, AuthExpiredError } from './graph.js';
 import { load, loadFromFile } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
-import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount } from './metrics.js';
+import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount, isVorgang } from './metrics.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
@@ -19,13 +19,14 @@ import * as oral from './views/oral.js';
 import * as vssVsm from './views/vssVsm.js';
 import * as ranking from './views/ranking.js';
 import * as planned from './views/planned.js';
+import * as personen from './views/personen.js';
 import * as offen from './views/offen.js';
 import * as zeitverlauf from './views/zeitverlauf.js';
 import * as historie from './views/historie.js';
 import * as bankReport from './views/bankReport.js';
 import * as glossar from './views/glossar.js';
 
-const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, bankReport, offen, planned, ranking, historie];
+const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, bankReport, personen, offen, planned, ranking, historie];
 const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, intro: v.intro, glossar: v.glossar, build: v.build, noPersonExport: !!v.noPersonExport }))
   .concat([
     {
@@ -385,6 +386,11 @@ function renderView() {
     timePersons: filterPersons(state.persons, filter, { period: false }), // kennzahlrelevant, alle Jahre (Zeitverlauf)
     bankBenchmarkPersons: filterPersons(state.persons, benchmarkFilter(filter, 'bank')), // Bank-Report: alle Banken
     today: new Date(),
+    allVorgaenge: state.persons.filter(isVorgang), // Personen (C.4): das Detail zeigt immer alle Vorgänge der Person
+    personVorgaenge: filterPersons(state.persons, { ...filter, versuche: 'alle' }, { eligibleOnly: false, period: false }), // Trefferliste: Profil, Sprache, Bank, VSS/VSM, Zertifikate
+    dq: state.dq,
+    personen: state.ui.personen,
+    onPersonenChange: (next) => store.setUi({ personen: next }, { silent: true }), // nur Memory; kein Neurendern (Fokus bleibt im Suchfeld)
     glossaryHref: (term) => hashWithParam('glossar', 'begriff', glossarySlug(term)), // Kachel-Label → Glossar, Filter bleibt
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
