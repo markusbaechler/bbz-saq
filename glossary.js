@@ -146,11 +146,6 @@ export const GLOSSARY = [
     nenner: '–', grenzfaelle: 'Voraussetzung: genau eine Bank in der Filterleiste gewählt. Kleine Gruppen (n < 5) sind markiert.',
   },
   {
-    kind: 'Begriff', term: 'Prüfungsplanung / Kapazität',
-    definition: 'Die Ansicht «Geplante Prüfungen» zeigt Kapazität und Auslastung je Tag und Ort, sobald Plätze je Prüfungsort in config.js (LOCATION_CAPACITY) hinterlegt sind. Die Excel-Datei enthält keine Kapazitätsdaten [beobachtet: kein Header dafür].',
-    nenner: '–', grenzfaelle: 'Ohne hinterlegte Kapazität bleiben die Spalten ausgeblendet (b4 nur vorbereitet).',
-  },
-  {
     kind: 'Begriff', term: 'Data-Quality-Stufen',
     definition: 'Fehler = Zelle nicht interpretierbar, Wert wird ignoriert. Hinweis = Wert interpretiert oder abgeleitet, aber auffällig (z. B. Result als Prozentwert umgedeutet, Duplikat zusammengeführt, Konsistenzregel verletzt). Nicht ausgewertet = Zelle nicht interpretierbar, aber das Feld fliesst in keine Kennzahl (Score).',
     nenner: '–', grenzfaelle: 'Score-Header: «WE{n} RUN{r} Score», «OE{n} RUN{r} Score» (24 Spalten). Entscheid E6 (05.09.2026): Score wird nicht ausgewertet, Result ist massgebend; das Parsing bleibt, damit verrutschte Zellen sichtbar sind.',
