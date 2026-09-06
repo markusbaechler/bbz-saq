@@ -494,13 +494,13 @@ Auftraggeber auf dem Gerät; kein Smoke.
 
 ## Paket C – Personen-Layer (Suche und Pfad)
 
-> **⛔ Entscheide vor Start** (eine Nachricht zu Beginn von Schritt C.1):
-> 1. Ohne Suchtext ist die Trefferliste leer, ausser der globale Bank-Filter ist gesetzt → alle Personen dieser Bank, alphabetisch (C.2). Empfehlung: ja.
+> **⛔ Entscheide vor Start – entschieden 06.09.2026 (alle wie empfohlen):**
+> 1. Ohne Suchtext ist die Trefferliste leer, ausser der globale Bank-Filter ist gesetzt → alle Personen dieser Bank, alphabetisch (C.2). Empfehlung: ja. **Ja.**
 > 2. Auf die Trefferliste wirken Profil, Sprache, Bank, VSS/VSM, Zertifikate; Zeitraum, Versuche und Wertung wirken nicht; das Detail zeigt immer
->    alle Vorgänge der Person (C.4). Empfehlung: ja.
+>    alle Vorgänge der Person (C.4). Empfehlung: ja. **Ja.**
 > 3. Geburtsdatum (C.5): (a) nie anzeigen, nur Schlüssel-Stufe; (b) Geburtsjahr immer anzeigen; (c) Geburtsjahr nur dann, wenn die Trefferliste
->    Namensgleiche enthält (Datenminimierung, trotzdem unterscheidbar). Empfehlung: (c).
-> 4. Export «Diese Person» (C.3 Punkt 6): Dateiname `personen-vorgang-<datum>` ohne Namen, Inhalt mit Namen «nur intern». Empfehlung: ja.
+>    Namensgleiche enthält (Datenminimierung, trotzdem unterscheidbar). Empfehlung: (c). **(c).**
+> 4. Export «Diese Person» (C.3 Punkt 6): Dateiname `personen-vorgang-<datum>` ohne Namen, Inhalt mit Namen «nur intern». Empfehlung: ja. **Ja.**
 
 ### C.1 Ziel und Rahmen
 
