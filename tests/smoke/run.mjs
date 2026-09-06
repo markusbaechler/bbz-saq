@@ -212,7 +212,7 @@ try {
   check((await page.locator('#view details.vorgang-card').count()) === 2 && (await page.locator('#view details.vorgang-card[open]').count()) === 1, 'Personen: zwei Karten je Vorgang, nur der jüngste offen');
   check((await page.locator('#view details.vorgang-card[open] .person-grid td .badge').count()) >= 1 && (await page.locator('#view details.vorgang-card[open] table.data').count()) >= 2, 'Personen: Raster mit Badges und Zeitachse in der offenen Karte');
   check(/Ende 30\.06\.2028/.test(await page.textContent('#view details.vorgang-card:not([open])')), 'Personen: Zertifikatsende (certEnd) in der Karte PK');
-  check((await page.locator('#view .run-edit').count()) === 0, 'Personen: ohne Feature-Flag keine Bearbeiten-Elemente (Phase 2)');
+  check((await page.locator('#view .run-edit, #view td.editable').count()) === 0 && (await page.locator('#btn-edit-mode').isHidden()), 'Personen: ohne Feature-Flag keine Bearbeiten-Elemente und kein Schalter (Phase 2)');
   await page.locator('#view .person-results tr.expandable').first().click();
   check(await page.locator('#view tr.event-detail').first().isHidden(), 'Personen: Detail wieder zugeklappt');
   await page.fill('#view .person-search', 'zwilling');
@@ -279,9 +279,15 @@ try {
   await writePage.waitForSelector('#view .person-results tr.expandable', { timeout: 5000 });
   await writePage.locator('#view .person-results tr.expandable').first().click();
   await writePage.waitForSelector('#view tr.event-detail:not([hidden]) .person-detail');
-  const editButtons = await writePage.locator('#view details.vorgang-card[open] .person-grid button.run-edit').count();
-  check(editButtons >= 3, 'Schreibpfad: mit Flag «Bearbeiten» je Run-Zelle (' + editButtons + ')');
-  await writePage.locator('#view details.vorgang-card[open] .person-grid button.run-edit').first().click();
+  check((await writePage.locator('#view td.editable').count()) === 0 && (await writePage.locator('#view button.run-edit').count()) === 0, 'Schreibpfad: mit Flag, aber ohne Modus keine Bearbeiten-Elemente (Standard nur lesen)');
+  check((await writePage.locator('#btn-edit-mode').isVisible()) && (await writePage.getAttribute('#btn-edit-mode', 'aria-pressed')) === 'false', 'Schreibpfad: Schalter «Bearbeiten» im Kopf sichtbar und aus');
+  await writePage.click('#btn-edit-mode');
+  await writePage.waitForSelector('#view details.vorgang-card[open] .person-grid td.editable', { timeout: 5000 });
+  check((await writePage.getAttribute('#btn-edit-mode', 'aria-pressed')) === 'true' && (await writePage.locator('#edit-mode-hint').isVisible()) && !/edit/i.test(writePage.url()), 'Schreibpfad: Bearbeitungsmodus an (aria-pressed, Hinweis), nicht in der URL');
+  const editable = await writePage.locator('#view details.vorgang-card[open] .person-grid td.editable[role="button"]').count();
+  check(editable >= 3 && (await writePage.locator('#view button.run-edit').count()) === 0, 'Schreibpfad: Zellen des Rasters anklickbar (' + editable + '), keine Knöpfe');
+  await writePage.locator('#view details.vorgang-card[open] .person-grid td.editable').first().focus();
+  await writePage.keyboard.press('Enter');
   await writePage.waitForSelector('dialog.edit-dialog[open]');
   check((await writePage.locator('dialog.edit-dialog[open] select.edit-field option').count()) >= 4 && /WE1 RUN1/.test(await writePage.textContent('dialog.edit-dialog[open] h3')), 'Schreibpfad: Dialog mit Feldwahl und Fundstelle (' + (await writePage.textContent('dialog.edit-dialog[open] h3')).trim() + ')');
   await writePage.selectOption('dialog.edit-dialog[open] select.edit-field', 'date');
@@ -298,6 +304,9 @@ try {
   await writePage.screenshot({ path: join(outDir, 'schreibpfad-dialog.png'), fullPage: false });
   await writePage.click('dialog.edit-dialog[open] button.edit-cancel');
   check((await writePage.locator('dialog.edit-dialog[open]').count()) === 0, 'Schreibpfad: Dialog geschlossen');
+  await writePage.click('#btn-edit-mode');
+  await writePage.waitForFunction(() => document.querySelectorAll('#view td.editable').length === 0, null, { timeout: 5000 });
+  check((await writePage.getAttribute('#btn-edit-mode', 'aria-pressed')) === 'false' && (await writePage.locator('#edit-mode-hint').isHidden()), 'Schreibpfad: Modus aus → Raster wieder nur lesen');
   await writePage.close();
 
   // Historie (b7): Snapshot herunterladen (ohne Namen), wieder laden, Vergleich mit «Heute»

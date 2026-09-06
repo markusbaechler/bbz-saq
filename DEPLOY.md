@@ -69,7 +69,8 @@ abgeschaltet. Aktivierung durch den Auftraggeber:
    `General/07_KUBA/Test_Reporting_KUBA.xlsx` ausführen; das Protokoll (ohne Personendaten) bestätigt Schreibweise, Konflikterkennung und
    Audit (`docs/SPIKE-mutation.md`, Abschnitt 8).
 2. In `config.js` `features: { write: true }` setzen, committen und pushen; GitHub Pages veröffentlicht automatisch.
-3. Beim ersten Schreiben fordert die App `Files.ReadWrite.All` an (Zustimmung bestätigen). Der Dialog zeigt alt → neu, verlangt einen Grund,
-   schreibt genau eine Zelle und lädt die Datei neu.
+3. Im Kopf «Bearbeiten» einschalten (Standard aus; nach Neuladen der Seite wieder aus), in der Ansicht «Personen» eine Zelle des
+   Prüfungsrasters anklicken. Beim ersten Schreiben fordert die App `Files.ReadWrite.All` an (Zustimmung bestätigen). Der Dialog zeigt
+   alt → neu, verlangt einen Grund, schreibt genau eine Zelle und lädt die Datei neu.
 4. Änderungsprotokoll: `General/07_KUBA/Reporting_KUBA.changes.json` neben der Datei (JSON-Array, ein Eintrag je Änderung).
 5. Abschalten: `features: { write: false }` – die Bearbeiten-Elemente verschwinden, die Datei bleibt unverändert.

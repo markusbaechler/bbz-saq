@@ -81,3 +81,9 @@ test('urlState: DEFAULT_UI.experten = null; Sortierung der Experten-Tabelle wird
   assertEqual(serializeState(DEFAULT_FILTER, { ...DEFAULT_UI, experten: { sortKey: 'fail1', sortDir: 'desc' } }), '');
   assertEqual(parseHash('#experten?profil=PK').ui.experten, null);
 });
+
+test('urlState: DEFAULT_UI.editMode = false (Bearbeitungsmodus nur im Memory, nie in der URL)', () => {
+  assertEqual(DEFAULT_UI.editMode, false);
+  assertEqual(serializeState(DEFAULT_FILTER, { ...DEFAULT_UI, editMode: true }), '');
+  assertEqual(parseHash('#personen?editMode=1').ui.editMode, false);
+});

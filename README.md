@@ -260,7 +260,9 @@ Gesamtergebnisse, Zertifikatsfelder; keine neuen Zeilen, keine Sheet-Änderungen
 
 - **Flag:** `CONFIG.features.write` (Standard `false`). Ohne Flag zeigt die App keine Bearbeiten-Elemente. Der Auftraggeber aktiviert das
   Flag nach eigenem Test auf der Testkopie (`DEPLOY.md`, Abschnitt «Phase 2»).
-- **Ablauf:** In der Ansicht «Personen» trägt jede Run-Zelle des Prüfungsrasters «Bearbeiten». Der Dialog prüft die Eingabe mit denselben
+- **Ablauf:** Mit Flag erscheint im Kopf der Schalter «Bearbeiten» (Standard aus, nur im Memory, nach Neuladen der Seite wieder aus; auf
+  dem Phone im Konto-Menü). Im Bearbeitungsmodus sind die Zellen des Prüfungsrasters in der Ansicht «Personen» anklickbar (✎ beim
+  Überfahren, Enter per Tastatur); ohne Modus bleibt alles reine Anzeige. Der Dialog prüft die Eingabe mit denselben
   Parsern wie beim Laden, zeigt «alt → neu» und verlangt einen Grund. Der Adapter (`datasource/workbookAdapter.js`) löst die Datei wie der
   Lesepfad auf, vergleicht die Datei-Version (eTag) mit dem Stand beim Laden, sucht den Header in Zeile 10 (nie Spaltenbuchstaben raten),
   liest Zielzelle und Nachbarzellen und schreibt in derselben Schreibweise (Datum als Serienzahl oder Text, yes/no wie im Sheet, Resultat als
