@@ -9,6 +9,7 @@ import { downloadBlob, fmtDate, fmtDateTime } from '../export.js';
 
 export const id = 'historie';
 export const label = 'Historie';
+export const group = 'Daten'; // Navigationsgruppe (PROMPT-2 A.2)
 export const noPersonExport = true; // Snapshots und Vergleich enthalten keine Namen
 
 function dayLabel(stichtag) {

@@ -370,10 +370,10 @@ bedienbar (`details/summary`); Chips als Buttons mit `aria-label="Filter Profil 
 
 ### A.10 Schritte
 
-- [ ] **A.1** Baseline bestätigen: Smoke-Test, Screenshots und Snapshot (`tools/snapshot-synth.js`, Schritt 0.3) als Vergleichsbasis vorhanden;
+- [x] **A.1** Baseline bestätigen: Smoke-Test, Screenshots und Snapshot (`tools/snapshot-synth.js`, Schritt 0.3) als Vergleichsbasis vorhanden;
       Umsetzungsplan für Paket A (Reihenfolge, betroffene Dateien, Testpunkte je Schritt) vorlegen. Vorlegen.
-- [ ] **A.2** Tokens und Skalen in `styles.css`, `tools/contrast.js` + CI-Aufruf im Job `tests`. Vorlegen.
-- [ ] **A.3** Shell: Datenstand (`renderStatus()` + `details`), Navigation mit Gruppen (`VIEWS.group`, `renderNav()`), Untertitel. Smoke-Test anpassen. Vorlegen.
+- [x] **A.2** Tokens und Skalen in `styles.css`, `tools/contrast.js` + CI-Aufruf im Job `tests`. Vorlegen.
+- [x] **A.3** Shell: Datenstand (`renderStatus()` + `details`), Navigation mit Gruppen (`VIEWS.group`, `renderNav()`), Untertitel. Smoke-Test anpassen. Vorlegen.
 - [ ] **A.4** Filterleiste: Jahr-Select, Sticky, Chips, Reset-Sichtbarkeit; Fokusregel prüfen; Smoke-Test (Summary-Format) anpassen. Vorlegen.
 - [ ] **A.5** View-Kopf: `view-intro`, Export-Menü (ersetzt `exportBar()`), Glossar-Anker. Alle Views durchgehen, Einleitungsabsätze verschieben. Vorlegen.
 - [ ] **A.6** KPI-Kacheln: `direction`, `group`, Delta-Darstellung, ⓘ; `overviewModel()`-Tests erweitern. Vorlegen.

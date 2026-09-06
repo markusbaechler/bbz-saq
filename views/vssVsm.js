@@ -5,6 +5,7 @@ import { renderTable, section } from './common.js';
 
 export const id = 'vss-vsm';
 export const label = 'VSS/VSM';
+export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
 
 export function build(ctx) {
   const table = vssVsmTable(ctx.persons);

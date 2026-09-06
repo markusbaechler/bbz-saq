@@ -41,10 +41,14 @@ try {
   // Laden
   await page.goto(server.url, { waitUntil: 'networkidle' });
   check((await page.locator('#nav a').count()) >= 8, 'Navigation gerendert');
+  check((await page.locator('#nav .nav-group').count()) >= 3 && (await page.locator('#nav .nav-group[aria-label="Kennzahlen"] a').count()) === 6, 'Navigation in Gruppen (Kennzahlen · Personen · Daten)');
   await page.setInputFiles('#file-input', xlsx);
   await page.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
   const status = (await page.textContent('#status')).replace(/\s+/g, ' ').trim();
   check(/Data-Quality-Log/.test(status) && /Duplikate/.test(status), 'Datei geladen: ' + status.slice(0, 170));
+  // Datenstand (A.2): sichtbarer Einzeiler mit aufklappbaren Zählern; der Volltext in #status bleibt (nur für Screenreader)
+  const datastand = (await page.textContent('#datastand summary')).replace(/\s+/g, ' ').trim();
+  check(datastand.startsWith('Datenstand: synth.xlsx') && /DQ \d+ Fehler$/.test(datastand) && (await page.locator('#datastand dt').count()) >= 6 && (await page.locator('#status.visually-hidden').count()) === 1, 'Datenstand: «' + datastand.slice(0, 90) + '» mit Details, Volltext nur für Screenreader');
 
   // Jede Ansicht rendert Titel und mindestens eine Tabelle, ohne Fehler
   const views = await page.$$eval('#nav a', (as) => as.map((a) => a.getAttribute('href').replace(/^#/, '')));

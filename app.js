@@ -23,9 +23,11 @@ import * as historie from './views/historie.js';
 import * as bankReport from './views/bankReport.js';
 import * as glossar from './views/glossar.js';
 
-const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, historie, ranking, bankReport, offen, planned];
-const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, build: v.build, noPersonExport: !!v.noPersonExport }))
-  .concat([{ id: 'datenqualitaet', label: 'Datenqualität' }, { id: glossar.id, label: glossar.label, build: glossar.build, isStatic: true }]);
+const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, bankReport, offen, planned, ranking, historie];
+const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, build: v.build, noPersonExport: !!v.noPersonExport }))
+  .concat([{ id: 'datenqualitaet', label: 'Datenqualität', group: 'Daten' }, { id: glossar.id, label: glossar.label, group: glossar.group, build: glossar.build, isStatic: true }]);
+// Navigationsgruppen (PROMPT-2 A.2, Entscheid 06.09.2026); Gruppen ohne Ansicht (Experten bis Paket D) werden nicht gerendert
+const NAV_GROUPS = ['Kennzahlen', 'Personen', 'Experten', 'Daten'];
 
 // Aller Zustand liegt im Store (Filter, Anzeigezustand, Daten); app.js hält nur DOM-Referenzen und Lauf-Flags (Befund 16).
 const store = createStore();
@@ -79,12 +81,16 @@ function applyHash() {
 function renderNav() {
   const current = viewFromHash();
   const { filter, ui: uiState } = store.getState();
-  ui.nav.replaceChildren(...VIEWS.map((v) => {
-    // Links tragen den Filterzustand mit, damit der Ansichtswechsel ihn behält
-    const a = el('a', { href: buildHash(v.id, filter, uiState), text: v.label, class: v.id === current ? 'active' : null });
-    if (v.id === current) a.setAttribute('aria-current', 'page');
-    return a;
-  }));
+  const groups = NAV_GROUPS.map((name) => ({ name, views: VIEWS.filter((v) => v.group === name) })).filter((g) => g.views.length);
+  ui.nav.replaceChildren(...groups.map((g) => el('div', { class: 'nav-group', role: 'group', 'aria-label': g.name }, [
+    el('span', { class: 'nav-group-label', 'aria-hidden': 'true', text: g.name }),
+    el('div', { class: 'nav-links' }, g.views.map((v) => {
+      // Links tragen den Filterzustand mit, damit der Ansichtswechsel ihn behält
+      const a = el('a', { href: buildHash(v.id, filter, uiState), text: v.label, class: v.id === current ? 'active' : null });
+      if (v.id === current) a.setAttribute('aria-current', 'page');
+      return a;
+    })),
+  ])));
 }
 
 function renderSession() {
@@ -100,11 +106,13 @@ function renderStatus(text) {
   ui.status.classList.toggle('busy', busy);
   if (text) {
     ui.status.textContent = text;
+    renderDatastand(false);
     return;
   }
   const { meta, persons } = store.getState();
   if (!hasData()) {
     ui.status.textContent = 'Keine Daten geladen.';
+    renderDatastand(false);
     return;
   }
   const source = meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint';
@@ -116,6 +124,42 @@ function renderStatus(text) {
     + ' · kennzahlrelevant ' + eligible(persons).length + ' · offen ' + (counts.offen || 0) + ' · nicht erfasst ' + (counts.nichtErfasst || 0)
     + ' · Data-Quality-Log: ' + (counts.fehler || 0) + ' Fehler, ' + (counts.hinweise || 0) + ' Hinweise, ' + (counts.nichtAusgewertet || 0) + ' nicht ausgewertet'
     + keyNote;
+  renderDatastand(true);
+}
+
+// Datenstand (PROMPT-2 A.2, Befund B2): sichtbar nur ein Einzeiler als summary, alle übrigen Zähler als aufklappbare
+// zweispaltige Liste. Der Volltext bleibt in #status (aria-live, Smoke-Test), ist bei geladenen Daten aber nur für
+// Screenreader sichtbar; beim Laden und ohne Daten zeigt #status wie bisher.
+function renderDatastand(visible) {
+  const box = ui.datastand;
+  if (!visible) {
+    box.hidden = true;
+    box.replaceChildren();
+    ui.status.classList.remove('visually-hidden');
+    return;
+  }
+  const { meta, persons } = store.getState();
+  const c = meta.counts || {};
+  const fehler = c.fehler || 0;
+  const summary = el('summary', {}, [
+    'Datenstand: ' + meta.fileName + ' · geändert ' + (fmtDateTime(meta.lastModified) || '–') + ' · geladen ' + (fmtTime(meta.loadedAt) || '–')
+      + ' · ' + (c.zeilen || persons.length) + ' Zeilen · ',
+    el('span', { class: fehler ? 'warn' : null, text: 'DQ ' + fehler + ' Fehler' }),
+  ]);
+  const rows = [
+    ['Quelle', meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint'],
+    ['Zeilen je Sheet', (c.first || 0) + ' First Certification · ' + (c.issued || 0) + ' Ausgestellte Zertifikate'],
+    ['Vorgänge / Personen / Duplikate', (c.vorgaenge || 0) + ' / ' + (c.personen || 0) + ' / ' + (c.duplikate || 0)],
+    ['Kennzahlrelevant', String(eligible(persons).length)],
+    ['Offen / nicht erfasst', (c.offen || 0) + ' / ' + (c.nichtErfasst || 0)],
+    ['Data-Quality-Log', fehler + ' Fehler · ' + (c.hinweise || 0) + ' Hinweise · ' + (c.nichtAusgewertet || 0) + ' nicht ausgewertet'],
+    ['Schlüssel ohne Geburtsdatum', String(c.schluesselOhneGeburtsdatum || 0)],
+  ];
+  const open = box.open; // Auf-/Zuklappzustand beim Neurendern behalten
+  box.replaceChildren(summary, el('dl', { class: 'datastand-list' }, rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })])));
+  box.open = open;
+  box.hidden = false;
+  ui.status.classList.add('visually-hidden');
 }
 
 // ---------------------------------------------------------------------------
@@ -394,6 +438,7 @@ async function init() {
   ui.load = $('btn-load');
   ui.file = $('file-input');
   ui.status = $('status');
+  ui.datastand = $('datastand');
   ui.error = $('error');
   ui.nav = $('nav');
   ui.filterbar = $('filterbar');

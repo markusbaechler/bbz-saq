@@ -6,6 +6,7 @@ import { MODE, SMALL_N } from '../metrics.js';
 
 export const id = 'bestenlisten';
 export const label = 'Bestenlisten';
+export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
 
 function grid(groups) {
   if (!groups.length) return el('p', { class: 'empty', text: 'Keine Vorgänge im aktiven Filter.' });

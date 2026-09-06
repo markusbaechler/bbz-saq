@@ -8,6 +8,7 @@ import { printPage } from '../export.js';
 
 export const id = 'bank-report';
 export const label = 'Bank-Report';
+export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
 export const noPersonExport = true; // keine Vorgangsebene (Namen) in dieser Ansicht
 
 export function build(ctx) {

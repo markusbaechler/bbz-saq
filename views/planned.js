@@ -7,6 +7,7 @@ import { renderKpis, renderTable, renderExpandableTable, renderCollapsible, sect
 
 export const id = 'geplante-pruefungen';
 export const label = 'Geplante Prüfungen';
+export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
 
 function kpi(label, value, hint) {
   return { label, value: String(value), n: value, small: false, hint };

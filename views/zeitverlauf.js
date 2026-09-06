@@ -8,6 +8,7 @@ import { formatPct, yearsOf } from '../metrics.js';
 
 export const id = 'zeitverlauf';
 export const label = 'Zeitverlauf';
+export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
 
 export function build(ctx) {
   const persons = ctx.timePersons || [];

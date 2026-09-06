@@ -7,6 +7,7 @@ import { PASSIVE_DAYS } from '../metrics.js';
 
 export const id = 'offene-vorgaenge';
 export const label = 'Offene Vorgänge';
+export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
 
 export function build(ctx) {
   const today = ctx.today || new Date();

@@ -142,6 +142,15 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--bo
 .file-label span { text-decoration: underline; }
 .status { color: var(--muted); }
 .status.busy::before { content: "⏳ "; }
+/* Nur für Screenreader (und Tests) sichtbar, z. B. der Volltext des Datenstands */
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Datenstand (PROMPT-2 A.2): Einzeiler als summary, Zähler als zweispaltige Liste */
+.datastand { color: var(--muted); }
+.datastand summary { cursor: pointer; }
+.datastand summary .warn { color: var(--warn); font-weight: 600; }
+.datastand-list { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0 0; font-size: var(--fs-sm); }
+.datastand-list dt { color: var(--muted); }
+.datastand-list dd { margin: 0; color: var(--text); }
 
 /* Fehler */
 .error {
@@ -153,13 +162,17 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--bo
 .error .hint { color: var(--text); margin-top: .4rem; }
 .error button { margin-top: .5rem; }
 
-/* Navigation */
-.views { display: flex; gap: .25rem; flex-wrap: wrap; padding: .6rem 1.25rem 0; }
-.views a {
-  padding: .45rem .9rem; border: 1px solid var(--border); border-bottom: none; border-radius: var(--radius) var(--radius) 0 0;
-  background: var(--nav-bg); color: var(--text); text-decoration: none;
+/* Navigation (PROMPT-2 A.2): Gruppen nebeneinander mit Beschriftung, Links darunter; nie umbrechend, bei Bedarf horizontal scrollbar */
+.views {
+  display: flex; gap: var(--space-5); flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity;
+  padding: var(--space-2) 1.25rem 0; background: var(--panel); border-bottom: 1px solid var(--border);
 }
-.views a.active { background: var(--panel); font-weight: 600; color: var(--accent); }
+.nav-group { display: flex; flex-direction: column; gap: var(--space-1); flex: 0 0 auto; scroll-snap-align: start; }
+.nav-group-label { font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding-left: var(--space-3); }
+.nav-links { display: flex; gap: var(--space-1); }
+.views a { padding: var(--space-2) var(--space-3); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
+.views a:hover { background: var(--hover); }
+.views a.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
 .filterbar { padding: .6rem 1.25rem; background: var(--panel); border-bottom: 1px solid var(--border); }
 
 /* Filterleiste */
@@ -193,7 +206,7 @@ table.data tr.small td { color: var(--muted); font-style: italic; }
 .ranking-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr)); gap: 1rem; }
 
 /* Inhalt */
-.view { flex: 1; padding: 1rem 1.25rem 2rem; background: var(--panel); margin: 0 1.25rem 1rem; border: 1px solid var(--border); border-radius: 0 var(--radius) var(--radius) var(--radius); }
+.view { flex: 1; padding: 1rem 1.25rem 2rem; background: var(--panel); margin: var(--space-4) 1.25rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); }
 .placeholder { color: var(--muted); }
 .empty { color: var(--muted); }
 .toolbar { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: .75rem; }

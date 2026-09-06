@@ -5,6 +5,7 @@ import { renderTable, section } from './common.js';
 
 export const id = 'muendlich';
 export const label = 'Mündlich';
+export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
 
 export function build(ctx) {
   const rates = oralRateTable(ctx.persons, 'profil');

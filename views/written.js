@@ -5,6 +5,7 @@ import { renderTable, section } from './common.js';
 
 export const id = 'schriftlich';
 export const label = 'Schriftlich';
+export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
 
 const KEYS = ['profil', 'sprache', 'employerCanon'];
 

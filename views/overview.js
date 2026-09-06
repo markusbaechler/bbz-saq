@@ -6,6 +6,7 @@ import { BENCHMARKS } from '../metrics.js';
 
 export const id = 'uebersicht';
 export const label = 'Übersicht';
+export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
 
 export function build(ctx) {
   const m = overviewModel(ctx.persons, ctx.allPersons || ctx.persons);

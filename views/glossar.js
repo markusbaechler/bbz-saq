@@ -5,6 +5,7 @@ import { renderTable, section, el } from './common.js';
 
 export const id = 'glossar';
 export const label = 'Glossar';
+export const group = 'Daten'; // Navigationsgruppe (PROMPT-2 A.2)
 export const isStatic = true;
 
 function table(kind) {
