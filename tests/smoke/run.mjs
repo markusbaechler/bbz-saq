@@ -29,6 +29,11 @@ const server = await startServer(root);
 const xlsx = writeSynthWorkbook();
 const browser = await chromium.launch(process.env.SMOKE_CHROMIUM ? { executablePath: process.env.SMOKE_CHROMIUM } : {});
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+// Feature-Flag des Schreibpfads im Test steuern (unabhängig vom Wert in config.js): Hauptseite, Phone und Tablet ohne Flag (nur lesen),
+// Schreibpfad-Seite mit Flag – config.js wird per Route mit dem gewünschten Wert ausgeliefert, im Repo ändert sich nichts
+const configText = readFileSync(join(root, 'config.js'), 'utf8');
+const routeConfig = (p, on) => p.route('**/config.js', async (route) => route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: configText.replace(/features: \{ write: (true|false) \}/, 'features: { write: ' + (on ? 'true' : 'false') + ' }') }));
+await routeConfig(page, false);
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
@@ -266,10 +271,7 @@ try {
   // Dialog je Run-Zelle, Validierung mit den Parsern, Vorschau alt → neu, Grund als Pflichtfeld, Schutz bei lokaler Datei (kein Schreiben ohne SharePoint).
   const writePage = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
   writePage.on('pageerror', (e) => errors.push('write pageerror: ' + e.message));
-  await writePage.route('**/config.js', async (route) => {
-    const body = readFileSync(join(root, 'config.js'), 'utf8').replace('features: { write: false }', 'features: { write: true }');
-    await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body });
-  });
+  await routeConfig(writePage, true);
   await writePage.goto(server.url, { waitUntil: 'networkidle' });
   await writePage.setInputFiles('#file-input', xlsx);
   await writePage.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
@@ -361,6 +363,7 @@ try {
 
   // Phone (B.1): 390 × 844 – jede Ansicht ohne horizontalen Seitenscroll, nur Prio-1-Spalten, Schalter «Alle Spalten» sichtbar
   const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await routeConfig(phone, false);
   phone.on('console', (m) => { if (m.type() === 'error') errors.push('phone console: ' + m.text()); });
   phone.on('pageerror', (e) => errors.push('phone pageerror: ' + e.message));
   await phone.goto(server.url, { waitUntil: 'networkidle' });
@@ -480,6 +483,7 @@ try {
 
   // Tablet (B.4): 820 × 1180 – kein Seitenscroll, Prio 1 + 2 sichtbar, Prio 3 versteckt, Navigation mit Gruppen, Filter offen
   const tablet = await browser.newPage({ viewport: { width: 820, height: 1180 } });
+  await routeConfig(tablet, false);
   tablet.on('console', (m) => { if (m.type() === 'error') errors.push('tablet console: ' + m.text()); });
   tablet.on('pageerror', (e) => errors.push('tablet pageerror: ' + e.message));
   await tablet.goto(server.url, { waitUntil: 'networkidle' });

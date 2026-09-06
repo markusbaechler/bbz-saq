@@ -731,7 +731,7 @@ Umsetzung: `filterPersons(state.persons, filter, { period: false })` → `expert
 > 2. Audit-Ablageort (E.1 Punkt 5): (a) `General/07_KUBA/Reporting_KUBA.changes.json` neben der Datei (Append je Änderung); (b) Threaded Comment an der
 >    Zelle (nur wenn Graph das Anlegen erlaubt). Empfehlung: (a), weil unabhängig von der Workbook-API und ohne Strukturänderung der Excel. **(a), entschieden 06.09.2026.**
 > 3. Umfang der ersten Stufe: nur Run-Felder Passed, Date, Result, Location (und Expert 1/2 nach Paket D). Empfehlung: ja, nichts darüber hinaus. **Ja, entschieden 06.09.2026.**
-> 4. Freischaltung: `features.write` bleibt in `config.js` `false`; der Auftraggeber aktiviert das Flag (E.3 Schritt E.4). Empfehlung: ja. **Ja, entschieden 06.09.2026.**
+> 4. Freischaltung: `features.write` bleibt in `config.js` `false`; der Auftraggeber aktiviert das Flag (E.3 Schritt E.4). Empfehlung: ja. **Ja, entschieden 06.09.2026. Freigeschaltet am 06.09.2026 nach dem Test auf der Kopie (Auftrag «produktiv freischalten»).**
 
 ### E.0 Rahmen und Umfang
 

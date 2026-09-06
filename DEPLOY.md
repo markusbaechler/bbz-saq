@@ -62,8 +62,9 @@ im Data-Quality-Log gemeldet, nicht stillschweigend korrigiert.
 
 ## Phase 2: Schreibpfad aktivieren
 
-Der Schreibpfad (`datasource/workbookAdapter.js`, Dialog in der Ansicht «Personen») ist umgesetzt und über `CONFIG.features.write`
-abgeschaltet. Aktivierung durch den Auftraggeber:
+Der Schreibpfad (`datasource/workbookAdapter.js`, Dialog in der Ansicht «Personen») ist umgesetzt und seit 06.09.2026 über
+`CONFIG.features.write = true` produktiv freigeschaltet (Test auf der Testkopie durch den Auftraggeber). So wurde er eingerichtet, so
+lässt er sich abschalten:
 
 1. Testkopie prüfen: `python -m http.server 3000`, dann http://localhost:3000/spike/mutation.html – Schritte 1 bis 9 auf der Testkopie
    `General/07_KUBA/Test_Reporting_KUBA.xlsx` ausführen; das Protokoll (ohne Personendaten) bestätigt Schreibweise, Konflikterkennung und

@@ -107,8 +107,8 @@ test('config: HEADER_FIELDS ist vollständig und eindeutig', () => {
   assert(keys.includes('certNumber') && keys.includes('certEnd'), 'optionale Sheet-2-Felder vorhanden');
 });
 
-test('config.features: Schreibpfad (Phase 2) standardmässig aus – ohne Flag keine Bearbeiten-Elemente (PROMPT-2 C.8)', () => {
-  assertEqual(CONFIG.features, { write: false });
+test('config.features: Schreibpfad (Phase 2) produktiv freigeschaltet (Auftraggeber, 06.09.2026); Abschalten über write: false', () => {
+  assertEqual(CONFIG.features, { write: true });
 });
 
 test('config: Expertenfelder je OE-Run (optional, bestätigte Header «OE{p} RUN{r} Expert 1/2») und CONFIG.experts.from (PROMPT-2 D.3)', () => {
