@@ -147,17 +147,24 @@ function kpiTile(k, glossaryHref) {
     el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' Vorgängen' : 'n = ' + k.n) + (k.small ? ' *' : '') }),
     d ? el('div', { class: 'kpi-delta ' + d.tone }, [
       el('span', { class: 'kpi-delta-symbol', 'aria-hidden': 'true', text: d.symbol + ' ' }),
-      d.text + ' vs. ' + (k.benchmarkLabel || 'Benchmark') + (k.benchmark ? ' (' + k.benchmark + ')' : ''),
+      el('span', { class: 'kpi-delta-value', text: d.text }),
+      el('span', { class: 'kpi-delta-vs', text: ' vs. ' + (k.benchmarkLabel || 'Benchmark') + (k.benchmark ? ' (' + k.benchmark + ')' : '') }), // auf Phone ausgeblendet (B.3)
     ]) : null,
   ]);
 }
 
 // KPI-Kacheln: [{ label, value, n, small, hint, kind, group, direction, delta, benchmark, benchmarkLabel }]
 // Mit group werden Blöcke Mengen · Schriftlich · Mündlich mit h3 gerendert; ohne group eine einzelne Reihe.
-export function renderKpis(kpis, { glossaryHref = null } = {}) {
+// Auf Phone (B.3) sind die Blöcke aufklappbare details: Schriftlich und Mündlich offen, Mengen zu; im Druck alle offen.
+export function renderKpis(kpis, { glossaryHref = null, phone = isPhone() } = {}) {
   const tile = (k) => kpiTile(k, glossaryHref);
   const groups = ['Mengen', 'Schriftlich', 'Mündlich'].map((g) => ({ g, list: kpis.filter((k) => k.group === g) })).filter((x) => x.list.length);
   if (!groups.length) return el('div', { class: 'kpis' }, kpis.map(tile));
+  if (phone) {
+    return el('div', { class: 'kpi-groups' }, groups.map(({ g, list }) => el('details', { class: 'kpi-group print-open', open: g === 'Mengen' ? null : '' }, [
+      el('summary', { text: g }), el('div', { class: 'kpis' }, list.map(tile)),
+    ])));
+  }
   return el('div', { class: 'kpi-groups' }, groups.map(({ g, list }) => el('section', { class: 'kpi-group' }, [el('h3', { text: g }), el('div', { class: 'kpis' }, list.map(tile))])));
 }
 

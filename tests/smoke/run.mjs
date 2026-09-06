@@ -259,7 +259,7 @@ try {
     await phone.screenshot({ path: join(outDir, 'phone-' + v + '.png'), fullPage: true });
   }
   await phone.goto(server.url + '#uebersicht');
-  await phone.waitForSelector('#view .kpi');
+  await phone.waitForSelector('#view .kpi-groups'); // erste Kachel liegt auf Phone im geschlossenen Block «Mengen»
   const columnsToggle = phone.locator('#view .table-wrap .all-columns').first();
   check(await columnsToggle.isVisible(), 'Phone: Schalter «Alle Spalten» sichtbar');
   await columnsToggle.click();
@@ -283,6 +283,21 @@ try {
   await phone.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await phone.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   check(await phone.evaluate(() => getComputedStyle(document.querySelector('#account')).display === 'none' && getComputedStyle(document.querySelector('.subtitle')).display === 'none'), 'Phone: Kopf kompakt (Untertitel und Kontotext ausgeblendet)');
+
+  // Phone (B.3): Kachel-Blöcke als details (Schriftlich, Mündlich offen; Mengen zu), zwei Spalten, Delta ohne «vs.»; kompaktes Diagramm
+  await phone.goto(server.url + '#uebersicht');
+  await phone.waitForSelector('#view .kpi-groups'); // erste Kachel liegt auf Phone im geschlossenen Block «Mengen»
+  const kpiGroups = await phone.$$eval('#view details.kpi-group', (ds) => ds.map((d) => d.querySelector('summary').textContent + ':' + (d.open ? 'offen' : 'zu')));
+  const kpiCols = await phone.evaluate(() => { const k = document.querySelector('#view details.kpi-group[open] .kpis'); return k ? getComputedStyle(k).gridTemplateColumns.split(' ').length : 0; });
+  check(kpiGroups.join(',') === 'Mengen:zu,Schriftlich:offen,Mündlich:offen' && kpiCols === 2, 'Phone: Kachel-Blöcke als details (' + kpiGroups.join(', ') + '), zwei Spalten');
+  const deltaVs = await phone.evaluate(() => { const s = [...document.querySelectorAll('#view .kpi-delta-vs')]; return { n: s.length, hidden: s.every((x) => getComputedStyle(x).display === 'none') }; });
+  check(deltaVs.n >= 5 && deltaVs.hidden, 'Phone: Delta nur mit Symbol und Wert, «vs. Benchmark» ausgeblendet (' + deltaVs.n + ')');
+  await phone.screenshot({ path: join(outDir, 'phone-uebersicht-kacheln.png'), fullPage: true });
+  await phone.goto(server.url + '#zeitverlauf');
+  await phone.waitForSelector('#view svg');
+  const compactSvg = await phone.evaluate(() => ({ viewBox: document.querySelector('#view svg').getAttribute('viewBox'), labels: document.querySelectorAll('#view .viz-label').length, tip: (() => { const t = document.querySelector('#view .viz.compact .viz-tip'); return t ? getComputedStyle(t).position : 'fehlt'; })() }));
+  check(compactSvg.viewBox === '0 0 360 200' && compactSvg.labels === 0 && compactSvg.tip === 'static', 'Phone: kompaktes Diagramm 360 × 200 ohne Endbeschriftung, Tooltip unter dem Diagramm (' + JSON.stringify(compactSvg) + ')');
+  await phone.screenshot({ path: join(outDir, 'phone-zeitverlauf-kompakt.png'), fullPage: true });
   await phone.close();
 
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL

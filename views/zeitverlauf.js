@@ -2,7 +2,7 @@
 // Schwierigkeit je Teilprüfung über die Jahre (b6). Der Zeitraumfilter wirkt hier nicht (alle Jahre), die übrigen Filter schon.
 
 import { timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables, throughputTables } from './tables.js';
-import { renderTable, section, hinted, el } from './common.js';
+import { renderTable, section, hinted, el, isPhone } from './common.js';
 import { renderLineChart } from './chart.js';
 import { formatPct, yearsOf } from '../metrics.js';
 
@@ -36,11 +36,12 @@ export function build(ctx) {
     el('label', { class: 'inline' }, ['Jahr B ', yearSelect(compare.b, (b) => ctx.onCompareChange && ctx.onCompareChange({ a: compare.a, b }))]),
   ]) : null;
   const pct = (v) => formatPct(v, 0);
+  const compact = isPhone(); // Phone (B.3): kompaktes Diagramm
   return {
     nodes: [
       years.length ? section('Bestehensquoten je Jahr', [
-        renderLineChart(chartSeries.quoten, { title: 'Bestehensquoten je Jahr', yFormat: pct, yMax: 1, ariaLabel: 'Liniendiagramm: Bestehensquoten schriftlich (1. Versuch, insgesamt) und mündlich je Jahr; Werte in der Tabelle «Kennzahlen je Jahr»' }),
-        renderLineChart(chartSeries.resultate, { title: 'Ø Resultate je Jahr (1. Versuch)', yFormat: pct, yMax: 1, ariaLabel: 'Liniendiagramm: Ø Resultat schriftlich und mündlich im 1. Versuch je Jahr; Werte in der Tabelle «Kennzahlen je Jahr»' }),
+        renderLineChart(chartSeries.quoten, { title: 'Bestehensquoten je Jahr', yFormat: pct, yMax: 1, compact, ariaLabel: 'Liniendiagramm: Bestehensquoten schriftlich (1. Versuch, insgesamt) und mündlich je Jahr; Werte in der Tabelle «Kennzahlen je Jahr»' }),
+        renderLineChart(chartSeries.resultate, { title: 'Ø Resultate je Jahr (1. Versuch)', yFormat: pct, yMax: 1, compact, ariaLabel: 'Liniendiagramm: Ø Resultat schriftlich und mündlich im 1. Versuch je Jahr; Werte in der Tabelle «Kennzahlen je Jahr»' }),
         renderTable(perYear),
       ]) : el('p', { class: 'empty', text: 'Keine Vorgänge mit Referenzdatum im aktiven Filter.' }),
       section('Kennzahlen je Profil und Jahr', [renderTable(perProfile)]),
