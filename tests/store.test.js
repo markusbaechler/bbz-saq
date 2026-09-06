@@ -4,7 +4,7 @@ import {
   parsePassed, parseLanguage, parseProfile, parseEmployer, parseResult, parseScore, parseDate, parseBirthDate, parseVssVsm,
   normalizeNamePart, personKeyOf, statusOf, combineStatus, dqImpact,
   resolveHeaders, HeaderError, MissingHeaderError, DuplicateHeaderError,
-  normalizeSheet, normalizeWorkbook, mergeVorgang,
+  normalizeSheet, normalizeWorkbook, mergeVorgang, parseExpert,
 } from '../store.js';
 import { DEFAULT_FILTER, eligible, filterPersons, exclusionReason, groupByPerson } from '../metrics.js';
 import { makeSheet, headerRowFor, runValues } from './fixtures.js';
@@ -284,12 +284,12 @@ test('normalizeSheet: vollständige Zeile aus Sheet 1 → Personenmodell', () =>
   assertEqual(p.we[0].part, 1);
   assertEqual(p.we[0].passed, true);
   assertEqual(p.we[0].runs.length, 3);
-  assertEqual(p.we[0].runs[0], { n: 1, passed: false, date: new Date(2024, 2, 1), score: 40, result: 0.55, location: null, taken: true, planned: false });
-  assertEqual(p.we[0].runs[1], { n: 2, passed: true, date: new Date(2024, 3, 15), score: 61, result: 0.825, location: null, taken: true, planned: false });
-  assertEqual(p.we[0].runs[2], { n: 3, passed: null, date: null, score: null, result: null, location: null, taken: false, planned: false });
+  assertEqual(p.we[0].runs[0], { n: 1, passed: false, date: new Date(2024, 2, 1), score: 40, result: 0.55, location: null, taken: true, planned: false, experts: [] });
+  assertEqual(p.we[0].runs[1], { n: 2, passed: true, date: new Date(2024, 3, 15), score: 61, result: 0.825, location: null, taken: true, planned: false, experts: [] });
+  assertEqual(p.we[0].runs[2], { n: 3, passed: null, date: null, score: null, result: null, location: null, taken: false, planned: false, experts: [] });
   assertEqual(p.we[1].runs[0].result, 0.9);
   assertEqual(p.we[2].passed, null);
-  assertEqual(p.oe[0].runs[0], { n: 1, passed: false, date: new Date(2024, 4, 2, 9, 30), score: 3, result: 0.4, location: null, taken: true, planned: false });
+  assertEqual(p.oe[0].runs[0], { n: 1, passed: false, date: new Date(2024, 4, 2, 9, 30), score: 3, result: 0.4, location: null, taken: true, planned: false, experts: [] });
   assertEqual(p.oe[0].runs[1].passed, true);
   assertEqual(p.oe[1].passed, null);
 });
@@ -390,7 +390,7 @@ test('normalizeSheet: Zeile mit Daten aber ohne Namen → keine Person, aber DQ-
 
 test('normalizeSheet: Zeile nur mit Inhalt in nicht gemappten Spalten gilt als leer', () => {
   const sheet = makeSheet('first', [{ Nr: 17 }, { Bemerkung: 'x' }]);
-  assertEqual(normalizeSheet(sheet, {}), { persons: [], dq: [], headers: { birthDate: 'Birth Date' } });
+  assertEqual(normalizeSheet(sheet, {}), { persons: [], dq: [], headers: { birthDate: 'Birth Date', experts: [] } });
 });
 
 test('normalizeSheet: «Name fehlt» nennt auch nicht gemappte Spalten mit Inhalt', () => {
@@ -897,4 +897,61 @@ test('normalizeSheet: certEnd (Certificate End Date) wird gelesen, in Sheet 1 oh
   assertEqual(q.certEnd, null, 'Sheet 1 hat keinen Header Certificate End Date');
   mergeVorgang(q, p);
   assertEqual(q.certEnd, new Date(2029, 5, 30), 'Lücke aus dem Duplikat aufgefüllt');
+});
+
+// ---------------------------------------------------------------------------
+// Paket D: Experten je OE-Run (bestätigtes Mapping 06.09.2026: «OE{p} RUN{r} Expert 1/2», optional, experts.from 2018-01-01)
+// ---------------------------------------------------------------------------
+
+test('parseExpert: Text → { name, key }; Mehrfach-Leerzeichen; leer → null ohne Hinweis; Zahl/Datum → Fehler', () => {
+  assertEqual(parseExpert('  Prüfer   Pia '), { value: { name: 'Prüfer Pia', key: 'prufer pia' }, reason: null });
+  assertEqual(parseExpert('').value, null);
+  assertEqual(parseExpert(null).reason, null);
+  const n = parseExpert(42);
+  assert(n.value === null && /nicht lesbar/.test(n.reason) && n.level === 'fehler', JSON.stringify(n));
+  assert(parseExpert(new Date(2024, 0, 1)).value === null);
+  assert(parseExpert('12.5').value === null, 'Zahl als Text');
+});
+
+test('normalizeSheet: Experten je OE-Run mit Rolle; Hinweise «fehlt» (ab experts.from), «ohne Run» (weder Datum noch Ergebnis), «1 = 2»; ohne Spalten leere Liste', () => {
+  const rows = [
+    { lastName: 'Muster', firstName: 'Anna', weAllPassed: 'yes', oeAllPassed: 'yes', ...runValues('we', { 1: [{ passed: 'yes', date: '01.03.2025', result: 0.8 }] }),
+      ...runValues('oe', { 1: [{ passed: 'yes', date: '01.06.2025', result: 0.9, expert1: 'Prüfer Pia', expert2: 'Experte Emil' }] }) },
+    { lastName: 'Beispiel', firstName: 'Ben', weAllPassed: 'yes', ...runValues('oe', { 1: [{ passed: 'no', date: '01.07.2025', result: 0.4, expert1: 'Prüfer Pia' }] }) },
+    { lastName: 'Fehlt', firstName: 'Fritz', weAllPassed: 'yes', ...runValues('oe', { 1: [{ passed: 'yes', date: '01.08.2025', result: 0.7 }] }) },
+    { lastName: 'Alt', firstName: 'Anton', weAllPassed: 'yes', ...runValues('oe', { 1: [{ passed: 'yes', date: '01.06.2017', result: 0.7 }] }) },
+    { lastName: 'Ohne', firstName: 'Run', weAllPassed: 'yes', ...runValues('oe', { 1: [{ passed: '', date: '', expert1: 'Beisitz Bruno' }] }) },
+    { lastName: 'Gleich', firstName: 'Gerda', weAllPassed: 'yes', ...runValues('oe', { 1: [{ passed: 'yes', date: '01.09.2025', result: 0.8, expert1: 'Experte Emil', expert2: 'experte  emil' }] }) },
+    { lastName: 'Termin', firstName: 'Tina', weAllPassed: 'yes', ...runValues('oe', { 1: [{ passed: '', date: '01.01.2025', expert1: 'Beisitz Bruno' }] }) },
+    { lastName: 'Undatiert', firstName: 'Uwe', weAllPassed: 'yes', ...runValues('oe', { 1: [{ passed: 'yes', date: '', result: 0.6, expert1: 'Prüfer Pia' }] }) },
+  ];
+  const { persons, dq } = normalizeSheet(makeSheet('first', rows, { experts: true }), {}, { today: new Date(2026, 8, 6) });
+  assertEqual(persons[0].oe[0].runs[0].experts, [{ role: 1, name: 'Prüfer Pia', key: 'prufer pia' }, { role: 2, name: 'Experte Emil', key: 'experte emil' }]);
+  assertEqual(persons[1].oe[0].runs[0].experts, [{ role: 1, name: 'Prüfer Pia', key: 'prufer pia' }]);
+  assertEqual(persons[0].we[0].runs[0].experts, [], 'schriftliche Runs ohne Experten');
+  assertEqual(persons[0].oe[0].runs[1].experts, [], 'nicht absolvierter Run: leere Liste');
+  const reasons = dq.filter((e) => /^Experte/.test(e.reason)).map((e) => [e.row - 11, e.level, e.impact, e.reason.slice(0, 20)]);
+  assertEqual(reasons, [
+    [2, 'hinweis', 'keine', 'Experte fehlt – abso'],
+    [4, 'hinweis', 'keine', 'Experte ohne Run – F'],
+    [5, 'hinweis', 'keine', 'Experte 1 = Experte '],
+  ], 'Alt Anton (2017, vor experts.from), Termin Tina (Datum ohne Ergebnis) und Undatiert Uwe ohne Experten-Hinweis');
+  assertEqual(persons[7].oe[0].runs[0].experts.length, 1, 'undatierter Run mit Ergebnis behält den Experten');
+  const plain = normalizeSheet(makeSheet('first', [rows[2]], { experts: false }));
+  assertEqual(plain.persons[0].oe[0].runs[0].experts, []);
+  assert(!plain.dq.some((e) => /^Experte/.test(e.reason)), 'ohne Spalten keine Experten-Hinweise');
+});
+
+test('normalizeWorkbook: meta.experts nennt Spalten und Startdatum; mergeVorgang füllt Experten aus dem Duplikat auf, nie überschreiben', () => {
+  const row = { lastName: 'Muster', firstName: 'Anna', profil: 'PK', weAllPassed: 'yes', oeAllPassed: 'yes', ...runValues('we', { 1: [{ passed: 'yes', date: '01.03.2025', result: 0.8 }] }) };
+  const first = makeSheet('first', [{ ...row, ...runValues('oe', { 1: [{ passed: 'yes', date: '01.06.2025', result: 0.9 }] }) }], { experts: true });
+  const issued = makeSheet('issued', [{ ...row, certStart: '01.07.2025', ...runValues('oe', { 1: [{ passed: 'yes', date: '01.06.2025', result: 0.9, expert1: 'Prüfer Pia', expert2: 'Experte Emil' }] }) }], { experts: true });
+  const { persons, meta } = normalizeWorkbook({ sheets: [first, issued] });
+  assertEqual(meta.experts.columns, true);
+  assertEqual(meta.experts.from, new Date(2018, 0, 1));
+  assert(meta.experts.headers.includes('OE1 RUN1 Expert 1'));
+  const kept = persons.find((p) => !p.duplicateOf);
+  assertEqual(kept.oe[0].runs[0].experts.map((x) => x.name), ['Prüfer Pia', 'Experte Emil'], 'Lücke aus dem Duplikat aufgefüllt');
+  const none = normalizeWorkbook({ sheets: [makeSheet('first', [row])] });
+  assertEqual(none.meta.experts.columns, false);
 });
