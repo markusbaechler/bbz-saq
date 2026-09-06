@@ -2,7 +2,7 @@
 // Kein Backend, keine Persistenz im Browser: der Snapshot ist eine JSON-Datei ohne Namen, die der Auftraggeber selbst ablegt
 // (z. B. SharePoint neben der Excel) und später wieder lädt (nur Memory). Vergleich immer ohne Filter (Stand der Datei).
 
-import { historyTables } from './tables.js';
+import { historyTables, auditTable } from './tables.js';
 import { renderKpis, renderTable, hinted, el } from './common.js';
 import { buildSnapshot, parseSnapshot, snapshotFileName, snapshotJson, sortSnapshots } from '../snapshot.js';
 import { downloadBlob, fmtDate, fmtDateTime } from '../export.js';
@@ -67,6 +67,8 @@ export function build(ctx) {
     'Historisierung ohne Backend: Ein Snapshot hält die Aggregate zum Stichtag fest (Datei-Zähler, Kennzahlen gesamt, je Profil und je Jahr) – ohne Namen und ohne Zeilen. Die Datei wird heruntergeladen und vom Auftraggeber abgelegt, z. B. auf SharePoint neben der Excel; sie lässt sich später wieder laden und mit dem heutigen Stand vergleichen. Immer ohne Filter (Stand der Datei), nichts wird im Browser gespeichert.',
   ];
   const sec = hinted(hints);
+  // Historie der App-Änderungen (Paket E): Änderungsprotokoll neben der Datei; bei lokal geladener Datei leer
+  const audit = auditTable(ctx.audit || [], ctx.allRows || []);
   return {
     nodes: [
       sec('Snapshot erzeugen', [
@@ -84,6 +86,9 @@ export function build(ctx) {
         snapshots.length ? list : el('p', { class: 'empty', text: 'Keine Snapshots geladen.' }),
       ], 'Mehrere Dateien möglich. Die Snapshots bleiben nur im Speicher dieses Browser-Tabs.'),
       sec('Vergleich der Stichtage', compareNodes, snapshots.length ? 'Spalten = geladene Snapshots (chronologisch) und der heutige Stand; Differenz = heute gegenüber dem jüngsten Snapshot, Anteile in Prozentpunkten. Ohne Filter.' : null),
+      sec('Änderungen über die App', audit.rows.length ? [renderTable(audit)] : [el('p', { class: 'empty', text: audit.empty })],
+        'Änderungsprotokoll des Schreibpfads (Reporting_KUBA.changes.json neben der Datei auf SharePoint): ein Eintrag je über die App geschriebener Zelle, neueste zuerst; Name aus den geladenen Daten. Enthält Namen – nur intern; Export über das Menü als eigene Ebene.',
+        audit.rows.length ? audit.rows.length + (audit.rows.length === 1 ? ' Änderung' : ' Änderungen') : null),
     ],
     tables: [t.kennzahlen, t.zaehler].concat(t.jeProfil),
     hints,

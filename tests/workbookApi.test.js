@@ -1,7 +1,7 @@
 // tests/workbookApi.test.js – reine Helfer des Schreibpfads (PROMPT-2 Paket E): Range-Adressen, Pfade, Zellwerte je Feld,
 // Session-Ablauf als Request-Liste, Konfliktprüfung, Audit-Eintrag ohne Personendaten
 import { test, assert, assertEqual } from './runner.js';
-import { rangeAddress, workbookPaths, cellValueFor, writePlan, conflictOf, auditEntry, appendAuditJson, detectStyle } from '../datasource/workbookApi.js';
+import { rangeAddress, workbookPaths, cellValueFor, writePlan, conflictOf, auditEntry, appendAuditJson, detectStyle, parseAudit } from '../datasource/workbookApi.js';
 
 test('workbookApi.rangeAddress: Spaltenindex + Excel-Zeile → Adresse', () => {
   assertEqual([rangeAddress(0, 12), rangeAddress(25, 11), rangeAddress(26, 500), rangeAddress(183, 21)], ['A12', 'Z11', 'AA500', 'GB21']);
@@ -83,4 +83,21 @@ test('workbookApi.detectStyle: Schreibweise je Feld aus Zielzelle und Nachbarzel
   assertEqual(detectStyle('result', [{ type: 'String', format: 'General', text: '85 %' }]), { resultStyle: 'percent' });
   assertEqual(detectStyle('result', []), { resultStyle: 'fraction' });
   assertEqual(detectStyle('location', [{ type: 'String', format: 'General', text: 'Bern' }]), {});
+});
+
+test('workbookApi.parseAudit: Änderungsprotokoll lesen – leer/ungültig → [], Whitelist der Felder, neueste zuerst, unvollständige Einträge weg', () => {
+  assertEqual(parseAudit(''), []);
+  assertEqual(parseAudit('{kaputt'), []);
+  assertEqual(parseAudit('{"nicht":"array"}'), []);
+  const text = JSON.stringify([
+    { at: '2026-09-01T10:00:00.000Z', user: 'a@example.org', sheet: 'First Certification', row: 21, header: 'OE1 RUN1 Location', address: 'GB21', old: 'Zürich', new: 'Bern', reason: 'Ort', source: 'bbz-saq', extra: 'weg' },
+    { at: '2026-09-06T12:00:00.000Z', user: 'b@example.org', sheet: 'First Certification', row: 12, header: 'WE1 RUN1 Passed', address: 'F12', old: 'no', new: 'yes', reason: 'Nachtrag', source: 'bbz-saq' },
+    { at: 'kein datum', sheet: 'x', row: 1, header: 'h' },
+    { user: 'c', sheet: 'First Certification', header: 'h', old: 1, new: 2 },
+  ]);
+  const entries = parseAudit(text);
+  assertEqual(entries.map((e) => [e.row, e.reason]), [[12, 'Nachtrag'], [21, 'Ort']]);
+  assertEqual(Object.keys(entries[0]).sort(), ['address', 'at', 'header', 'new', 'old', 'reason', 'row', 'sheet', 'source', 'user']);
+  assertEqual(entries[0].at, new Date('2026-09-06T12:00:00.000Z'));
+  assert(!JSON.stringify(entries).includes('weg'), 'unbekannte Felder verworfen');
 });

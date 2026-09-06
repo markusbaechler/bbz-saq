@@ -854,6 +854,7 @@ export function createStore() {
   const state = {
     persons: [],
     dq: [],
+    audit: [], // Änderungsprotokoll des Schreibpfads (Historie), nur im Memory
     meta: null,
     filter: { ...DEFAULT_FILTER },
     ui: { ...DEFAULT_UI },
@@ -877,6 +878,12 @@ export function createStore() {
       state.meta = meta;
       state.ui = { ...state.ui, personen: null }; // Datenwechsel leert die Personensuche (Paket C, C.4)
       notify();
+    },
+
+    // Änderungsprotokoll (Historie der App-Änderungen) setzen; silent vor setData(), damit nur einmal gerendert wird
+    setAudit(entries, { silent = false } = {}) {
+      state.audit = Array.isArray(entries) ? entries : [];
+      if (!silent) notify();
     },
 
     setFilter(partial) {
@@ -903,6 +910,7 @@ export function createStore() {
       state.persons = [];
       state.dq = [];
       state.meta = null;
+      state.audit = [];
       state.ui = { ...state.ui, personen: null, editMode: false }; // Abmelden: Personensuche leeren, Bearbeitungsmodus aus
       notify();
     },
