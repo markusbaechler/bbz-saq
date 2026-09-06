@@ -273,6 +273,9 @@ Gesamtergebnisse, Zertifikatsfelder; keine neuen Zeilen, keine Sheet-Änderungen
   Header, alt, neu, Grund; kein Kandidatenname), angehängt mit `If-Match`.
 - **Rechte:** Lesepfad `Files.Read.All`; der Schreibpfad fordert `Files.ReadWrite.All` erst beim ersten Schreiben an (inkrementelle
   Zustimmung). Schreiben ist nur bei Daten von SharePoint möglich, nicht bei einer lokal geladenen Datei.
+- **Bereinigung:** Jeder Eintrag im Data-Quality-Log mit Zeile trägt «Zur Person»: Sprung in die Ansicht «Personen» zur Karte des
+  Vorgangs, die betroffene Raster-Zelle ist markiert; im Bearbeitungsmodus lässt sie sich direkt korrigieren. Suchtext und Person liegen
+  nur im Memory, eine Person ausserhalb des aktiven Filters wird beim Sprung trotzdem gezeigt.
 - **Historie:** Die App liest das Änderungsprotokoll beim Laden von SharePoint mit (nur im Memory) und zeigt es in der Ansicht
   «Historie» als eigenen Abschnitt «Änderungen über die App» (Zeitpunkt, Name aus den geladenen Daten, Fundstelle, alt → neu, Grund, Konto;
   exportierbar, nur intern) sowie je Vorgangskarte in «Personen». Bei lokal geladener Datei bleibt der Abschnitt leer.

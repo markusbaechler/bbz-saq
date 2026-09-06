@@ -200,6 +200,18 @@ try {
   const counter = (await page.textContent('#view .dq-count')).trim();
   check(filtered > 0 && filtered < allRows && counter.startsWith(filtered + ' von ' + allRows), 'DQ-Suche «Score» filtert (' + filtered + ' von ' + allRows + ' Einträgen; Zähler: «' + counter.slice(0, 40) + '…»)');
   check(await page.evaluate(() => !!document.activeElement && document.activeElement.classList.contains('dq-text')), 'DQ-Suche behält den Fokus');
+  // Bereinigung: Sprung vom Eintrag zur Person und zur betroffenen Zelle (Schreibpfad-Arbeitsablauf)
+  await page.fill('#view .dq-text', 'RUN1 Result');
+  await page.waitForTimeout(400);
+  const jumpRow = page.locator('#view table.dq-table tbody tr').first();
+  check((await jumpRow.locator('button.dq-jump').count()) === 1, 'Datenqualität: Schaltfläche «Zur Person» je Eintrag mit Zeile');
+  await jumpRow.locator('button.dq-jump').click();
+  await page.waitForSelector('#view tr.event-detail:not([hidden]) .person-detail', { timeout: 5000 });
+  check(/#personen/.test(page.url()) && !/muster|anna|query|selected/i.test(page.url()), 'Sprung: Ansicht Personen, keine Personendaten in der URL (' + page.url().replace(server.url, '') + ')');
+  check((await page.locator('#view td.dq-target').count()) === 1 && (await page.locator('#view details.vorgang-card[open]').count()) >= 1, 'Sprung: Karte des Vorgangs offen, betroffene Zelle markiert');
+  check((await page.locator('#view .person-search').inputValue()).length > 0, 'Sprung: Suchfeld mit dem Namen gefüllt (nur im Memory)');
+  await page.fill('#view .person-search', ''); // Suchzustand für die folgenden Prüfungen zurücksetzen (bleibt sonst im Memory)
+  await page.waitForSelector('#view .person-results p.empty', { timeout: 5000 });
 
   // Personen (Paket C): Suche mit synthetischem Namen, Detail mit Pfad, Raster (Badges) und Zeitachse; Suchtext nie in der URL
   await page.goto(server.url + '#personen');

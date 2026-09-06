@@ -154,7 +154,8 @@ function el(tag, attrs = {}, children = []) {
 
 // container: Element; entries: DQ-Einträge; state: { sortKey, sortDir, text, sheet, level, impact }; onChange(newState);
 // options.persons: alle Zeilen (unfiltriert) für den Abschnitt «Nicht in den Kennzahlen»
-export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, onChange = () => {}, { persons = [] } = {}) {
+// options.onJump({ sheet, row, field }): Sprung zur Person und Zelle (Bereinigung, Paket E) – zeigt die Spalte «Person»
+export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, onChange = () => {}, { persons = [], onJump = null } = {}) {
   const s = { ...DEFAULT_DQ_STATE, ...state };
   const visible = sortDq(filterDq(entries, s), s.sortKey, s.sortDir);
   // Fokus im Suchfeld über das Neu-Rendern hinweg erhalten (Eingabe Zeichen für Zeichen)
@@ -242,20 +243,31 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
   ]));
   container.appendChild(el('h3', { text: 'Einzelne Einträge' }));
 
-  const headRow = el('tr', {}, DQ_COLUMNS.map((c) => {
+  const headCells = DQ_COLUMNS.map((c) => {
     const active = s.sortKey === c.key;
     const arrow = active ? (s.sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     return el('th', {
       scope: 'col', 'data-prio': String(c.prio), class: 'sortable' + (active ? ' active' : ''), 'aria-sort': active ? (s.sortDir === 'asc' ? 'ascending' : 'descending') : 'none',
       onclick: () => onChange({ ...s, sortKey: c.key, sortDir: active && s.sortDir === 'asc' ? 'desc' : 'asc' }),
     }, [el('button', { type: 'button', text: c.label + arrow })]);
+  });
+  if (onJump) headCells.push(el('th', { scope: 'col', 'data-prio': '1', text: 'Person' }));
+  const headRow = el('tr', {}, headCells);
+  const byRow = new Map(persons.map((p) => [p.sheetName + '|' + p.row, p]));
+  const body = el('tbody', {}, visible.map((e) => {
+    const cells = DQ_COLUMNS.map((c) => {
+      const td = el('td', { class: 'col-' + c.key, 'data-prio': String(c.prio), text: formatRaw(e[c.key]) });
+      if (c.key === 'raw' && formatRaw(e.raw) === '') td.textContent = '(leer)';
+      if (c.key === 'level') td.textContent = LEVEL_LABELS[levelOf(e)];
+      if (c.key === 'impact') td.textContent = IMPACT_LABELS[impactOf(e)];
+      return td;
+    });
+    if (onJump) {
+      // Sprung zur Person (Bereinigung): nur für Einträge, deren Zeile eine Person ergab
+      const p = byRow.get(e.sheet + '|' + e.row);
+      cells.push(el('td', { class: 'col-person', 'data-prio': '1' }, [p ? el('button', { type: 'button', class: 'secondary small-button dq-jump', text: 'Zur Person', 'aria-label': 'Zur Person (' + e.sheet + ', Zeile ' + e.row + ')', onclick: () => onJump({ sheet: e.sheet, row: e.row, field: e.field }) }) : null]));
+    }
+    return el('tr', { class: 'level-' + levelOf(e) + ' impact-' + impactOf(e) }, cells);
   }));
-  const body = el('tbody', {}, visible.map((e) => el('tr', { class: 'level-' + levelOf(e) + ' impact-' + impactOf(e) }, DQ_COLUMNS.map((c) => {
-    const td = el('td', { class: 'col-' + c.key, 'data-prio': String(c.prio), text: formatRaw(e[c.key]) });
-    if (c.key === 'raw' && formatRaw(e.raw) === '') td.textContent = '(leer)';
-    if (c.key === 'level') td.textContent = LEVEL_LABELS[levelOf(e)];
-    if (c.key === 'impact') td.textContent = IMPACT_LABELS[impactOf(e)];
-    return td;
-  }))));
   container.appendChild(el('div', { class: 'table-wrap' }, [el('table', { class: 'dq-table' }, [el('thead', {}, [headRow]), body])]));
 }

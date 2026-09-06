@@ -8,7 +8,7 @@ import {
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
   deltaView, col, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, directionOfLabel,
   personResultsTable, personGridTable, personTimelineTable, personDqTable,
-  expertTables, expertRunExportTable, sortTableRows, auditTable,
+  expertTables, expertRunExportTable, sortTableRows, auditTable, runFieldTarget,
 } from '../views/tables.js';
 import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
@@ -762,4 +762,13 @@ test('tables.auditTable: Änderungen über die App mit Name aus den geladenen Da
   ]);
   assert(/nur intern/.test(t.note));
   assertEqual(auditTable([], persons).rows, []);
+});
+
+test('tables.runFieldTarget: Feldschlüssel eines Runs → Ziel im Prüfungsraster; andere Felder null', () => {
+  assertEqual(runFieldTarget('oe1.run2.date'), { kind: 'oe', part: 1, run: 2, what: 'date' });
+  assertEqual(runFieldTarget('we3.run1.expert1'), null, 'Experten nur bei mündlichen Runs gemappt, aber der Schlüssel ist syntaktisch gültig');
+  assertEqual(runFieldTarget('oe2.run3.expert2'), { kind: 'oe', part: 2, run: 3, what: 'expert2' });
+  assertEqual(runFieldTarget('lastName'), null);
+  assertEqual(runFieldTarget('we1.passed'), null);
+  assertEqual(runFieldTarget(null), null);
 });

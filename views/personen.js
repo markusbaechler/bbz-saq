@@ -5,7 +5,7 @@
 import { CONFIG } from '../config.js';
 import { personSearchIndex, searchPersons, personPath, openCaseState, earlyWarnings, durationDays, certificateDays, exclusionReason, PASSIVE_DAYS, examGrid } from '../metrics.js';
 import { openEditDialog } from './editDialog.js';
-import { personResultsTable, personGridTable, personTimelineTable, personDqTable, vorgangExportTables, groupLabel, statusTone, auditTable } from './tables.js';
+import { personResultsTable, personGridTable, personTimelineTable, personDqTable, vorgangExportTables, groupLabel, statusTone, auditTable, runFieldTarget } from './tables.js';
 import { el, renderTable, renderExpandableTable, renderExportMenu, section, hinted } from './common.js';
 import { fmtDate } from '../export.js';
 
@@ -41,7 +41,7 @@ function stepText(s) {
 }
 
 // Karte je Vorgang (C.3): Stammdaten, Status, Prüfungsraster, Zeitachse, Datenqualität; der jüngste Vorgang ist offen
-function vorgangCard(v, ctx, open) {
+function vorgangCard(v, ctx, open, jump = null) {
   const today = ctx.today || new Date();
   const oc = openCaseState(v, today);
   const warn = earlyWarnings([v]);
@@ -87,6 +87,17 @@ function vorgangCard(v, ctx, open) {
       });
     });
   }
+  // Sprung aus der Datenqualität (Bereinigung): betroffene Raster-Zelle markieren und in den Blick bringen
+  if (jump && jump.sheet === v.sheetName && jump.row === v.row) {
+    const target = runFieldTarget(jump.field);
+    const specRows = examGrid(v).rows;
+    const rowIndex = target ? specRows.findIndex((r) => r.kind === target.kind && r.part === target.part) : -1;
+    const tr = rowIndex >= 0 ? grid.querySelectorAll('tbody tr')[rowIndex] : null;
+    const td = tr ? tr.querySelectorAll('td')[target.run] : null;
+    (td || grid).classList.add('dq-target');
+    if (td && !td.hasAttribute('tabindex')) td.setAttribute('tabindex', '-1');
+    setTimeout(() => { const t = document.querySelector('#view .dq-target'); if (t) { t.scrollIntoView({ block: 'center' }); if (t.tagName === 'TD') t.focus(); } }, 0);
+  }
   const dq = personDqTable(ctx.dq || [], [v]);
   const nodes = [
     section('Stammdaten', [stamm]), section('Status', [status, facts]),
@@ -102,7 +113,7 @@ function vorgangCard(v, ctx, open) {
 }
 
 // Detail einer Person: Kopf, Pfad-Leiste, Karten je Vorgang, Export «Diese Person» (Entscheid 4), Rücksprung zur Liste
-function renderDetail(entry, ctx) {
+function renderDetail(entry, ctx, jump = null) {
   const latest = entry.latest;
   const head = el('div', { class: 'person-head' }, [
     el('h4', { text: entry.name }),
@@ -111,7 +122,7 @@ function renderDetail(entry, ctx) {
     el('span', { class: 'meta-list', text: ' · Schlüssel: ' + (entry.keyLevel === 'full' ? 'Name + Geburtsdatum' : 'ohne Geburtsdatum (Namensgleiche fallen zusammen)') + (latest.role ? ' · ' + latest.role : '') }),
   ]);
   const path = el('ol', { class: 'person-path', 'aria-label': 'Pfad' }, personPath(entry).map((s) => el('li', { class: 'status-' + (statusTone(s.passiv ? 'passiv' : s.status) || 'offen'), text: stepText(s) })));
-  const cards = entry.vorgaenge.map((v) => vorgangCard(v, ctx, v === latest));
+  const cards = entry.vorgaenge.map((v) => vorgangCard(v, ctx, jump ? (v.sheetName === jump.sheet && v.row === jump.row) : v === latest, jump));
   const exportMenu = renderExportMenu({
     viewId: 'personen-vorgang', tables: vorgangExportTables(entry.vorgaenge), headerLines: ctx.headerLines || [],
     label: 'Diese Person exportieren', note: 'Vorgänge und Runs dieser Person, mit Namen, nur intern; Dateiname ohne Namen',
@@ -124,11 +135,18 @@ function renderDetail(entry, ctx) {
 }
 
 export function build(ctx) {
-  const state = { query: '', selectedKey: null, ...(ctx.personen || {}) };
+  const state = { query: '', selectedKey: null, jump: null, ...(ctx.personen || {}) };
   const filter = ctx.filter || {};
   const fullIndex = personSearchIndex(ctx.allVorgaenge || []);
   const inFilter = new Set(personSearchIndex(ctx.personVorgaenge || []).map((e) => e.key));
   const index = fullIndex.filter((e) => inFilter.has(e.key)); // Trefferliste nach globalem Filter, Detail mit allen Vorgängen (Entscheid 2)
+  // Sprung aus der Datenqualität (Bereinigung): die Person auch ausserhalb des aktiven Filters zeigen
+  const jump = state.jump || null;
+  let outsideFilter = false;
+  if (jump && state.selectedKey && !inFilter.has(state.selectedKey)) {
+    const e = fullIndex.find((x) => x.key === state.selectedKey);
+    if (e) { index.push(e); outsideFilter = true; }
+  }
   const byKey = new Map(index.map((e) => [e.key, e]));
   const hints = [
     'Suche ab 2 Zeichen in Nachname, Vorname, Bank, Profil, Sprache, Zertifikatsnummer und Status (bestanden, offen, passiv, nicht bestanden); mehrere Begriffe müssen alle zutreffen. Ohne Suchtext bleibt die Liste leer, ausser in der Filterleiste ist eine Bank gewählt: dann erscheinen alle Personen dieser Bank. Höchstens ' + RESULT_LIMIT + ' Treffer.',
@@ -153,15 +171,17 @@ export function build(ctx) {
     if (found.tooShort) nodes.push(el('p', { class: 'empty', text: 'Mindestens 2 Zeichen eingeben.' }));
     else if (!found.persons.length && !state.query.trim()) nodes.push(el('p', { class: 'empty', text: 'Suchtext eingeben – oder in der Filterleiste eine Bank wählen, dann erscheinen alle Personen dieser Bank.' }));
     else {
+      if (outsideFilter) nodes.push(el('p', { class: 'meta-list', text: 'Sprung aus der Datenqualität: Die Person liegt ausserhalb des aktiven Filters und wird trotzdem angezeigt.' }));
       nodes.push(el('p', { class: 'meta-list person-count', text: found.truncated ? 'Suche eingrenzen (' + found.total + ' Treffer, die ersten ' + RESULT_LIMIT + ' angezeigt)' : found.total + (found.total === 1 ? ' Person' : ' Personen') }));
       nodes.push(renderExpandableTable(table, {
-        detail: (row) => renderDetail(byKey.get(row.key), ctx), hint: 'Zeile anklicken (oder Enter): Detail der Person.',
+        detail: (row) => renderDetail(byKey.get(row.key), ctx, jump && row.key === state.selectedKey ? jump : null), hint: 'Zeile anklicken (oder Enter): Detail der Person.',
         isOpen: (row) => row.key === state.selectedKey, onToggle: (row, open) => { state.selectedKey = open ? row.key : null; commit(); },
       }));
     }
     results.replaceChildren(...nodes);
   }
   renderResults();
+  if (state.jump) { state.jump = null; commit(); } // Sprung nur einmal; danach normaler Zustand
   return {
     nodes: [sec('Suche', [
       input,
