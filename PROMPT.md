@@ -34,7 +34,8 @@ Lies zuerst `CLAUDE.md` (Projektregeln). Diese gelten dauerhaft.
   NIE im Repo: Personendaten, echte Testdaten, Screenshots mit Namen, Kopien des Excel.
   `.gitignore`: `*.xlsx`, `/data`, `/local`, `config.local.js`.
 - Personendaten nur im Browser-Memory; kein localStorage/sessionStorage/IndexedDB für Daten.
-  Namen erscheinen nur in Bestenlisten und in der Datenqualitäts-View.
+  Namen erscheinen nur in den Ansichten Personen, Offene Vorgänge, Geplante Prüfungen, Bestenlisten und Datenqualität
+  sowie in Exporten «nur intern» (E5, E7); nie in URL, Snapshots, Repo.
 - Nur Sheets «First Certification» und «Ausgestellte Zertifikate». Alle anderen ignorieren.
 
 ## Architektur (Vorbild: https://github.com/markusbaechler/bbz-Fuehrung)

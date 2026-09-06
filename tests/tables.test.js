@@ -1,5 +1,5 @@
 import { test, assert, assertEqual } from './runner.js';
-import { MODE } from '../metrics.js';
+import { MODE, personSearchIndex } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
   rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
@@ -7,6 +7,7 @@ import {
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
   deltaView, col, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, directionOfLabel,
+  personResultsTable, personGridTable, personTimelineTable, personDqTable,
 } from '../views/tables.js';
 import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
@@ -325,7 +326,7 @@ test('tables.awardDossierTable / rankReasonText: Begründung je Rang, gesperrte 
 });
 
 test('tables.vorgangExportTables: eine Zeile je Vorgang und je Run, mit Status, Quoten-Bausteinen und Zertifikat', () => {
-  const p = simple({ lastName: 'Export', firstName: 'Eva', profil: 'PK', employerCanon: 'Testbank AG', employer: 'Testbank', vss: true, issued: true, certNumber: 'Z-9', certStart: d('2024-07-01'), duplicates: [{ sheet: 'First Certification', row: 12 }], personKeyLevel: 'full' });
+  const p = simple({ lastName: 'Export', firstName: 'Eva', profil: 'PK', employerCanon: 'Testbank AG', employer: 'Testbank', vss: true, issued: true, certNumber: 'Z-9', certStart: d('2024-07-01'), certEnd: d('2029-06-30'), duplicates: [{ sheet: 'First Certification', row: 12 }], personKeyLevel: 'full' });
   const q = makePerson({ lastName: 'Plan', firstName: 'P', we: { 1: [{ date: '2030-01-01', planned: true, location: 'Bern' }] } });
   const [cases, runs] = vorgangExportTables([p, q]);
   assertEqual(cases.title, 'Vorgänge');
@@ -333,7 +334,7 @@ test('tables.vorgangExportTables: eine Zeile je Vorgang und je Run, mit Status, 
   const r = cases.rows[0];
   assertEqual([r.name, r.bank, r.employer, r.vss, r.vsm, r.status, r.weStatus, r.oeStatus, r.erstversuch], ['Export Eva', 'Testbank AG', 'Testbank', 'ja', 'nein', 'bestanden', 'bestanden', 'bestanden', 'ja']);
   assertEqual([r.wr1, r.wr2, r.or1, r.or2, r.versuche], ['70.0 %', '70.0 %', '90.0 %', '90.0 %', 3]);
-  assertEqual([r.first, r.refDate, r.issued, r.certNumber, r.certStart, r.personKey, r.duplicates], ['01.03.2024', '01.06.2024', 'ja', 'Z-9', '01.07.2024', 'Name + Geburtsdatum', 'First Certification Zeile 12']);
+  assertEqual([r.first, r.refDate, r.issued, r.certNumber, r.certStart, r.certEnd, r.personKey, r.duplicates], ['01.03.2024', '01.06.2024', 'ja', 'Z-9', '01.07.2024', '30.06.2029', 'Name + Geburtsdatum', 'First Certification Zeile 12']);
   assertEqual([cases.rows[1].status, cases.rows[1].erstversuch, cases.rows[1].wr1, cases.rows[1].personKey], ['offen', '', '–', 'nur Name']);
   assertEqual(runs.title, 'Runs');
   assertEqual(runs.rows.map((x) => [x.name, x.teil, x.run, x.datum, x.passed, x.result, x.geplant, x.ort]), [
@@ -608,4 +609,75 @@ test('tables.comparisonTable: Differenzspalte hat Priorität 1 und jede Zeile ih
   assertEqual(t.rows.find((r) => r.kennzahl === 'Schriftlich: im 1. Versuch durchgefallen').direction, 'down');
   const h = historyTables([], buildSnapshot({ persons: cohort() }));
   assert(h.kennzahlen.rows.every((r) => ['up', 'down', 'neutral'].includes(r.direction)), 'Historie: Richtung je Kennzahl');
+});
+
+// ---------------------------------------------------------------------------
+// Paket C: Personen – Trefferliste, Prüfungsraster, Zeitachse, Datenqualität je Person
+// ---------------------------------------------------------------------------
+
+function personenEntries() {
+  const persons = [
+    simple({ lastName: 'Zwilling', firstName: 'Gabi', birthDate: d('1980-01-01'), profil: 'PK', employerCanon: 'Testbank AG', issued: true, certNumber: 'Z-3' }),
+    makePerson({ lastName: 'Zwilling', firstName: 'Gabi', birthDate: d('1991-05-05'), profil: 'KMU', employerCanon: 'Musterbank', we: { 1: [{ passed: true, date: '2026-04-01', result: 0.7 }] } }),
+    makePerson({ lastName: 'Datumlos', firstName: 'Otto', profil: 'PK', employerCanon: 'Testbank AG', weAllPassed: true, oeAllPassed: false, we: { 1: [{ passed: true, date: '2025-05-01', result: 0.8 }] }, oe: { 1: [{ passed: false, date: '2025-08-01', result: 0.5 }] } }),
+  ];
+  return personSearchIndex(persons);
+}
+
+test('tables.personResultsTable: Trefferliste mit Prioritäten; Jahrgang nur bei Namensgleichen und nur in deren Zeilen (Entscheid 3)', () => {
+  const t = personResultsTable(personenEntries());
+  assertEqual(t.columns.map((c) => [c.label, c.prio]), [['Name', 1], ['Jahrgang', 1], ['Bank', 1], ['Profile', 1], ['Status', 2], ['Letzte Prüfung', 2], ['Zertifikate', 2], ['Vorgänge', 3], ['Schlüssel', 3]]);
+  assertEqual(t.rows.map((r) => [r.name, r.jahrgang, r.bank, r.profile, r.status, r.letzte, r.zertifikate, r.vorgaenge, r.schluessel]), [
+    ['Datumlos Otto', '', 'Testbank AG', 'PK', 'nicht bestanden', '01.08.2025', 0, 1, 'ohne Geburtsdatum'],
+    ['Zwilling Gabi', '1980', 'Testbank AG', 'PK', 'bestanden', '01.06.2024', 1, 1, 'Name + Geburtsdatum'],
+    ['Zwilling Gabi', '1991', 'Musterbank', 'KMU', 'offen', '01.04.2026', 0, 1, 'Name + Geburtsdatum'],
+  ]);
+  assert(t.rows.every((r) => typeof r.key === 'string' && r.key.length > 0), 'Personenschlüssel je Zeile (nur DOM, nie URL)');
+  const single = personResultsTable(personenEntries().slice(2));
+  assert(!single.columns.some((c) => c.key === 'jahrgang'), 'ohne Namensgleiche keine Spalte Jahrgang');
+  assert(t.note.includes('nur intern'));
+  assertEqual(personResultsTable([]).rows, []);
+});
+
+test('tables.personGridTable: Teilprüfungen × RUN1–RUN3 mit Datum, Resultat und Ergebnis; Runs ausserhalb der Vorgabe markiert', () => {
+  const p = makePerson({ profil: 'PK', we: { 1: [{ passed: false, date: '2026-01-10', result: 0.4 }, { date: '2026-10-01', planned: true }], 2: [{ passed: true, date: '2026-02-01', result: 0.6 }] }, oe: {} });
+  const t = personGridTable(p);
+  assertEqual(t.columns.map((c) => [c.label, c.prio, !!c.status]), [['Teilprüfung', 1, false], ['RUN1', 1, true], ['RUN2', 1, true], ['RUN3', 2, true]]);
+  assertEqual(t.rows.map((r) => [r.teil, r.run1, r.run2, r.run3]), [
+    ['WE1', '10.01.2026 · 40.0 % · nicht bestanden', 'geplant · 01.10.2026', '–'],
+    ['OE1', '–', '–', '–'],
+    ['WE2 (ausserhalb der Vorgabe)', '01.02.2026 · 60.0 % · bestanden', '–', '–'],
+  ]);
+  assert(t.note.includes('WE2'), 'Hinweis auf Teile ausserhalb der Vorgabe');
+});
+
+test('tables.personTimelineTable: chronologische Ereignisse mit Ergebnis-Spalte (Badge)', () => {
+  const p = makePerson({ profil: 'PK', certStart: d('2024-07-01'), certNumber: 'Z-1', weAllPassed: true, oeAllPassed: true,
+    we: { 1: [{ passed: true, date: '2024-03-01', result: 0.7, location: 'Bern' }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } });
+  const t = personTimelineTable(p);
+  assertEqual(t.columns.map((c) => c.label), ['Datum', 'Ereignis', 'Ort', 'Resultat', 'Ergebnis']);
+  assertEqual(t.rows.map((r) => [r.datum, r.ereignis, r.ort, r.resultat, r.ergebnis]), [
+    ['01.03.2024', 'WE1 RUN1', 'Bern', '70.0 %', 'bestanden'],
+    ['01.06.2024', 'OE1 RUN1', '', '90.0 %', 'bestanden'],
+    ['01.07.2024', 'Zertifikatsbeginn Z-1', '', '–', 'Zertifikat'],
+  ]);
+  assert(STATUS_COLUMN_LABELS.includes('Ergebnis'), 'Ergebnis-Spalte als Badge');
+  assertEqual([statusTone('Zertifikat'), statusTone('ohne Ergebnis'), statusTone('geplant · 01.10.2026')], [null, null, 'geplant']);
+  assertEqual(personTimelineTable(makePerson({})).rows, []);
+});
+
+test('tables.personDqTable: nur Einträge der Zeilen dieser Vorgänge, inklusive zusammengeführter Zeilen', () => {
+  const p = makePerson({ sheetName: 'First Certification', row: 12, duplicates: [{ sheet: 'Ausgestellte Zertifikate', row: 30 }] });
+  const dq = [
+    { level: 'hinweis', impact: 'keine', sheet: 'First Certification', row: 12, header: 'WE1 RUN1 Result', raw: 85, reason: 'als Prozentwert umgedeutet' },
+    { level: 'hinweis', impact: 'kennzahl', sheet: 'Ausgestellte Zertifikate', row: 30, header: 'Last Name', raw: null, reason: 'Duplikat' },
+    { level: 'fehler', impact: 'kennzahl', sheet: 'First Certification', row: 13, header: 'WE1 RUN1 Passed', raw: '?', reason: 'andere Zeile' },
+  ];
+  const t = personDqTable(dq, [p]);
+  assertEqual(t.columns.map((c) => [c.label, c.prio]), [['Wirkung', 2], ['Stufe', 1], ['Sheet', 3], ['Zeile', 2], ['Header', 1], ['Rohwert', 3], ['Grund', 1]]);
+  assertEqual(t.rows.map((r) => [r.wirkung, r.stufe, r.sheet, r.row, r.header, r.raw, r.grund]), [
+    ['ohne Kennzahlwirkung', 'Hinweis', 'First Certification', 12, 'WE1 RUN1 Result', '85', 'als Prozentwert umgedeutet'],
+    ['verändert Kennzahl', 'Hinweis', 'Ausgestellte Zertifikate', 30, 'Last Name', '', 'Duplikat'],
+  ]);
+  assertEqual(personDqTable(dq, []).rows, []);
 });

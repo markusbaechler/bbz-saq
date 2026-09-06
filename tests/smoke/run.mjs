@@ -196,6 +196,42 @@ try {
   check(filtered > 0 && filtered < allRows && counter.startsWith(filtered + ' von ' + allRows), 'DQ-Suche «Score» filtert (' + filtered + ' von ' + allRows + ' Einträgen; Zähler: «' + counter.slice(0, 40) + '…»)');
   check(await page.evaluate(() => !!document.activeElement && document.activeElement.classList.contains('dq-text')), 'DQ-Suche behält den Fokus');
 
+  // Personen (Paket C): Suche mit synthetischem Namen, Detail mit Pfad, Raster (Badges) und Zeitachse; Suchtext nie in der URL
+  await page.goto(server.url + '#personen');
+  await page.waitForSelector('#view .person-search');
+  check((await page.locator('#view .person-results table').count()) === 0 && (await page.locator('#view .person-results p.empty').count()) === 1, 'Personen: ohne Suchtext leere Liste mit Hinweis');
+  await page.fill('#view .person-search', 'wechsel');
+  await page.waitForSelector('#view .person-results tr.expandable', { timeout: 5000 });
+  check((await page.locator('#view .person-results tr.expandable').count()) === 1 && (await page.evaluate(() => document.activeElement.classList.contains('person-search'))), 'Personen: «wechsel» findet eine Person, Fokus bleibt im Suchfeld');
+  check(!/wechsel/i.test(page.url()) && !/personen\?/.test(page.url()), 'Personen: Suchtext steht nicht in der URL (' + page.url().replace(server.url, '') + ')');
+  await page.locator('#view .person-results tr.expandable').first().click();
+  await page.waitForSelector('#view tr.event-detail:not([hidden]) .person-detail');
+  const pathSteps = await page.$$eval('#view .person-path li', (li) => li.map((x) => x.textContent.replace(/\s+/g, ' ').trim()));
+  check(pathSteps.length === 2 && /^PK · 2023 · bestanden · Zertifikat Z-7/.test(pathSteps[0]) && /^IK · 2026 · offen/.test(pathSteps[1]) && /Passerelle möglich \(PK\)/.test(pathSteps[1]), 'Personen: Pfad PK → IK mit Zertifikat und Passerelle (' + pathSteps.join(' | ') + ')');
+  check(/früher: Testbank AG/.test(await page.textContent('#view .person-head')), 'Personen: Bankwechsel als «früher: Testbank AG»');
+  check((await page.locator('#view details.vorgang-card').count()) === 2 && (await page.locator('#view details.vorgang-card[open]').count()) === 1, 'Personen: zwei Karten je Vorgang, nur der jüngste offen');
+  check((await page.locator('#view details.vorgang-card[open] .person-grid td .badge').count()) >= 1 && (await page.locator('#view details.vorgang-card[open] table.data').count()) >= 2, 'Personen: Raster mit Badges und Zeitachse in der offenen Karte');
+  check(/Ende 30\.06\.2028/.test(await page.textContent('#view details.vorgang-card:not([open])')), 'Personen: Zertifikatsende (certEnd) in der Karte PK');
+  check((await page.locator('#view .run-edit').count()) === 0, 'Personen: ohne Feature-Flag keine Bearbeiten-Elemente (Phase 2)');
+  await page.locator('#view .person-results tr.expandable').first().click();
+  check(await page.locator('#view tr.event-detail').first().isHidden(), 'Personen: Detail wieder zugeklappt');
+  await page.fill('#view .person-search', 'zwilling');
+  await page.waitForFunction(() => document.querySelectorAll('#view .person-results tr.expandable').length === 2, null, { timeout: 5000 });
+  check((await page.$$eval('#view .person-results thead th', (th) => th.map((x) => x.textContent))).includes('Jahrgang'), 'Personen: Namensgleiche → Spalte Jahrgang');
+  await page.fill('#view .person-search', '');
+  await page.waitForSelector('#view .person-results p.empty', { timeout: 5000 }); // Debounce abwarten: Liste leer, bevor der Bank-Filter wirkt
+  await page.locator('#filterbar label:has-text("Bank") select').selectOption({ label: 'Musterbank' });
+  await page.waitForSelector('#view .person-results tr.expandable', { timeout: 5000 });
+  check((await page.locator('#view .person-results tr.expandable').count()) === 5 && (await page.locator('#view .person-search').inputValue()) === '', 'Personen: ohne Suchtext mit Bank-Filter alle Personen der Bank (5)');
+  await page.locator('#filterbar label:has-text("Profil") select').selectOption('IK');
+  await page.waitForFunction(() => document.querySelectorAll('#view .person-results tr.expandable').length === 2, null, { timeout: 5000 });
+  await page.locator('#view .person-results tr.expandable', { hasText: 'Wechsel' }).click();
+  await page.waitForSelector('#view tr.event-detail:not([hidden]) .person-detail');
+  check((await page.locator('#view tr.event-detail:not([hidden]) details.vorgang-card').count()) === 2, 'Personen: Profil-Filter IK – Detail zeigt trotzdem beide Vorgänge (PK und IK)');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+  await shot(page, 'personen');
+
   // Historie (b7): Snapshot herunterladen (ohne Namen), wieder laden, Vergleich mit «Heute»
   await page.goto(server.url + '#historie');
   await page.waitForSelector('#view h2');
@@ -205,15 +241,15 @@ try {
   await download.saveAs(snapshotPath);
   const snapshotText = readFileSync(snapshotPath, 'utf8');
   const snapshot = JSON.parse(snapshotText);
-  check(/^cockpit-snapshot-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename()) && snapshot.format === 'bbz-cockpit-snapshot' && snapshot.kennzahlen.vorgaenge.value === 8, 'Snapshot heruntergeladen: ' + download.suggestedFilename() + ', ' + snapshot.kennzahlen.vorgaenge.value + ' Vorgänge');
-  const names = ['Muster', 'Anna', 'Beispiel', 'Ben', 'Olga', 'Paul', 'Petra', 'Tom', 'Nora', 'Bea', 'Zoe', 'Testbank', 'Musterbank'];
+  check(/^cockpit-snapshot-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename()) && snapshot.format === 'bbz-cockpit-snapshot' && snapshot.kennzahlen.vorgaenge.value === 13, 'Snapshot heruntergeladen: ' + download.suggestedFilename() + ', ' + snapshot.kennzahlen.vorgaenge.value + ' Vorgänge');
+  const names = ['Muster', 'Anna', 'Beispiel', 'Ben', 'Olga', 'Paul', 'Petra', 'Tom', 'Nora', 'Bea', 'Zoe', 'Wechsel', 'Willi', 'Zwilling', 'Gabi', 'Datumlos', 'Otto', 'Testbank', 'Musterbank'];
   check(names.every((n) => !snapshotText.includes(n)), 'Snapshot enthält keine Namen und keine Banken');
   await page.setInputFiles('#view input[type="file"]', snapshotPath);
   await page.waitForSelector('#view table.data');
   const historyHeads = await page.$$eval('#view table.data caption', (c) => c.map((x) => x.textContent));
   check(historyHeads.length === 6 && /Kennzahlen je Stichtag/.test(historyHeads[0]), 'Snapshot geladen, Vergleich mit ' + historyHeads.length + ' Tabellen');
   const vorgRow = await page.$$eval('#view table.data tbody tr', (trs) => { const tr = trs.find((r) => r.children[0].textContent === 'Vorgänge'); return tr ? Array.from(tr.children).map((td) => td.textContent) : null; });
-  check(!!vorgRow && vorgRow[1] === '8' && vorgRow[2] === '8' && /(^|\s)±0$/.test(vorgRow[3]), 'Vergleich: Vorgänge Snapshot = Heute = 8, Differenz ±0 mit Symbol (' + (vorgRow || []).join(' | ') + ')');
+  check(!!vorgRow && vorgRow[1] === '13' && vorgRow[2] === '13' && /(^|\s)±0$/.test(vorgRow[3]), 'Vergleich: Vorgänge Snapshot = Heute = 13, Differenz ±0 mit Symbol (' + (vorgRow || []).join(' | ') + ')');
   check((await page.locator('#view .snapshot-list li').count()) === 1, 'Geladener Snapshot in der Liste');
   await shot(page, 'historie');
   await page.locator('#view .snapshot-list button:has-text("Entfernen")').click();
@@ -318,6 +354,32 @@ try {
   await phone.goto(server.url + '#geplante-pruefungen');
   await phone.waitForSelector('#view h2');
   check(JSON.stringify(await visibleHeads(phone, 'Schriftliche Prüfungen')) === JSON.stringify(['Datum', 'Ort', 'Anzahl']) && (await phone.locator('#view details.fold').count()) >= 2, 'Phone Geplante Prüfungen: Ereignisse je Tag mit Datum, Ort, Anzahl; Teilnehmende zum Aufklappen');
+  // Phone (C.4): Personen – Suche, Detail ohne Seitenscroll, Pfad vertikal, Raster eingeklappt, Zeitachse mit Prio-1-Spalten, URL ohne Suchtext, Speicher leer
+  await phone.goto(server.url + '#personen');
+  await phone.waitForSelector('#view .person-search');
+  await phone.fill('#view .person-search', 'wechsel');
+  await phone.waitForSelector('#view .person-results tr.expandable', { timeout: 5000 });
+  await phone.locator('#view .person-results tr.expandable').first().click();
+  await phone.waitForSelector('#view tr.event-detail:not([hidden]) .person-detail');
+  const phoneOverflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  const detailOverflow = await phone.evaluate(() => { const d = document.querySelector('#view tr.event-detail:not([hidden]) .person-detail'); return d.scrollWidth - window.innerWidth; });
+  check(phoneOverflow <= 0 && detailOverflow <= 0, 'Phone Personen: Detail ohne Seitenscroll (Seite ' + phoneOverflow + ' px, Detail ' + detailOverflow + ' px)');
+  check(await phone.evaluate(() => getComputedStyle(document.querySelector('#view .person-path')).flexDirection === 'column'), 'Phone Personen: Pfad vertikal');
+  const openCard = (sel) => phone.evaluate((s) => {
+    const card = document.querySelector('#view details.vorgang-card[open]');
+    const n = card && [...card.querySelectorAll(s.q)].find((x) => (x.querySelector('h3, summary') || {}).textContent.startsWith(s.t));
+    if (!n) return null;
+    const table = n.querySelector('table');
+    return { open: n.tagName === 'DETAILS' ? n.open : true, heads: table ? [...table.querySelectorAll('thead th')].filter((th) => th.getClientRects().length && !th.classList.contains('toggle')).map((th) => th.textContent) : [] };
+  }, sel);
+  const raster = await openCard({ q: 'details.fold', t: 'Prüfungsraster' });
+  const zeitachse = await openCard({ q: 'section.block', t: 'Zeitachse' });
+  check(!!raster && raster.open === false, 'Phone Personen: Raster in der offenen Karte eingeklappt');
+  check(!!zeitachse && JSON.stringify(zeitachse.heads) === JSON.stringify(['Datum', 'Ereignis', 'Ergebnis']), 'Phone Personen: Zeitachse mit Prio-1-Spalten (' + JSON.stringify(zeitachse && zeitachse.heads) + ')');
+  check(!/wechsel/i.test(phone.url()), 'Phone Personen: Suchtext steht nicht in der URL');
+  const phoneStorage = await phone.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
+  check(phoneStorage.local.length === 0 && phoneStorage.session.every((k) => /msal|login\.|authority|client\.info/i.test(k)), 'Phone Personen: keine Daten im Browser-Speicher (' + JSON.stringify(phoneStorage) + ')');
+  await phone.screenshot({ path: join(outDir, 'phone-personen-detail.png'), fullPage: true });
   await phone.close();
 
   // Tablet (B.4): 820 × 1180 – kein Seitenscroll, Prio 1 + 2 sichtbar, Prio 3 versteckt, Navigation mit Gruppen, Filter offen

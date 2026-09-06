@@ -66,3 +66,12 @@ test('urlState.parseHash: Parameter «begriff» (Glossar-Sprung, A.3) ändert we
   assertEqual(parsed.view, 'glossar');
   assert(sameFilter(parsed.filter, DEFAULT_FILTER));
 });
+
+test('urlState: DEFAULT_UI.personen = null; Suchtext und Personenschlüssel werden nie serialisiert (Paket C, C.4)', () => {
+  assertEqual(DEFAULT_UI.personen, null);
+  const ui = { ...DEFAULT_UI, personen: { query: 'Muster', selectedKey: 'muster|anna|1985-03-15' } };
+  assertEqual(serializeState(DEFAULT_FILTER, ui), '');
+  const hash = buildHash('personen', { ...DEFAULT_FILTER, bank: ['Testbank AG'] }, ui);
+  assert(!/muster|anna|1985|query|selected/i.test(hash), hash);
+  assertEqual(parseHash('#personen?bank=Testbank+AG').ui.personen, null);
+});

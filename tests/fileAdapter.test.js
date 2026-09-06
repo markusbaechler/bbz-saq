@@ -6,6 +6,7 @@ import {
   createFileAdapter, parseWorkbook, resolveDriveItem, FileNotFoundError, SheetMissingError, DRIVE_ITEM_SELECT,
 } from '../datasource/fileAdapter.js';
 import { headerRowFor, cellsFor } from './fixtures.js';
+import { write as datasourceWrite, NotImplementedError as DsNotImplemented } from '../datasource/index.js';
 
 // Bibliotheken: im Browser als Globals (tests.html), in Node über require der lokalen UMD-Builds.
 let cachedLibs = null;
@@ -260,4 +261,12 @@ test('parseWorkbook: Header-Zeile wird auf den letzten nicht leeren Header gekü
   const expected = headerRowFor('first').length;
   assertEqual(out.sheets[0].headerRow.length, expected);
   assert(out.sheets[0].rows.every((r) => r.cells.length === expected), 'Zellen auf Header-Länge gekürzt/aufgefüllt');
+});
+
+test('datasource.write: Signatur { sheet, row, header, value, expected, reason } dokumentiert, wirft NotImplementedError (Phase 2, PROMPT-2 C.8)', async () => {
+  let e = null;
+  try { await datasourceWrite({ sheet: 'First Certification', row: 12, header: 'WE1 RUN1 Passed', value: 'yes', expected: null, reason: 'Test' }); } catch (err) { e = err; }
+  assert(e instanceof DsNotImplemented, 'NotImplementedError erwartet');
+  assert(/Phase 2/.test(e.message));
+  assertEqual(datasourceWrite.length, 0, 'ein Objekt-Parameter mit Standardwert');
 });

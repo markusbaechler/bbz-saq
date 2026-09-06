@@ -104,6 +104,7 @@ export function makePerson(overrides = {}) {
     vsm: false,
     certStart: null,
     certNumber: null,
+    certEnd: null,
     issued: undefined,
     we: Array.from({ length: CONFIG.we.parts }, (_, i) => emptyPart(i + 1, CONFIG.we.runs)),
     oe: Array.from({ length: CONFIG.oe.parts }, (_, i) => emptyPart(i + 1, CONFIG.oe.runs)),

@@ -228,6 +228,29 @@ table.data tr.small td { color: var(--muted); font-style: italic; }
 .export-bar { justify-content: flex-end; }
 .ranking-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr)); gap: 1rem; }
 
+/* Personen (PROMPT-2 Paket C): Suche, Pfad-Leiste, Karten je Vorgang */
+.person-search { width: 100%; max-width: 40rem; font-size: var(--fs-md); padding: .45rem .6rem; }
+.person-hint { color: var(--muted); font-size: var(--fs-sm); margin: var(--space-1) 0 var(--space-3); }
+.person-count { margin: 0 0 var(--space-2); }
+.person-head { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); align-items: center; margin-bottom: var(--space-2); }
+.person-head h4 { margin: 0; font-size: var(--fs-lg); }
+.person-path { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 0; margin: var(--space-2) 0 var(--space-3); }
+.person-path li { border: 1px solid var(--border); border-left: 4px solid var(--muted); border-radius: var(--radius); padding: var(--space-1) var(--space-3); background: var(--panel-2); }
+.person-path li.status-bestanden { border-left-color: var(--status-bestanden); }
+.person-path li.status-nicht { border-left-color: var(--status-nicht); }
+.person-path li.status-offen { border-left-color: var(--status-offen); }
+.person-path li.status-passiv { border-left-color: var(--status-passiv); }
+.person-path li + li { position: relative; margin-left: 1.5rem; }
+.person-path li + li::before { content: '→'; position: absolute; left: -1.25rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+details.vorgang-card { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); margin-bottom: var(--space-3); background: var(--panel); }
+details.vorgang-card > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.person-dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0; font-size: var(--fs-sm); }
+.person-dl dt { color: var(--muted); }
+.person-dl dd { margin: 0; }
+.person-status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-2) 0; }
+.person-actions { justify-content: flex-start; margin-top: var(--space-3); }
+tr.event-detail > td .person-detail table.data { width: 100%; }
+
 /* Inhalt */
 .view { flex: 1; padding: 1rem 1.25rem 2rem; background: var(--panel); margin: var(--space-4) 1.25rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); }
 
@@ -290,6 +313,7 @@ td.delta.neutral { color: var(--delta-neutral); }
 .badge.status-offen { color: var(--status-offen); background: var(--status-offen-bg); }
 .badge.status-passiv { color: var(--status-passiv); background: var(--status-passiv-bg); }
 .badge.status-geplant { color: var(--status-geplant); background: var(--status-geplant-bg); }
+td.status-cell { white-space: nowrap; } /* Raster-Zellen mit Badge und Datum (Paket C) */
 .table-wrap .all-columns { display: none; } /* Desktop zeigt alle Spalten; Paket B blendet Prio 2/3 per Breakpoint aus und zeigt den Schalter */
 @media print {
   td.pct { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -419,6 +443,15 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .datastand summary { display: block; min-height: 0; line-height: 2.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* B.3: Kacheln nur mit Label, Wert, n und Δ-Symbol/Wert */
   .kpi-delta-vs { display: none; }
+  /* C.4: Personen – Pfad vertikal (Pfeil nach unten), Stammdaten einspaltig, Karten und Detail randnah, Suchfeld volle Breite */
+  .person-path { flex-direction: column; gap: var(--space-1); }
+  .person-path li + li { margin-left: 0; margin-top: 1.25rem; }
+  .person-path li + li::before { content: '↓'; left: var(--space-3); top: -1.15rem; transform: none; }
+  .person-dl { grid-template-columns: 1fr; gap: 0; }
+  .person-dl dt { margin-top: var(--space-1); }
+  details.vorgang-card { padding: var(--space-2); }
+  tr.event-detail > td { padding-left: var(--space-2); padding-right: var(--space-2); }
+  .person-search { max-width: none; }
 }
 
 /* Druckansicht: nur Inhalt, immer hell (auch bei dunklem System) */

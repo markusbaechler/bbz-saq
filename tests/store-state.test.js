@@ -124,7 +124,7 @@ test('createStore.setUi / update: Anzeigezustand im Store; silent ohne Benachric
   const store = createStore();
   let calls = 0;
   store.subscribe(() => { calls += 1; });
-  assertEqual(store.getState().ui, { benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [] });
+  assertEqual(store.getState().ui, { benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null });
   store.setUi({ benchmark: 'profil' });
   assertEqual([store.getState().ui.benchmark, calls], ['profil', 1]);
   store.setUi({ dq: { text: 'x' } }, { silent: true });
@@ -133,4 +133,16 @@ test('createStore.setUi / update: Anzeigezustand im Store; silent ohne Benachric
   assertEqual([store.getState().filter.profil, store.getState().ui.compare, calls], [['PK'], { a: 2024, b: 2025 }, 2]);
   store.update({});
   assertEqual(calls, 3);
+});
+
+test('createStore: ui.personen (Suchtext, gewählte Person) nur im Memory; setData() und clear() leeren ihn (C.4)', () => {
+  const store = createStore();
+  assertEqual(store.getState().ui.personen, null);
+  store.setUi({ personen: { query: 'Mu', selectedKey: 'muster|test|' } }, { silent: true });
+  assertEqual(store.getState().ui.personen.query, 'Mu');
+  store.setData(loadResult());
+  assertEqual(store.getState().ui.personen, null, 'Datenwechsel leert die Personensuche');
+  store.setUi({ personen: { query: 'Mu', selectedKey: null } }, { silent: true });
+  store.clear();
+  assertEqual(store.getState().ui.personen, null);
 });

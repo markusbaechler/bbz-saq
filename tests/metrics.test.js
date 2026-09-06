@@ -10,6 +10,7 @@ import {
   excludedRows, openCases, openCaseState, rankingLimit, rankReason, refYear, yearsOf, timeSeries, timeSeriesBy, partDifficultyByYear,
   earlyWarnings, durationDays, certificateDays, quantiles, throughputStats, passiveCases, PASSIVE_DAYS, partsByProfile, missingParts,
   profileParts, partsOutsideProfile, personIndex, passerelleFrom,
+  normalizeNamePart, personSearchIndex, searchPersons, personPath, runTimeline, examGrid,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -830,4 +831,92 @@ test('personIndex / passerelleFrom: Vorgängerprofil derselben Person bestanden 
   const affl = simple({ lastName: 'Z', personKey: 'z|z|1992-01-01', profil: 'AFFL', weAllPassed: null, oeAllPassed: null, issued: true });
   const cwma = simple({ lastName: 'Z', personKey: 'z|z|1992-01-01', profil: 'CWMA', weAllPassed: null, oeAllPassed: null, we: {}, oe: {} });
   assertEqual(passerelleFrom(cwma, personIndex([affl, cwma])), 'AFFL');
+});
+
+// ---------------------------------------------------------------------------
+// Paket C: Personen-Layer – synthetische Personen mit Bankwechsel, Namensgleichen und ohne Geburtsdatum (Anhang A5)
+// ---------------------------------------------------------------------------
+
+function personenCohort() {
+  return [
+    simple({ lastName: 'Wechsel', firstName: 'Willi', birthDate: d('1989-09-09'), profil: 'PK', employerCanon: 'Testbank AG', employer: 'Testbank AG', issued: true, certNumber: 'Z-7', certStart: d('2023-07-01'),
+      we: { 1: [{ passed: true, date: '2023-03-01', result: 0.8 }] }, oe: { 1: [{ passed: true, date: '2023-06-01', result: 0.85 }] } }),
+    makePerson({ lastName: 'Wechsel', firstName: 'Willi', birthDate: d('1989-09-09'), profil: 'IK', employerCanon: 'Musterbank', employer: 'Musterbank', weAllPassed: true,
+      we: { 1: [{ passed: true, date: '2026-02-01', result: 0.75 }] } }),
+    simple({ lastName: 'Zwilling', firstName: 'Gabi', birthDate: d('1980-01-01'), profil: 'PK', employerCanon: 'Testbank AG' }),
+    makePerson({ lastName: 'Zwilling', firstName: 'Gabi', birthDate: d('1991-05-05'), profil: 'KMU', employerCanon: 'Musterbank', sprache: 'FR',
+      we: { 1: [{ passed: true, date: '2026-04-01', result: 0.7 }], 2: [{ date: '2026-10-01', planned: true, location: 'Bern' }] } }),
+    makePerson({ lastName: 'Datumlos', firstName: 'Otto', profil: 'PK', employerCanon: 'Testbank AG', weAllPassed: true, oeAllPassed: false,
+      we: { 1: [{ passed: true, date: '2025-05-01', result: 0.8 }] }, oe: { 1: [{ passed: false, date: '2025-08-01', result: 0.5 }] } }),
+  ];
+}
+
+test('metrics.normalizeNamePart: in metrics.js (Suche), gleiche Regeln wie der Personenschlüssel', () => {
+  assertEqual(normalizeNamePart(' Müller-Meier '), 'muller meier');
+  assertEqual(normalizeNamePart('Strauß'), 'strauss');
+  assertEqual(normalizeNamePart(null), '');
+});
+
+test('metrics.personSearchIndex: eine Zeile je Person, Vorgänge chronologisch, Bankwechsel als frühere Bank, Namensgleiche getrennt, ohne Geburtsdatum «name-only»', () => {
+  const index = personSearchIndex(personenCohort());
+  assertEqual(index.map((e) => [e.name, e.keyLevel, e.profiles.join(' → '), e.bank, e.formerBanks]), [
+    ['Datumlos Otto', 'name-only', 'PK', 'Testbank AG', []],
+    ['Wechsel Willi', 'full', 'PK → IK', 'Musterbank', ['Testbank AG']],
+    ['Zwilling Gabi', 'full', 'PK', 'Testbank AG', []],
+    ['Zwilling Gabi', 'full', 'KMU', 'Musterbank', []],
+  ]);
+  const willi = index[1];
+  assertEqual([willi.vorgaenge.length, willi.latest.profil, willi.certCount, willi.status, willi.lastExam], [2, 'IK', 1, 'offen', d('2026-02-01')]);
+  assert(willi.text.includes('wechsel') && willi.text.includes('musterbank') && willi.text.includes('testbank ag') && willi.text.includes('z 7') && willi.text.includes('offen') && willi.text.includes('bestanden'), willi.text);
+  assertEqual(personSearchIndex([]), []);
+});
+
+test('metrics.searchPersons: ab 2 Zeichen, Teilstring, Begriffe UND-verknüpft, Akzente egal; ohne Suchtext leer ausser all; Limit', () => {
+  const index = personSearchIndex(personenCohort());
+  assertEqual(searchPersons(index, 'W').persons.length, 0);
+  assertEqual(searchPersons(index, 'W').tooShort, true);
+  assertEqual(searchPersons(index, 'wech').persons.map((e) => e.name), ['Wechsel Willi']);
+  assertEqual(searchPersons(index, 'zwilling musterbank').persons.map((e) => e.bank), ['Musterbank'], 'UND: Name und Bank');
+  assertEqual(searchPersons(index, 'Z-7').persons.map((e) => e.name), ['Wechsel Willi'], 'Zertifikatsnummer');
+  assertEqual(searchPersons(index, 'KMU').persons.map((e) => e.name), ['Zwilling Gabi'], 'Profil');
+  assertEqual(searchPersons(index, 'nicht bestanden').persons.map((e) => e.name), ['Datumlos Otto'], 'Status');
+  assertEqual(searchPersons(index, 'Wéchsel').persons.length, 1, 'Akzente normalisiert');
+  assertEqual(searchPersons(index, '').persons.length, 0);
+  assertEqual(searchPersons(index, '', { all: true }).persons.length, 4, 'Bank-Filter gesetzt: alle Personen');
+  const limited = searchPersons(index, '', { all: true, limit: 2 });
+  assertEqual([limited.persons.length, limited.total, limited.truncated], [2, 4, true]);
+});
+
+test('metrics.personPath: Schritte je Vorgang mit Jahr, Status, Zertifikat, fehlenden Teilen und Passerelle', () => {
+  const willi = personSearchIndex(personenCohort()).find((e) => e.lastName === 'Wechsel');
+  const path = personPath(willi);
+  assertEqual(path.map((s) => [s.profil, s.jahr, s.status, s.issued, s.certNumber, s.missing, s.passerelle]), [
+    ['PK', 2023, 'bestanden', true, 'Z-7', [], null],
+    ['IK', 2026, 'offen', false, null, ['OE1'], 'PK'],
+  ]);
+});
+
+test('metrics.runTimeline: absolvierte und geplante Runs chronologisch, Zertifikatsbeginn als Ereignis, Runs ohne Datum am Ende', () => {
+  const p = makePerson({ profil: 'PK', certStart: d('2024-07-01'), certNumber: 'Z-1', weAllPassed: true, oeAllPassed: true,
+    we: { 1: [{ passed: false, date: '2024-01-10', result: 0.4, location: 'Bern' }, { passed: true, date: '2024-03-01', result: 0.7 }], 2: [{ passed: true, result: 0.9 }] },
+    oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }, { date: '2030-01-01', planned: true, location: 'Zürich' }] } });
+  assertEqual(runTimeline(p).map((e) => [e.kind, e.label, e.date, e.location, e.result, e.ergebnis]), [
+    ['run', 'WE1 RUN1', d('2024-01-10'), 'Bern', 0.4, 'nicht bestanden'],
+    ['run', 'WE1 RUN2', d('2024-03-01'), null, 0.7, 'bestanden'],
+    ['run', 'OE1 RUN1', d('2024-06-01'), null, 0.9, 'bestanden'],
+    ['zertifikat', 'Zertifikatsbeginn Z-1', d('2024-07-01'), null, null, 'Zertifikat'],
+    ['run', 'OE1 RUN2', d('2030-01-01'), 'Zürich', null, 'geplant'],
+    ['run', 'WE2 RUN1', null, null, 0.9, 'bestanden'],
+  ]);
+  assertEqual(runTimeline(makePerson({})), []);
+});
+
+test('metrics.examGrid: Teile der Vorgabe × RUN1–RUN3, Runs ausserhalb der Vorgabe markiert, ohne Vorgabe alle genutzten Teile', () => {
+  const p = makePerson({ profil: 'PK', we: { 1: [{ passed: false, date: '2026-01-10', result: 0.4 }, { date: '2026-10-01', planned: true }], 2: [{ passed: true, date: '2026-02-01', result: 0.6 }] }, oe: {} });
+  const g = examGrid(p);
+  assertEqual([g.spec, g.outside], [true, ['WE2']]);
+  assertEqual(g.rows.map((r) => [r.label, r.inSpec, r.runs.map((x) => x.ergebnis).join(',')]), [['WE1', true, 'nicht bestanden,geplant,–'], ['OE1', true, '–,–,–'], ['WE2', false, 'bestanden,–,–']]);
+  assertEqual(g.rows[0].runs[0].date, d('2026-01-10'));
+  const unknown = examGrid(makePerson({ profil: null, we: { 3: [{ passed: true, date: '2026-02-01', result: 0.6 }] } }));
+  assertEqual([unknown.spec, unknown.rows.map((r) => r.label)], [false, ['WE3']]);
 });
