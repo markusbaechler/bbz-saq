@@ -12,11 +12,14 @@ export const CONFIG = {
     clientId: '78cf8834-1900-4711-9773-54b3b99d2084',
     tenantId: '3643e7ab-d166-4e27-bd5f-c5bbfcd282d7',
     scopes: ['Files.Read.All'],
+    // Schreibpfad (Paket E): Scopes erst beim ersten Schreiben anfordern (inkrementelle Zustimmung); in Azure gesetzt (E10)
+    writeScopes: ['Files.ReadWrite.All'],
   },
   sharepoint: {
     siteHost: 'bbzsg.sharepoint.com',
     sitePath: '/sites/bbz-Zertifizierung',
     filePath: 'General/07_KUBA/Reporting_KUBA.xlsx', // relativ zur Standardbibliothek «Dokumente»
+    auditPath: 'General/07_KUBA/Reporting_KUBA.changes.json', // Änderungsprotokoll des Schreibpfads neben der Datei (Paket E, Entscheid 06.09.2026)
   },
   sheets: {
     first: 'First Certification',

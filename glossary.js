@@ -176,6 +176,11 @@ export const GLOSSARY = [
   { kind: 'Kennzahl', term: 'Ø Resultat (Experten)', definition: 'Mittel der Resultate (erreichte Punkte in Prozent) der Einsätze mit Wert.', nenner: 'Einsätze mit Wert', grenzfaelle: 'Result massgebend, Score nicht ausgewertet (E6). Δ zum Benchmark in Prozentpunkten.' },
   { kind: 'Kennzahl', term: 'Benchmark (Experten)', definition: 'Durchfallquote (gesamt, 1. Versuch, Wiederholung) und Ø Resultat über alle Einsätze im Filter.', nenner: 'Einsätze', grenzfaelle: 'Basis der Δ-Werte; keine Schichtung nach Profil (E9: Methodik profilübergreifend vergleichbar).' },
   {
+    kind: 'Begriff', term: 'Schreibpfad (Phase 2)',
+    definition: 'Änderung einzelner Run-Zellen (Passed, Datum, Resultat, Ort, Experte 1/2) in bestehenden Spalten über die Graph-Workbook-API mit Validierung, Konfliktprüfung (Datei-Version, Zellwert) und Audit-Protokoll neben der Datei; danach lädt die App die Datei neu.',
+    nenner: '–', grenzfaelle: 'Nur mit Feature-Flag CONFIG.features.write (E10); die Struktur der Datei bleibt unverändert; Schreiben nur bei Daten von SharePoint, nicht bei lokaler Datei. Ohne Schreibrecht (HTTP 403), bei geänderter oder gesperrter Datei wird nichts geschrieben.',
+  },
+  {
     kind: 'Begriff', term: 'Bank-Report',
     definition: 'Ansicht für die Weitergabe an ein Institut: Kennzahlen einer gewählten Bank im Vergleich zum Benchmark «alle Banken» (gleicher Zeitraum, gleiche übrigen Filter), je Profil und je Jahr. Ohne Namen, andere Banken nur als Aggregat. PDF über die Druckansicht des Browsers.',
     nenner: '–', grenzfaelle: 'Voraussetzung: genau eine Bank in der Filterleiste gewählt. Kleine Gruppen (n < 5) sind markiert.',

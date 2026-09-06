@@ -3,7 +3,8 @@
 // liegen nur im Memory (store.ui.personen), nie in der URL. Zeitraum, Versuche und Wertung wirken nicht (Entscheid 06.09.2026).
 
 import { CONFIG } from '../config.js';
-import { personSearchIndex, searchPersons, personPath, openCaseState, earlyWarnings, durationDays, certificateDays, exclusionReason, PASSIVE_DAYS } from '../metrics.js';
+import { personSearchIndex, searchPersons, personPath, openCaseState, earlyWarnings, durationDays, certificateDays, exclusionReason, PASSIVE_DAYS, examGrid } from '../metrics.js';
+import { openEditDialog } from './editDialog.js';
 import { personResultsTable, personGridTable, personTimelineTable, personDqTable, vorgangExportTables, groupLabel, statusTone } from './tables.js';
 import { el, renderTable, renderExpandableTable, renderExportMenu, section, hinted } from './common.js';
 import { fmtDate } from '../export.js';
@@ -66,9 +67,20 @@ function vorgangCard(v, ctx, open) {
     ['Nächster Termin', oc.nextPlanned ? fmtDate(oc.nextPlanned) : null],
   ]);
   const grid = el('div', { class: 'person-grid' }, [renderTable(personGridTable(v))]);
-  if (CONFIG.features && CONFIG.features.write) {
-    // Phase 2 (C.8): Bearbeiten je Run-Zelle – nur mit Feature-Flag, Umsetzung in Paket E
-    for (const td of grid.querySelectorAll('td.status-cell')) td.appendChild(el('button', { type: 'button', class: 'run-edit', disabled: true, title: 'Schreibpfad (Paket E)', text: 'Bearbeiten' }));
+  if (CONFIG.features && CONFIG.features.write && ctx.onWrite) {
+    // Schreibpfad (Paket E, E.3): «Bearbeiten» je Run-Zelle (RUN1–RUN3, Zeilen wie examGrid) öffnet den Dialog; nur mit Feature-Flag
+    const specRows = examGrid(v).rows;
+    grid.querySelectorAll('tbody tr').forEach((tr, i) => {
+      const spec = specRows[i];
+      if (!spec) return;
+      tr.querySelectorAll('td').forEach((td, j) => {
+        if (j < 1 || j > 3) return;
+        td.appendChild(el('button', {
+          type: 'button', class: 'secondary run-edit', title: 'Zelle in der Datei ändern', 'aria-label': 'Bearbeiten ' + spec.label + ' RUN' + j, text: 'Bearbeiten',
+          onclick: () => openEditDialog({ vorgang: v, kind: spec.kind, part: spec.part, run: j, onWrite: ctx.onWrite }),
+        }));
+      });
+    });
   }
   const dq = personDqTable(ctx.dq || [], [v]);
   const nodes = [

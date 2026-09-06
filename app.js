@@ -2,7 +2,7 @@
 
 import { getAuth, AuthConfigError } from './auth.js';
 import { GraphError, AuthExpiredError } from './graph.js';
-import { load, loadFromFile } from './datasource/index.js';
+import { load, loadFromFile, write } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
 import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount, isVorgang, expertRuns } from './metrics.js';
@@ -398,6 +398,7 @@ function renderView() {
     expertMeta: { ...(state.meta.experts || { columns: false, from: null, headers: [] }), expected: [headerCandidates(runKey('oe', 1, 1, 'expert1'))[0], headerCandidates(runKey('oe', 1, 1, 'expert2'))[0]] },
     experten: state.ui.experten,
     onExpertenChange: (next) => store.setUi({ experten: next }, { silent: true }), // Sortierung nur im Memory
+    onWrite: (change) => writeChange(change), // Schreibpfad (Paket E): nur mit Flag, nur bei Daten von SharePoint
     glossaryHref: (term) => hashWithParam('glossar', 'begriff', glossarySlug(term)), // Kachel-Label → Glossar, Filter bleibt
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
@@ -531,6 +532,15 @@ async function signOut() {
 async function loadGraph() {
   renderStatus('Lade Reporting_KUBA.xlsx von SharePoint …');
   store.setData(await load());
+}
+
+// Schreibpfad (Paket E, E.3): eine Zelle über den Adapter schreiben, danach die Datei neu laden – kein optimistisches Update im Memory
+async function writeChange(change) {
+  const { meta } = store.getState();
+  if (!meta || meta.source !== 'graph') throw new Error('Schreiben ist nur möglich, wenn die Datei von SharePoint geladen wurde – nicht bei einer lokalen Datei.');
+  const result = await write({ ...change, expectedItem: { eTag: meta.eTag || null, lastModified: meta.lastModified instanceof Date ? meta.lastModified.toISOString() : null } });
+  await loadGraph();
+  return result;
 }
 
 async function loadLocal(file) {

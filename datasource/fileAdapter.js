@@ -13,7 +13,7 @@ import { CONFIG } from '../config.js';
 import { NotFoundError } from '../graph.js';
 import { extractThreadedComments } from './threadedComments.js';
 
-export const DRIVE_ITEM_SELECT = 'id,name,size,lastModifiedDateTime,webUrl,@microsoft.graph.downloadUrl';
+export const DRIVE_ITEM_SELECT = 'id,name,size,lastModifiedDateTime,eTag,webUrl,@microsoft.graph.downloadUrl'; // eTag: Konfliktprüfung des Schreibpfads (Paket E)
 
 export class FileNotFoundError extends Error {
   constructor(message) {
@@ -159,6 +159,7 @@ export function createFileAdapter({ graph, XLSX, fflate, config = CONFIG }) {
         fileName: item.name,
         size: item.size === undefined ? null : item.size,
         lastModified: item.lastModifiedDateTime ? new Date(item.lastModifiedDateTime) : null,
+        eTag: item.eTag || null,
         webUrl: item.webUrl === undefined ? null : item.webUrl,
         source: 'graph',
         loadedAt: new Date(),

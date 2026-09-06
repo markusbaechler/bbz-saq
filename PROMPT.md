@@ -28,8 +28,9 @@ Lies zuerst `CLAUDE.md` (Projektregeln). Diese gelten dauerhaft.
   Zwischenresultate (siteId/driveId/itemId) nur im Memory cachen.
 
 ## Harte Regeln
-- Die Excel-Datei wird NIE verändert: keine Spalten hinzufügen, umbenennen, verschieben.
-  Alle Normalisierungen passieren ausschliesslich im Code.
+- Die Struktur der Excel-Datei wird NIE verändert (E10): keine Spalten hinzufügen, umbenennen, verschieben; keine neuen Zeilen oder Sheets.
+  Alle Normalisierungen passieren ausschliesslich im Code. Zellwerte nur über den Schreibpfad (Paket E) mit Feature-Flag,
+  Validierung, Konfliktprüfung und Audit-Protokoll neben der Datei.
 - Repo ist public. Tenant-ID/Client-ID/Site-Pfad dürfen in config.js stehen.
   NIE im Repo: Personendaten, echte Testdaten, Screenshots mit Namen, Kopien des Excel.
   `.gitignore`: `*.xlsx`, `/data`, `/local`, `config.local.js`.

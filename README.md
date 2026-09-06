@@ -13,6 +13,7 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 - CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Job «tests» (Syntaxprüfung aller Module, `node tests/run-node.js`, Kontrastprüfung der Farb-Tokens `node tools/contrast.js`, README-Glossar-Abgleich) und Job «smoke» (Browser-Smoke-Test, Screenshots als Artefakt bei Fehlern)
 - Modellbericht auf einer lokalen Kopie der Datei (nur Zähler und Quoten): `node tools/modellbericht.js <Datei.xlsx>`
 - Header-Übersicht beider Sheets ohne Zellwerte (Spalte, Header, gefüllte Zellen, unterschiedliche Werte, Experten-Markierung), vor jedem Mapping: `node tools/headers.js <Datei.xlsx>`
+- Spike Schreibpfad (Paket E, nur lokal, nur Testkopie «Test_Reporting_KUBA.xlsx»): python -m http.server 3000, dann http://localhost:3000/spike/mutation.html; Protokoll ohne Personendaten
 - Snapshot der synthetischen Testdatei als Regressionsschutz bei Umbauten ohne fachliche Änderung: `node tools/snapshot-synth.js basis.json`, später `node tools/snapshot-synth.js --vergleich basis.json` (identisch = keine Zahl hat sich geändert)
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
 
@@ -167,6 +168,7 @@ identisch mit der Ansicht «Glossar» in der App.
 | **Zeitachse (Person)** | Alle datierten Runs eines Vorgangs chronologisch, absolviert und geplant, plus Zertifikatsbeginn. | Entspricht dem Blatt «Runs» des Exports (gleiche Anzahl datierter Runs). |
 | **Einsatz (Experte)** | Absolvierter mündlicher Run (Passed-Wert vorhanden) mit mindestens einem eingetragenen Experten; zählt für beide beteiligten Experten voll. Grundlage der Ansicht «Experten» (E8). | Der Zeitraum wirkt auf das Run-Datum, nicht auf das Referenzdatum des Vorgangs. Runs mit Ergebnis ohne Datum zählen als Einsatz («ohne Datum»), bei aktivem Zeitraum sind sie ausgeschlossen. Geplante Runs und Duplikate zählen nicht. |
 | **Experte 1 / Experte 2** | Rolle gemäss den Spalten «OE{p} RUN{r} Expert 1» und «Expert 2» der Datei (am File verifiziert 06.09.2026, beide Sheets, optional). Nennt ein Run in beiden Rollen dieselbe Person, zählt sie einen Einsatz und erhält einen Hinweis im Data-Quality-Log. | Semantik der Rollen [unklar]: Experte 1 hat einen kleineren, regelmässigen Kreis (Hypothese Prüfungsleitung). Die Spalte «OE Expert» ist nicht gemappt (Bedeutung unklar). Experten sind ab 2018 erfasst (CONFIG.experts.from); früher fehlende Experten ergeben keinen Hinweis. |
+| **Schreibpfad (Phase 2)** | Änderung einzelner Run-Zellen (Passed, Datum, Resultat, Ort, Experte 1/2) in bestehenden Spalten über die Graph-Workbook-API mit Validierung, Konfliktprüfung (Datei-Version, Zellwert) und Audit-Protokoll neben der Datei; danach lädt die App die Datei neu. | Nur mit Feature-Flag CONFIG.features.write (E10); die Struktur der Datei bleibt unverändert; Schreiben nur bei Daten von SharePoint, nicht bei lokaler Datei. Ohne Schreibrecht (HTTP 403), bei geänderter oder gesperrter Datei wird nichts geschrieben. |
 | **Bank-Report** | Ansicht für die Weitergabe an ein Institut: Kennzahlen einer gewählten Bank im Vergleich zum Benchmark «alle Banken» (gleicher Zeitraum, gleiche übrigen Filter), je Profil und je Jahr. Ohne Namen, andere Banken nur als Aggregat. PDF über die Druckansicht des Browsers. | Voraussetzung: genau eine Bank in der Filterleiste gewählt. Kleine Gruppen (n < 5) sind markiert. |
 | **Data-Quality-Stufen** | Fehler = Zelle nicht interpretierbar, Wert wird ignoriert. Hinweis = Wert interpretiert oder abgeleitet, aber auffällig (z. B. Result als Prozentwert umgedeutet, Duplikat zusammengeführt, Konsistenzregel verletzt). Nicht ausgewertet = Zelle nicht interpretierbar, aber das Feld fliesst in keine Kennzahl (Score). | Score-Header: «WE{n} RUN{r} Score», «OE{n} RUN{r} Score» (24 Spalten). Entscheid E6 (05.09.2026): Score wird nicht ausgewertet, Result ist massgebend; das Parsing bleibt, damit verrutschte Zellen sichtbar sind. |
 | **Snapshot (Historisierung)** | JSON-Datei mit den Aggregaten zum Stichtag: Datei-Zähler, Kennzahlen gesamt, je Profil und je Jahr – ohne Namen und ohne Zeilen. Erzeugt in der Ansicht «Historie», abgelegt durch den Auftraggeber (z. B. SharePoint neben der Excel), später wieder geladen (nur Memory) für den Vergleich der Stichtage nebeneinander. | Immer ohne Filter (kennzahlrelevante Vorgänge, Stand der Datei). Differenz = heute gegenüber dem jüngsten geladenen Snapshot, Anteile in Prozentpunkten. Kein Backend, keine Persistenz im Browser (Regel 4); beim Import werden nur bekannte Felder übernommen (b7). |
@@ -250,6 +252,27 @@ den Fehler «Experte nicht lesbar» (verändert Kennzahl). Hinweise ohne Kennzah
 (beide Felder dieselbe Person). Duplikate füllen Experten auf, nie überschreiben. Ohne Expertenspalten in der Datei bleibt die Ansicht
 «Experten» leer mit Hinweis auf die erwarteten Header.
 
+## Mutation (Phase 2): Schreibpfad mit Feature-Flag
+
+Erste Ausbaustufe (Paket E, E10): eine einzelne Run-Zelle eines Vorgangs – Passed, Prüfungsdatum, Resultat, Ort, bei mündlichen Runs auch
+Experte 1/2 – wird in der bestehenden Spalte der Excel geändert. Nicht editierbar: Name, Geburtsdatum, Profil, Sprache, Employer,
+Gesamtergebnisse, Zertifikatsfelder; keine neuen Zeilen, keine Sheet-Änderungen. Die Struktur der Datei bleibt unverändert.
+
+- **Flag:** `CONFIG.features.write` (Standard `false`). Ohne Flag zeigt die App keine Bearbeiten-Elemente. Der Auftraggeber aktiviert das
+  Flag nach eigenem Test auf der Testkopie (`DEPLOY.md`, Abschnitt «Phase 2»).
+- **Ablauf:** In der Ansicht «Personen» trägt jede Run-Zelle des Prüfungsrasters «Bearbeiten». Der Dialog prüft die Eingabe mit denselben
+  Parsern wie beim Laden, zeigt «alt → neu» und verlangt einen Grund. Der Adapter (`datasource/workbookAdapter.js`) löst die Datei wie der
+  Lesepfad auf, vergleicht die Datei-Version (eTag) mit dem Stand beim Laden, sucht den Header in Zeile 10 (nie Spaltenbuchstaben raten),
+  liest Zielzelle und Nachbarzellen und schreibt in derselben Schreibweise (Datum als Serienzahl oder Text, yes/no wie im Sheet, Resultat als
+  Bruch oder Prozent) über eine Workbook-Session. Danach lädt die App die Datei neu; es gibt kein optimistisches Update im Memory.
+- **Konflikte:** geänderte Datei, abweichender Zellwert, gesperrte Datei (in Excel geöffnet) oder fehlender Header brechen ab, ohne zu
+  schreiben. Ohne Schreibrecht meldet Graph 403 → verständliche Meldung.
+- **Audit:** je Änderung ein Eintrag in `General/07_KUBA/Reporting_KUBA.changes.json` neben der Datei (Zeitpunkt, Konto, Sheet, Zeile,
+  Header, alt, neu, Grund; kein Kandidatenname), angehängt mit `If-Match`.
+- **Rechte:** Lesepfad `Files.Read.All`; der Schreibpfad fordert `Files.ReadWrite.All` erst beim ersten Schreiben an (inkrementelle
+  Zustimmung). Schreiben ist nur bei Daten von SharePoint möglich, nicht bei einer lokal geladenen Datei.
+- Spike-Bericht: `docs/SPIKE-mutation.md`; Testseite `spike/mutation.html` (nur lokal, nur Testkopie).
+
 ## Architektur
 
 Vanilla JS (ES-Module), kein Framework, kein Build-Schritt, GitHub Pages. Bibliotheken lokal unter `lib/`:
@@ -267,14 +290,18 @@ glossary.js / snapshot.js          Begriffe und Kennzahl-Definitionen; Snapshots
 tools/                             contrast.js, glossar-readme.js, modellbericht.js, snapshot-synth.js (Node)
 auth.js                            MSAL (Popup, Redirect-Fallback, Silent-Token)
 graph.js                           Graph-HTTP mit Retry (429/503), Token-Erneuerung bei 401
-datasource/index.js                load() / loadFromFile() / write() (Phase 2)
+datasource/index.js                load() / loadFromFile() / write() (Schreibpfad, Phase 2)
 datasource/fileAdapter.js          Site → Drive → Item, Download, SheetJS-Parse (nur zwei Sheets)
 datasource/threadedComments.js     VSS/VSM aus xl/threadedComments/*.xml
+datasource/workbookApi.js          Reine Helfer des Schreibpfads (Range, Session-Ablauf, Schreibweise, Konflikt, Audit)
+datasource/workbookAdapter.js      Schreibpfad über die Graph-Workbook-API (Phase 2, nur mit Flag)
 store.js                           Normalisierung → Personenmodell, Data-Quality-Log, Memory-State
 metrics.js                         Reine Kennzahlfunktionen
 views/tables.js                    Tabellenmodelle je View (rein), views/*.js Rendering
 views/personen.js                  Ansicht «Personen»: Suche, Pfad, Karten je Vorgang, Export «Diese Person» (Paket C)
 views/experten.js                  Ansicht «Experten»: sortierbare Haupttabelle, Zeilen-Detail, Paarungen, Export «Einsatzebene» (Paket D)
+views/editDialog.js                Dialog «Zelle bearbeiten» des Schreibpfads (nur mit Feature-Flag, Paket E)
+spike/                             Testseite des Schreibpfad-Spikes (nur lokal, nur Testkopie)
 export.js                          CSV, XLSX, Druck
 config.js                          IDs, Pfade, Sheet-Namen, Header-Mapping, Whitelists, Aliase
 ```
@@ -282,7 +309,8 @@ config.js                          IDs, Pfade, Sheet-Namen, Header-Mapping, Whit
 Datenschutz: Personendaten bleiben im Browser-Speicher (kein localStorage/IndexedDB); MSAL nutzt sessionStorage nur
 für Tokens. Namen erscheinen nur in den Ansichten Personen, Offene Vorgänge, Geplante Prüfungen und Bestenlisten, im
 Data-Quality-Log und in Exporten «nur intern» (E5, E7); Expertennamen erscheinen in der Ansicht «Experten» und im Export «Einsatzebene» (E8).
-Suchtext, gewählte Person und Sortierung stehen nie in der URL.
+Suchtext, gewählte Person und Sortierung stehen nie in der URL. Das Änderungsprotokoll des Schreibpfads enthält das Konto der
+bearbeitenden Person und die Fundstelle, keinen Kandidatennamen.
 Das Repository enthält keine Personendaten; `*.xlsx` und `local/` sind ausgeschlossen.
 
 Phase 2 (Schreibpfad, Paket E) ist nur vorbereitet: `CONFIG.features.write` (Standard `false`) und die dokumentierte Signatur

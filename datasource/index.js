@@ -1,15 +1,16 @@
 // datasource/index.js – einziges Interface der Datenschicht nach aussen.
 //   load()            → { sheets, comments, meta }   Phase 1: fileAdapter (Download via Graph + Parse)
 //   loadFromFile(file)→ { sheets, comments, meta }   gleiche Parse-Logik für eine lokal gewählte Datei (nur Browser-Memory)
-//   write({ sheet, row, header, value, expected, reason }) → { ok, written, conflict, itemVersion }
-//                     Phase 2 (Paket E): wirft bis dahin NotImplementedError; nur mit CONFIG.features.write
+//   write(change)     → { ok, written, conflict, itemVersion, audit }   Phase 2: workbookAdapter (Workbook-API), nur mit CONFIG.features.write
 // Views und Metrics greifen nie direkt auf Graph zu.
 
 import { getAuth } from '../auth.js';
 import { createGraphClient } from '../graph.js';
 import { createFileAdapter, parseWorkbook, NotImplementedError } from './fileAdapter.js';
+import { createWorkbookAdapter, WriteConflictError, WriteForbiddenError, WriteHeaderError } from './workbookAdapter.js';
+import { CONFIG } from '../config.js';
 
-export { NotImplementedError };
+export { NotImplementedError, WriteConflictError, WriteForbiddenError, WriteHeaderError };
 
 function libs() {
   const XLSX = globalThis.XLSX;
@@ -52,10 +53,19 @@ export async function loadFromFile(file) {
   };
 }
 
-// Phase 2 (PROMPT-2 C.8, Paket E): genau eine Zelle in einer bestehenden Spalte (Header-Name, nie Spaltenbuchstabe) über die
-// Graph-Workbook-API; expected = erwarteter aktueller Zellwert (Konfliktprüfung), reason = Begründung fürs Audit-Protokoll.
-// Rückgabe { ok, written, conflict, itemVersion }. Bis zur Umsetzung NotImplementedError; die Struktur der Datei bleibt unverändert (E10).
-export async function write({ sheet, row, header, value, expected = null, reason = '' } = {}) {
-  void sheet; void row; void header; void value; void expected; void reason;
-  throw new NotImplementedError('Schreiben ist erst in Phase 2 (Workbook-API) vorgesehen.');
+// Schreibpfad (Paket E, E.2): write(change) → workbookAdapter mit Schreib-Scopes (inkrementelle Zustimmung beim ersten Schreiben).
+// change = { sheet, row, field, header | candidates, value, expected?, expectedItem?, reason } → { ok, written, conflict, itemVersion, audit }
+let writeAdapter = null;
+
+function getWriteAdapter() {
+  if (!writeAdapter) {
+    const auth = getAuth();
+    const graph = createGraphClient({ getToken: (options) => auth.getToken({ ...(options || {}), scopes: CONFIG.auth.writeScopes }) });
+    writeAdapter = createWorkbookAdapter({ graph, account: () => auth.getAccount() });
+  }
+  return writeAdapter;
+}
+
+export async function write(change = {}) {
+  return getWriteAdapter().write(change);
 }

@@ -8,6 +8,9 @@
   - Client-ID und Tenant-ID stehen in `config.js` (`CONFIG.auth`); sie sind öffentliche Kennungen, keine Secrets.
 - SharePoint: Site `bbzsg.sharepoint.com/sites/bbz-Zertifizierung`, Datei `General/07_KUBA/Reporting_KUBA.xlsx`
   in der Standardbibliothek «Dokumente» (`CONFIG.sharepoint`). Lesezugriff der Nutzenden auf die Datei genügt.
+- Schreibpfad (Phase 2, nur mit Flag): delegierte Berechtigung `Files.ReadWrite.All` (in Azure gesetzt); die App fordert sie erst beim
+  ersten Schreiben an (inkrementelle Zustimmung, ggf. Admin-Consent). Schreibrecht der Nutzenden auf die Datei und den Ordner
+  (Audit-Datei `Reporting_KUBA.changes.json`).
 
 ## GitHub Pages
 
@@ -38,7 +41,8 @@ Alles in `config.js`:
   Whitelists und Alias-Maps; Erweiterungen erscheinen sofort in den Kennzahlen
 - `DATE_RULES`: plausible Jahre und der Bereich, in dem Zahlen als Excel-Serienzahl gelten
 
-Die Excel-Datei wird nie verändert. Abweichungen werden im Data-Quality-Log gemeldet, nicht stillschweigend korrigiert.
+Die Struktur der Excel-Datei wird nie verändert; Zellwerte nur über den Schreibpfad mit Flag (Abschnitt «Phase 2»). Abweichungen werden
+im Data-Quality-Log gemeldet, nicht stillschweigend korrigiert.
 
 ## Fehlerbilder
 
@@ -51,8 +55,21 @@ Die Excel-Datei wird nie verändert. Abweichungen werden im Data-Quality-Log gem
 | «Anmeldung abgelaufen» | Token konnte nicht erneuert werden. Erneut anmelden und Ladevorgang wiederholen. |
 | «Dienst vorübergehend nicht verfügbar» | Graph antwortet mit 429/503; die App wiederholt automatisch mit Backoff, danach «Erneut versuchen». |
 | Konsole: «Cross-Origin-Opener-Policy would block window.closed» | Harmlos, stammt aus der MSAL-Popup-Überwachung. |
+| «Kein Schreibrecht auf die Datei (HTTP 403)» | Schreibpfad: keine SharePoint-Schreibberechtigung auf Datei oder Ordner. Rechte prüfen; nichts wurde geändert. |
+| «Die Datei wurde zwischenzeitlich geändert – bitte neu laden» | Schreibpfad: Datei-Version (eTag) weicht vom Stand beim Laden ab. Neu laden, Änderung wiederholen. |
+| «Die Datei ist gesperrt, vermutlich in Excel geöffnet» | Schreibpfad: HTTP 423/409 der Workbook-API. Datei in Excel schliessen, erneut versuchen. |
+| «Schreiben ist nur möglich, wenn die Datei von SharePoint geladen wurde» | Daten stammen aus einer lokalen Datei; «Daten von SharePoint laden» und wiederholen. |
 
-## Phase 2 (Ausblick)
+## Phase 2: Schreibpfad aktivieren
 
-`datasource/workbookAdapter.js` ist als Stub mit gleichem Interface vorbereitet (Graph Workbook-API für Erfassen und
-Mutieren). Views und Kennzahlen greifen ausschliesslich über `datasource/index.js` auf Daten zu und bleiben unverändert.
+Der Schreibpfad (`datasource/workbookAdapter.js`, Dialog in der Ansicht «Personen») ist umgesetzt und über `CONFIG.features.write`
+abgeschaltet. Aktivierung durch den Auftraggeber:
+
+1. Testkopie prüfen: `python -m http.server 3000`, dann http://localhost:3000/spike/mutation.html – Schritte 1 bis 9 auf der Testkopie
+   `General/07_KUBA/Test_Reporting_KUBA.xlsx` ausführen; das Protokoll (ohne Personendaten) bestätigt Schreibweise, Konflikterkennung und
+   Audit (`docs/SPIKE-mutation.md`, Abschnitt 8).
+2. In `config.js` `features: { write: true }` setzen, committen und pushen; GitHub Pages veröffentlicht automatisch.
+3. Beim ersten Schreiben fordert die App `Files.ReadWrite.All` an (Zustimmung bestätigen). Der Dialog zeigt alt → neu, verlangt einen Grund,
+   schreibt genau eine Zelle und lädt die Datei neu.
+4. Änderungsprotokoll: `General/07_KUBA/Reporting_KUBA.changes.json` neben der Datei (JSON-Array, ein Eintrag je Änderung).
+5. Abschalten: `features: { write: false }` – die Bearbeiten-Elemente verschwinden, die Datei bleibt unverändert.

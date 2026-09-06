@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Spike Mutation – Testkopie (bbz-saq)</title>
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    .spike { max-width: 60rem; margin: 1rem auto; padding: 0 1rem; }
+    .spike ol { padding-left: 1.2rem; }
+    .spike li { margin: .5rem 0; }
+    .spike .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .35rem 0; }
+    .spike pre { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; white-space: pre-wrap; font-size: .85rem; max-height: 28rem; overflow: auto; }
+    .spike .warn { color: var(--danger); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <main class="spike">
+    <h1>Spike Mutation – Schreibtest auf der Testkopie</h1>
+    <p>Nur lokal (<code>python -m http.server 3000</code>). Schreibt ausschliesslich auf <code id="test-path"></code>. Das Protokoll enthält keine Namen; Werte der Felder «Expert» werden maskiert.</p>
+    <p class="warn" id="guard" hidden>Abbruch: Der aufgelöste Dateiname beginnt nicht mit «Test_».</p>
+    <ol>
+      <li><div class="row"><button id="btn-login" type="button">1 · Anmelden (Scope Files.ReadWrite.All)</button><span id="login-state"></span></div></li>
+      <li><div class="row"><button id="btn-resolve" type="button" disabled>2 · Testkopie auflösen</button></div></li>
+      <li><div class="row"><label>Header <select id="field">
+        <option value="OE1 RUN1 Location|location">OE1 RUN1 Location</option>
+        <option value="OE1 RUN1 Passed|passed">OE1 RUN1 Passed</option>
+        <option value="OE1 RUN1 Date|date">OE1 RUN1 Date</option>
+        <option value="OE1 RUN1 Result|result">OE1 RUN1 Result</option>
+        <option value="OE1 RUN1 Expert 1|expert1">OE1 RUN1 Expert 1</option>
+      </select></label><label>Zeile <input id="row" type="number" min="11" value="11" style="width:6rem"></label><button id="btn-headers" type="button" disabled>3 · Header lesen, Spalte bestimmen</button></div></li>
+      <li><div class="row"><button id="btn-read" type="button" disabled>4 · Zelle und Nachbarzellen lesen</button></div></li>
+      <li><div class="row"><label>Neuer Wert <input id="value" type="text" value="Spike-Test" style="width:12rem"></label><button id="btn-write" type="button" disabled>5 · Schreiben (Session → PATCH → Close)</button></div></li>
+      <li><div class="row"><button id="btn-restore" type="button" disabled>6 · Ursprünglichen Wert zurückschreiben</button></div></li>
+      <li><div class="row"><button id="btn-conflict" type="button" disabled>7 · Konfliktprüfung (eTag/lastModified gegen Stand von Schritt 2/5)</button></div></li>
+      <li><div class="row"><button id="btn-audit" type="button" disabled>8 · Audit-JSON neben der Datei anhängen</button></div></li>
+      <li>9 · Testkopie in Excel Online öffnen und Schritt 5 wiederholen; Ergebnis steht im Protokoll.</li>
+      <li><div class="row"><button id="btn-copy" type="button">Protokoll kopieren</button><button id="btn-clear" type="button" class="secondary">Protokoll leeren</button></div></li>
+    </ol>
+    <pre id="log" aria-live="polite"></pre>
+  </main>
+  <script src="../lib/msal-browser.min.js"></script>
+  <script type="module" src="./mutation.js"></script>
+</body>
+</html>

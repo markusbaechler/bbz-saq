@@ -727,11 +727,11 @@ Umsetzung: `filterPersons(state.persons, filter, { period: false })` → `expert
 ## Paket E – Mutation: minimaler Schreibpfad (Phase 2)
 
 > **⛔ Entscheide vor Start** (eine Nachricht vor Schritt E.1):
-> 1. Testkopie: der Auftraggeber legt eine Kopie der Datei in einem Testordner auf SharePoint an und nennt Pfad und Ordner (E.3). Ohne Testkopie kein Spike-Test.
+> 1. Testkopie: der Auftraggeber legt eine Kopie der Datei in einem Testordner auf SharePoint an und nennt Pfad und Ordner (E.3). Ohne Testkopie kein Spike-Test. **Entschieden 06.09.2026: Testkopie «Test_Reporting_KUBA» im selben Ordner wie das Original (General/07_KUBA).**
 > 2. Audit-Ablageort (E.1 Punkt 5): (a) `General/07_KUBA/Reporting_KUBA.changes.json` neben der Datei (Append je Änderung); (b) Threaded Comment an der
->    Zelle (nur wenn Graph das Anlegen erlaubt). Empfehlung: (a), weil unabhängig von der Workbook-API und ohne Strukturänderung der Excel.
-> 3. Umfang der ersten Stufe: nur Run-Felder Passed, Date, Result, Location (und Expert 1/2 nach Paket D). Empfehlung: ja, nichts darüber hinaus.
-> 4. Freischaltung: `features.write` bleibt in `config.js` `false`; der Auftraggeber aktiviert das Flag (E.3 Schritt E.4). Empfehlung: ja.
+>    Zelle (nur wenn Graph das Anlegen erlaubt). Empfehlung: (a), weil unabhängig von der Workbook-API und ohne Strukturänderung der Excel. **(a), entschieden 06.09.2026.**
+> 3. Umfang der ersten Stufe: nur Run-Felder Passed, Date, Result, Location (und Expert 1/2 nach Paket D). Empfehlung: ja, nichts darüber hinaus. **Ja, entschieden 06.09.2026.**
+> 4. Freischaltung: `features.write` bleibt in `config.js` `false`; der Auftraggeber aktiviert das Flag (E.3 Schritt E.4). Empfehlung: ja. **Ja, entschieden 06.09.2026.**
 
 ### E.0 Rahmen und Umfang
 
@@ -759,7 +759,7 @@ Inhalt:
 Der Spike-Test läuft nur gegen die Testkopie; der Auftraggeber führt die Graph-Aufrufe mit seinem Konto aus oder gibt sie im Browser frei;
 CC protokolliert nur Ergebnisse ohne Personendaten.
 
-⛔ **Go/No-Go durch den Auftraggeber.** Bei No-Go endet Paket E hier (Folge-Run); der Spike-Bericht wird trotzdem gemerged.
+⛔ **Go/No-Go durch den Auftraggeber.** Bei No-Go endet Paket E hier (Folge-Run); der Spike-Bericht wird trotzdem gemerged. **Go am 06.09.2026; Lauf der Testseite auf der Testkopie vor der Flag-Aktivierung (docs/SPIKE-mutation.md, Abschnitt 8).**
 
 ### E.2 Umsetzung (nur bei Go)
 
@@ -776,10 +776,10 @@ CC protokolliert nur Ergebnisse ohne Personendaten.
 
 ### E.3 Schritte
 
-- [ ] **E.1** Entscheide vor Start einholen (eine Nachricht). Spike-Dokument inkl. Test auf der Testkopie. ⛔ Go/No-Go.
-- [ ] **E.2** Adapter + Tests. Vorlegen.
-- [ ] **E.3** UI hinter Flag + Smoke. Vorlegen.
-- [ ] **E.4** Doku, Regeln (`CLAUDE.md` Regel 1 gemäss E10, `DEPLOY.md`), PR «Ready for review». ⛔ Abnahme Paket E; Flag-Aktivierung durch den Auftraggeber.
+- [x] **E.1** Entscheide vor Start einholen (eine Nachricht). Spike-Dokument inkl. Test auf der Testkopie. ⛔ Go/No-Go.
+- [x] **E.2** Adapter + Tests. Vorlegen.
+- [x] **E.3** UI hinter Flag + Smoke. Vorlegen.
+- [x] **E.4** Doku, Regeln (`CLAUDE.md` Regel 1 gemäss E10, `DEPLOY.md`), PR «Ready for review». ⛔ Abnahme Paket E; Flag-Aktivierung durch den Auftraggeber.
 
 ### E.4 Akzeptanzkriterien
 

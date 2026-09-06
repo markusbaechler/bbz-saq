@@ -262,6 +262,44 @@ try {
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
+  // Schreibpfad (Paket E, E.3): UI nur mit Flag – im Test wird config.js per Route mit write: true ausgeliefert (kein Eingriff im Repo).
+  // Dialog je Run-Zelle, Validierung mit den Parsern, Vorschau alt → neu, Grund als Pflichtfeld, Schutz bei lokaler Datei (kein Schreiben ohne SharePoint).
+  const writePage = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+  writePage.on('pageerror', (e) => errors.push('write pageerror: ' + e.message));
+  await writePage.route('**/config.js', async (route) => {
+    const body = readFileSync(join(root, 'config.js'), 'utf8').replace('features: { write: false }', 'features: { write: true }');
+    await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body });
+  });
+  await writePage.goto(server.url, { waitUntil: 'networkidle' });
+  await writePage.setInputFiles('#file-input', xlsx);
+  await writePage.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
+  await writePage.goto(server.url + '#personen');
+  await writePage.waitForSelector('#view .person-search');
+  await writePage.fill('#view .person-search', 'wechsel');
+  await writePage.waitForSelector('#view .person-results tr.expandable', { timeout: 5000 });
+  await writePage.locator('#view .person-results tr.expandable').first().click();
+  await writePage.waitForSelector('#view tr.event-detail:not([hidden]) .person-detail');
+  const editButtons = await writePage.locator('#view details.vorgang-card[open] .person-grid button.run-edit').count();
+  check(editButtons >= 3, 'Schreibpfad: mit Flag «Bearbeiten» je Run-Zelle (' + editButtons + ')');
+  await writePage.locator('#view details.vorgang-card[open] .person-grid button.run-edit').first().click();
+  await writePage.waitForSelector('dialog.edit-dialog[open]');
+  check((await writePage.locator('dialog.edit-dialog[open] select.edit-field option').count()) >= 4 && /WE1 RUN1/.test(await writePage.textContent('dialog.edit-dialog[open] h3')), 'Schreibpfad: Dialog mit Feldwahl und Fundstelle (' + (await writePage.textContent('dialog.edit-dialog[open] h3')).trim() + ')');
+  await writePage.selectOption('dialog.edit-dialog[open] select.edit-field', 'date');
+  await writePage.fill('dialog.edit-dialog[open] input.edit-value', '32.13.2026');
+  await writePage.waitForFunction(() => { const m = document.querySelector('dialog.edit-dialog[open] .edit-error'); return m && m.textContent.length > 0; }, null, { timeout: 5000 });
+  check(await writePage.locator('dialog.edit-dialog[open] button.edit-confirm').isDisabled(), 'Schreibpfad: ungültiges Datum blockiert mit Parser-Meldung («' + (await writePage.textContent('dialog.edit-dialog[open] .edit-error')).slice(0, 40) + '…»)');
+  await writePage.fill('dialog.edit-dialog[open] input.edit-value', '01.03.2026');
+  await writePage.fill('dialog.edit-dialog[open] input.edit-reason', 'Datum korrigiert');
+  await writePage.waitForFunction(() => { const p = document.querySelector('dialog.edit-dialog[open] .edit-preview'); const b = document.querySelector('dialog.edit-dialog[open] button.edit-confirm'); return p && /→/.test(p.textContent) && b && !b.disabled; }, null, { timeout: 5000 });
+  check(/01\.03\.2026/.test(await writePage.textContent('dialog.edit-dialog[open] .edit-preview')), 'Schreibpfad: Vorschau alt → neu, Bestätigen mit Grund möglich (' + (await writePage.textContent('dialog.edit-dialog[open] .edit-preview')).trim() + ')');
+  await writePage.click('dialog.edit-dialog[open] button.edit-confirm');
+  await writePage.waitForFunction(() => { const m = document.querySelector('dialog.edit-dialog[open] .edit-error'); return m && /SharePoint/.test(m.textContent); }, null, { timeout: 5000 });
+  check(true, 'Schreibpfad: lokale Datei → Hinweis «nur bei SharePoint», kein Schreibversuch');
+  await writePage.screenshot({ path: join(outDir, 'schreibpfad-dialog.png'), fullPage: false });
+  await writePage.click('dialog.edit-dialog[open] button.edit-cancel');
+  check((await writePage.locator('dialog.edit-dialog[open]').count()) === 0, 'Schreibpfad: Dialog geschlossen');
+  await writePage.close();
+
   // Historie (b7): Snapshot herunterladen (ohne Namen), wieder laden, Vergleich mit «Heute»
   await page.goto(server.url + '#historie');
   await page.waitForSelector('#view h2');

@@ -119,3 +119,9 @@ test('config: Expertenfelder je OE-Run (optional, bestätigte Header «OE{p} RUN
   assertEqual(EXPERT_ALIASES, {});
   assertEqual(headerCandidates(runKey('we', 1, 1, 'expert1')), null, 'keine Expertenfelder für schriftliche Teile');
 });
+
+test('config: Schreibpfad – writeScopes für inkrementelle Zustimmung, Audit-Datei neben der Excel (Paket E)', () => {
+  assertEqual(CONFIG.auth.scopes, ['Files.Read.All'], 'Lesepfad behält Files.Read.All');
+  assertEqual(CONFIG.auth.writeScopes, ['Files.ReadWrite.All']);
+  assertEqual(CONFIG.sharepoint.auditPath, 'General/07_KUBA/Reporting_KUBA.changes.json');
+});
