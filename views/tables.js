@@ -8,7 +8,8 @@ import {
   byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, plannedByKind, dayKey,
   multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
   timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
-  earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS, profileParts, personIndex, passerelleFrom } from '../metrics.js';
+  earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS, profileParts, personIndex, passerelleFrom,
+  runTimeline, examGrid } from '../metrics.js';
 import { compareKennzahlen, compareZaehler, compareByGroup } from '../snapshot.js';
 import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
 
@@ -57,7 +58,7 @@ export function isDeltaColumn(column) {
 }
 
 // Spalten, deren Zellen als Status-Badge erscheinen (Text bleibt, Farbe kommt dazu)
-export const STATUS_COLUMN_LABELS = ['Status', 'Status Vorgang', 'Status schriftlich', 'Status mündlich', 'Stufe', 'Bestanden', 'Passiv'];
+export const STATUS_COLUMN_LABELS = ['Status', 'Status Vorgang', 'Status schriftlich', 'Status mündlich', 'Stufe', 'Bestanden', 'Passiv', 'Ergebnis'];
 
 // Farbton einer Statuszelle: bestanden | nicht | offen | passiv | geplant | null (kein Badge)
 export function statusTone(text, label = '') {
@@ -897,4 +898,85 @@ export function historyTables(snapshots, current) {
     };
   });
   return { kennzahlen, zaehler, jeProfil };
+}
+
+// ---------------------------------------------------------------------------
+// Personen (PROMPT-2 Paket C): Trefferliste, Prüfungsraster, Zeitachse, Datenqualität je Person
+// ---------------------------------------------------------------------------
+
+// Wirkungs- und Stufentexte wie in der Ansicht «Datenqualität» (store.js IMPACT_LABELS / views/dataQuality.js LEVEL_LABELS);
+// lokal gehalten, damit tables.js frei von store.js bleibt
+const DQ_IMPACT_TEXT = { unsichtbar: 'macht Zeile unsichtbar', kennzahl: 'verändert Kennzahl', keine: 'ohne Kennzahlwirkung' };
+const DQ_LEVEL_TEXT = { fehler: 'Fehler', hinweis: 'Hinweis', 'nicht-ausgewertet': 'Nicht ausgewertet' };
+
+// Trefferliste (C.2): eine Zeile je Person (Einträge aus metrics.personSearchIndex). Jahrgang nur, wenn Namensgleiche in der Liste
+// stehen, und nur in deren Zeilen (Entscheid 06.09.2026, Frage 3: Datenminimierung, trotzdem unterscheidbar). row.key = Personenschlüssel
+// für die Auswahl im DOM – nie in der URL.
+export function personResultsTable(entries) {
+  const byName = new Map();
+  for (const e of entries) byName.set(e.nameKey, (byName.get(e.nameKey) || 0) + 1);
+  const twins = [...byName.values()].some((n) => n > 1);
+  const columns = [col('name', 'Name', 1)];
+  if (twins) columns.push(col('jahrgang', 'Jahrgang', 1));
+  columns.push(col('bank', 'Bank', 1), col('profile', 'Profile', 1), col('status', 'Status', 2), col('letzte', 'Letzte Prüfung', 2), col('zertifikate', 'Zertifikate', 2), col('vorgaenge', 'Vorgänge', 3), col('schluessel', 'Schlüssel', 3));
+  return {
+    title: 'Trefferliste',
+    columns,
+    rows: entries.map((e) => ({
+      key: e.key, name: e.name, jahrgang: twins && byName.get(e.nameKey) > 1 && e.birthDate ? String(e.birthDate.getFullYear()) : '', bank: e.bank || '', profile: e.profiles.join(' → '),
+      status: e.passiv ? 'passiv' : e.status, letzte: fmtDate(e.lastExam), zertifikate: e.certCount, vorgaenge: e.vorgaenge.length,
+      schluessel: e.keyLevel === 'full' ? 'Name + Geburtsdatum' : 'ohne Geburtsdatum',
+    })),
+    empty: 'Keine Person gefunden.',
+    note: 'Eine Zeile je Person (Personenschlüssel); Profile in zeitlicher Abfolge; Status und letzte Prüfung des jüngsten Vorgangs. «ohne Geburtsdatum»: Namensgleiche fallen zusammen. Enthält Namen – nur intern (E7).',
+  };
+}
+
+// Zelle des Rasters: «12.03.2026 · 82.0 % · bestanden» | «geplant · 29.09.2026» | «–» (nicht absolviert)
+function gridCell(r) {
+  if (r.planned) return 'geplant · ' + fmtDate(r.date);
+  if (!r.taken) return '–';
+  return [fmtDate(r.date) || 'ohne Datum', formatPct(r.result), r.ergebnis].join(' · ');
+}
+
+// Prüfungsraster (C.3): Teilprüfungen × RUN1–RUN3; die Spalten RUN1–RUN3 tragen status: true (Badge auf dem Ergebnis, views/common.js)
+export function personGridTable(vorgang) {
+  const g = examGrid(vorgang);
+  return {
+    title: 'Prüfungsraster',
+    columns: [col('teil', 'Teilprüfung', 1), col('run1', 'RUN1', 1, { status: true }), col('run2', 'RUN2', 1, { status: true }), col('run3', 'RUN3', 2, { status: true })],
+    rows: g.rows.map((r) => ({ teil: r.label + (r.inSpec ? '' : ' (ausserhalb der Vorgabe)'), run1: gridCell(r.runs[0]), run2: gridCell(r.runs[1]), run3: gridCell(r.runs[2]) })),
+    note: (g.spec ? 'Teile gemäss Vorgabe für das Profil (config.js, PROFILE_PARTS)' : 'Kein Profil mit Vorgabe – genutzte Teile')
+      + (g.outside.length ? '; absolvierte Runs ausserhalb der Vorgabe: ' + g.outside.join(', ') + ' (Hinweis im Data-Quality-Log)' : '') + '.',
+  };
+}
+
+// Zeitachse (C.3): alle datierten Runs (absolviert und geplant) und der Zertifikatsbeginn, chronologisch
+export function personTimelineTable(vorgang) {
+  return {
+    title: 'Zeitachse',
+    columns: [col('datum', 'Datum', 1), col('ereignis', 'Ereignis', 1), col('ort', 'Ort', 3), col('resultat', 'Resultat', 2), col('ergebnis', 'Ergebnis', 1)],
+    rows: runTimeline(vorgang).map((e) => ({ datum: fmtDate(e.date) || 'ohne Datum', ereignis: e.label, ort: e.location || '', resultat: formatPct(e.result), ergebnis: e.ergebnis })),
+    empty: 'Keine absolvierten oder geplanten Prüfungen.',
+    note: 'Absolvierte und geplante Runs sowie der Zertifikatsbeginn; entspricht dem Blatt «Runs» des Exports.',
+  };
+}
+
+// Datenqualität der Person (C.3): Einträge zu den Zeilen ihrer Vorgänge (inklusive zusammengeführter Zeilen), reduziert wie in der Ansicht «Datenqualität»
+export function personDqTable(dq, vorgaenge) {
+  const keys = new Set();
+  for (const v of vorgaenge) {
+    keys.add(v.sheetName + '|' + v.row);
+    for (const dup of v.duplicates || []) keys.add(dup.sheet + '|' + dup.row);
+  }
+  const rows = dq.filter((e) => keys.has(e.sheet + '|' + e.row));
+  return {
+    title: 'Datenqualität',
+    columns: [col('wirkung', 'Wirkung', 2), col('stufe', 'Stufe', 1), col('sheet', 'Sheet', 3), col('row', 'Zeile', 2), col('header', 'Header', 1), col('raw', 'Rohwert', 3), col('grund', 'Grund', 1)],
+    rows: rows.map((e) => ({
+      wirkung: DQ_IMPACT_TEXT[e.impact] || 'verändert Kennzahl', stufe: DQ_LEVEL_TEXT[e.level] || 'Fehler', sheet: e.sheet, row: e.row, header: e.header,
+      raw: e.raw === null || e.raw === undefined ? '' : String(e.raw), grund: e.reason,
+    })),
+    empty: 'Keine Einträge im Data-Quality-Log zu dieser Person.',
+  };
 }

@@ -826,6 +826,7 @@ export function createStore() {
       state.persons = persons;
       state.dq = dq;
       state.meta = meta;
+      state.ui = { ...state.ui, personen: null }; // Datenwechsel leert die Personensuche (Paket C, C.4)
       notify();
     },
 
@@ -853,6 +854,7 @@ export function createStore() {
       state.persons = [];
       state.dq = [];
       state.meta = null;
+      state.ui = { ...state.ui, personen: null };
       notify();
     },
 

@@ -40,6 +40,16 @@ function cell(c, row, numeric) {
       return el('td', { ...attrs, class: cls.concat(['delta', d.tone]).join(' ') }, [el('span', { class: 'delta-symbol', 'aria-hidden': 'true', text: d.symbol + ' ' }), text]);
     }
   }
+  // Raster-Zellen (Paket C): «12.03.2026 · 82.0 % · bestanden» → Text plus Badge auf dem Ergebnis; «geplant · 29.09.2026» → Badge vorn
+  if (c.status && text && text !== '–') {
+    const parts = text.split(' · ');
+    const statusIndex = parts[0] === 'geplant' ? 0 : parts.length - 1;
+    const tone = statusTone(parts[statusIndex]);
+    if (tone) {
+      const rest = parts.filter((_, i) => i !== statusIndex).join(' · ');
+      return el('td', { ...attrs, class: cls.concat(['status-cell']).join(' ') }, [el('span', { class: 'badge status-' + tone, text: parts[statusIndex] }), rest ? ' ' + rest : '']);
+    }
+  }
   if (STATUS_COLUMN_LABELS.includes(c.label)) {
     const tone = statusTone(text, c.label);
     if (tone) return el('td', { ...attrs, class: cls.join(' ') || null }, [el('span', { class: 'badge status-' + tone, text })]);

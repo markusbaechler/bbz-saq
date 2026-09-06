@@ -290,6 +290,7 @@ td.delta.neutral { color: var(--delta-neutral); }
 .badge.status-offen { color: var(--status-offen); background: var(--status-offen-bg); }
 .badge.status-passiv { color: var(--status-passiv); background: var(--status-passiv-bg); }
 .badge.status-geplant { color: var(--status-geplant); background: var(--status-geplant-bg); }
+td.status-cell { white-space: nowrap; } /* Raster-Zellen mit Badge und Datum (Paket C) */
 .table-wrap .all-columns { display: none; } /* Desktop zeigt alle Spalten; Paket B blendet Prio 2/3 per Breakpoint aus und zeigt den Schalter */
 @media print {
   td.pct { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

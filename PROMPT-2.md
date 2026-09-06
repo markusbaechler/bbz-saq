@@ -590,7 +590,7 @@ Statusfarbe je Schritt (A.1), Passerelle-Kennzeichen aus `passerelleFrom()`, feh
       Suchfeldern, Vorgänge chronologisch), `personPath(person)` (Pfad-Schritte), `runTimeline(vorgang)` (Ereignisse), `examGrid(vorgang, parts)` (Raster).
       `store.js`: `certEnd`. Synthetische Daten gemäss Anhang A5 (Bankwechsel, Namensgleiche, ohne Geburtsdatum) in `tests/fixtures.js` und
       `tests/smoke/synth.mjs` ergänzen; bestehende Smoke-Prüfungen mitziehen. Tests. Vorlegen.
-- [ ] **C.2** `views/tables.js`: `personResultsTable()`, `personGridTable()`, `personTimelineTable()`, `personDqTable()`; `urlState.js`
+- [x] **C.2** `views/tables.js`: `personResultsTable()`, `personGridTable()`, `personTimelineTable()`, `personDqTable()`; `urlState.js`
       `DEFAULT_UI.personen`, nicht serialisiert; Tests. Vorlegen.
 - [ ] **C.3** `views/personen.js`: Suche, Trefferliste, Detail, Export; `app.js` `VIEWS` (Gruppe Personen, `noPersonExport: true`, eigener Export). Vorlegen.
 - [ ] **C.4** Phone-Layout (Zeitachse vertikal, Raster als `details`). Smoke-Test: Suche mit synthetischem Namen, Detail öffnen,
