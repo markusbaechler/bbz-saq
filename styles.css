@@ -457,6 +457,8 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   details.vorgang-card { padding: var(--space-2); }
   tr.event-detail > td { padding-left: var(--space-2); padding-right: var(--space-2); }
   .person-search { max-width: none; }
+  /* D.5: Experten – Zeilen-Detail fest einspaltig (auto-fit hängt von der Zellbreite ab) */
+  .expert-detail { grid-template-columns: 1fr; }
 }
 
 /* Druckansicht: nur Inhalt, immer hell (auch bei dunklem System) */
