@@ -269,3 +269,10 @@ test('datasource.write: delegiert an den Workbook-Adapter; ohne MSAL (Node) vers
   assert(e && /MSAL/.test(e.message), 'MSAL-Fehler erwartet: ' + (e && e.message));
   assertEqual(datasourceWrite.length, 0, 'ein Objekt-Parameter mit Standardwert');
 });
+
+test('fileAdapter: DRIVE_ITEM_SELECT enthält eTag und load() liefert meta.eTag (Konfliktprüfung des Schreibpfads, Paket E)', async () => {
+  assert(DRIVE_ITEM_SELECT.split(',').includes('eTag'));
+  const adapter = createFileAdapter({ graph: fakeGraph({ buffer: await buildWorkbook() }), ...(await libs()) });
+  const out = await adapter.load();
+  assert('eTag' in out.meta, 'meta.eTag vorhanden (null, wenn Graph keinen liefert)');
+});

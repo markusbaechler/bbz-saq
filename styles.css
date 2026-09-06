@@ -250,6 +250,19 @@ details.vorgang-card > summary { cursor: pointer; font-weight: 600; min-height: 
 .person-status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-2) 0; }
 .person-actions { justify-content: flex-start; margin-top: var(--space-3); }
 tr.event-detail > td .person-detail table.data { width: 100%; }
+.run-edit { margin-left: var(--space-2); padding: .05rem .4rem; font-size: var(--fs-xs); min-height: 0; }
+
+/* Schreibpfad (PROMPT-2 Paket E): Dialog «Zelle bearbeiten» */
+dialog.edit-dialog { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4) var(--space-5); max-width: 34rem; background: var(--panel); color: var(--text); }
+dialog.edit-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+dialog.edit-dialog h3 { margin-top: 0; }
+dialog.edit-dialog label { display: block; margin: var(--space-2) 0; }
+dialog.edit-dialog select, dialog.edit-dialog input { width: 100%; box-sizing: border-box; }
+.edit-preview { font-variant-numeric: tabular-nums; font-weight: 600; min-height: 1.2em; }
+.edit-error { color: var(--danger); min-height: 1.2em; }
+.edit-status { color: var(--muted); min-height: 1.2em; }
+.edit-actions { display: flex; gap: var(--space-2); justify-content: flex-end; margin-top: var(--space-3); }
+@media print { .run-edit, dialog.edit-dialog { display: none !important; } }
 
 /* Experten (PROMPT-2 Paket D): Zeilen-Detail mit vier kleinen Tabellen, sortierbare Kopfzellen wie im Data-Quality-Log */
 .expert-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-3); }
