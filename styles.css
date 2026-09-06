@@ -443,6 +443,15 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .datastand summary { display: block; min-height: 0; line-height: 2.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* B.3: Kacheln nur mit Label, Wert, n und Δ-Symbol/Wert */
   .kpi-delta-vs { display: none; }
+  /* C.4: Personen – Pfad vertikal (Pfeil nach unten), Stammdaten einspaltig, Karten und Detail randnah, Suchfeld volle Breite */
+  .person-path { flex-direction: column; gap: var(--space-1); }
+  .person-path li + li { margin-left: 0; margin-top: 1.25rem; }
+  .person-path li + li::before { content: '↓'; left: var(--space-3); top: -1.15rem; transform: none; }
+  .person-dl { grid-template-columns: 1fr; gap: 0; }
+  .person-dl dt { margin-top: var(--space-1); }
+  details.vorgang-card { padding: var(--space-2); }
+  tr.event-detail > td { padding-left: var(--space-2); padding-right: var(--space-2); }
+  .person-search { max-width: none; }
 }
 
 /* Druckansicht: nur Inhalt, immer hell (auch bei dunklem System) */

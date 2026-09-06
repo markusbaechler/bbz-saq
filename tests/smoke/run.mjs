@@ -353,6 +353,32 @@ try {
   await phone.goto(server.url + '#geplante-pruefungen');
   await phone.waitForSelector('#view h2');
   check(JSON.stringify(await visibleHeads(phone, 'Schriftliche Prüfungen')) === JSON.stringify(['Datum', 'Ort', 'Anzahl']) && (await phone.locator('#view details.fold').count()) >= 2, 'Phone Geplante Prüfungen: Ereignisse je Tag mit Datum, Ort, Anzahl; Teilnehmende zum Aufklappen');
+  // Phone (C.4): Personen – Suche, Detail ohne Seitenscroll, Pfad vertikal, Raster eingeklappt, Zeitachse mit Prio-1-Spalten, URL ohne Suchtext, Speicher leer
+  await phone.goto(server.url + '#personen');
+  await phone.waitForSelector('#view .person-search');
+  await phone.fill('#view .person-search', 'wechsel');
+  await phone.waitForSelector('#view .person-results tr.expandable', { timeout: 5000 });
+  await phone.locator('#view .person-results tr.expandable').first().click();
+  await phone.waitForSelector('#view tr.event-detail:not([hidden]) .person-detail');
+  const phoneOverflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  const detailOverflow = await phone.evaluate(() => { const d = document.querySelector('#view tr.event-detail:not([hidden]) .person-detail'); return d.scrollWidth - window.innerWidth; });
+  check(phoneOverflow <= 0 && detailOverflow <= 0, 'Phone Personen: Detail ohne Seitenscroll (Seite ' + phoneOverflow + ' px, Detail ' + detailOverflow + ' px)');
+  check(await phone.evaluate(() => getComputedStyle(document.querySelector('#view .person-path')).flexDirection === 'column'), 'Phone Personen: Pfad vertikal');
+  const openCard = (sel) => phone.evaluate((s) => {
+    const card = document.querySelector('#view details.vorgang-card[open]');
+    const n = card && [...card.querySelectorAll(s.q)].find((x) => (x.querySelector('h3, summary') || {}).textContent.startsWith(s.t));
+    if (!n) return null;
+    const table = n.querySelector('table');
+    return { open: n.tagName === 'DETAILS' ? n.open : true, heads: table ? [...table.querySelectorAll('thead th')].filter((th) => th.getClientRects().length && !th.classList.contains('toggle')).map((th) => th.textContent) : [] };
+  }, sel);
+  const raster = await openCard({ q: 'details.fold', t: 'Prüfungsraster' });
+  const zeitachse = await openCard({ q: 'section.block', t: 'Zeitachse' });
+  check(!!raster && raster.open === false, 'Phone Personen: Raster in der offenen Karte eingeklappt');
+  check(!!zeitachse && JSON.stringify(zeitachse.heads) === JSON.stringify(['Datum', 'Ereignis', 'Ergebnis']), 'Phone Personen: Zeitachse mit Prio-1-Spalten (' + JSON.stringify(zeitachse && zeitachse.heads) + ')');
+  check(!/wechsel/i.test(phone.url()), 'Phone Personen: Suchtext steht nicht in der URL');
+  const phoneStorage = await phone.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
+  check(phoneStorage.local.length === 0 && phoneStorage.session.every((k) => /msal|login\.|authority|client\.info/i.test(k)), 'Phone Personen: keine Daten im Browser-Speicher (' + JSON.stringify(phoneStorage) + ')');
+  await phone.screenshot({ path: join(outDir, 'phone-personen-detail.png'), fullPage: true });
   await phone.close();
 
   // Tablet (B.4): 820 × 1180 – kein Seitenscroll, Prio 1 + 2 sichtbar, Prio 3 versteckt, Navigation mit Gruppen, Filter offen

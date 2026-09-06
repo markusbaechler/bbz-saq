@@ -593,7 +593,7 @@ Statusfarbe je Schritt (A.1), Passerelle-Kennzeichen aus `passerelleFrom()`, feh
 - [x] **C.2** `views/tables.js`: `personResultsTable()`, `personGridTable()`, `personTimelineTable()`, `personDqTable()`; `urlState.js`
       `DEFAULT_UI.personen`, nicht serialisiert; Tests. Vorlegen.
 - [x] **C.3** `views/personen.js`: Suche, Trefferliste, Detail, Export; `app.js` `VIEWS` (Gruppe Personen, `noPersonExport: true`, eigener Export). Vorlegen.
-- [ ] **C.4** Phone-Layout (Zeitachse vertikal, Raster als `details`). Smoke-Test: Suche mit synthetischem Namen, Detail öffnen,
+- [x] **C.4** Phone-Layout (Zeitachse vertikal, Raster als `details`). Smoke-Test: Suche mit synthetischem Namen, Detail öffnen,
       Raster/Zeitachse vorhanden, URL ohne Suchtext, Speicher leer. Vorlegen.
 - [ ] **C.5** Glossar (Anhang A3: «Pfad einer Person», «Prüfungsraster», «Zeitachse»), README (Ansichten, Datenschutz, E7), `PROMPT.md` Harte Regeln. Vorlegen.
 - [ ] **C.6** Phase-2-Vorbereitung (C.8) – im selben Paket, ohne Schreibpfad. PR «Ready for review». ⛔ Abnahme Paket C (inkl. «Entscheide vor Start» Paket D).
