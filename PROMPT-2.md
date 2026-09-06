@@ -147,7 +147,7 @@ Modellbericht gelesen werden `[entscheid 06.09.2026]`. Nie Zellwerte ausgeben, n
       Bei lokalem Vorsprung, Konflikt oder unsauberem Arbeitsbaum: ⛔ (nichts verwerfen).
 - [x] **0.2 Test-Tooling:** `cd tests/smoke && npm ci`. `npx playwright install chromium` nur, wenn `node tests/smoke/run.mjs` den Browser nicht findet.
       Auf dem Gerät des Auftraggebers bleibt `playwright install` beim Entpacken nach `chrome.dll` hängen (06.09.2026 zweimal reproduziert,
-      vermutlich Virenschutz); lokal stattdessen `SMOKE_CHROMIUM=%LOCALAPPDATA%ms-playwrightchromium_headless_shell-1234chrome-headless-shell-win64chrome-headless-shell.exe`
+      vermutlich Virenschutz); lokal stattdessen `SMOKE_CHROMIUM=%LOCALAPPDATA%\ms-playwright\chromium_headless_shell-1234\chrome-headless-shell-win64\chrome-headless-shell.exe`
       setzen (Headless-Shell wie in der CI; die CI unter Linux ist nicht betroffen).
 - [x] **0.3 Baseline:** `node tests/run-node.js`, `node tests/smoke/run.mjs`, `node tools/glossar-readme.js --write` (danach `git status` unverändert).
       `tools/snapshot-synth.js` anlegen (Muster `tools/modellbericht.js`: synthetische Datei aus `tests/smoke/synth.mjs` → `parseWorkbook()` →
