@@ -727,7 +727,7 @@ Umsetzung: `filterPersons(state.persons, filter, { period: false })` → `expert
 ## Paket E – Mutation: minimaler Schreibpfad (Phase 2)
 
 > **⛔ Entscheide vor Start** (eine Nachricht vor Schritt E.1):
-> 1. Testkopie: der Auftraggeber legt eine Kopie der Datei in einem Testordner auf SharePoint an und nennt Pfad und Ordner (E.3). Ohne Testkopie kein Spike-Test.
+> 1. Testkopie: der Auftraggeber legt eine Kopie der Datei in einem Testordner auf SharePoint an und nennt Pfad und Ordner (E.3). Ohne Testkopie kein Spike-Test. **Entschieden 06.09.2026: Testkopie «Test_Reporting_KUBA» im selben Ordner wie das Original (General/07_KUBA).**
 > 2. Audit-Ablageort (E.1 Punkt 5): (a) `General/07_KUBA/Reporting_KUBA.changes.json` neben der Datei (Append je Änderung); (b) Threaded Comment an der
 >    Zelle (nur wenn Graph das Anlegen erlaubt). Empfehlung: (a), weil unabhängig von der Workbook-API und ohne Strukturänderung der Excel.
 > 3. Umfang der ersten Stufe: nur Run-Felder Passed, Date, Result, Location (und Expert 1/2 nach Paket D). Empfehlung: ja, nichts darüber hinaus.
