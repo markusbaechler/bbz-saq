@@ -903,7 +903,7 @@ export function createStore() {
       state.persons = [];
       state.dq = [];
       state.meta = null;
-      state.ui = { ...state.ui, personen: null };
+      state.ui = { ...state.ui, personen: null, editMode: false }; // Abmelden: Personensuche leeren, Bearbeitungsmodus aus
       notify();
     },
 

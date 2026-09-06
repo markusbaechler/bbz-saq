@@ -67,18 +67,23 @@ function vorgangCard(v, ctx, open) {
     ['Nächster Termin', oc.nextPlanned ? fmtDate(oc.nextPlanned) : null],
   ]);
   const grid = el('div', { class: 'person-grid' }, [renderTable(personGridTable(v))]);
-  if (CONFIG.features && CONFIG.features.write && ctx.onWrite) {
-    // Schreibpfad (Paket E, E.3): «Bearbeiten» je Run-Zelle (RUN1–RUN3, Zeilen wie examGrid) öffnet den Dialog; nur mit Feature-Flag
+  if (CONFIG.features && CONFIG.features.write && ctx.editMode && ctx.onWrite) {
+    // Schreibpfad (Paket E): im Bearbeitungsmodus (Schalter im Kopf) sind die Zellen des Rasters selbst anklickbar – Zeiger, ✎ beim
+    // Überfahren, Enter oder Leertaste per Tastatur; ohne Modus bleibt das Raster reine Anzeige (kein Rauschen)
     const specRows = examGrid(v).rows;
     grid.querySelectorAll('tbody tr').forEach((tr, i) => {
       const spec = specRows[i];
       if (!spec) return;
       tr.querySelectorAll('td').forEach((td, j) => {
         if (j < 1 || j > 3) return;
-        td.appendChild(el('button', {
-          type: 'button', class: 'secondary run-edit', title: 'Zelle in der Datei ändern', 'aria-label': 'Bearbeiten ' + spec.label + ' RUN' + j, text: 'Bearbeiten',
-          onclick: () => openEditDialog({ vorgang: v, kind: spec.kind, part: spec.part, run: j, onWrite: ctx.onWrite }),
-        }));
+        td.classList.add('editable');
+        td.setAttribute('role', 'button');
+        td.setAttribute('tabindex', '0');
+        td.setAttribute('aria-label', 'Bearbeiten ' + spec.label + ' RUN' + j);
+        td.title = 'Zelle in der Datei ändern';
+        const open = () => openEditDialog({ vorgang: v, kind: spec.kind, part: spec.part, run: j, onWrite: ctx.onWrite });
+        td.addEventListener('click', open);
+        td.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } });
       });
     });
   }

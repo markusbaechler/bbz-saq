@@ -14,6 +14,8 @@
       <span class="subtitle">Reporting KUBA</span>
     </div>
     <div class="session">
+      <span id="edit-mode-hint" class="edit-mode-hint" hidden>Bearbeitungsmodus: Änderungen schreiben in die Datei</span>
+      <button id="btn-edit-mode" type="button" class="secondary edit-mode" aria-pressed="false" hidden>Bearbeiten</button>
       <span id="account" class="account"></span>
       <button id="btn-signin" type="button" hidden>Anmelden</button>
       <button id="btn-signout" type="button" class="secondary" hidden>Abmelden</button>
@@ -21,6 +23,7 @@
         <summary id="account-initials" aria-label="Konto"></summary>
         <div class="menu-list" role="group" aria-label="Konto">
           <div id="account-menu-name" class="menu-note"></div>
+          <button id="btn-edit-mode-phone" type="button" class="menu-item" hidden>Bearbeiten einschalten</button>
           <button id="btn-signout-phone" type="button" class="menu-item">Abmelden</button>
         </div>
       </details>

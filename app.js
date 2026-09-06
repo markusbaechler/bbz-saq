@@ -6,7 +6,7 @@ import { load, loadFromFile, write } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
 import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount, isVorgang, expertRuns } from './metrics.js';
-import { headerCandidates, runKey } from './config.js';
+import { CONFIG, headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
@@ -399,6 +399,7 @@ function renderView() {
     experten: state.ui.experten,
     onExpertenChange: (next) => store.setUi({ experten: next }, { silent: true }), // Sortierung nur im Memory
     onWrite: (change) => writeChange(change), // Schreibpfad (Paket E): nur mit Flag, nur bei Daten von SharePoint
+    editMode: !!state.ui.editMode, // Bearbeitungsmodus (Schalter im Kopf): Raster-Zellen anklickbar
     glossaryHref: (term) => hashWithParam('glossar', 'begriff', glossarySlug(term)), // Kachel-Label → Glossar, Filter bleibt
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
@@ -436,8 +437,25 @@ function renderView() {
   appendLegend(container, legendHints(built));
 }
 
+// Bearbeitungsmodus (Schreibpfad, Paket E): Schalter im Kopf, Standard aus, nur im Memory; sichtbar nur mit Flag und geladenen Daten
+function toggleEditMode() {
+  store.setUi({ editMode: !store.getState().ui.editMode });
+}
+
+function renderEditMode() {
+  const on = !!store.getState().ui.editMode;
+  const show = !!(CONFIG.features && CONFIG.features.write) && hasData();
+  ui.editMode.hidden = !show;
+  ui.editMode.setAttribute('aria-pressed', String(on));
+  ui.editMode.textContent = on ? 'Bearbeiten: an' : 'Bearbeiten';
+  ui.editModeHint.hidden = !(show && on);
+  ui.editModePhone.hidden = !show;
+  ui.editModePhone.textContent = on ? 'Bearbeiten ausschalten' : 'Bearbeiten einschalten';
+}
+
 function renderAll() {
   renderStatus();
+  renderEditMode();
   updateFilterBar();
   renderView();
   syncHash();
@@ -565,6 +583,11 @@ async function init() {
   ui.filterbar = $('filterbar');
   ui.view = $('view');
   ui.accountMenu = $('account-menu');
+  ui.editMode = $('btn-edit-mode');
+  ui.editModeHint = $('edit-mode-hint');
+  ui.editModePhone = $('btn-edit-mode-phone');
+  ui.editMode.addEventListener('click', toggleEditMode);
+  ui.editModePhone.addEventListener('click', () => { ui.accountMenu.open = false; toggleEditMode(); });
   ui.accountInitials = $('account-initials');
   ui.accountMenuName = $('account-menu-name');
   ui.signoutPhone = $('btn-signout-phone');

@@ -250,7 +250,13 @@ details.vorgang-card > summary { cursor: pointer; font-weight: 600; min-height: 
 .person-status { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin: var(--space-2) 0; }
 .person-actions { justify-content: flex-start; margin-top: var(--space-3); }
 tr.event-detail > td .person-detail table.data { width: 100%; }
-.run-edit { margin-left: var(--space-2); padding: .05rem .4rem; font-size: var(--fs-xs); min-height: 0; }
+/* Schreibpfad: Bearbeitungsmodus (Schalter im Kopf, Standard aus) und anklickbare Raster-Zellen mit ✎ beim Überfahren */
+.edit-mode[aria-pressed="true"] { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+.edit-mode-hint { color: var(--warn); font-size: var(--fs-sm); }
+td.editable { cursor: pointer; }
+td.editable::after { content: ' ✎'; color: var(--muted); opacity: 0; }
+td.editable:hover::after, td.editable:focus-visible::after { opacity: 1; }
+td.editable:hover, td.editable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* Schreibpfad (PROMPT-2 Paket E): Dialog «Zelle bearbeiten» */
 dialog.edit-dialog { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4) var(--space-5); max-width: 34rem; background: var(--panel); color: var(--text); }
@@ -262,7 +268,7 @@ dialog.edit-dialog select, dialog.edit-dialog input { width: 100%; box-sizing: b
 .edit-error { color: var(--danger); min-height: 1.2em; }
 .edit-status { color: var(--muted); min-height: 1.2em; }
 .edit-actions { display: flex; gap: var(--space-2); justify-content: flex-end; margin-top: var(--space-3); }
-@media print { .run-edit, dialog.edit-dialog { display: none !important; } }
+@media print { .edit-mode, .edit-mode-hint, dialog.edit-dialog { display: none !important; } }
 
 /* Experten (PROMPT-2 Paket D): Zeilen-Detail mit vier kleinen Tabellen, sortierbare Kopfzellen wie im Data-Quality-Log */
 .expert-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-3); }
@@ -454,7 +460,7 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .filter-controls .check, .filter-controls .reset { grid-column: 1 / -1; }
   .app-header { gap: var(--space-2); }
   .app-header .brand { flex-direction: row; align-items: baseline; gap: var(--space-2); }
-  .subtitle, #account, #btn-signout { display: none; }
+  .subtitle, #account, #btn-signout, .edit-mode, .edit-mode-hint { display: none; } /* Bearbeitungsmodus auf Phone im Konto-Menü */
   .account-menu:not([hidden]) { display: block; }
   .account-menu > summary { width: 44px; height: 44px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; }
   .account-menu > summary::after { content: none; }

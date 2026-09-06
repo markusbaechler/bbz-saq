@@ -124,7 +124,7 @@ test('createStore.setUi / update: Anzeigezustand im Store; silent ohne Benachric
   const store = createStore();
   let calls = 0;
   store.subscribe(() => { calls += 1; });
-  assertEqual(store.getState().ui, { benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null, experten: null });
+  assertEqual(store.getState().ui, { benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null, experten: null, editMode: false });
   store.setUi({ benchmark: 'profil' });
   assertEqual([store.getState().ui.benchmark, calls], ['profil', 1]);
   store.setUi({ dq: { text: 'x' } }, { silent: true });
@@ -145,4 +145,12 @@ test('createStore: ui.personen (Suchtext, gewählte Person) nur im Memory; setDa
   store.setUi({ personen: { query: 'Mu', selectedKey: null } }, { silent: true });
   store.clear();
   assertEqual(store.getState().ui.personen, null);
+});
+
+test('createStore.clear: Bearbeitungsmodus wird beim Entfernen der Daten (Abmelden) ausgeschaltet', () => {
+  const store = createStore();
+  store.setData(loadResult());
+  store.setUi({ editMode: true }, { silent: true });
+  store.clear();
+  assertEqual(store.getState().ui.editMode, false);
 });
