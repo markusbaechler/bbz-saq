@@ -11,7 +11,6 @@ import {
   earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS, profileParts, personIndex, passerelleFrom } from '../metrics.js';
 import { compareKennzahlen, compareZaehler, compareByGroup } from '../snapshot.js';
 import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
-import { LOCATION_CAPACITY } from '../config.js';
 
 export const SMALL_MARK = '*';
 export const SMALL_NOTE = SMALL_MARK + ' Gruppe mit n < ' + SMALL_N + ' (Aussagekraft eingeschränkt)';
@@ -20,7 +19,7 @@ export const GROUP_LABELS = { profil: 'Profil', sprache: 'Sprache', employerCano
 
 // Numerische Spalten eines Tabellenmodells (Befund 13): Zählspalten per Schlüssel sowie Spalten, deren nicht leere Werte
 // alle Zahlen, Prozentwerte («83.3 %»), Prozentpunkte («+1.3 pp») oder der Strich «–» sind. Rechtsbündig mit Tabellenziffern.
-const COUNT_KEYS = /^(n|n2|anzahl|rang|versuche|abgeschlossen|angetreten|offen|nichtErfasst|personen|vorgaenge|count|row|fehlversuche|tage|kapazitaet|nZert)$/;
+const COUNT_KEYS = /^(n|n2|anzahl|rang|versuche|abgeschlossen|angetreten|offen|nichtErfasst|personen|vorgaenge|count|row|fehlversuche|tage|nZert)$/;
 const NUMERIC_TEXT = /^\s*[−+±-]?\d+([.,]\d+)?\s*(%|pp)?\s*\*?\s*(\(n \d+\))?\s*$|^–$|^\d+\s*\/\s*\d+$/; // Zahl (auch ±0), Prozent, pp, Strich, «a / b», optional «(n 12)»
 
 export function numericColumns(table) {
@@ -291,8 +290,8 @@ export function vorgangExportTables(persons) {
 // ---------------------------------------------------------------------------
 
 // Geplante Prüfungen, getrennt nach schriftlich (WE) und mündlich (OE): je Art eine Übersicht je Tag und Ort
-// (Teilprüfungen mit Anzahl, Wiederholungen = Versuch 2 oder 3) und die Teilnehmenden. Kapazität/Auslastung nur, wenn
-// LOCATION_CAPACITY gefüllt ist (b4 vorbereitet). Namen erscheinen hier bewusst (Einteilung ist Zweck der Ansicht).
+// (Teilprüfungen mit Anzahl, Wiederholungen = Versuch 2 oder 3) und die Teilnehmenden. Keine Kapazitäten (b4 entfällt,
+// Entscheid 06.09.2026). Namen erscheinen hier bewusst (Einteilung ist Zweck der Ansicht).
 export function plannedTables(persons) {
   const runs = plannedRuns(persons);
   const byKind = plannedByKind(runs);
@@ -326,26 +325,16 @@ function plannedRow(r) {
 function plannedKindTables(runs, kind) {
   const k = PLANNED_KIND[kind];
   const groups = plannedGroups(runs);
-  const hasCapacity = Object.keys(LOCATION_CAPACITY).length > 0;
   return {
     total: runs.length,
     tage: new Set(runs.map((r) => dayKey(r.date))).size,
     personen: new Set(runs.map((r) => r.person.personKey)).size,
     summary: {
       title: k.titel + ' je Tag und Ort',
-      columns: [col('datum', 'Datum'), col('ort', 'Ort'), col('teile', 'Teilprüfungen (Anzahl)'), col('anzahl', 'Anzahl'), col('wiederholung', 'davon Wiederholung')]
-        .concat(hasCapacity ? [col('kapazitaet', 'Kapazität'), col('auslastung', 'Auslastung')] : []),
-      rows: groups.map((g) => {
-        const row = { datum: fmtDate(g.day), ort: groupLabel(g.location), teile: g.parts.map((p) => p.label + ' (' + p.count + ')').join(', '), anzahl: g.count, wiederholung: g.repeats };
-        if (hasCapacity) {
-          const cap = g.location ? LOCATION_CAPACITY[g.location] : undefined;
-          row.kapazitaet = cap === undefined ? '' : cap;
-          row.auslastung = cap ? formatPct(g.count / cap) : '';
-        }
-        return row;
-      }),
+      columns: [col('datum', 'Datum'), col('ort', 'Ort'), col('teile', 'Teilprüfungen (Anzahl)'), col('anzahl', 'Anzahl'), col('wiederholung', 'davon Wiederholung')],
+      rows: groups.map((g) => ({ datum: fmtDate(g.day), ort: groupLabel(g.location), teile: g.parts.map((p) => p.label + ' (' + p.count + ')').join(', '), anzahl: g.count, wiederholung: g.repeats })),
       empty: k.leer,
-      note: 'Wiederholung = Termin für Versuch 2 oder 3 (RUN2/RUN3).' + (hasCapacity ? ' Kapazität = Plätze je Prüfungstag und Ort (config.js, LOCATION_CAPACITY); Auslastung = geplante Termine ÷ Kapazität.' : ''),
+      note: 'Wiederholung = Termin für Versuch 2 oder 3 (RUN2/RUN3).',
     },
     details: {
       title: k.titel + ' – Teilnehmende',

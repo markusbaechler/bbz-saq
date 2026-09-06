@@ -9,7 +9,6 @@ import {
 } from '../views/tables.js';
 import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
-import { LOCATION_CAPACITY } from '../config.js';
 
 // Kurzform: schriftlich 2 Teile, RUN1 bestanden, mündlich OE1 RUN1 bestanden
 function simple(overrides = {}) {
@@ -470,24 +469,6 @@ test('tables.bankReportTables: Bank gegen alle Banken – Kennzahlen, je Profil,
   assertEqual(t.verlauf.title, 'Kennzahlen je Jahr: Testbank AG');
   assertEqual(t.verlauf.rows.map((r) => [r.gruppe, r.n]), [['2024 *', 2]]);
   for (const table of [t.kpis, t.byProfil, t.verlauf]) assert(!table.columns.some((c) => c.key === 'name'), 'keine Namensspalte');
-});
-
-test('tables.plannedTables: Kapazität und Auslastung nur, wenn Plätze je Ort hinterlegt sind (b4 vorbereitet)', () => {
-  const a = makePerson({ lastName: 'Alpha', we: { 1: [{ date: new Date(2026, 9, 1, 9, 0), location: 'Bern', planned: true }] } });
-  const b = makePerson({ lastName: 'Beta', we: { 1: [{ date: new Date(2026, 9, 1, 13, 0), location: 'Bern', planned: true }] } });
-  const c = makePerson({ lastName: 'Gamma', we: { 1: [{ date: new Date(2026, 9, 2, 9, 0), location: 'Zürich', planned: true }] } });
-  assertEqual(plannedTables([a, b, c]).we.summary.columns.map((x) => x.label), ['Datum', 'Ort', 'Teilprüfungen (Anzahl)', 'Anzahl', 'davon Wiederholung'], 'ohne Kapazitätsdaten keine Spalten');
-  assert(!plannedTables([a, b, c]).we.summary.note.includes('LOCATION_CAPACITY'));
-  LOCATION_CAPACITY.Bern = 8;
-  try {
-    const t = plannedTables([a, b, c]);
-    assertEqual(t.we.summary.columns.map((x) => x.label), ['Datum', 'Ort', 'Teilprüfungen (Anzahl)', 'Anzahl', 'davon Wiederholung', 'Kapazität', 'Auslastung']);
-    assertEqual(t.we.summary.rows.map((r) => [r.ort, r.anzahl, r.kapazitaet, r.auslastung]), [['Bern', 2, 8, '25.0 %'], ['Zürich', 1, '', '']]);
-    assert(t.we.summary.note.includes('LOCATION_CAPACITY'));
-    assert(t.oe.summary.note.includes('LOCATION_CAPACITY'), 'Kapazität gilt für beide Arten');
-  } finally {
-    delete LOCATION_CAPACITY.Bern;
-  }
 });
 
 test('tables.numericColumns: Zählspalten per Schlüssel, Prozent-/pp-Spalten per Inhalt; Text bleibt linksbündig (Befund 13)', () => {
