@@ -161,6 +161,18 @@ export function renderKpis(kpis, { glossaryHref = null } = {}) {
   return el('div', { class: 'kpi-groups' }, groups.map(({ g, list }) => el('section', { class: 'kpi-group' }, [el('h3', { text: g }), el('div', { class: 'kpis' }, list.map(tile))])));
 }
 
+// Leerzustand (PROMPT-2 A.7): eine Karte mit zwei Aktionen statt Fliesstext. canLoad = Azure-Konfiguration vorhanden.
+export function renderEmptyState({ canLoad = true, onLoad, onFile }) {
+  return el('div', { class: 'empty-card', role: 'region', 'aria-label': 'Keine Daten geladen' }, [
+    el('h3', { text: 'Noch keine Daten geladen' }),
+    el('p', { text: 'Die Excel-Datei wird nur im Browser gehalten; nichts wird gespeichert oder hochgeladen.' }),
+    el('div', { class: 'actions' }, [
+      el('button', { type: 'button', text: 'Anmelden und laden', disabled: !canLoad, title: canLoad ? null : 'Azure-Konfiguration fehlt (config.js)', onclick: onLoad }),
+      el('button', { type: 'button', class: 'secondary', text: 'Lokale Excel-Datei prüfen', onclick: onFile }),
+    ]),
+  ]);
+}
+
 // ⓘ mit Tooltip; für Screenreader als Bild mit Beschriftung
 export function infoIcon(text, prefix = 'Hinweis: ') {
   return el('span', { class: 'info', title: text, role: 'img', 'aria-label': prefix + text, text: 'ⓘ' });

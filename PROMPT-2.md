@@ -378,7 +378,7 @@ bedienbar (`details/summary`); Chips als Buttons mit `aria-label="Filter Profil 
 - [x] **A.5** View-Kopf: `view-intro`, Export-Menü (ersetzt `exportBar()`), Glossar-Anker. Alle Views durchgehen, Einleitungsabsätze verschieben. Vorlegen.
 - [x] **A.6** KPI-Kacheln: `direction`, `group`, Delta-Darstellung, ⓘ; `overviewModel()`-Tests erweitern. Vorlegen.
 - [x] **A.7** Tabellen: `col(key,label,prio)`, `data-prio`, Datenbalken, Delta-/Statuszellen, Sticky-Spalte, Doppeltitel, Legende; Prioritäten gemäss Anhang A1 eintragen. Vorlegen.
-- [ ] **A.8** Zustände, Barrierefreiheit, Druck prüfen; Dark-Mode-Screenshots. Snapshot-Vergleich mit Baseline (identisch). README «Ansichten»/«Globale Filter»
+- [x] **A.8** Zustände, Barrierefreiheit, Druck prüfen; Dark-Mode-Screenshots. Snapshot-Vergleich mit Baseline (identisch). README «Ansichten»/«Globale Filter»
       nachführen, Entscheid-Log E1–E10 (0.3, Anhang A4). PR «Ready for review». ⛔ Abnahme Paket A (Abnahme-Bericht 0.8 inkl. «Entscheide vor Start» Paket B).
 
 ### A.11 Akzeptanzkriterien

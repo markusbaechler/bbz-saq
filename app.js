@@ -9,7 +9,7 @@ import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount } fro
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
-import { el, renderExportMenu, renderCollapsible } from './views/common.js';
+import { el, renderExportMenu, renderCollapsible, renderEmptyState } from './views/common.js';
 import { glossarySlug } from './glossary.js';
 import { vorgangExportTables } from './views/tables.js';
 import { renderDataQuality } from './views/dataQuality.js';
@@ -347,7 +347,7 @@ function renderView() {
     return;
   }
   if (!hasData()) {
-    container.appendChild(el('p', { class: 'empty', text: 'Noch keine Daten geladen. Bitte anmelden und «Daten von SharePoint laden» oder eine lokale Excel-Datei prüfen.' }));
+    container.appendChild(renderEmptyState({ canLoad: authReady, onLoad: () => run(signInAndLoad), onFile: () => ui.file.click() }));
     return;
   }
 
@@ -466,12 +466,14 @@ async function run(action) {
   busy = true;
   clearError();
   renderSession();
+  ui.view.setAttribute('aria-busy', 'true'); // Laden (A.7): Inhalt wird gerade ersetzt
   try {
     await action();
   } catch (e) {
     showError(e);
   } finally {
     busy = false;
+    ui.view.removeAttribute('aria-busy');
     renderSession();
     renderStatus();
   }
@@ -480,6 +482,12 @@ async function run(action) {
 async function signIn() {
   renderStatus('Anmeldung …');
   await auth.signIn();
+}
+
+// Leerzustand-Karte: erst anmelden (falls nötig), dann laden – ein Klick
+async function signInAndLoad() {
+  if (!auth.getAccount()) await signIn();
+  await loadGraph();
 }
 
 async function signOut() {

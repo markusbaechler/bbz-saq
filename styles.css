@@ -249,6 +249,15 @@ tr[id^="glossar-"]:focus-visible { outline: 2px solid var(--accent); outline-off
 @media print { .view-actions { display: none !important; } }
 .placeholder { color: var(--muted); }
 .empty { color: var(--muted); }
+/* Leerzustand (PROMPT-2 A.7): Karte mit zwei Aktionen */
+.empty-card { max-width: 32rem; margin: var(--space-6) auto; padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); text-align: center; }
+.empty-card h3 { margin-bottom: var(--space-2); }
+.empty-card p { color: var(--muted); }
+.empty-card .actions { display: flex; gap: var(--space-3); justify-content: center; flex-wrap: wrap; margin-top: var(--space-4); }
+/* Bewegung reduzieren (A.8) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
 .toolbar { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: .75rem; }
 .dq-text { min-width: 18rem; }
 .dq-count { color: var(--muted); }

@@ -42,6 +42,7 @@ try {
   await page.goto(server.url, { waitUntil: 'networkidle' });
   check((await page.locator('#nav a').count()) >= 8, 'Navigation gerendert');
   check((await page.locator('#nav .nav-group').count()) >= 3 && (await page.locator('#nav .nav-group[aria-label="Kennzahlen"] a').count()) === 6, 'Navigation in Gruppen (Kennzahlen · Personen · Daten)');
+  check((await page.locator('#view .empty-card .actions button').count()) === 2 && (await page.locator('#view .empty-card h3').textContent()).startsWith('Noch keine Daten'), 'Leerzustand: Karte mit zwei Aktionen statt Fliesstext');
   await page.setInputFiles('#file-input', xlsx);
   await page.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
   const status = (await page.textContent('#status')).replace(/\s+/g, ' ').trim();
@@ -105,6 +106,24 @@ try {
   await shot(page, 'uebersicht-benchmark');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
+  // Tastatur (A.8): mit Tab von oben durch Navigation und Filterleiste bis zum Export-Menü
+  // Startpunkt der Tab-Reihenfolge an den Seitenanfang setzen (nach einem ausgeblendeten Button läge er sonst dahinter)
+  await page.evaluate(() => { const b = document.body; b.tabIndex = -1; b.focus(); b.removeAttribute('tabindex'); window.scrollTo(0, 0); });
+  const reached = { nav: false, filter: false, menu: false };
+  for (let i = 0; i < 40 && !reached.menu; i++) {
+    await page.keyboard.press('Tab');
+    const where = await page.evaluate(() => {
+      const a = document.activeElement;
+      if (!a) return '';
+      if (a.closest('#nav')) return 'nav';
+      if (a.closest('#filterbar')) return 'filter';
+      if (a.matches('#view details.menu > summary')) return 'menu';
+      return '';
+    });
+    if (where) reached[where] = true;
+  }
+  check(reached.nav && reached.filter && reached.menu, 'Tastatur: Tab erreicht Navigation, Filterleiste und Export-Menü (' + JSON.stringify(reached) + ')');
 
   // View-Kopf (A.3): Export-Menü per Tastatur; «Definitionen» springt ins Glossar und fokussiert den Begriff
   await page.focus('#view details.menu > summary');
@@ -201,13 +220,28 @@ try {
   await page.waitForSelector('#view p.empty');
   check((await page.locator('#view table.data').count()) === 0, 'Snapshot entfernt, Vergleich wieder leer');
 
-  // Dark Mode: Zeitverlauf mit Diagramm
+  // Dark Mode: Zeitverlauf mit Diagramm, Übersicht mit Kacheln und Tabellen (A.8)
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.goto(server.url + '#zeitverlauf');
   await page.waitForSelector('#view h2');
   check((await page.locator('#view svg').count()) >= 1, 'Dark Mode: Zeitverlauf mit Diagramm gerendert');
   await shot(page, 'dark-zeitverlauf');
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+  const darkBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  check(darkBg === 'rgb(20, 22, 26)', 'Dark Mode: Übersicht mit dunklem Hintergrund (' + darkBg + ')');
+  await shot(page, 'dark-uebersicht');
   await page.emulateMedia({ colorScheme: 'light' });
+
+  // Druck (A.8): Legende geöffnet, Datenbalken hell und grau, Kopf-Aktionen ausgeblendet
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  await page.emulateMedia({ media: 'print' });
+  const printBar = await page.evaluate(() => { const td = document.querySelector('#view td.pct'); return td ? getComputedStyle(td).backgroundImage : ''; });
+  const printActions = await page.evaluate(() => { const a = document.querySelector('#view .view-actions'); return a ? getComputedStyle(a).display : ''; });
+  check(/rgba\(0, 0, 0, 0\.12\)/.test(printBar) && printActions === 'none' && (await page.locator('#view details.legend[open]').count()) === 1, 'Druck: Datenbalken grau, Export-Menü ausgeblendet, Legende offen');
+  await shot(page, 'print-uebersicht');
+  await page.emulateMedia({ media: null });
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
 
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL
   const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
