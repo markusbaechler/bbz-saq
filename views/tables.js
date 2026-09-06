@@ -1127,3 +1127,12 @@ export function auditTable(entries, persons = []) {
     note: 'Änderungsprotokoll des Schreibpfads (Reporting_KUBA.changes.json neben der Datei): ein Eintrag je geschriebener Zelle, neueste zuerst; Name aus den geladenen Daten. Enthält Namen – nur intern.',
   };
 }
+
+// Feldschlüssel eines Runs («oe1.run2.date», siehe config.runKey) → Ziel im Prüfungsraster { kind, part, run, what }; andere Felder null.
+// Für den Sprung aus dem Data-Quality-Log zur betroffenen Zelle (Bereinigung über den Schreibpfad).
+export function runFieldTarget(field) {
+  const m = /^(we|oe)(\d+)\.run(\d+)\.(passed|date|score|result|location|expert1|expert2)$/.exec(String(field || ''));
+  if (!m) return null;
+  if (m[1] === 'we' && m[4].startsWith('expert')) return null;
+  return { kind: m[1], part: Number(m[2]), run: Number(m[3]), what: m[4] };
+}

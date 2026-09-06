@@ -257,6 +257,9 @@ td.editable { cursor: pointer; }
 td.editable::after { content: ' ✎'; color: var(--muted); opacity: 0; }
 td.editable:hover::after, td.editable:focus-visible::after { opacity: 1; }
 td.editable:hover, td.editable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.dq-target { outline: 2px solid var(--warn); outline-offset: -2px; }
+td.dq-target { background: var(--warn-bg); }
+.dq-jump { padding: .05rem .4rem; font-size: var(--fs-xs); min-height: 0; white-space: nowrap; }
 
 /* Schreibpfad (PROMPT-2 Paket E): Dialog «Zelle bearbeiten» */
 dialog.edit-dialog { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4) var(--space-5); max-width: 34rem; background: var(--panel); color: var(--text); }

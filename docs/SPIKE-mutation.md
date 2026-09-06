@@ -78,4 +78,6 @@ weil nur Run-Felder editierbar sind.
 
 **Empfehlung: Go** mit den Entscheiden 2–4 und dieser Bedingung: Vor der Aktivierung von `features.write` führt der Auftraggeber die Testseite
 auf der Testkopie aus (Schritte 1–9) und schickt das Protokoll; die Abschnitte 2 und 4 werden damit von `[unklar]` auf «geprüft» gesetzt, und
-die Schreibweise je Feld wird gegen die Protokollwerte abgeglichen. **Entscheid des Auftraggebers: Go (06.09.2026).**
+die Schreibweise je Feld wird gegen die Protokollwerte abgeglichen. **Entscheid des Auftraggebers: Go (06.09.2026).** Test des Auftraggebers über die App auf der Testkopie am 06.09.2026 erfolgreich
+(Bearbeitungsmodus, Dialog, Schreiben, Neuladen, Audit, Historie); der formale Lauf der Testseite wurde nicht protokolliert, die
+Schreibweise je Feld liest der Adapter zur Laufzeit aus den Nachbarzellen. Produktiv freigeschaltet am 06.09.2026 (PR #16).

@@ -308,7 +308,20 @@ function renderDq(table) {
   renderDataQuality(table, dq, uiState.dq || {}, (next) => {
     store.setUi({ dq: next }, { silent: true });
     renderDq(table);
-  }, { persons });
+  }, { persons, onJump: jumpToPerson });
+}
+
+// Bereinigung (Schreibpfad): vom Data-Quality-Eintrag zur Person und zur betroffenen Zelle in «Personen»; Suchtext = Name (nur Memory),
+// gewählte Person = Personenschlüssel, jump = Fundstelle (einmalig); zusammengeführte Duplikate springen zur behaltenen Zeile
+function jumpToPerson({ sheet, row, field }) {
+  const { persons, filter, ui: uiState } = store.getState();
+  let p = persons.find((x) => x.sheetName === sheet && x.row === row);
+  if (!p) return;
+  if (p.duplicateOf) p = persons.find((x) => x.sheetName === p.duplicateOf.sheet && x.row === p.duplicateOf.row) || p;
+  const query = [p.lastName, p.firstName].filter(Boolean).join(' ');
+  store.setUi({ personen: { query, selectedKey: p.personKey, jump: { sheet: p.sheetName, row: p.row, field } } }, { silent: true });
+  if (viewFromHash() === 'personen') renderAll();
+  else location.hash = buildHash('personen', filter, uiState);
 }
 
 // Hash einer Ansicht mit dem aktuellen Filterzustand plus einem Zusatzparameter (Glossar-Sprung); urlState ignoriert ihn
