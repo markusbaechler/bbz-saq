@@ -243,6 +243,32 @@ try {
   await page.emulateMedia({ media: null });
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
 
+  // Phone (B.1): 390 × 844 – jede Ansicht ohne horizontalen Seitenscroll, nur Prio-1-Spalten, Schalter «Alle Spalten» sichtbar
+  const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  phone.on('console', (m) => { if (m.type() === 'error') errors.push('phone console: ' + m.text()); });
+  phone.on('pageerror', (e) => errors.push('phone pageerror: ' + e.message));
+  await phone.goto(server.url, { waitUntil: 'networkidle' });
+  await phone.setInputFiles('#file-input', xlsx);
+  await phone.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
+  for (const v of views) {
+    await phone.goto(server.url + '#' + v);
+    await phone.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
+    const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const hiddenPrio = await phone.evaluate(() => [...document.querySelectorAll('#view table.data td[data-prio="2"], #view table.data td[data-prio="3"]')].every((td) => getComputedStyle(td).display === 'none'));
+    check(overflow <= 0 && hiddenPrio, 'Phone ' + v + ': kein Seitenscroll (' + overflow + ' px), nur Prio-1-Spalten');
+    await phone.screenshot({ path: join(outDir, 'phone-' + v + '.png'), fullPage: true });
+  }
+  await phone.goto(server.url + '#uebersicht');
+  await phone.waitForSelector('#view .kpi');
+  const columnsToggle = phone.locator('#view .table-wrap .all-columns').first();
+  check(await columnsToggle.isVisible(), 'Phone: Schalter «Alle Spalten» sichtbar');
+  await columnsToggle.click();
+  check(await phone.evaluate(() => { const td = document.querySelector('#view .table-wrap.all-columns td[data-prio="3"]'); return !!td && getComputedStyle(td).display !== 'none'; }), 'Phone: «Alle Spalten» zeigt Prio-3-Spalten (horizontal scrollbar in .table-wrap)');
+  const phoneFont = await phone.evaluate(() => getComputedStyle(document.querySelector('#filterbar select')).fontSize);
+  const phoneTarget = await phone.evaluate(() => document.querySelector('#nav a, #nav-select').getBoundingClientRect().height);
+  check(parseFloat(phoneFont) >= 16 && phoneTarget >= 44, 'Phone: Eingabefelder 16 px, Touch-Ziele ≥ 44 px (' + phoneFont + ', ' + Math.round(phoneTarget) + ' px)');
+  await phone.close();
+
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL
   const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
   check(storage.local.length === 0 && storage.session.every((k) => /msal|login\.|authority|client\.info/i.test(k)), 'Keine Daten im Browser-Speicher: ' + JSON.stringify(storage));

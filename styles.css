@@ -261,7 +261,7 @@ tr[id^="glossar-"]:focus-visible { outline: 2px solid var(--accent); outline-off
 .toolbar { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: .75rem; }
 .dq-text { min-width: 18rem; }
 .dq-count { color: var(--muted); }
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; max-width: 100%; }
 /* Tabellen (PROMPT-2 A.5): Zebra, Zeilenhöhe, Tabellenziffern, fixierte erste Spalte, Datenbalken, Delta- und Statuszellen */
 table.data { font-variant-numeric: tabular-nums; }
 table.data th, table.data td { height: 2.25rem; }
@@ -358,9 +358,29 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .app-footer { padding: .6rem 1.25rem; color: var(--muted); font-size: .8rem; }
 .print-filter { display: none; color: var(--muted); font-size: .8rem; margin-bottom: .5rem; }
 
-@media (max-width: 700px) {
-  .view { margin: 0 .5rem 1rem; padding: .75rem; }
-  .databar, .app-header, .views { padding-left: .5rem; padding-right: .5rem; }
+/* Tablet (PROMPT-2 B.1): 601–900 px – Prio-3-Spalten ausgeblendet, Schalter «Alle Spalten» sichtbar, engere Ränder */
+@media (max-width: 900px) {
+  .table-wrap:not(.all-columns) th[data-prio="3"], .table-wrap:not(.all-columns) td[data-prio="3"] { display: none; }
+  .table-wrap .all-columns { display: inline-block; margin: var(--space-1) 0 var(--space-2); }
+  .view { margin: var(--space-3) var(--space-2) var(--space-4); padding: var(--space-3); }
+  .databar, .app-header, .views, .filterbar { padding-left: var(--space-3); padding-right: var(--space-3); }
+}
+
+/* Phone (PROMPT-2 B.1): ≤ 600 px – nur Prio-1-Spalten, 16-px-Grundschrift (kein iOS-Zoom), Touch-Ziele ≥ 44 px,
+   Zeilenhöhe 2.75rem, zwei Kachelspalten, Bestenlisten einspaltig, Inhalt randlos */
+@media (max-width: 600px) {
+  html { font-size: 16px; }
+  body { font-size: 1rem; }
+  .table-wrap:not(.all-columns) th[data-prio="2"], .table-wrap:not(.all-columns) td[data-prio="2"] { display: none; }
+  table.data th, table.data td { height: 2.75rem; }
+  button, .chip, .menu > summary, .menu-item, select, input:not([type="file"]):not([type="checkbox"]) { min-height: 44px; }
+  .views a { display: inline-flex; align-items: center; min-height: 44px; }
+  .filterbar .check, .datastand summary { min-height: 44px; display: flex; align-items: center; }
+  input, select, .filterbar label > input, .filterbar label > select { font-size: 1rem; }
+  .filterbar label { min-width: 45%; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .ranking-grid { grid-template-columns: 1fr; }
+  .view { margin: var(--space-2) 0 var(--space-4); border-left: none; border-right: none; border-radius: 0; }
 }
 
 /* Druckansicht: nur Inhalt, immer hell (auch bei dunklem System) */

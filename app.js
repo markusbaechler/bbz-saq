@@ -549,6 +549,7 @@ async function init() {
     showError(e);
   }
   renderSession();
+  if (!hasData()) renderView(); // Leerzustand-Karte kennt jetzt den Anmeldestatus («Anmelden und laden» aktiv)
 }
 
 init();

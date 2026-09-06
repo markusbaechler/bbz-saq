@@ -476,7 +476,7 @@ Auftraggeber auf dem Gerät; kein Smoke.
 
 ### B.6 Schritte
 
-- [ ] **B.1** Entscheide vor Start einholen (eine Nachricht). Breakpoints, Grundschrift, Touch-Ziele, `data-prio`-CSS, Sticky-Verhalten. Vorlegen.
+- [x] **B.1** Entscheide vor Start einholen (eine Nachricht). Breakpoints, Grundschrift, Touch-Ziele, `data-prio`-CSS, Sticky-Verhalten. Vorlegen.
 - [ ] **B.2** Navigation als Select + Filter-Drawer (Phone), Kopf kompakt. Smoke-Test: Viewport 390 × 844 hinzufügen (Laden über `#file-input`, jede Ansicht rendern, kein horizontaler Überlauf: `document.documentElement.scrollWidth <= innerWidth`, Screenshots `phone-*`). Vorlegen.
 - [ ] **B.3** Kacheln (Gruppen als `details`), Tabellen (Prio, Schalter), Diagramm `compact`. Vorlegen.
 - [ ] **B.4** Priorisierte Ansichten feinjustieren (B.3-Tabelle), Tablet 820 × 1180 im Smoke-Test. Vorlegen.
