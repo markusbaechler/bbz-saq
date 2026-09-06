@@ -227,9 +227,13 @@ export function infoIcon(text, prefix = 'Hinweis: ') {
 
 // Abschnitt (PROMPT-2 A.3): h3 mit optionalem ⓘ (info = Erklärung als Tooltip; der Text steht zusätzlich in der Legende
 // der View) und optionalem Kurzwert (meta, z. B. «5 Termine an 3 Prüfungstagen»). Keine Erklärungsabsätze mehr im Fluss.
-export function section(title, nodes, { info = null, meta = null } = {}) {
-  const head = el('h3', {}, [title, info ? infoIcon(info) : null, meta ? el('span', { class: 'section-meta', text: meta }) : null]);
-  const node = el('section', { class: 'block' }, [head].concat(nodes));
+// phoneCollapsed (B.4): auf Phone als eingeklappter Block (details), im Druck geöffnet; auf Desktop/Tablet normaler Abschnitt
+export function section(title, nodes, { info = null, meta = null, phoneCollapsed = false, phone = isPhone() } = {}) {
+  const collapsed = phone && phoneCollapsed;
+  const head = el(collapsed ? 'summary' : 'h3', {}, [title, info ? infoIcon(info) : null, meta ? el('span', { class: 'section-meta', text: meta }) : null]);
+  const node = collapsed
+    ? el('details', { class: 'fold print-open block' }, [head].concat(nodes))
+    : el('section', { class: 'block' }, [head].concat(nodes));
   // Kein Doppeltitel (Befund B8): eine caption mit dem Titel des Abschnitts bleibt nur für Screenreader; ihr ⓘ wandert an den Titel
   for (const cap of node.querySelectorAll('table > caption')) {
     const text = cap.querySelector('.caption-text');
@@ -241,11 +245,11 @@ export function section(title, nodes, { info = null, meta = null } = {}) {
   return node;
 }
 
-// Sammelt Abschnitts-Erklärungen für die Legende der View (app.js): sec(title, nodes, intro, meta)
+// Sammelt Abschnitts-Erklärungen für die Legende der View (app.js): sec(title, nodes, intro, meta, { phoneCollapsed })
 export function hinted(hints) {
-  return (title, nodes, intro = null, meta = null) => {
+  return (title, nodes, intro = null, meta = null, opts = {}) => {
     if (intro) hints.push(title + ': ' + intro);
-    return section(title, nodes, { info: intro, meta });
+    return section(title, nodes, { info: intro, meta, ...opts });
   };
 }
 

@@ -260,7 +260,7 @@ try {
   }
   await phone.goto(server.url + '#uebersicht');
   await phone.waitForSelector('#view .kpi-groups'); // erste Kachel liegt auf Phone im geschlossenen Block «Mengen»
-  const columnsToggle = phone.locator('#view .table-wrap .all-columns').first();
+  const columnsToggle = phone.locator('#view .table-wrap .all-columns:visible').first(); // erster sichtbarer Schalter (eingeklappte Abschnitte überspringen)
   check(await columnsToggle.isVisible(), 'Phone: Schalter «Alle Spalten» sichtbar');
   await columnsToggle.click();
   check(await phone.evaluate(() => { const td = document.querySelector('#view .table-wrap.all-columns td[data-prio="3"]'); return !!td && getComputedStyle(td).display !== 'none'; }), 'Phone: «Alle Spalten» zeigt Prio-3-Spalten (horizontal scrollbar in .table-wrap)');
@@ -298,7 +298,48 @@ try {
   const compactSvg = await phone.evaluate(() => ({ viewBox: document.querySelector('#view svg').getAttribute('viewBox'), labels: document.querySelectorAll('#view .viz-label').length, tip: (() => { const t = document.querySelector('#view .viz.compact .viz-tip'); return t ? getComputedStyle(t).position : 'fehlt'; })() }));
   check(compactSvg.viewBox === '0 0 360 200' && compactSvg.labels === 0 && compactSvg.tip === 'static', 'Phone: kompaktes Diagramm 360 × 200 ohne Endbeschriftung, Tooltip unter dem Diagramm (' + JSON.stringify(compactSvg) + ')');
   await phone.screenshot({ path: join(outDir, 'phone-zeitverlauf-kompakt.png'), fullPage: true });
+
+  // Phone (B.4): priorisierte Ansichten – Nebenabschnitte eingeklappt, Kernspalten sichtbar
+  const visibleHeads = (page, sectionTitle) => page.evaluate((t) => {
+    const s = [...document.querySelectorAll('#view section.block, #view details.fold')].find((x) => (x.querySelector('h3, summary') || {}).textContent.startsWith(t));
+    const table = s && s.querySelector('table');
+    return table ? [...table.querySelectorAll('thead th')].filter((th) => th.getClientRects().length && !th.classList.contains('toggle')).map((th) => th.textContent) : null;
+  }, sectionTitle);
+  const collapsed = (page, titles) => page.evaluate((ts) => ts.map((t) => { const d = [...document.querySelectorAll('#view details.fold')].find((x) => x.querySelector('summary').textContent.startsWith(t)); return t + ':' + (d ? (d.open ? 'offen' : 'zu') : 'fehlt'); }), titles);
+  await phone.goto(server.url + '#uebersicht');
+  await phone.waitForSelector('#view .kpi-groups');
+  check((await collapsed(phone, ['Auswahl im Vergleich zum Benchmark', 'Personen mit mehreren Profilen'])).join(',') === 'Auswahl im Vergleich zum Benchmark:zu,Personen mit mehreren Profilen:zu', 'Phone Übersicht: Benchmark-Tabelle und Mehrfachprofile eingeklappt');
+  check(JSON.stringify(await visibleHeads(phone, 'Kennzahlen je Profil')) === JSON.stringify(['Profil', 'n (Vorgänge)', 'Schriftlich im 1. Versuch bestanden', 'Mündlich bestanden']), 'Phone Übersicht: Kennzahlen je Profil mit Prio-1-Spalten');
+  await phone.goto(server.url + '#offene-vorgaenge');
+  await phone.waitForSelector('#view h2');
+  check((await collapsed(phone, ['Je Profil', 'Teilprüfungen je Profil'])).join(',') === 'Je Profil:zu,Teilprüfungen je Profil:zu', 'Phone Offene Vorgänge: Je-Profil-Tabellen eingeklappt');
+  check(JSON.stringify(await visibleHeads(phone, 'Teilnehmende')) === JSON.stringify(['Name', 'Profil', 'Fehlende Teile', 'Nächster Termin']) && JSON.stringify(await visibleHeads(phone, 'Frühwarnung')) === JSON.stringify(['Stufe', 'Name', 'Teilprüfung', 'Nächster Termin']), 'Phone Offene Vorgänge: Teilnehmende und Frühwarnung mit Prio-1-Spalten');
+  await phone.screenshot({ path: join(outDir, 'phone-offene-vorgaenge.png'), fullPage: true });
+  await phone.goto(server.url + '#geplante-pruefungen');
+  await phone.waitForSelector('#view h2');
+  check(JSON.stringify(await visibleHeads(phone, 'Schriftliche Prüfungen')) === JSON.stringify(['Datum', 'Ort', 'Anzahl']) && (await phone.locator('#view details.fold').count()) >= 2, 'Phone Geplante Prüfungen: Ereignisse je Tag mit Datum, Ort, Anzahl; Teilnehmende zum Aufklappen');
   await phone.close();
+
+  // Tablet (B.4): 820 × 1180 – kein Seitenscroll, Prio 1 + 2 sichtbar, Prio 3 versteckt, Navigation mit Gruppen, Filter offen
+  const tablet = await browser.newPage({ viewport: { width: 820, height: 1180 } });
+  tablet.on('console', (m) => { if (m.type() === 'error') errors.push('tablet console: ' + m.text()); });
+  tablet.on('pageerror', (e) => errors.push('tablet pageerror: ' + e.message));
+  await tablet.goto(server.url, { waitUntil: 'networkidle' });
+  await tablet.setInputFiles('#file-input', xlsx);
+  await tablet.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
+  for (const v of views) {
+    await tablet.goto(server.url + '#' + v);
+    await tablet.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
+    const overflow = await tablet.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const prio = await tablet.evaluate(() => ({
+      p3: [...document.querySelectorAll('#view table.data td[data-prio="3"]')].every((td) => getComputedStyle(td).display === 'none'),
+      p2: [...document.querySelectorAll('#view table.data td[data-prio="2"]')].every((td) => getComputedStyle(td).display !== 'none'),
+    }));
+    check(overflow <= 0 && prio.p3 && prio.p2, 'Tablet ' + v + ': kein Seitenscroll (' + overflow + ' px), Prio 1 + 2 sichtbar, Prio 3 versteckt');
+    await tablet.screenshot({ path: join(outDir, 'tablet-' + v + '.png'), fullPage: true });
+  }
+  check(await tablet.evaluate(() => document.querySelector('#nav a').getClientRects().length > 0 && document.querySelector('#nav-select').getClientRects().length === 0 && document.querySelector('#filterbar details.filter-drawer').open && document.querySelector('#filterbar .filter-summary').getClientRects().length === 0), 'Tablet: Navigation mit Gruppen, Filter offen ohne Drawer-Kopfzeile');
+  await tablet.close();
 
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL
   const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));

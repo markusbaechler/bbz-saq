@@ -55,9 +55,10 @@ export function build(ctx) {
     nodes: [
       benchmarkBar,
       renderKpis(kpis, { glossaryHref: ctx.glossaryHref }),
-      comparison ? sec('Auswahl im Vergleich zum Benchmark', [renderTable(comparison)], 'Differenz in Prozentpunkten: Auswahl minus Benchmark. Der Benchmark verwendet dieselben Filter wie die Auswahl, nur ohne die gewählte Einschränkung.') : null,
+      // Phone (B.4): Benchmark-Tabelle und Mehrfachprofile eingeklappt, Kennzahlen je Profil offen
+      comparison ? sec('Auswahl im Vergleich zum Benchmark', [renderTable(comparison)], 'Differenz in Prozentpunkten: Auswahl minus Benchmark. Der Benchmark verwendet dieselben Filter wie die Auswahl, nur ohne die gewählte Einschränkung.', null, { phoneCollapsed: true }) : null,
       section('Kennzahlen je Profil', [renderTable(m.byProfil)]),
-      sec('Personen mit mehreren Profilen', [renderTable(m.multi)], 'Menschen mit Zertifizierungsvorgängen in mehr als einem Profil, gruppiert nach der zeitlichen Abfolge der Profile.'),
+      sec('Personen mit mehreren Profilen', [renderTable(m.multi)], 'Menschen mit Zertifizierungsvorgängen in mehr als einem Profil, gruppiert nach der zeitlichen Abfolge der Profile.', null, { phoneCollapsed: true }),
     ],
     tables: (comparison ? [kpiTable, comparison, m.byProfil] : [kpiTable, m.byProfil]).concat([m.multi]),
     hints,

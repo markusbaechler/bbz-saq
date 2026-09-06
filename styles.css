@@ -373,6 +373,7 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 @media screen and (max-width: 900px) {
   .table-wrap:not(.all-columns) th[data-prio="3"], .table-wrap:not(.all-columns) td[data-prio="3"] { display: none; }
   .table-wrap .all-columns { display: inline-block; margin: var(--space-1) 0 var(--space-2); }
+  .kpis { grid-template-columns: repeat(3, 1fr); } /* Tablet: drei Kachelspalten (B.2) */
   .view { margin: var(--space-3) var(--space-2) var(--space-4); padding: var(--space-3); }
   .databar, .app-header, .views, .filterbar { padding-left: var(--space-3); padding-right: var(--space-3); }
 }
