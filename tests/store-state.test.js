@@ -31,6 +31,7 @@ test('createStore: Initialzustand ohne Daten, Filter = DEFAULT_FILTER', () => {
   assertEqual(s.persons, []);
   assertEqual(s.dq, []);
   assertEqual(s.meta, null);
+  assertEqual(s.audit, [], 'Änderungsprotokoll leer');
   assertEqual(s.filter, { ...DEFAULT_FILTER });
   assertEqual(store.getFilteredPersons(), []);
 });
@@ -153,4 +154,18 @@ test('createStore.clear: Bearbeitungsmodus wird beim Entfernen der Daten (Abmeld
   store.setUi({ editMode: true }, { silent: true });
   store.clear();
   assertEqual(store.getState().ui.editMode, false);
+});
+
+test('createStore.setAudit: Änderungsprotokoll nur im Memory; silent ohne Benachrichtigung; clear() leert es', () => {
+  const store = createStore();
+  let notified = 0;
+  store.subscribe(() => { notified += 1; });
+  const entries = [{ at: new Date('2026-09-06T12:00:00.000Z'), user: 'a', sheet: 'First Certification', row: 12, header: 'h', address: 'A12', old: 'x', new: 'y', reason: 'r', source: 'bbz-saq' }];
+  store.setAudit(entries, { silent: true });
+  assertEqual(store.getState().audit.length, 1);
+  assertEqual(notified, 0);
+  store.setAudit(entries);
+  assertEqual(notified, 1);
+  store.clear();
+  assertEqual(store.getState().audit, []);
 });

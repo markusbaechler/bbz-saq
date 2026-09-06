@@ -36,6 +36,11 @@ export async function load() {
   return getAdapter().load();
 }
 
+// Änderungsprotokoll (Historie der App-Änderungen) neben der Datei; [] wenn keines vorhanden
+export async function loadAudit() {
+  return getAdapter().loadAudit();
+}
+
 export async function loadFromFile(file) {
   const buffer = await file.arrayBuffer();
   const parsed = parseWorkbook(buffer, libs());

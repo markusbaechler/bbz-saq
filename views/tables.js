@@ -1107,3 +1107,23 @@ export function sortTableRows(rows, key, dir = 'asc') {
     return sign * cmp || a.i - b.i;
   }).map((x) => x.row);
 }
+
+// ---------------------------------------------------------------------------
+// Änderungen über die App (Historie des Schreibpfads, Paket E): Einträge aus Reporting_KUBA.changes.json neben der Datei
+// ---------------------------------------------------------------------------
+
+// entries = datasource.loadAudit() (neueste zuerst); persons = geladene Zeilen für den Namen zur Fundstelle (nur intern)
+export function auditTable(entries, persons = []) {
+  const byRow = new Map(persons.map((p) => [p.sheetName + '|' + p.row, p]));
+  const text = (v) => (v === null || v === undefined || v === '' ? 'leer' : String(v));
+  return {
+    title: 'Änderungen über die App',
+    columns: [col('zeit', 'Zeitpunkt', 1), col('name', 'Name', 1), col('sheet', 'Sheet', 3), col('row', 'Zeile', 2), col('header', 'Header', 1), col('alt', 'Alt', 2), col('neu', 'Neu', 1), col('grund', 'Grund', 1), col('konto', 'Konto', 3)],
+    rows: entries.map((e) => {
+      const p = byRow.get(e.sheet + '|' + e.row);
+      return { zeit: fmtDate(e.at) + ' ' + fmtTime(e.at), name: p ? personName(p) : '', sheet: e.sheet, row: e.row, header: e.header, alt: text(e.old), neu: text(e.new), grund: e.reason || '', konto: e.user || '' };
+    }),
+    empty: 'Keine Änderungen über die App – oder die Datei wurde lokal geladen (das Protokoll liegt neben der Datei auf SharePoint).',
+    note: 'Änderungsprotokoll des Schreibpfads (Reporting_KUBA.changes.json neben der Datei): ein Eintrag je geschriebener Zelle, neueste zuerst; Name aus den geladenen Daten. Enthält Namen – nur intern.',
+  };
+}

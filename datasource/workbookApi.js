@@ -139,3 +139,30 @@ export function detectStyle(field, cells = []) {
   }
   return {};
 }
+
+const AUDIT_FIELDS = ['at', 'user', 'sheet', 'row', 'header', 'address', 'old', 'new', 'reason', 'source'];
+
+// Änderungsprotokoll lesen (Historie der App-Änderungen, Paket E): Text der JSON-Datei → Einträge mit Whitelist der Felder,
+// gültigem Zeitpunkt, Sheet, Zeile und Header; neueste zuerst. Leer, ungültig oder kein Array → []. Nur im Memory.
+export function parseAudit(text) {
+  let arr;
+  try {
+    arr = text && String(text).trim() ? JSON.parse(text) : [];
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const raw of arr) {
+    if (!raw || typeof raw !== 'object') continue;
+    const at = new Date(raw.at);
+    if (Number.isNaN(at.getTime()) || !raw.sheet || !Number.isInteger(raw.row) || !raw.header) continue;
+    const e = {};
+    for (const k of AUDIT_FIELDS) e[k] = raw[k] === undefined ? null : raw[k];
+    e.at = at;
+    e.user = e.user === null ? '' : String(e.user);
+    e.reason = e.reason === null ? '' : String(e.reason);
+    out.push(e);
+  }
+  return out.sort((a, b) => b.at.getTime() - a.at.getTime());
+}

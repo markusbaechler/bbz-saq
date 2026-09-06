@@ -178,6 +178,10 @@ function fakeGraph(opts = {}) {
     async request(url, options) {
       calls.push(['request', url, options]);
       if (url === 'https://dl.example/x?tempauth=1') return opts.buffer;
+      if (url === '/drives/drive1/root:/' + sp.auditPath + ':/content') {
+        if (opts.auditMissing) throw notFound(url);
+        return opts.audit === undefined ? '[]' : opts.audit;
+      }
       throw new Error('Test: unerwartete URL ' + url);
     },
   };
@@ -275,4 +279,17 @@ test('fileAdapter: DRIVE_ITEM_SELECT enthält eTag und load() liefert meta.eTag 
   const adapter = createFileAdapter({ graph: fakeGraph({ buffer: await buildWorkbook() }), ...(await libs()) });
   const out = await adapter.load();
   assert('eTag' in out.meta, 'meta.eTag vorhanden (null, wenn Graph keinen liefert)');
+});
+
+test('fileAdapter.loadAudit: Änderungsprotokoll neben der Datei lesen (Text), fehlende Datei → leer, nur im Memory', async () => {
+  const audit = JSON.stringify([{ at: '2026-09-06T12:00:00.000Z', user: 'a@example.org', sheet: 'First Certification', row: 21, header: 'OE1 RUN1 Location', address: 'GB21', old: 'Zürich', new: 'Bern', reason: 'Ort', source: 'bbz-saq' }]);
+  const graph = fakeGraph({ buffer: await buildWorkbook(), audit });
+  const adapter = createFileAdapter({ graph, ...(await libs()) });
+  const entries = await adapter.loadAudit();
+  assertEqual(entries.length, 1);
+  assertEqual([entries[0].row, entries[0].new], [21, 'Bern']);
+  const call = graph.calls.find((c) => c[0] === 'request' && String(c[1]).endsWith(':/content'));
+  assertEqual(call[2].responseType, 'text');
+  const missing = createFileAdapter({ graph: fakeGraph({ buffer: await buildWorkbook(), auditMissing: true }), ...(await libs()) });
+  assertEqual(await missing.loadAudit(), []);
 });

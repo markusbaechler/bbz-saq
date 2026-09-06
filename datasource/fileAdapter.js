@@ -12,6 +12,7 @@
 import { CONFIG } from '../config.js';
 import { NotFoundError } from '../graph.js';
 import { extractThreadedComments } from './threadedComments.js';
+import { parseAudit } from './workbookApi.js';
 
 export const DRIVE_ITEM_SELECT = 'id,name,size,lastModifiedDateTime,eTag,webUrl,@microsoft.graph.downloadUrl'; // eTag: Konfliktprüfung des Schreibpfads (Paket E)
 
@@ -171,8 +172,21 @@ export function createFileAdapter({ graph, XLSX, fflate, config = CONFIG }) {
     throw new NotImplementedError('Schreiben ist erst in Phase 2 (Workbook-API) vorgesehen.');
   }
 
+  // Änderungsprotokoll des Schreibpfads neben der Datei (Paket E): JSON-Text lesen, fehlende Datei → leer; nur im Memory
+  async function loadAudit() {
+    const { driveId } = await resolveDriveItem(graph, config.sharepoint, cache);
+    try {
+      const text = await graph.request('/drives/' + driveId + '/root:/' + encodePath(config.sharepoint.auditPath) + ':/content', { responseType: 'text' });
+      return parseAudit(text);
+    } catch (e) {
+      if (e instanceof NotFoundError) return [];
+      throw e;
+    }
+  }
+
   return {
     load,
+    loadAudit,
     write,
     parseBuffer: (buffer) => parseWorkbook(buffer, { XLSX, fflate, config }),
   };

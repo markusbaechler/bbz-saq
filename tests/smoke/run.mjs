@@ -195,6 +195,9 @@ try {
   const counter = (await page.textContent('#view .dq-count')).trim();
   check(filtered > 0 && filtered < allRows && counter.startsWith(filtered + ' von ' + allRows), 'DQ-Suche «Score» filtert (' + filtered + ' von ' + allRows + ' Einträgen; Zähler: «' + counter.slice(0, 40) + '…»)');
   check(await page.evaluate(() => !!document.activeElement && document.activeElement.classList.contains('dq-text')), 'DQ-Suche behält den Fokus');
+  // Änderungen über die App (Historie des Schreibpfads): Abschnitt vorhanden; bei lokaler Datei leer mit Hinweis
+  const auditSection = await page.evaluate(() => { const s = [...document.querySelectorAll('#view section.block')].find((x) => (x.querySelector('h3') || {}).textContent.startsWith('Änderungen über die App')); return s ? s.textContent : ''; });
+  check(/Änderungen über die App/.test(auditSection) && /lokal|kein/i.test(auditSection), 'Datenqualität: Abschnitt «Änderungen über die App» mit Hinweis bei lokaler Datei');
 
   // Personen (Paket C): Suche mit synthetischem Namen, Detail mit Pfad, Raster (Badges) und Zeitachse; Suchtext nie in der URL
   await page.goto(server.url + '#personen');

@@ -5,7 +5,7 @@
 import { CONFIG } from '../config.js';
 import { personSearchIndex, searchPersons, personPath, openCaseState, earlyWarnings, durationDays, certificateDays, exclusionReason, PASSIVE_DAYS, examGrid } from '../metrics.js';
 import { openEditDialog } from './editDialog.js';
-import { personResultsTable, personGridTable, personTimelineTable, personDqTable, vorgangExportTables, groupLabel, statusTone } from './tables.js';
+import { personResultsTable, personGridTable, personTimelineTable, personDqTable, vorgangExportTables, groupLabel, statusTone, auditTable } from './tables.js';
 import { el, renderTable, renderExpandableTable, renderExportMenu, section, hinted } from './common.js';
 import { fmtDate } from '../export.js';
 
@@ -93,6 +93,10 @@ function vorgangCard(v, ctx, open) {
     section('Prüfungsraster', [grid], { phoneCollapsed: true }), section('Zeitachse', [renderTable(personTimelineTable(v))]),
   ];
   if (dq.rows.length) nodes.push(section('Datenqualität (' + dq.rows.length + ')', [renderTable(dq)], { phoneCollapsed: true }));
+  // Historie der App-Änderungen an dieser Zeile (Paket E), inklusive zusammengeführter Zeilen
+  const rowKeys = new Set([v.sheetName + '|' + v.row].concat((v.duplicates || []).map((d) => d.sheet + '|' + d.row)));
+  const audit = auditTable((ctx.audit || []).filter((e) => rowKeys.has(e.sheet + '|' + e.row)), [v]);
+  if (audit.rows.length) nodes.push(section('Änderungen über die App (' + audit.rows.length + ')', [renderTable(audit)], { phoneCollapsed: true }));
   const summary = el('summary', {}, [groupLabel(v.profil) + ' · ' + v.sheetName + ', Zeile ' + v.row + ' · ', badge(v.passiv ? 'passiv' : v.status)]);
   return el('details', { class: 'vorgang-card', open: open || null }, [summary].concat(nodes));
 }

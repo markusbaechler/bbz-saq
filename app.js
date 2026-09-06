@@ -2,7 +2,7 @@
 
 import { getAuth, AuthConfigError } from './auth.js';
 import { GraphError, AuthExpiredError } from './graph.js';
-import { load, loadFromFile, write } from './datasource/index.js';
+import { load, loadFromFile, loadAudit, write } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
 import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount, isVorgang, expertRuns } from './metrics.js';
@@ -10,9 +10,9 @@ import { CONFIG, headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
-import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials } from './views/common.js';
+import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials, renderTable, section } from './views/common.js';
 import { glossarySlug } from './glossary.js';
-import { vorgangExportTables, expertRunExportTable } from './views/tables.js';
+import { vorgangExportTables, expertRunExportTable, auditTable } from './views/tables.js';
 import { renderDataQuality } from './views/dataQuality.js';
 import * as overview from './views/overview.js';
 import * as written from './views/written.js';
@@ -375,7 +375,11 @@ function renderView() {
     const table = el('div');
     container.appendChild(table);
     renderDq(table);
-    appendLegend(container, view.hints);
+    // Historie der App-Änderungen (Paket E): Änderungsprotokoll neben der Datei, nur bei Daten von SharePoint gefüllt
+    const audit = auditTable(state.audit || [], state.persons);
+    if (audit.rows.length) actions.append(renderExportMenu({ viewId: 'datenqualitaet-aenderungen', tables: [audit], headerLines: filterLines(state.filter, state.meta), label: 'Export Änderungen', note: 'Änderungen über die App, mit Namen, nur intern' }));
+    container.appendChild(section('Änderungen über die App (' + audit.rows.length + ')', [renderTable(audit)]));
+    appendLegend(container, view.hints.concat(audit.rows.length ? [audit.note] : []));
     return;
   }
 
@@ -400,6 +404,7 @@ function renderView() {
     onExpertenChange: (next) => store.setUi({ experten: next }, { silent: true }), // Sortierung nur im Memory
     onWrite: (change) => writeChange(change), // Schreibpfad (Paket E): nur mit Flag, nur bei Daten von SharePoint
     editMode: !!state.ui.editMode, // Bearbeitungsmodus (Schalter im Kopf): Raster-Zellen anklickbar
+    audit: state.audit || [], // Historie der App-Änderungen je Fundstelle (Personen-Karten)
     glossaryHref: (term) => hashWithParam('glossar', 'begriff', glossarySlug(term)), // Kachel-Label → Glossar, Filter bleibt
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
@@ -549,7 +554,15 @@ async function signOut() {
 
 async function loadGraph() {
   renderStatus('Lade Reporting_KUBA.xlsx von SharePoint …');
-  store.setData(await load());
+  const data = await load();
+  let audit = [];
+  try {
+    audit = await loadAudit(); // Historie der App-Änderungen; ein Fehler hier verhindert das Laden der Daten nicht
+  } catch (e) {
+    console.warn('Änderungsprotokoll nicht lesbar', e);
+  }
+  store.setAudit(audit, { silent: true });
+  store.setData(data);
 }
 
 // Schreibpfad (Paket E, E.3): eine Zelle über den Adapter schreiben, danach die Datei neu laden – kein optimistisches Update im Memory
@@ -563,6 +576,7 @@ async function writeChange(change) {
 
 async function loadLocal(file) {
   renderStatus('Lese ' + file.name + ' (nur im Browser) …');
+  store.setAudit([], { silent: true }); // lokale Datei: kein Änderungsprotokoll
   store.setData(await loadFromFile(file));
 }
 

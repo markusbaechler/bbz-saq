@@ -8,7 +8,7 @@ import {
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
   deltaView, col, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, directionOfLabel,
   personResultsTable, personGridTable, personTimelineTable, personDqTable,
-  expertTables, expertRunExportTable, sortTableRows,
+  expertTables, expertRunExportTable, sortTableRows, auditTable,
 } from '../views/tables.js';
 import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
@@ -746,4 +746,20 @@ test('tables.sortTableRows: Prozent, pp, Datum und Zahlen numerisch, Text alphab
   assertEqual(sortTableRows(t.main.rows, 'failW', 'desc').map((r) => r.failW), ['0.0 %', '0.0 %', '–'], 'Strich am Ende (Emil ohne Wiederholung)');
   assertEqual(sortTableRows(t.main.rows, 'delta1', 'asc').map((r) => r.experte), ['Beisitz Bruno', 'Experte Emil', 'Prüfer Pia'], '−9.5, −2.9, +7.1 pp');
   assert(sortTableRows(t.main.rows, 'einsaetze', 'desc') !== t.main.rows, 'Kopie');
+});
+
+test('tables.auditTable: Änderungen über die App mit Name aus den geladenen Daten, alt → neu, neueste zuerst, nur intern', () => {
+  const persons = [makePerson({ lastName: 'Muster', firstName: 'Anna', sheetName: 'First Certification', row: 21 })];
+  const entries = [
+    { at: new Date('2026-09-06T12:00:00.000Z'), user: 'b@example.org', sheet: 'First Certification', row: 21, header: 'OE1 RUN1 Location', address: 'GB21', old: 'Zürich', new: 'Bern', reason: 'Ort korrigiert', source: 'bbz-saq' },
+    { at: new Date('2026-09-01T10:00:00.000Z'), user: 'a@example.org', sheet: 'Ausgestellte Zertifikate', row: 99, header: 'WE1 RUN1 Passed', address: 'F99', old: null, new: 'yes', reason: 'Nachtrag', source: 'bbz-saq' },
+  ];
+  const t = auditTable(entries, persons);
+  assertEqual(t.columns.map((c) => [c.label, c.prio]), [['Zeitpunkt', 1], ['Name', 1], ['Sheet', 3], ['Zeile', 2], ['Header', 1], ['Alt', 2], ['Neu', 1], ['Grund', 1], ['Konto', 3]]);
+  assertEqual(t.rows.map((r) => [r.zeit.slice(0, 10), r.name, r.sheet, r.row, r.header, r.alt, r.neu, r.grund, r.konto]), [
+    ['06.09.2026', 'Muster Anna', 'First Certification', 21, 'OE1 RUN1 Location', 'Zürich', 'Bern', 'Ort korrigiert', 'b@example.org'],
+    ['01.09.2026', '', 'Ausgestellte Zertifikate', 99, 'WE1 RUN1 Passed', 'leer', 'yes', 'Nachtrag', 'a@example.org'],
+  ]);
+  assert(/nur intern/.test(t.note));
+  assertEqual(auditTable([], persons).rows, []);
 });
