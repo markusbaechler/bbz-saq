@@ -73,6 +73,14 @@ export function formatPct(value, digits = 1) {
   return (Math.round(value * 100 * factor + 1e-9) / factor).toFixed(digits) + ' %';
 }
 
+// Namensteil normalisieren (Personenschlüssel in store.js, Suche in Paket C): Akzente entfernen (NFD), ß → ss, Kleinschreibung, nur Buchstaben/Ziffern, ein Leerzeichen
+// als Trenner. «Müller-Meier», «Muller Meier» und «MÜLLER  MEIER» ergeben denselben Schlüssel.
+export function normalizeNamePart(raw) {
+  return String(raw === null || raw === undefined ? '' : raw)
+    .normalize('NFD').replace(/\p{M}/gu, '').replace(/ß/g, 'ss').toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+
 // ---------------------------------------------------------------------------
 // Filter
 // ---------------------------------------------------------------------------
@@ -563,6 +571,124 @@ export function multiProfilePersons(persons) {
     .filter((g) => g.profiles.length > 1)
     .map((g) => ({ ...g, sequence: g.profiles.map((x) => (x === null ? 'unbekannt' : x)).join(' → ') }))
     .sort((a, b) => collator.compare((a.lastName || '') + ' ' + (a.firstName || ''), (b.lastName || '') + ' ' + (b.firstName || '')));
+}
+
+// ---------------------------------------------------------------------------
+// Personen-Layer (PROMPT-2 Paket C): Suche, Pfad, Zeitachse, Raster – reine Funktionen
+// ---------------------------------------------------------------------------
+
+const STATUS_WORDS = { bestanden: 'bestanden', 'nicht bestanden': 'nicht bestanden', offen: 'offen', 'nicht erfasst': 'nicht erfasst' };
+
+// Reihenfolge der Vorgänge einer Person (C.3): erstes Prüfungsdatum, sonst Referenzdatum, sonst Zeile
+function vorgangOrderTime(v) {
+  return v.firstExamDate ? v.firstExamDate.getTime() : v.refDate ? v.refDate.getTime() : Number.MAX_SAFE_INTEGER;
+}
+
+// Suchindex (C.2): ein Eintrag je Person (Personenschlüssel, ohne Duplikate), Vorgänge chronologisch, alphabetisch sortiert;
+// text = normalisierte Suchfelder (Name, Bank kanonisch und roh, Profil, Sprache, Zertifikatsnummer, Statuswörter)
+export function personSearchIndex(persons) {
+  const out = [];
+  for (const g of groupByPerson(persons)) {
+    const vorgaenge = g.vorgaenge.slice().sort((a, b) => vorgangOrderTime(a) - vorgangOrderTime(b) || a.row - b.row);
+    const latest = vorgaenge[vorgaenge.length - 1];
+    const banks = [...new Set(vorgaenge.map((v) => v.employerCanon).filter(Boolean))];
+    const dated = vorgaenge.flatMap((v) => v.we.concat(v.oe)).flatMap((part) => part.runs).filter((r) => r.taken && r.date).map((r) => r.date.getTime());
+    const words = [];
+    for (const v of vorgaenge) {
+      words.push(v.employerCanon, v.employer, v.profil, v.sprache, v.certNumber, STATUS_WORDS[v.status] || '', v.passiv ? 'passiv' : '');
+    }
+    out.push({
+      key: g.key, lastName: g.lastName, firstName: g.firstName, birthDate: g.birthDate, keyLevel: latest.personKeyLevel === 'full' ? 'full' : 'name-only',
+      name: [g.lastName, g.firstName].filter(Boolean).join(' '), nameKey: normalizeNamePart(g.lastName) + '|' + normalizeNamePart(g.firstName),
+      vorgaenge, profiles: [...new Set(vorgaenge.map((v) => (v.profil === undefined || v.profil === null ? 'unbekannt' : v.profil)))],
+      latest, bank: latest.employerCanon || (banks.length ? banks[banks.length - 1] : ''), formerBanks: banks.filter((b) => b !== latest.employerCanon),
+      lastExam: dated.length ? new Date(Math.max(...dated)) : null, certCount: vorgaenge.filter((v) => v.issued).length,
+      status: latest.status, passiv: !!latest.passiv, role: latest.role || '',
+      text: [g.lastName, g.firstName].concat(words).map((w) => normalizeNamePart(w)).filter(Boolean).join(' '),
+    });
+  }
+  return out.sort((a, b) => collator.compare(a.lastName || '', b.lastName || '') || collator.compare(a.firstName || '', b.firstName || '') || (a.birthDate ? a.birthDate.getTime() : 0) - (b.birthDate ? b.birthDate.getTime() : 0));
+}
+
+// Suche (C.2): ab 2 Zeichen, mehrere Begriffe = UND, Teilstring auf dem normalisierten Suchtext;
+// all = ohne Suchtext alle Personen (Bank-Filter gesetzt, Entscheid 06.09.2026 Frage 1)
+export function searchPersons(index, query, { limit = 50, all = false } = {}) {
+  const q = String(query || '').trim();
+  let hits;
+  if (q.length < 2) {
+    if (!all) return { persons: [], total: 0, truncated: false, tooShort: q.length > 0 };
+    hits = index.slice();
+  } else {
+    const terms = normalizeNamePart(q).split(' ').filter(Boolean);
+    hits = index.filter((e) => terms.every((t) => e.text.includes(t)));
+  }
+  return { persons: hits.slice(0, limit), total: hits.length, truncated: hits.length > limit, tooShort: false };
+}
+
+// Pfad (C.3): ein Schritt je Vorgang in zeitlicher Reihenfolge – Profil, Jahr des ersten Prüfungsdatums, Status, Zertifikat,
+// fehlende Teile der Vorgabe, Passerelle (Vorgängerprofil derselben Person bestanden)
+export function personPath(entry) {
+  const parts = profileParts();
+  const index = personIndex(entry.vorgaenge);
+  return entry.vorgaenge.map((v) => ({
+    vorgang: v, profil: v.profil === undefined || v.profil === null ? 'unbekannt' : v.profil, jahr: v.firstExamDate ? v.firstExamDate.getFullYear() : null,
+    status: v.status, passiv: !!v.passiv, issued: !!v.issued, certNumber: v.certNumber || null, missing: missingParts(v, parts), passerelle: passerelleFrom(v, index),
+  }));
+}
+
+// Ergebnis eines Runs als Wort: geplant | bestanden | nicht bestanden | ohne Ergebnis (Datum vergangen, kein Passed-Wert) | – (nicht absolviert)
+function runErgebnis(r) {
+  if (r.planned) return 'geplant';
+  if (r.passed === true) return 'bestanden';
+  if (r.passed === false) return 'nicht bestanden';
+  return r.date ? 'ohne Ergebnis' : '–';
+}
+
+// Zeitachse (C.3): absolvierte und geplante Runs chronologisch, Zertifikatsbeginn als Ereignis, Runs ohne Datum am Ende
+export function runTimeline(v) {
+  const events = [];
+  for (const kind of ['we', 'oe']) {
+    for (const part of v[kind]) {
+      for (const r of part.runs) {
+        if (!r.taken && !r.planned) continue;
+        events.push({
+          kind: 'run', date: r.date, label: kind.toUpperCase() + part.part + ' RUN' + r.n, part: kind.toUpperCase() + part.part, run: r.n,
+          location: r.location || null, result: r.result, passed: r.passed, planned: !!r.planned, ergebnis: runErgebnis(r),
+        });
+      }
+    }
+  }
+  if (v.certStart) {
+    events.push({ kind: 'zertifikat', date: v.certStart, label: 'Zertifikatsbeginn' + (v.certNumber ? ' ' + v.certNumber : ''), part: null, run: null, location: null, result: null, passed: null, planned: false, ergebnis: 'Zertifikat' });
+  }
+  const t = (e) => (e.date ? e.date.getTime() : Number.MAX_SAFE_INTEGER);
+  return events.sort((a, b) => t(a) - t(b) || (a.kind === 'zertifikat') - (b.kind === 'zertifikat') || a.label.localeCompare(b.label));
+}
+
+// Prüfungsraster (C.3): Teile der Vorgabe (PROFILE_PARTS) × RUN1–RUN3; genutzte Teile ausserhalb der Vorgabe angehängt und markiert;
+// ohne Vorgabe (unbekanntes Profil) alle genutzten Teile
+export function examGrid(v, parts = profileParts()) {
+  const def = parts.find((x) => x.profil === v.profil) || null;
+  const used = (part) => part.runs.some((r) => r.taken || r.planned);
+  const row = (kind, part, inSpec) => ({
+    label: kind.toUpperCase() + part.part, kind, part: part.part, inSpec,
+    runs: part.runs.map((r) => ({ n: r.n, taken: r.taken, planned: !!r.planned, date: r.date, result: r.result, passed: r.passed, ergebnis: runErgebnis(r) })),
+  });
+  const rows = [];
+  const outside = [];
+  for (const kind of ['we', 'oe']) {
+    const spec = def ? def[kind] : [];
+    for (const n of spec) if (v[kind][n - 1]) rows.push(row(kind, v[kind][n - 1], true));
+  }
+  for (const kind of ['we', 'oe']) {
+    for (const part of v[kind]) {
+      const inSpec = !!def && def[kind].includes(part.part);
+      if (inSpec || !used(part)) continue;
+      rows.push(row(kind, part, !def));
+      if (def) outside.push(kind.toUpperCase() + part.part);
+    }
+  }
+  return { spec: !!def, outside, rows };
 }
 
 // ---------------------------------------------------------------------------

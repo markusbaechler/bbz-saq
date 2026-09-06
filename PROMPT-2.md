@@ -586,7 +586,7 @@ Statusfarbe je Schritt (A.1), Passerelle-Kennzeichen aus `passerelleFrom()`, feh
 
 ### C.7 Schritte
 
-- [ ] **C.1** Entscheide vor Start einholen (eine Nachricht). `metrics.js`: `personSearchIndex(persons)` (reine Funktion: Personen mit normalisierten
+- [x] **C.1** Entscheide vor Start einholen (eine Nachricht). `metrics.js`: `personSearchIndex(persons)` (reine Funktion: Personen mit normalisierten
       Suchfeldern, Vorgänge chronologisch), `personPath(person)` (Pfad-Schritte), `runTimeline(vorgang)` (Ereignisse), `examGrid(vorgang, parts)` (Raster).
       `store.js`: `certEnd`. Synthetische Daten gemäss Anhang A5 (Bankwechsel, Namensgleiche, ohne Geburtsdatum) in `tests/fixtures.js` und
       `tests/smoke/synth.mjs` ergänzen; bestehende Smoke-Prüfungen mitziehen. Tests. Vorlegen.

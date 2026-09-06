@@ -275,7 +275,7 @@ export function vorgangExportTables(persons) {
       col('vss', 'VSS'), col('vsm', 'VSM'), col('status', 'Status'), col('weStatus', 'Status schriftlich'), col('oeStatus', 'Status mündlich'),
       col('erstversuch', 'Schriftlich im 1. Versuch bestanden'), col('wr1', 'Ø Resultat schriftlich 1. Versuch'), col('wr2', 'Ø Resultat schriftlich bestandener Run'),
       col('or1', 'Ø Resultat mündlich 1. Versuch'), col('or2', 'Ø Resultat mündlich bestandener Run'), col('versuche', 'Versuche gesamt'),
-      col('first', 'Erstes Prüfungsdatum'), col('refDate', 'Referenzdatum'), col('issued', 'Zertifikat ausgestellt'), col('certNumber', 'Zertifikat-Nr.'), col('certStart', 'Zertifikatsbeginn'),
+      col('first', 'Erstes Prüfungsdatum'), col('refDate', 'Referenzdatum'), col('issued', 'Zertifikat ausgestellt'), col('certNumber', 'Zertifikat-Nr.'), col('certStart', 'Zertifikatsbeginn'), col('certEnd', 'Zertifikatsende'),
       col('personKey', 'Personenschlüssel-Stufe'), col('duplicates', 'Zusammengeführte Zeilen'),
     ],
     rows: persons.map((p) => ({
@@ -283,7 +283,7 @@ export function vorgangExportTables(persons) {
       vss: yesNo(p.vss), vsm: yesNo(p.vsm), status: p.status, weStatus: p.weStatus, oeStatus: p.oeStatus,
       erstversuch: yesNo(firstAttemptPassed(p)), wr1: formatPct(writtenScore(p, MODE.ERSTVERSUCH)), wr2: formatPct(writtenScore(p, MODE.BESTANDEN)),
       or1: formatPct(oralScore(p, MODE.ERSTVERSUCH)), or2: formatPct(oralScore(p, MODE.BESTANDEN)), versuche: p.attemptsTotal,
-      first: fmtDate(p.firstExamDate), refDate: fmtDate(p.refDate), issued: yesNo(p.issued), certNumber: p.certNumber || '', certStart: fmtDate(p.certStart),
+      first: fmtDate(p.firstExamDate), refDate: fmtDate(p.refDate), issued: yesNo(p.issued), certNumber: p.certNumber || '', certStart: fmtDate(p.certStart), certEnd: fmtDate(p.certEnd),
       personKey: p.personKeyLevel === 'full' ? 'Name + Geburtsdatum' : 'nur Name', duplicates: (p.duplicates || []).map((d) => d.sheet + ' Zeile ' + d.row).join('; '),
     })),
     note: 'Eine Zeile je Zertifizierungsvorgang im aktiven Filter (Duplikate zusammengeführt). Enthält Namen – nur für den internen Gebrauch (E5).',

@@ -325,7 +325,7 @@ test('tables.awardDossierTable / rankReasonText: Begründung je Rang, gesperrte 
 });
 
 test('tables.vorgangExportTables: eine Zeile je Vorgang und je Run, mit Status, Quoten-Bausteinen und Zertifikat', () => {
-  const p = simple({ lastName: 'Export', firstName: 'Eva', profil: 'PK', employerCanon: 'Testbank AG', employer: 'Testbank', vss: true, issued: true, certNumber: 'Z-9', certStart: d('2024-07-01'), duplicates: [{ sheet: 'First Certification', row: 12 }], personKeyLevel: 'full' });
+  const p = simple({ lastName: 'Export', firstName: 'Eva', profil: 'PK', employerCanon: 'Testbank AG', employer: 'Testbank', vss: true, issued: true, certNumber: 'Z-9', certStart: d('2024-07-01'), certEnd: d('2029-06-30'), duplicates: [{ sheet: 'First Certification', row: 12 }], personKeyLevel: 'full' });
   const q = makePerson({ lastName: 'Plan', firstName: 'P', we: { 1: [{ date: '2030-01-01', planned: true, location: 'Bern' }] } });
   const [cases, runs] = vorgangExportTables([p, q]);
   assertEqual(cases.title, 'Vorgänge');
@@ -333,7 +333,7 @@ test('tables.vorgangExportTables: eine Zeile je Vorgang und je Run, mit Status, 
   const r = cases.rows[0];
   assertEqual([r.name, r.bank, r.employer, r.vss, r.vsm, r.status, r.weStatus, r.oeStatus, r.erstversuch], ['Export Eva', 'Testbank AG', 'Testbank', 'ja', 'nein', 'bestanden', 'bestanden', 'bestanden', 'ja']);
   assertEqual([r.wr1, r.wr2, r.or1, r.or2, r.versuche], ['70.0 %', '70.0 %', '90.0 %', '90.0 %', 3]);
-  assertEqual([r.first, r.refDate, r.issued, r.certNumber, r.certStart, r.personKey, r.duplicates], ['01.03.2024', '01.06.2024', 'ja', 'Z-9', '01.07.2024', 'Name + Geburtsdatum', 'First Certification Zeile 12']);
+  assertEqual([r.first, r.refDate, r.issued, r.certNumber, r.certStart, r.certEnd, r.personKey, r.duplicates], ['01.03.2024', '01.06.2024', 'ja', 'Z-9', '01.07.2024', '30.06.2029', 'Name + Geburtsdatum', 'First Certification Zeile 12']);
   assertEqual([cases.rows[1].status, cases.rows[1].erstversuch, cases.rows[1].wr1, cases.rows[1].personKey], ['offen', '', '–', 'nur Name']);
   assertEqual(runs.title, 'Runs');
   assertEqual(runs.rows.map((x) => [x.name, x.teil, x.run, x.datum, x.passed, x.result, x.geplant, x.ort]), [

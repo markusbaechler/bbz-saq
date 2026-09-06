@@ -4,7 +4,7 @@ import {
   parsePassed, parseLanguage, parseProfile, parseEmployer, parseResult, parseScore, parseDate, parseBirthDate, parseVssVsm,
   normalizeNamePart, personKeyOf, statusOf, combineStatus, dqImpact,
   resolveHeaders, HeaderError, MissingHeaderError, DuplicateHeaderError,
-  normalizeSheet, normalizeWorkbook,
+  normalizeSheet, normalizeWorkbook, mergeVorgang,
 } from '../store.js';
 import { DEFAULT_FILTER, eligible, filterPersons, exclusionReason, groupByPerson } from '../metrics.js';
 import { makeSheet, headerRowFor, runValues } from './fixtures.js';
@@ -886,4 +886,15 @@ test('normalizeWorkbook: Passerelle möglich, wenn dieselbe Person das Vorgänge
   const wb = normalizeWorkbook({ sheets: [makeSheet('first', rows)] }, { today: new Date(2026, 8, 5) });
   assertEqual(wb.meta.counts.passerelleMoeglich, 1);
   assertEqual(wb.persons.map((p) => p.status), ['bestanden', 'offen', 'offen', 'offen']);
+});
+
+test('normalizeSheet: certEnd (Certificate End Date) wird gelesen, in Sheet 1 ohne Header null; mergeVorgang füllt certEnd auf (Paket C)', () => {
+  const issued = makeSheet('issued', [{ lastName: 'Muster', firstName: 'Anna', profil: 'PK', certStart: '01.07.2024', certEnd: '30.06.2029', weAllPassed: 'yes', oeAllPassed: 'yes' }]);
+  const p = normalizeSheet(issued).persons[0];
+  assertEqual(p.certEnd, new Date(2029, 5, 30));
+  const first = makeSheet('first', [{ lastName: 'Muster', firstName: 'Anna', profil: 'PK', weAllPassed: 'yes', oeAllPassed: 'yes' }]);
+  const q = normalizeSheet(first).persons[0];
+  assertEqual(q.certEnd, null, 'Sheet 1 hat keinen Header Certificate End Date');
+  mergeVorgang(q, p);
+  assertEqual(q.certEnd, new Date(2029, 5, 30), 'Lücke aus dem Duplikat aufgefüllt');
 });

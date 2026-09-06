@@ -38,7 +38,10 @@ import {
   CONFIG, HEADER_FIELDS, PROFILES, PROFILE_ALIASES, LANGUAGES, LANGUAGE_ALIASES, PROFILE_LANGUAGE_HINTS,
   PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, BIRTH_DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
 } from './config.js';
-import { DEFAULT_FILTER, STATUS, PASSIVE_DAYS, filterPersons, eligible, groupBy, groupByPerson, dayKey, partsByProfile, missingParts, profileParts, partsOutsideProfile, personIndex, passerelleFrom } from './metrics.js';
+import { DEFAULT_FILTER, STATUS, PASSIVE_DAYS, filterPersons, eligible, groupBy, groupByPerson, dayKey, partsByProfile, missingParts, profileParts, partsOutsideProfile, personIndex, passerelleFrom, normalizeNamePart } from './metrics.js';
+
+// normalizeNamePart liegt seit Paket C in metrics.js (Personensuche); hier weiterhin exportiert (Personenschlüssel, Tests)
+export { normalizeNamePart };
 import { DEFAULT_UI } from './urlState.js';
 
 export const LEVEL = Object.freeze({ FEHLER: 'fehler', HINWEIS: 'hinweis', NICHT_AUSGEWERTET: 'nicht-ausgewertet' });
@@ -243,13 +246,6 @@ export function parseVssVsm(text) {
 // Personenschlüssel (E2) und Status (E4)
 // ---------------------------------------------------------------------------
 
-// Namensteil normalisieren: Akzente entfernen (NFD), ß → ss, Kleinschreibung, nur Buchstaben/Ziffern, ein Leerzeichen
-// als Trenner. «Müller-Meier», «Muller Meier» und «MÜLLER  MEIER» ergeben denselben Schlüssel.
-export function normalizeNamePart(raw) {
-  return String(raw === null || raw === undefined ? '' : raw)
-    .normalize('NFD').replace(/\p{M}/gu, '').replace(/ß/g, 'ss').toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-}
 
 // Schlüssel «nachname|vorname|YYYY-MM-DD». Ohne Geburtsdatum bleibt der dritte Teil leer (Stufe «name-only»).
 export function personKeyOf({ lastName, firstName, birthDate }) {
@@ -454,6 +450,7 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
       personKeyLevel: null,     // 'full' (mit Geburtsdatum) | 'name-only'
       ...parseVssVsm(comments[CONFIG.commentColumn + row]),
       certStart: map.certStart === undefined ? null : field('certStart', parseDate),
+      certEnd: map.certEnd === undefined ? null : field('certEnd', parseDate), // Header «Certificate End Date» (optional, Paket C)
       certNumber: map.certNumber === undefined ? null : asText(get('certNumber')),
       issued: source === 'issued', // Zertifikat ausgestellt (Sheet 2 oder mit einer Sheet-2-Zeile zusammengeführt)
       we: buildParts('we', CONFIG.we),
@@ -621,7 +618,7 @@ export function mergeVorgang(keep, dup, today = new Date()) {
       keep[derived] = dup[derived];
     }
   }
-  for (const key of ['certNumber', 'certStart', 'birthDate', 'profil', 'sprache', 'employer', 'employerCanon', 'role']) {
+  for (const key of ['certNumber', 'certStart', 'certEnd', 'birthDate', 'profil', 'sprache', 'employer', 'employerCanon', 'role']) {
     if (keep[key] === null && dup[key] !== null) keep[key] = dup[key];
   }
   keep.vss = keep.vss || dup.vss;

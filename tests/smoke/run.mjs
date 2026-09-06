@@ -205,15 +205,15 @@ try {
   await download.saveAs(snapshotPath);
   const snapshotText = readFileSync(snapshotPath, 'utf8');
   const snapshot = JSON.parse(snapshotText);
-  check(/^cockpit-snapshot-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename()) && snapshot.format === 'bbz-cockpit-snapshot' && snapshot.kennzahlen.vorgaenge.value === 8, 'Snapshot heruntergeladen: ' + download.suggestedFilename() + ', ' + snapshot.kennzahlen.vorgaenge.value + ' Vorgänge');
-  const names = ['Muster', 'Anna', 'Beispiel', 'Ben', 'Olga', 'Paul', 'Petra', 'Tom', 'Nora', 'Bea', 'Zoe', 'Testbank', 'Musterbank'];
+  check(/^cockpit-snapshot-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename()) && snapshot.format === 'bbz-cockpit-snapshot' && snapshot.kennzahlen.vorgaenge.value === 13, 'Snapshot heruntergeladen: ' + download.suggestedFilename() + ', ' + snapshot.kennzahlen.vorgaenge.value + ' Vorgänge');
+  const names = ['Muster', 'Anna', 'Beispiel', 'Ben', 'Olga', 'Paul', 'Petra', 'Tom', 'Nora', 'Bea', 'Zoe', 'Wechsel', 'Willi', 'Zwilling', 'Gabi', 'Datumlos', 'Otto', 'Testbank', 'Musterbank'];
   check(names.every((n) => !snapshotText.includes(n)), 'Snapshot enthält keine Namen und keine Banken');
   await page.setInputFiles('#view input[type="file"]', snapshotPath);
   await page.waitForSelector('#view table.data');
   const historyHeads = await page.$$eval('#view table.data caption', (c) => c.map((x) => x.textContent));
   check(historyHeads.length === 6 && /Kennzahlen je Stichtag/.test(historyHeads[0]), 'Snapshot geladen, Vergleich mit ' + historyHeads.length + ' Tabellen');
   const vorgRow = await page.$$eval('#view table.data tbody tr', (trs) => { const tr = trs.find((r) => r.children[0].textContent === 'Vorgänge'); return tr ? Array.from(tr.children).map((td) => td.textContent) : null; });
-  check(!!vorgRow && vorgRow[1] === '8' && vorgRow[2] === '8' && /(^|\s)±0$/.test(vorgRow[3]), 'Vergleich: Vorgänge Snapshot = Heute = 8, Differenz ±0 mit Symbol (' + (vorgRow || []).join(' | ') + ')');
+  check(!!vorgRow && vorgRow[1] === '13' && vorgRow[2] === '13' && /(^|\s)±0$/.test(vorgRow[3]), 'Vergleich: Vorgänge Snapshot = Heute = 13, Differenz ±0 mit Symbol (' + (vorgRow || []).join(' | ') + ')');
   check((await page.locator('#view .snapshot-list li').count()) === 1, 'Geladener Snapshot in der Liste');
   await shot(page, 'historie');
   await page.locator('#view .snapshot-list button:has-text("Entfernen")').click();

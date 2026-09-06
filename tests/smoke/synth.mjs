@@ -1,6 +1,6 @@
 // tests/smoke/synth.mjs – synthetische Excel-Datei für den Smoke-Test: erfundene Namen, beide Sheets, alle Fallarten
 // (bestanden, offen, passiv, geplant schriftlich/mündlich, Wiederholung, Duplikat über Sheets, Zertifikat, Score-Anomalie,
-// zweite Bank). Wird zur Laufzeit in ein Temp-Verzeichnis geschrieben (*.xlsx ist gitignored) – nie ins Repo.
+// zweite Bank; Paket C: Bankwechsel, Namensgleiche, ohne Geburtsdatum). Wird zur Laufzeit in ein Temp-Verzeichnis geschrieben (*.xlsx ist gitignored) – nie ins Repo.
 // Aufruf: node tests/smoke/synth.mjs [pfad.xlsx]
 
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -54,10 +54,20 @@ export function buildSynthWorkbook() {
     base({ lastName: 'Neu', firstName: 'Nora', profil: 'PK', birthDate: '03.03.1993', weAllPassed: '', oeAllPassed: '', ...runValues('we', { 1: [{ passed: '', date: d(2027, 1, 10), score: '', result: '' }] }), ...leerOe }),
     // zweite Bank, bestanden 2025
     base({ lastName: 'Bank', firstName: 'Bea', employer: 'Musterbank', profil: 'PK', birthDate: '08.08.1998', ...runValues('we', { 1: [{ passed: 'yes', date: d(2025, 3, 1), score: 60, result: 0.9 }] }), ...runValues('oe', { 1: [{ passed: 'yes', date: d(2025, 6, 1), score: 5, result: 0.95 }] }) }),
+    // Paket C (Anhang A5): Bankwechsel – PK bei Testbank AG bestanden 2023 (Zertifikat Z-7 in Sheet 2), IK bei Musterbank offen 2026 (Passerelle möglich)
+    base({ lastName: 'Wechsel', firstName: 'Willi', birthDate: '09.09.1989', ...runValues('we', { 1: [{ passed: 'yes', date: d(2023, 3, 1), score: 50, result: 0.8 }] }), ...runValues('oe', { 1: [{ passed: 'yes', date: d(2023, 6, 1), score: 5, result: 0.85 }] }) }),
+    base({ lastName: 'Wechsel', firstName: 'Willi', birthDate: '09.09.1989', employer: 'Musterbank', profil: 'IK', oeAllPassed: '', ...runValues('we', { 1: [{ passed: 'yes', date: d(2026, 2, 1), score: 50, result: 0.75 }] }), ...leerOe }),
+    // Namensgleiche mit unterschiedlichem Geburtsdatum (Entscheid 3: Geburtsjahr nur bei Namensgleichen)
+    base({ lastName: 'Zwilling', firstName: 'Gabi', birthDate: '01.01.1980', ...runValues('we', { 1: [{ passed: 'yes', date: d(2024, 3, 1), score: 50, result: 0.8 }] }), ...runValues('oe', { 1: [{ passed: 'yes', date: d(2024, 6, 1), score: 5, result: 0.9 }] }) }),
+    base({ lastName: 'Zwilling', firstName: 'Gabi', birthDate: '05.05.1991', employer: 'Musterbank', profil: 'KMU', sprache: 'FR', weAllPassed: '', oeAllPassed: '', ...runValues('we', { 1: [{ passed: 'yes', date: d(2026, 4, 1), score: 50, result: 0.7 }], 2: [{ passed: '', date: d(2026, 10, 1, 9, 0), score: '', result: '', location: 'Bern' }] }), ...leerOe }),
+    // ohne Geburtsdatum (Schlüssel nur aus dem Namen), mündlich nicht bestanden
+    base({ lastName: 'Datumlos', firstName: 'Otto', birthDate: '', oeAllPassed: 'no', ...runValues('we', { 1: [{ passed: 'yes', date: d(2025, 5, 1), score: 50, result: 0.8 }] }), ...runValues('oe', { 1: [{ passed: 'no', date: d(2025, 8, 1), score: 2, result: 0.5 }] }) }),
   ]);
   add('issued', [
     base({ certStart: '01.07.2024', certNumber: 'Z-1' }), // Duplikat von Muster Anna PK (E1)
     base({ lastName: 'Zertifikat', firstName: 'Zoe', profil: 'AFFL', birthDate: '04.04.1994', certStart: '01.07.2024', certNumber: 'Z-2', weAllPassed: '', oeAllPassed: '' }),
+    // Zertifikat zu Wechsel Willi PK (Duplikat der Sheet-1-Zeile, E1) mit Zertifikatsende (certEnd, Paket C)
+    base({ lastName: 'Wechsel', firstName: 'Willi', birthDate: '09.09.1989', certStart: '01.07.2023', certNumber: 'Z-7', certEnd: '30.06.2028', ...runValues('we', { 1: [{ passed: 'yes', date: d(2023, 3, 1), score: 50, result: 0.8 }] }), ...runValues('oe', { 1: [{ passed: 'yes', date: d(2023, 6, 1), score: 5, result: 0.85 }] }) }),
   ]);
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
