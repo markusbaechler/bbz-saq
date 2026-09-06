@@ -618,10 +618,10 @@ Statusfarbe je Schritt (A.1), Passerelle-Kennzeichen aus `passerelleFrom()`, feh
 
 ## Paket D – Experten-Layer (mündliche Prüfung)
 
-> **⛔ Entscheide vor Start** (eine Nachricht zu Beginn von Schritt D.1; die Header-abhängigen Fragen folgen in D.2):
-> 1. Paarungstabelle Experte 1 × Experte 2 `[optional]` (D.4, D.5): umsetzen, wenn D.1–D.4 im Plan liegen. Empfehlung: ja.
-> 2. Filterverhalten (D.6): Zeitraum wirkt auf das Run-Datum des Einsatzes, nicht auf das Referenzdatum; Versuche und Wertung wirken nicht. Empfehlung: ja.
-> 3. Export «Einsatzebene» mit Kandidatennamen «nur intern» (D.5). Empfehlung: ja, analog Vorgangsebene (E5).
+> **⛔ Entscheide vor Start – entschieden 06.09.2026 (alle wie empfohlen; die Header-abhängigen Fragen folgen in D.2):**
+> 1. Paarungstabelle Experte 1 × Experte 2 `[optional]` (D.4, D.5): umsetzen, wenn D.1–D.4 im Plan liegen. Empfehlung: ja. **Ja.**
+> 2. Filterverhalten (D.6): Zeitraum wirkt auf das Run-Datum des Einsatzes, nicht auf das Referenzdatum; Versuche und Wertung wirken nicht. Empfehlung: ja. **Ja.**
+> 3. Export «Einsatzebene» mit Kandidatennamen «nur intern» (D.5). Empfehlung: ja, analog Vorgangsebene (E5). **Ja.**
 
 ### D.1 Ziel und Rahmen
 
