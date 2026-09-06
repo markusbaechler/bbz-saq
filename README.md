@@ -13,6 +13,7 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 - CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Job «tests» (Syntaxprüfung aller Module, `node tests/run-node.js`, Kontrastprüfung der Farb-Tokens `node tools/contrast.js`, README-Glossar-Abgleich) und Job «smoke» (Browser-Smoke-Test, Screenshots als Artefakt bei Fehlern)
 - Modellbericht auf einer lokalen Kopie der Datei (nur Zähler und Quoten): `node tools/modellbericht.js <Datei.xlsx>`
 - Header-Übersicht beider Sheets ohne Zellwerte (Spalte, Header, gefüllte Zellen, unterschiedliche Werte, Experten-Markierung), vor jedem Mapping: `node tools/headers.js <Datei.xlsx>`
+- Spike Schreibpfad (Paket E, nur lokal, nur Testkopie «Test_Reporting_KUBA.xlsx»): python -m http.server 3000, dann http://localhost:3000/spike/mutation.html; Protokoll ohne Personendaten
 - Snapshot der synthetischen Testdatei als Regressionsschutz bei Umbauten ohne fachliche Änderung: `node tools/snapshot-synth.js basis.json`, später `node tools/snapshot-synth.js --vergleich basis.json` (identisch = keine Zahl hat sich geändert)
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
 
