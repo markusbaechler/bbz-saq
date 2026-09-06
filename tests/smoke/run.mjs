@@ -195,9 +195,6 @@ try {
   const counter = (await page.textContent('#view .dq-count')).trim();
   check(filtered > 0 && filtered < allRows && counter.startsWith(filtered + ' von ' + allRows), 'DQ-Suche «Score» filtert (' + filtered + ' von ' + allRows + ' Einträgen; Zähler: «' + counter.slice(0, 40) + '…»)');
   check(await page.evaluate(() => !!document.activeElement && document.activeElement.classList.contains('dq-text')), 'DQ-Suche behält den Fokus');
-  // Änderungen über die App (Historie des Schreibpfads): Abschnitt vorhanden; bei lokaler Datei leer mit Hinweis
-  const auditSection = await page.evaluate(() => { const s = [...document.querySelectorAll('#view section.block')].find((x) => (x.querySelector('h3') || {}).textContent.startsWith('Änderungen über die App')); return s ? s.textContent : ''; });
-  check(/Änderungen über die App/.test(auditSection) && /lokal|kein/i.test(auditSection), 'Datenqualität: Abschnitt «Änderungen über die App» mit Hinweis bei lokaler Datei');
 
   // Personen (Paket C): Suche mit synthetischem Namen, Detail mit Pfad, Raster (Badges) und Zeitachse; Suchtext nie in der URL
   await page.goto(server.url + '#personen');
@@ -315,6 +312,9 @@ try {
   // Historie (b7): Snapshot herunterladen (ohne Namen), wieder laden, Vergleich mit «Heute»
   await page.goto(server.url + '#historie');
   await page.waitForSelector('#view h2');
+  // Historie der App-Änderungen: eigener Abschnitt; bei lokaler Datei leer mit Hinweis (keine Tabelle)
+  const auditSection = await page.evaluate(() => { const s = [...document.querySelectorAll('#view section.block')].find((x) => (x.querySelector('h3') || {}).textContent.startsWith('Änderungen über die App')); return s ? s.textContent : ''; });
+  check(/Änderungen über die App/.test(auditSection) && /lokal|kein/i.test(auditSection), 'Historie: Abschnitt «Änderungen über die App» mit Hinweis bei lokaler Datei');
   check((await page.locator('#view p.empty').count()) >= 1 && (await page.locator('#view table').count()) === 0, 'Historie ohne Snapshot: Hinweis, keine Vergleichstabellen');
   const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#view button:has-text("Snapshot herunterladen")').click()]);
   const snapshotPath = join(outDir, download.suggestedFilename());

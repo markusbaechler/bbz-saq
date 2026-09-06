@@ -274,7 +274,7 @@ Gesamtergebnisse, Zertifikatsfelder; keine neuen Zeilen, keine Sheet-Änderungen
 - **Rechte:** Lesepfad `Files.Read.All`; der Schreibpfad fordert `Files.ReadWrite.All` erst beim ersten Schreiben an (inkrementelle
   Zustimmung). Schreiben ist nur bei Daten von SharePoint möglich, nicht bei einer lokal geladenen Datei.
 - **Historie:** Die App liest das Änderungsprotokoll beim Laden von SharePoint mit (nur im Memory) und zeigt es in der Ansicht
-  «Datenqualität» als Abschnitt «Änderungen über die App» (Zeitpunkt, Name aus den geladenen Daten, Fundstelle, alt → neu, Grund, Konto;
+  «Historie» als eigenen Abschnitt «Änderungen über die App» (Zeitpunkt, Name aus den geladenen Daten, Fundstelle, alt → neu, Grund, Konto;
   exportierbar, nur intern) sowie je Vorgangskarte in «Personen». Bei lokal geladener Datei bleibt der Abschnitt leer.
 - Spike-Bericht: `docs/SPIKE-mutation.md`; Testseite `spike/mutation.html` (nur lokal, nur Testkopie).
 

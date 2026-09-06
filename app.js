@@ -10,7 +10,7 @@ import { CONFIG, headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
-import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials, renderTable, section } from './views/common.js';
+import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials } from './views/common.js';
 import { glossarySlug } from './glossary.js';
 import { vorgangExportTables, expertRunExportTable, auditTable } from './views/tables.js';
 import { renderDataQuality } from './views/dataQuality.js';
@@ -375,11 +375,7 @@ function renderView() {
     const table = el('div');
     container.appendChild(table);
     renderDq(table);
-    // Historie der App-Änderungen (Paket E): Änderungsprotokoll neben der Datei, nur bei Daten von SharePoint gefüllt
-    const audit = auditTable(state.audit || [], state.persons);
-    if (audit.rows.length) actions.append(renderExportMenu({ viewId: 'datenqualitaet-aenderungen', tables: [audit], headerLines: filterLines(state.filter, state.meta), label: 'Export Änderungen', note: 'Änderungen über die App, mit Namen, nur intern' }));
-    container.appendChild(section('Änderungen über die App (' + audit.rows.length + ')', [renderTable(audit)]));
-    appendLegend(container, view.hints.concat(audit.rows.length ? [audit.note] : []));
+    appendLegend(container, view.hints);
     return;
   }
 
@@ -404,7 +400,8 @@ function renderView() {
     onExpertenChange: (next) => store.setUi({ experten: next }, { silent: true }), // Sortierung nur im Memory
     onWrite: (change) => writeChange(change), // Schreibpfad (Paket E): nur mit Flag, nur bei Daten von SharePoint
     editMode: !!state.ui.editMode, // Bearbeitungsmodus (Schalter im Kopf): Raster-Zellen anklickbar
-    audit: state.audit || [], // Historie der App-Änderungen je Fundstelle (Personen-Karten)
+    audit: state.audit || [], // Historie der App-Änderungen (Ansicht Historie, Personen-Karten)
+    allRows: state.persons, // alle Zeilen inklusive Duplikate: Name zur Fundstelle im Änderungsprotokoll
     glossaryHref: (term) => hashWithParam('glossar', 'begriff', glossarySlug(term)), // Kachel-Label → Glossar, Filter bleibt
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
@@ -434,7 +431,9 @@ function renderView() {
   // Export je Ebene: Vorgangsebene (Standard), Einsatzebene (Experten, Paket D), keine bei Ansichten mit eigenem Export (Personen)
   const extra = view.id === 'experten' && ctx.expertMeta.columns
     ? { label: 'Einsatzebene', tables: [expertRunExportTable(ctx.expertRuns)], suffix: '-einsaetze', unit: 'Einsätze' }
-    : (view.noPersonExport ? null : { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) });
+    : view.id === 'historie' && ctx.audit.length
+      ? { label: 'Änderungen über die App', tables: [auditTable(ctx.audit, state.persons)], suffix: '-aenderungen', unit: 'Änderungen' } // Historie: Protokoll mit Namen, nur intern
+      : (view.noPersonExport ? null : { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) });
   actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines, extra }));
   if (definitionen) actions.append(definitionen);
   container.appendChild(el('div', { class: 'print-filter', text: headerLines.join(' · ') }));
