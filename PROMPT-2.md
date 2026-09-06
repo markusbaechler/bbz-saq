@@ -711,7 +711,7 @@ Umsetzung: `filterPersons(state.persons, filter, { period: false })` → `expert
       Experten (Fixtures und `tests/smoke/synth.mjs` um zwei Expertenspalten je OE-Run erweitern, erfundene Namen). Vorlegen.
 - [x] **D.3** `metrics.js` `expertRuns/expertStats/expertBenchmark/expertPairs`; Tests (Rollenzählung, Schichten, Δ, n < 5, gleicher Experte in beiden Rollen). Vorlegen.
 - [x] **D.4** `views/tables.js` Tabellenmodelle; `views/experten.js`; `app.js` `VIEWS` (Gruppe Experten, Export Einsatzebene). Vorlegen.
-- [ ] **D.5** Phone-Layout; Smoke-Test: Ansicht rendert Haupttabelle mit synthetischen Experten, Sortierung, Zeilen-Detail, Zeitraumfilter wirkt auf Einsätze. Vorlegen.
+- [x] **D.5** Phone-Layout; Smoke-Test: Ansicht rendert Haupttabelle mit synthetischen Experten, Sortierung, Zeilen-Detail, Zeitraumfilter wirkt auf Einsätze. Vorlegen.
 - [ ] **D.6** Glossar (Anhang A3), README (Ansichten, E8, E9, Normalisierung Experte, DQ-Regeln), `PROMPT.md` Harte Regeln. PR «Ready for review».
       ⛔ Abnahme Paket D (inkl. «Entscheide vor Start» Paket E).
 
