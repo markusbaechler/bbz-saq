@@ -32,9 +32,11 @@ export function build(ctx) {
       ]),
       sec('Frühwarnung: zweiter Fehlversuch', [renderTable(warn)],
         'Die einzige Liste, die eine Handlung vor dem Ergebnis auslöst: Teilprüfungen mit zwei nicht bestandenen Versuchen, bei denen der nächste Versuch der letzte ist – oder bereits alle Versuche nicht bestanden sind. Unabhängig vom Zeitraumfilter.'),
-      section('Je Profil', [renderTable(t.summary)]),
+      // Phone (B.4): Je-Profil-Tabellen eingeklappt; Frühwarnung und Teilnehmende bleiben offen
+      section('Je Profil', [renderTable(t.summary)], { phoneCollapsed: true }),
       sec('Teilprüfungen je Profil', [renderTable(parts)],
-        'Vorgabe laut Auftraggeber (05.09.2026): schriftlich PK 1, IK 1, AFFL 2, CWMA 3, KMU 3, CCoB 3 Teile, mündlich je OE1; Annahme: Teile von links in WE1–WEn. Die Tabelle stellt der Vorgabe die Nutzung in den Daten gegenüber. Daraus ergeben sich je offenem Vorgang die fehlenden Teile in «Teilnehmende» und der Hinweis im Data-Quality-Log, wenn alle Teile bestanden sind, aber das Gesamtergebnis fehlt. Passerelle (PK→IK, AFFL→CWMA, KMU→CCoB, je 1 Teil) wird nur als «möglich» gekennzeichnet, weil ihre Erfassung in der Datei offen ist.'),
+        'Vorgabe laut Auftraggeber (05.09.2026): schriftlich PK 1, IK 1, AFFL 2, CWMA 3, KMU 3, CCoB 3 Teile, mündlich je OE1; Annahme: Teile von links in WE1–WEn. Die Tabelle stellt der Vorgabe die Nutzung in den Daten gegenüber. Daraus ergeben sich je offenem Vorgang die fehlenden Teile in «Teilnehmende» und der Hinweis im Data-Quality-Log, wenn alle Teile bestanden sind, aber das Gesamtergebnis fehlt. Passerelle (PK→IK, AFFL→CWMA, KMU→CCoB, je 1 Teil) wird nur als «möglich» gekennzeichnet, weil ihre Erfassung in der Datei offen ist.',
+        null, { phoneCollapsed: true }),
       section('Teilnehmende', [renderTable(t.details)]),
       sec('Passiv seit über ' + PASSIVE_DAYS + ' Tagen', [renderTable(drop)],
         'Offene Vorgänge, bei denen seit über ' + PASSIVE_DAYS + ' Tagen keine Prüfung stattfand und kein Termin geplant ist. Eigene Kategorie neben «offen» (Entscheid Auftraggeber), nicht «nicht bestanden» und nicht im Nenner der Bestehensquoten.'),

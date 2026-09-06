@@ -25,11 +25,13 @@ function text(x, y, content, cls, anchor = 'start') {
 
 // series: [{ label, short?, points: [{ x: string, y: number|null, n: number, small: boolean }] }] – gleiche x-Reihenfolge je Reihe;
 // short = Kurzbezeichnung für die Direktbeschriftung am Linienende (die Legende trägt den vollen Namen)
-// options: { title, yFormat(v) → string, yMax = 1, height = 260, ariaLabel }
-export function renderLineChart(series, { title = '', yFormat = (v) => String(v), yMax = 1, height = 260, ariaLabel = '' } = {}) {
+// options: { title, yFormat(v) → string, yMax = 1, height = 260, ariaLabel, compact }
+// compact (Phone, PROMPT-2 B.2): Breite 360, Höhe 200, kleiner Rand ohne Endbeschriftung; Tooltip unter dem Diagramm (CSS .viz.compact)
+export function renderLineChart(series, { title = '', yFormat = (v) => String(v), yMax = 1, height = 260, ariaLabel = '', compact = false } = {}) {
   const xs = [...new Set(series.flatMap((s) => s.points.map((p) => p.x)))];
-  const width = 820;
-  const pad = { top: 16, right: 250, bottom: 34, left: 48 };
+  const width = compact ? 360 : 820;
+  const pad = compact ? { top: 12, right: 16, bottom: 30, left: 40 } : { top: 16, right: 250, bottom: 34, left: 48 };
+  if (compact) height = 200;
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
   const xPos = (i) => pad.left + (xs.length === 1 ? plotW / 2 : (plotW * i) / (xs.length - 1));
@@ -68,10 +70,10 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
     if (last) endLabels.push({ y: last.py, x: last.px, label: s.short || s.label, value: yFormat(last.y), color });
   });
 
-  // Direktbeschriftung am Linienende (Textfarbe = Text-Token; Farbe nur über den kurzen Linienschlüssel)
+  // Direktbeschriftung am Linienende (Textfarbe = Text-Token; Farbe nur über den kurzen Linienschlüssel); nicht in compact
   endLabels.sort((a, b) => a.y - b.y);
   let prevY = -Infinity;
-  for (const e of endLabels) {
+  for (const e of compact ? [] : endLabels) {
     const y = Math.max(e.y, prevY + 14);
     prevY = y;
     const x = width - pad.right + 10;
@@ -84,7 +86,7 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
   const cross = svg('line', { x1: 0, x2: 0, y1: pad.top, y2: height - pad.bottom, class: 'viz-cross', visibility: 'hidden' });
   root.appendChild(cross);
   const tip = el('div', { class: 'viz-tip', hidden: true, role: 'status' });
-  const figure = el('figure', { class: 'viz' }, [root, tip]);
+  const figure = el('figure', { class: 'viz' + (compact ? ' compact' : '') }, [root, tip]);
   let current = -1;
   const show = (i) => {
     if (i < 0 || i >= xs.length) return;

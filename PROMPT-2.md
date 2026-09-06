@@ -398,11 +398,11 @@ bedienbar (`details/summary`); Chips als Buttons mit `aria-label="Filter Profil 
 
 ## Paket B – Mobile Darstellung (reduziert)
 
-> **⛔ Entscheide vor Start** (eine Nachricht zu Beginn von Schritt B.1):
-> 1. Priorisierte Ansichten für Phone (B.3): Übersicht, Offene Vorgänge, Geplante Prüfungen, Personen. Empfehlung: wie vorgeschlagen.
-> 2. Navigation auf Phone (B.2): `#nav a` bleibt im DOM, wird aber auf Phone `display: none` (nicht fokussierbar, keine doppelten Tab-Stopps);
->    der Smoke-Test nutzt im Phone-Viewport `#nav-select`. Empfehlung: so. Alternative: `#nav a` nur visuell versteckt und fokussierbar.
-> 3. Tablet (601–900 px): Navigation als horizontal scrollbare Gruppen, Filterleiste zweizeilig erlaubt. Empfehlung: wie vorgeschlagen.
+> **⛔ Entscheide vor Start – entschieden 06.09.2026 (alle wie empfohlen):**
+> 1. Priorisierte Ansichten für Phone (B.3): Übersicht, Offene Vorgänge, Geplante Prüfungen, Personen (ab Paket C). **Ja.**
+> 2. Navigation auf Phone (B.2): `#nav a` bleibt im DOM, ist auf Phone aber `display: none` (nicht fokussierbar, keine doppelten Tab-Stopps);
+>    der Smoke-Test nutzt im Phone-Viewport `#nav-select`. **Ja.**
+> 3. Tablet (601–900 px): Navigation als horizontal scrollbare Gruppen, Filterleiste zweizeilig erlaubt, Tabellen mit Prio 1 und 2. **Ja.**
 
 ### B.1 Grundregeln
 
@@ -417,7 +417,7 @@ bedienbar (`details/summary`); Chips als Buttons mit `aria-label="Filter Profil 
 | Komponente | Phone (≤ 600 px) | Tablet (601–900 px) |
 |---|---|---|
 | Kopf | Brand einzeilig, Konto als Initialen-Button, Datenstand nur Einzeiler (`details` zu) | wie Desktop |
-| Navigation | `<select id="nav-select">` mit `optgroup` je Gruppe (Sprungziel = Hash mit Filterzustand); `#nav a` bleibt im DOM (Entscheid vor Start, Frage 2) | horizontal scrollbare Gruppen |
+| Navigation | `<select id="nav-select">` mit `optgroup` je Gruppe (Sprungziel = Hash mit Filterzustand); `#nav a` bleibt im DOM, auf Phone `display: none` (entschieden 06.09.2026) | horizontal scrollbare Gruppen |
 | Filterleiste | `<details class="filter-drawer">`, `summary` = «Filter (3 aktiv)» + Chips; Inhalt zweispaltig; sticky nur die `summary` | wie Desktop, zweizeilig erlaubt |
 | View-Kopf | Titel + Export-Menü in einer Zeile; `view-intro` ausgeblendet | wie Desktop |
 | KPI-Kacheln | zwei Spalten; Gruppen als aufklappbare `details` (Schriftlich, Mündlich offen, Mengen zu); nur Label, Wert, n, Δ-Symbol | drei Spalten |
@@ -426,7 +426,7 @@ bedienbar (`details/summary`); Chips als Buttons mit `aria-label="Filter Profil 
 | Legende | `details` zu | zu |
 | Bestenlisten `ranking-grid` | eine Spalte | eine Spalte |
 
-### B.3 Priorisierte Ansichten `[entscheid: vor Start, Frage 1]`
+### B.3 Priorisierte Ansichten `[entscheid 06.09.2026: bestätigt]`
 
 Vollständig für Phone gestaltet: **Übersicht**, **Offene Vorgänge**, **Geplante Prüfungen**, **Personen** (Paket C). Alle übrigen
 Ansichten müssen ohne Überlauf funktionieren (Prio-Spalten, kompakte Diagramme), werden aber nicht weiter optimiert.
@@ -476,11 +476,11 @@ Auftraggeber auf dem Gerät; kein Smoke.
 
 ### B.6 Schritte
 
-- [ ] **B.1** Entscheide vor Start einholen (eine Nachricht). Breakpoints, Grundschrift, Touch-Ziele, `data-prio`-CSS, Sticky-Verhalten. Vorlegen.
-- [ ] **B.2** Navigation als Select + Filter-Drawer (Phone), Kopf kompakt. Smoke-Test: Viewport 390 × 844 hinzufügen (Laden über `#file-input`, jede Ansicht rendern, kein horizontaler Überlauf: `document.documentElement.scrollWidth <= innerWidth`, Screenshots `phone-*`). Vorlegen.
-- [ ] **B.3** Kacheln (Gruppen als `details`), Tabellen (Prio, Schalter), Diagramm `compact`. Vorlegen.
-- [ ] **B.4** Priorisierte Ansichten feinjustieren (B.3-Tabelle), Tablet 820 × 1180 im Smoke-Test. Vorlegen.
-- [ ] **B.5** Anmeldung Redirect-Flow (B.4). README «Ansichten» um «Mobile» ergänzen. Snapshot-Vergleich. PR «Ready for review».
+- [x] **B.1** Entscheide vor Start einholen (eine Nachricht). Breakpoints, Grundschrift, Touch-Ziele, `data-prio`-CSS, Sticky-Verhalten. Vorlegen.
+- [x] **B.2** Navigation als Select + Filter-Drawer (Phone), Kopf kompakt. Smoke-Test: Viewport 390 × 844 hinzufügen (Laden über `#file-input`, jede Ansicht rendern, kein horizontaler Überlauf: `document.documentElement.scrollWidth <= innerWidth`, Screenshots `phone-*`). Vorlegen.
+- [x] **B.3** Kacheln (Gruppen als `details`), Tabellen (Prio, Schalter), Diagramm `compact`. Vorlegen.
+- [x] **B.4** Priorisierte Ansichten feinjustieren (B.3-Tabelle), Tablet 820 × 1180 im Smoke-Test. Vorlegen.
+- [x] **B.5** Anmeldung Redirect-Flow (B.4). README «Ansichten» um «Mobile» ergänzen. Snapshot-Vergleich. PR «Ready for review».
       ⛔ Abnahme Paket B (inkl. «Entscheide vor Start» Paket C).
 
 ### B.7 Akzeptanzkriterien

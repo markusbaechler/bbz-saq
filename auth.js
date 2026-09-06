@@ -36,10 +36,13 @@ function isPopupBlocked(e) {
   return !!e && (e.errorCode === 'popup_window_error' || e.errorCode === 'empty_window_error');
 }
 
-export function createAuth({ msal, authConfig = CONFIG.auth, location = globalThis.location } = {}) {
+export function createAuth({ msal, authConfig = CONFIG.auth, location = globalThis.location, matchMedia = globalThis.matchMedia } = {}) {
   let pca = null;
   let account = null;
   const scopes = Array.isArray(authConfig.scopes) ? authConfig.scopes.map(qualify) : SCOPES;
+  // Phone (PROMPT-2 B.4): Popups sind auf dem Smartphone unzuverlässig – direkt der Redirect-Flow (die Seite lädt neu,
+  // init() übernimmt das Konto aus handleRedirectPromise()). In Node (kein matchMedia) nie Phone.
+  const phone = () => typeof matchMedia === 'function' && !!matchMedia('screen and (max-width: 600px)').matches;
 
   function setAccount(a) {
     account = a || null;
@@ -84,6 +87,10 @@ export function createAuth({ msal, authConfig = CONFIG.auth, location = globalTh
 
   async function signIn() {
     await ensureInit();
+    if (phone()) {
+      await pca.loginRedirect({ scopes, prompt: 'select_account' });
+      return null; // die Seite wird gleich verlassen
+    }
     try {
       const resp = await pca.loginPopup({ scopes, prompt: 'select_account' });
       setAccount(resp.account);
@@ -110,6 +117,10 @@ export function createAuth({ msal, authConfig = CONFIG.auth, location = globalTh
     } catch (e) {
       const interactionRequired = msal.InteractionRequiredAuthError && e instanceof msal.InteractionRequiredAuthError;
       if (!interactionRequired) throw e;
+      if (phone()) {
+        await pca.acquireTokenRedirect({ scopes, account });
+        throw new Error('Weiterleitung zur Anmeldung – die Seite wird neu geladen.');
+      }
       try {
         const resp = await pca.acquireTokenPopup({ scopes, account });
         return resp.accessToken;
