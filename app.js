@@ -5,13 +5,14 @@ import { GraphError, AuthExpiredError } from './graph.js';
 import { load, loadFromFile } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
-import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount, isVorgang } from './metrics.js';
+import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount, isVorgang, expertRuns } from './metrics.js';
+import { headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
 import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials } from './views/common.js';
 import { glossarySlug } from './glossary.js';
-import { vorgangExportTables } from './views/tables.js';
+import { vorgangExportTables, expertRunExportTable } from './views/tables.js';
 import { renderDataQuality } from './views/dataQuality.js';
 import * as overview from './views/overview.js';
 import * as written from './views/written.js';
@@ -20,13 +21,14 @@ import * as vssVsm from './views/vssVsm.js';
 import * as ranking from './views/ranking.js';
 import * as planned from './views/planned.js';
 import * as personen from './views/personen.js';
+import * as experten from './views/experten.js';
 import * as offen from './views/offen.js';
 import * as zeitverlauf from './views/zeitverlauf.js';
 import * as historie from './views/historie.js';
 import * as bankReport from './views/bankReport.js';
 import * as glossar from './views/glossar.js';
 
-const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, bankReport, personen, offen, planned, ranking, historie];
+const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, bankReport, personen, offen, planned, ranking, experten, historie];
 const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, intro: v.intro, glossar: v.glossar, build: v.build, noPersonExport: !!v.noPersonExport }))
   .concat([
     {
@@ -391,6 +393,11 @@ function renderView() {
     dq: state.dq,
     personen: state.ui.personen,
     onPersonenChange: (next) => store.setUi({ personen: next }, { silent: true }), // nur Memory; kein Neurendern (Fokus bleibt im Suchfeld)
+    // Experten (Paket D, D.6): Vorgänge des Filters ohne Zeitraum und ohne Versuche; der Zeitraum wirkt auf das Run-Datum des Einsatzes
+    expertRuns: expertRuns(filterPersons(state.persons, { ...filter, versuche: 'alle' }, { period: false }), { from: filter.from, to: filter.to }),
+    expertMeta: { ...(state.meta.experts || { columns: false, from: null, headers: [] }), expected: [headerCandidates(runKey('oe', 1, 1, 'expert1'))[0], headerCandidates(runKey('oe', 1, 1, 'expert2'))[0]] },
+    experten: state.ui.experten,
+    onExpertenChange: (next) => store.setUi({ experten: next }, { silent: true }), // Sortierung nur im Memory
     glossaryHref: (term) => hashWithParam('glossar', 'begriff', glossarySlug(term)), // Kachel-Label → Glossar, Filter bleibt
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
@@ -417,7 +424,11 @@ function renderView() {
     showError(e);
     return;
   }
-  actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines, extra: view.noPersonExport ? null : { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) } }));
+  // Export je Ebene: Vorgangsebene (Standard), Einsatzebene (Experten, Paket D), keine bei Ansichten mit eigenem Export (Personen)
+  const extra = view.id === 'experten' && ctx.expertMeta.columns
+    ? { label: 'Einsatzebene', tables: [expertRunExportTable(ctx.expertRuns)], suffix: '-einsaetze', unit: 'Einsätze' }
+    : (view.noPersonExport ? null : { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) });
+  actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines, extra }));
   if (definitionen) actions.append(definitionen);
   container.appendChild(el('div', { class: 'print-filter', text: headerLines.join(' · ') }));
   for (const node of built.nodes) container.appendChild(node);

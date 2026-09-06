@@ -13,9 +13,10 @@ import * as bankReport from '../views/bankReport.js';
 import * as offen from '../views/offen.js';
 import * as planned from '../views/planned.js';
 import * as personen from '../views/personen.js';
+import * as experten from '../views/experten.js';
 import * as glossar from '../views/glossar.js';
 
-export const VIEW_MODULES = { overview, written, oral, vssVsm, zeitverlauf, historie, ranking, bankReport, offen, planned, personen, glossar };
+export const VIEW_MODULES = { overview, written, oral, vssVsm, zeitverlauf, historie, ranking, bankReport, offen, planned, personen, experten, glossar };
 const GROUPS = ['Kennzahlen', 'Personen', 'Experten', 'Daten'];
 
 test('views: jede View hat id, label und eine der vier Navigationsgruppen (A.2)', () => {
@@ -28,6 +29,7 @@ test('views: jede View hat id, label und eine der vier Navigationsgruppen (A.2)'
   assertEqual(bankReport.group, 'Kennzahlen');
   assertEqual(offen.group, 'Personen');
   assertEqual(personen.group, 'Personen');
+  assertEqual(experten.group, 'Experten');
   assertEqual(ranking.group, 'Personen');
   assertEqual(historie.group, 'Daten');
   assertEqual(glossar.group, 'Daten');

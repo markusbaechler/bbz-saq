@@ -285,10 +285,12 @@ export function renderExportMenu({ viewId, tables, headerLines, extra = null, la
   ];
   if (extra && extra.tables && extra.tables.length) {
     const rows = extra.tables[0].rows.length;
+    const suffix = extra.suffix || '-vorgaenge'; // Paket D: Einsatzebene mit eigenem Suffix und eigener Einheit
+    const unit = extra.unit || 'Vorgänge';
     items.push(
-      el('div', { class: 'menu-note', text: extra.label + ' (' + rows + ' Vorgänge, mit Namen, nur intern)' }),
-      item('CSV (Vorgangsebene)', () => downloadCsv(exportFileName(viewId + '-vorgaenge', 'csv'), tablesToCsv(extra.tables, headerLines)), !rows),
-      item('XLSX (Vorgangsebene)', () => downloadXlsx(exportFileName(viewId + '-vorgaenge', 'xlsx'), extra.tables, headerLines), !rows),
+      el('div', { class: 'menu-note', text: extra.label + ' (' + rows + ' ' + unit + ', mit Namen, nur intern)' }),
+      item('CSV (' + extra.label + ')', () => downloadCsv(exportFileName(viewId + suffix, 'csv'), tablesToCsv(extra.tables, headerLines)), !rows),
+      item('XLSX (' + extra.label + ')', () => downloadXlsx(exportFileName(viewId + suffix, 'xlsx'), extra.tables, headerLines), !rows),
     );
   }
   menu.append(el('summary', { text: label }), el('div', { class: 'menu-list', role: 'group', 'aria-label': label }, items));

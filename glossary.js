@@ -156,6 +156,25 @@ export const GLOSSARY = [
     definition: 'Alle datierten Runs eines Vorgangs chronologisch, absolviert und geplant, plus Zertifikatsbeginn.',
     nenner: '–', grenzfaelle: 'Entspricht dem Blatt «Runs» des Exports (gleiche Anzahl datierter Runs).',
   },
+  // Experten-Layer (PROMPT-2 Paket D, Anhang A3; Entscheide 06.09.2026)
+  {
+    kind: 'Begriff', term: 'Einsatz (Experte)',
+    definition: 'Absolvierter mündlicher Run (Passed-Wert vorhanden) mit mindestens einem eingetragenen Experten; zählt für beide beteiligten Experten voll. Grundlage der Ansicht «Experten» (E8).',
+    nenner: '–', grenzfaelle: 'Der Zeitraum wirkt auf das Run-Datum, nicht auf das Referenzdatum des Vorgangs. Runs mit Ergebnis ohne Datum zählen als Einsatz («ohne Datum»), bei aktivem Zeitraum sind sie ausgeschlossen. Geplante Runs und Duplikate zählen nicht.',
+  },
+  {
+    kind: 'Begriff', term: 'Experte 1 / Experte 2',
+    definition: 'Rolle gemäss den Spalten «OE{p} RUN{r} Expert 1» und «Expert 2» der Datei (am File verifiziert 06.09.2026, beide Sheets, optional). Nennt ein Run in beiden Rollen dieselbe Person, zählt sie einen Einsatz und erhält einen Hinweis im Data-Quality-Log.',
+    nenner: '–', grenzfaelle: 'Semantik der Rollen [unklar]: Experte 1 hat einen kleineren, regelmässigen Kreis (Hypothese Prüfungsleitung). Die Spalte «OE Expert» ist nicht gemappt (Bedeutung unklar). Experten sind ab 2018 erfasst (CONFIG.experts.from); früher fehlende Experten ergeben keinen Hinweis.',
+  },
+  { kind: 'Kennzahl', term: 'Experten', definition: 'Anzahl Experten mit mindestens einem Einsatz im aktiven Filter.', nenner: '–', grenzfaelle: 'Schreibvarianten desselben Namens zählen getrennt, bis ein Alias in config.js (EXPERT_ALIASES) sie zusammenführt.' },
+  { kind: 'Kennzahl', term: 'Einsätze', definition: 'Anzahl Einsätze; je Experte die Einsätze mit Beteiligung als Experte 1 oder 2.', nenner: '–', grenzfaelle: 'Ein Einsatz zählt für beide Experten voll; n < 5 markiert.' },
+  { kind: 'Kennzahl', term: 'Ø Einsätze je Experte', definition: 'Einsätze geteilt durch die Anzahl Experten; Median in Klammern.', nenner: 'Experten', grenzfaelle: '–' },
+  { kind: 'Kennzahl', term: 'Anteil Experte 1', definition: 'Einsätze in Rolle 1 geteilt durch alle Rollen-Nennungen des Experten.', nenner: 'Rollen-Nennungen', grenzfaelle: 'Nennt ein Run dieselbe Person in beiden Rollen, zählen beide Nennungen.' },
+  { kind: 'Kennzahl', term: 'Durchfallquote 1. Versuch', definition: 'Anteil Einsätze mit nicht bestandenem Run im ersten Versuch (RUN1).', nenner: 'Einsätze im 1. Versuch', grenzfaelle: 'Beobachtungswert, keine Leistungsbeurteilung; Δ zum Benchmark derselben Versuchsart (E9), neutral dargestellt.' },
+  { kind: 'Kennzahl', term: 'Durchfallquote Wiederholung', definition: 'Anteil Einsätze mit nicht bestandenem Run bei Wiederholungen (RUN2, RUN3).', nenner: 'Einsätze in Wiederholungen', grenzfaelle: 'Kandidaten mit Wiederholung haben strukturell höhere Durchfallquoten, deshalb getrennter Benchmark (E9).' },
+  { kind: 'Kennzahl', term: 'Ø Resultat (Experten)', definition: 'Mittel der Resultate (erreichte Punkte in Prozent) der Einsätze mit Wert.', nenner: 'Einsätze mit Wert', grenzfaelle: 'Result massgebend, Score nicht ausgewertet (E6). Δ zum Benchmark in Prozentpunkten.' },
+  { kind: 'Kennzahl', term: 'Benchmark (Experten)', definition: 'Durchfallquote (gesamt, 1. Versuch, Wiederholung) und Ø Resultat über alle Einsätze im Filter.', nenner: 'Einsätze', grenzfaelle: 'Basis der Δ-Werte; keine Schichtung nach Profil (E9: Methodik profilübergreifend vergleichbar).' },
   {
     kind: 'Begriff', term: 'Bank-Report',
     definition: 'Ansicht für die Weitergabe an ein Institut: Kennzahlen einer gewählten Bank im Vergleich zum Benchmark «alle Banken» (gleicher Zeitraum, gleiche übrigen Filter), je Profil und je Jahr. Ohne Namen, andere Banken nur als Aggregat. PDF über die Druckansicht des Browsers.',

@@ -1,5 +1,5 @@
 import { test, assert, assertEqual } from './runner.js';
-import { MODE, personSearchIndex } from '../metrics.js';
+import { MODE, personSearchIndex, expertRuns } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
   rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
@@ -8,6 +8,7 @@ import {
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
   deltaView, col, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, directionOfLabel,
   personResultsTable, personGridTable, personTimelineTable, personDqTable,
+  expertTables, expertRunExportTable, sortTableRows,
 } from '../views/tables.js';
 import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
@@ -680,4 +681,68 @@ test('tables.personDqTable: nur Einträge der Zeilen dieser Vorgänge, inklusive
     ['verändert Kennzahl', 'Hinweis', 'Ausgestellte Zertifikate', 30, 'Last Name', '', 'Duplikat'],
   ]);
   assertEqual(personDqTable(dq, []).rows, []);
+});
+
+// ---------------------------------------------------------------------------
+// Paket D: Experten – KPIs, Haupttabelle mit Δ, Detail je Experte, Paarungen, Export Einsatzebene, Sortierung
+// ---------------------------------------------------------------------------
+
+function expertCohortT() {
+  const mk = (i, runs, extra = {}) => makePerson({ lastName: 'Kandidat' + i, profil: 'PK', sprache: 'DE', employerCanon: 'Testbank AG', weAllPassed: true, we: { 1: [{ passed: true, date: '2025-01-10', result: 0.8 }] }, oe: { 1: runs }, ...extra });
+  return [
+    mk(1, [{ passed: true, date: '2025-03-01', result: 0.9, experts: ['Prüfer Pia', 'Experte Emil'] }]),
+    mk(2, [{ passed: false, date: '2025-03-01', result: 0.4, experts: ['Prüfer Pia', 'Experte Emil'] }, { passed: true, date: '2025-06-01', result: 0.7, experts: ['Prüfer Pia', 'Beisitz Bruno'] }]),
+    mk(3, [{ passed: true, date: '2025-04-01', result: 0.8, experts: ['Experte Emil', 'Beisitz Bruno'] }], { profil: 'IK', sprache: 'FR' }),
+    mk(4, [{ passed: false, date: '2025-05-01', result: 0.5, experts: ['Beisitz Bruno', 'Prüfer Pia'] }]),
+    mk(5, [{ passed: true, date: '2024-11-01', result: 0.85, experts: ['Prüfer Pia', null] }]),
+    mk(6, [{ passed: false, date: '2026-02-01', result: 0.45, experts: ['Experte Emil', 'Experte Emil'] }], { profil: 'IK' }),
+    mk(7, [{ passed: true, date: '2026-03-01', result: 0.95, experts: ['Beisitz Bruno', 'Experte Emil'] }]),
+  ];
+}
+
+test('tables.expertTables: KPIs, Haupttabelle mit Prioritäten und neutralen Δ zum Benchmark, Detail je Experte, Paarungen', () => {
+  const runs = expertRuns(expertCohortT());
+  const t = expertTables(runs);
+  assertEqual(t.kpis.map((k) => k.label), ['Experten', 'Einsätze', 'Ø Einsätze je Experte', 'Durchfallquote 1. Versuch', 'Durchfallquote Wiederholung', 'Ø Resultat (Experten)']);
+  assertEqual([t.kpis[0].value, t.kpis[1].value, t.kpis[2].value, t.kpis[3].value, t.kpis[3].n, t.kpis[4].value, t.kpis[4].n], ['3', '8', '4.7 (Median 5)', '42.9 %', 7, '0.0 %', 1]);
+  assert(t.kpis.every((k) => k.group === 'Experten' && k.direction === 'neutral'));
+  assertEqual(t.main.columns.map((c) => [c.label, c.prio]), [['Experte', 1], ['Einsätze', 1], ['als Experte 1', 2], ['als Experte 2', 2], ['Anteil Experte 1', 2], ['Durchfallquote 1. Versuch', 1], ['Δ 1. Versuch', 1], ['Durchfallquote Wiederholung', 2], ['Δ Wiederholung', 2], ['Ø Resultat', 2], ['Δ Ø Resultat', 3], ['Erster Einsatz', 3], ['Letzter Einsatz', 3]]);
+  assertEqual(t.main.rows.map((r) => [r.experte, r.small]), [['Experte Emil', false], ['Prüfer Pia', false], ['Beisitz Bruno', true]]);
+  const pia = t.main.rows.find((r) => r.experte === 'Prüfer Pia');
+  assertEqual([pia.einsaetze, pia.role1, pia.role2, pia.anteil1, pia.fail1, pia.failW, pia.result, pia.erster, pia.letzter], [5, 4, 1, '80.0 %', '50.0 %', '0.0 %', '67.0 %', '01.11.2024', '01.06.2025']);
+  assertEqual(pia.delta1, '+7.1 pp', 'Δ = 50.0 % − 42.9 % (Benchmark 1. Versuch)');
+  assertEqual(pia.deltaW, '0.0 pp');
+  assert(t.main.columns.filter((c) => c.key.startsWith('delta')).every((c) => c.direction === 'neutral'), 'Δ neutral (E9, Entscheid D.2)');
+  const emil = t.main.rows[0];
+  assertEqual([emil.failW, emil.deltaW], ['–', ''], 'ohne Wiederholung: Strich, kein Δ');
+  const det = t.details.get(pia.key);
+  assertEqual(det.jahr.rows.map((r) => [r.gruppe, r.einsaetze, r.fail]), [['2024', 1, '0.0 %'], ['2025', 4, '50.0 %']]);
+  assertEqual(det.profil.rows.map((r) => r.gruppe), ['PK']);
+  assertEqual(det.sprache.columns[0].label, 'Sprache');
+  assertEqual(det.partner.rows.map((r) => [r.partner, r.einsaetze]), [['Beisitz Bruno', 2], ['Experte Emil', 2]]);
+  assertEqual(t.pairs.columns.map((c) => c.label), ['Experte 1', 'Experte 2', 'Einsätze', 'Durchfallquote', 'Ø Resultat']);
+  assertEqual(t.pairs.rows.map((r) => [r.expert1, r.expert2, r.einsaetze]), [['Beisitz Bruno', 'Experte Emil', 2], ['Beisitz Bruno', 'Prüfer Pia', 2], ['Experte Emil', 'Prüfer Pia', 2]]);
+  assert(t.main.note.includes('Beobachtungswerte'));
+  const empty = expertTables([]);
+  assertEqual([empty.main.rows, empty.pairs.rows, empty.kpis[0].value], [[], [], '0']);
+});
+
+test('tables.expertRunExportTable: eine Zeile je Einsatz mit Kandidatenname, «nur intern»', () => {
+  const t = expertRunExportTable(expertRuns(expertCohortT()));
+  assertEqual(t.columns.map((c) => c.label), ['Datum', 'Teilprüfung', 'Run', 'Versuch', 'Experte 1', 'Experte 2', 'Bestanden', 'Resultat', 'Profil', 'Sprache', 'Bank', 'Kandidat', 'Sheet', 'Zeile']);
+  assertEqual(t.rows.length, 8);
+  assertEqual([t.rows[0].datum, t.rows[0].teil, t.rows[0].run, t.rows[0].versuch, t.rows[0].experte1, t.rows[0].experte2, t.rows[0].bestanden, t.rows[0].resultat, t.rows[0].kandidat], ['01.03.2025', 'OE1', 1, '1. Versuch', 'Prüfer Pia', 'Experte Emil', 'ja', '90.0 %', 'Kandidat1 Test']);
+  assertEqual([t.rows[2].versuch, t.rows[5].experte2], ['Wiederholung', ''], 'K2 RUN2 = Wiederholung; K5 nur ein Experte');
+  assert(/nur intern/.test(t.note));
+});
+
+test('tables.sortTableRows: Prozent, pp, Datum und Zahlen numerisch, Text alphabetisch, Strich und leer am Ende; stabil', () => {
+  const t = expertTables(expertRuns(expertCohortT()));
+  assertEqual(sortTableRows(t.main.rows, 'fail1', 'desc').map((r) => r.experte), ['Prüfer Pia', 'Experte Emil', 'Beisitz Bruno']);
+  assertEqual(sortTableRows(t.main.rows, 'fail1', 'asc').map((r) => r.experte), ['Beisitz Bruno', 'Experte Emil', 'Prüfer Pia']);
+  assertEqual(sortTableRows(t.main.rows, 'erster', 'asc')[0].experte, 'Prüfer Pia');
+  assertEqual(sortTableRows(t.main.rows, 'experte', 'asc').map((r) => r.experte), ['Beisitz Bruno', 'Experte Emil', 'Prüfer Pia']);
+  assertEqual(sortTableRows(t.main.rows, 'failW', 'desc').map((r) => r.failW), ['0.0 %', '0.0 %', '–'], 'Strich am Ende (Emil ohne Wiederholung)');
+  assertEqual(sortTableRows(t.main.rows, 'delta1', 'asc').map((r) => r.experte), ['Beisitz Bruno', 'Experte Emil', 'Prüfer Pia'], '−9.5, −2.9, +7.1 pp');
+  assert(sortTableRows(t.main.rows, 'einsaetze', 'desc') !== t.main.rows, 'Kopie');
 });

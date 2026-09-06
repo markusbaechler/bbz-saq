@@ -251,6 +251,11 @@ details.vorgang-card > summary { cursor: pointer; font-weight: 600; min-height: 
 .person-actions { justify-content: flex-start; margin-top: var(--space-3); }
 tr.event-detail > td .person-detail table.data { width: 100%; }
 
+/* Experten (PROMPT-2 Paket D): Zeilen-Detail mit vier kleinen Tabellen, sortierbare Kopfzellen wie im Data-Quality-Log */
+.expert-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-3); }
+.expert-detail .table-wrap { margin: 0; }
+.expert-table th.sortable.active button { color: var(--accent); }
+
 /* Inhalt */
 .view { flex: 1; padding: 1rem 1.25rem 2rem; background: var(--panel); margin: var(--space-4) 1.25rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); }
 
