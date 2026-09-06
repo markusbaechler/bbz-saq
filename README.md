@@ -258,8 +258,8 @@ Erste Ausbaustufe (Paket E, E10): eine einzelne Run-Zelle eines Vorgangs – Pas
 Experte 1/2 – wird in der bestehenden Spalte der Excel geändert. Nicht editierbar: Name, Geburtsdatum, Profil, Sprache, Employer,
 Gesamtergebnisse, Zertifikatsfelder; keine neuen Zeilen, keine Sheet-Änderungen. Die Struktur der Datei bleibt unverändert.
 
-- **Flag:** `CONFIG.features.write` (Standard `false`). Ohne Flag zeigt die App keine Bearbeiten-Elemente. Der Auftraggeber aktiviert das
-  Flag nach eigenem Test auf der Testkopie (`DEPLOY.md`, Abschnitt «Phase 2»).
+- **Flag:** `CONFIG.features.write`, am 06.09.2026 vom Auftraggeber nach dem Test auf der Testkopie produktiv freigeschaltet (`true`).
+  Mit `false` zeigt die App keine Bearbeiten-Elemente und schreibt nichts (`DEPLOY.md`, Abschnitt «Phase 2»).
 - **Ablauf:** Mit Flag erscheint im Kopf der Schalter «Bearbeiten» (Standard aus, nur im Memory, nach Neuladen der Seite wieder aus; auf
   dem Phone im Konto-Menü). Im Bearbeitungsmodus sind die Zellen des Prüfungsrasters in der Ansicht «Personen» anklickbar (✎ beim
   Überfahren, Enter per Tastatur); ohne Modus bleibt alles reine Anzeige. Der Dialog prüft die Eingabe mit denselben

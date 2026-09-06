@@ -30,8 +30,9 @@ export const CONFIG = {
   commentColumn: 'B', // Threaded Comments (VSS/VSM) hängen an Zelle B{row}
   we: { parts: 6, runs: 3 }, // schriftliche Teilprüfungen WE1–WE6, je bis zu 3 Runs
   oe: { parts: 2, runs: 3 }, // mündliche Teilprüfungen OE1–OE2, je bis zu 3 Runs
-  // Phase 2 (PROMPT-2 C.8, Paket E): Schreibpfad nur mit Flag. false = keine Bearbeiten-Elemente, kein Schreibzugriff.
-  features: { write: false },
+  // Phase 2 (PROMPT-2 Paket E): Schreibpfad nur mit Flag; false = keine Bearbeiten-Elemente, kein Schreibzugriff.
+  // Produktiv freigeschaltet am 06.09.2026 durch den Auftraggeber (Test auf der Kopie bestanden); Abschalten über false.
+  features: { write: true },
   // Experten (Paket D, bestätigt 06.09.2026): ab diesem Datum sind Experten je OE-Run erfasst; früher fehlende Experten ergeben keinen Hinweis
   experts: { from: '2018-01-01' },
 };
