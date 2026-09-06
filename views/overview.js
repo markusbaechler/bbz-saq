@@ -26,10 +26,15 @@ export function build(ctx) {
     const byLabel = new Map(bm.kpis.map((k) => [k.label, k]));
     for (const k of m.kpis) {
       const b = byLabel.get(k.label);
-      if (b && k.kind !== 'count') k.benchmark = b.value;
+      if (b && k.kind !== 'count') {
+        k.benchmark = b.value;
+        k.benchmarkLabel = bench.label;
+        // Differenz in Prozentpunkten für die Kachel (A.4); null ohne Wert auf einer Seite
+        k.delta = Number.isFinite(k.raw) && Number.isFinite(b.raw) ? (k.raw - b.raw) * 100 : null;
+      }
     }
   }
-  const kpis = m.kpis.concat([{ label: 'Geplante Prüfungstermine', value: String(planned.total), n: planned.total, small: false, hint: 'Termine in der Zukunft ohne Ergebnis (Filter Profil, Sprache, Bank, VSS/VSM)' }]);
+  const kpis = m.kpis.concat([{ label: 'Geplante Prüfungstermine', value: String(planned.total), n: planned.total, small: false, kind: 'count', group: 'Mengen', direction: 'neutral', hint: 'Termine in der Zukunft ohne Ergebnis (Filter Profil, Sprache, Bank, VSS/VSM)' }]);
   let benchmarkBar = null;
   if (bench) {
     const def = BENCHMARKS.find((b) => b.id === bench.kind) || {};
@@ -49,7 +54,7 @@ export function build(ctx) {
   return {
     nodes: [
       benchmarkBar,
-      renderKpis(kpis),
+      renderKpis(kpis, { glossaryHref: ctx.glossaryHref }),
       comparison ? sec('Auswahl im Vergleich zum Benchmark', [renderTable(comparison)], 'Differenz in Prozentpunkten: Auswahl minus Benchmark. Der Benchmark verwendet dieselben Filter wie die Auswahl, nur ohne die gewählte Einschränkung.') : null,
       section('Kennzahlen je Profil', [renderTable(m.byProfil)]),
       sec('Personen mit mehreren Profilen', [renderTable(m.multi)], 'Menschen mit Zertifizierungsvorgängen in mehr als einem Profil, gruppiert nach der zeitlichen Abfolge der Profile.'),

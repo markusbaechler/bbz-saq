@@ -391,25 +391,27 @@ export function overviewModel(persons, allPersons = persons) {
   const multi = multiProfileTable(persons, allPersons);
   // count: absolute Zahl bei Anteilen (x von n Vorgängen), null bei Mittelwerten und Zählungen
   // kind/raw: Art und Rohwert für Vergleiche (ratio: Anteil 0..1, mean: Mittel 0..1, count: Zahl)
-  const kpi = (label, value, n, hint, extra = {}) => ({ label, value, n, small: n < SMALL_N, hint, count: null, kind: 'count', raw: null, ...extra });
-  const rate = (label, r, hint) => kpi(label, formatPct(r.pct), r.n, hint, { count: r.count, kind: 'ratio', raw: r.pct });
-  const avg = (label, m, hint) => kpi(label, formatPct(m.mean), m.n, hint, { kind: 'mean', raw: m.mean });
+  // group: Block der Kachel (Mengen · Schriftlich · Mündlich); direction: höher ist besser (up), tiefer ist besser (down),
+  // neutral bei Mengen – bestimmt die Farbe der Differenz zum Benchmark (PROMPT-2 A.4)
+  const kpi = (label, value, n, hint, extra = {}) => ({ label, value, n, small: n < SMALL_N, hint, count: null, kind: 'count', raw: null, group: 'Mengen', direction: 'neutral', ...extra });
+  const rate = (label, r, hint, group, direction) => kpi(label, formatPct(r.pct), r.n, hint, { count: r.count, kind: 'ratio', raw: r.pct, group, direction });
+  const avg = (label, m, hint, group) => kpi(label, formatPct(m.mean), m.n, hint, { kind: 'mean', raw: m.mean, group, direction: 'up' });
   const kpis = [
     kpi('Vorgänge', String(o.n), o.n, 'Zertifizierungsvorgänge (Zeilen ohne Duplikate) im Filter mit mindestens einem absolvierten, datierten schriftlichen Run', { raw: o.n }),
     kpi('Personen', String(o.personen), o.n, 'Menschen hinter den Vorgängen im Filter (Personenschlüssel aus Name und Geburtsdatum); eine Person kann mehrere Vorgänge haben', { raw: o.personen }),
     kpi('Vorgänge offen', String(o.status.offen), o.n, 'Vorgänge ohne Gesamtergebnis (Prozess läuft noch); nicht im Nenner der Bestehensquoten', { raw: o.status.offen }),
-    kpi('Vorgänge passiv (> ' + PASSIVE_DAYS + ' Tage)', String(o.status.passiv), o.n, 'Offene Vorgänge, deren letzte Prüfung mehr als ' + PASSIVE_DAYS + ' Tage zurückliegt und die keinen geplanten Termin haben; Teilmenge von «offen», nicht im Nenner', { raw: o.status.passiv }),
-    kpi('Vorgänge nicht erfasst', String(o.status.nichtErfasst), o.n, 'Vorgänge mit unlesbarem Gesamtergebnis (Fehler im Data-Quality-Log); nicht im Nenner der Bestehensquoten', { raw: o.status.nichtErfasst }),
-    rate('Schriftlich: im 1. Versuch bestanden', o.written.erstversuch, 'Anteil Vorgänge, bei denen alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden sind; n = Vorgänge mit absolviertem WE RUN1'),
-    rate('Schriftlich: im 1. Versuch durchgefallen', o.written.erstversuchFailed, 'Anteil Vorgänge mit mindestens einer Teilprüfung, die im ersten Versuch nicht bestanden wurde; n = Vorgänge mit absolviertem WE RUN1'),
-    rate('Schriftlich: insgesamt bestanden', o.written.gesamt, 'Anteil abgeschlossener Vorgänge mit «WE All Passed» = yes, unabhängig von der Anzahl Versuche; n = abgeschlossene Vorgänge schriftlich (bestanden + nicht bestanden)'),
-    avg('Schriftlich: Ø Resultat 1. Versuch', wp1, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des ersten Versuchs je Teilprüfung; n = Vorgänge mit Wert'),
-    avg('Schriftlich: Ø Resultat bestandener Run', wp2, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des bestandenen Runs; nur Vorgänge, deren Teilprüfungen alle bestanden sind'),
-    rate('Mündlich: bestanden', o.oral.bestanden, 'Anteil abgeschlossener Vorgänge mit «OE All Passed» = yes; n = abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden)'),
-    rate('Mündlich: im 1. Versuch durchgefallen', o.oral.failed1, 'OE1 im ersten Versuch nicht bestanden, unabhängig vom späteren Erfolg; n = angetretene Vorgänge (absolvierter, datierter OE1 RUN1)'),
-    rate('Mündlich: 2× durchgefallen', o.oral.failed2, 'OE1 im ersten und im zweiten Versuch nicht bestanden; n = angetretene Vorgänge'),
-    avg('Mündlich: Ø Resultat 1. Versuch', op1, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), erster Versuch; n = Vorgänge mit Wert'),
-    avg('Mündlich: Ø Resultat bestandener Run', op2, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), bestandener Run'),
+    kpi('Vorgänge passiv (> ' + PASSIVE_DAYS + ' Tage)', String(o.status.passiv), o.n, 'Offene Vorgänge, deren letzte Prüfung mehr als ' + PASSIVE_DAYS + ' Tage zurückliegt und die keinen geplanten Termin haben; Teilmenge von «offen», nicht im Nenner', { raw: o.status.passiv, direction: 'down' }),
+    kpi('Vorgänge nicht erfasst', String(o.status.nichtErfasst), o.n, 'Vorgänge mit unlesbarem Gesamtergebnis (Fehler im Data-Quality-Log); nicht im Nenner der Bestehensquoten', { raw: o.status.nichtErfasst, direction: 'down' }),
+    rate('Schriftlich: im 1. Versuch bestanden', o.written.erstversuch, 'Anteil Vorgänge, bei denen alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden sind; n = Vorgänge mit absolviertem WE RUN1', 'Schriftlich', 'up'),
+    rate('Schriftlich: im 1. Versuch durchgefallen', o.written.erstversuchFailed, 'Anteil Vorgänge mit mindestens einer Teilprüfung, die im ersten Versuch nicht bestanden wurde; n = Vorgänge mit absolviertem WE RUN1', 'Schriftlich', 'down'),
+    rate('Schriftlich: insgesamt bestanden', o.written.gesamt, 'Anteil abgeschlossener Vorgänge mit «WE All Passed» = yes, unabhängig von der Anzahl Versuche; n = abgeschlossene Vorgänge schriftlich (bestanden + nicht bestanden)', 'Schriftlich', 'up'),
+    avg('Schriftlich: Ø Resultat 1. Versuch', wp1, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des ersten Versuchs je Teilprüfung; n = Vorgänge mit Wert', 'Schriftlich'),
+    avg('Schriftlich: Ø Resultat bestandener Run', wp2, 'Mittel der Prüfungsresultate (erreichte Punkte in Prozent), Resultat des bestandenen Runs; nur Vorgänge, deren Teilprüfungen alle bestanden sind', 'Schriftlich'),
+    rate('Mündlich: bestanden', o.oral.bestanden, 'Anteil abgeschlossener Vorgänge mit «OE All Passed» = yes; n = abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden)', 'Mündlich', 'up'),
+    rate('Mündlich: im 1. Versuch durchgefallen', o.oral.failed1, 'OE1 im ersten Versuch nicht bestanden, unabhängig vom späteren Erfolg; n = angetretene Vorgänge (absolvierter, datierter OE1 RUN1)', 'Mündlich', 'down'),
+    rate('Mündlich: 2× durchgefallen', o.oral.failed2, 'OE1 im ersten und im zweiten Versuch nicht bestanden; n = angetretene Vorgänge', 'Mündlich', 'down'),
+    avg('Mündlich: Ø Resultat 1. Versuch', op1, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), erster Versuch; n = Vorgänge mit Wert', 'Mündlich'),
+    avg('Mündlich: Ø Resultat bestandener Run', op2, 'Mittel der Resultate der mündlichen Prüfung (erreichte Punkte in Prozent), bestandener Run', 'Mündlich'),
     kpi('VSS / VSM', o.vss + ' / ' + o.vsm, o.n, 'Anzahl Vorgänge mit Kennzeichnung VSS bzw. VSM aus dem Kommentar auf der Namenszelle'),
     kpi('Ausgestellte Zertifikate', String(o.issued), o.n, 'Vorgänge mit ausgestelltem Zertifikat (Sheet «Ausgestellte Zertifikate» oder damit zusammengeführt) im Filter', { raw: o.issued }),
     kpi('Personen mit mehreren Profilen', String(multi.total), o.personen, 'Personen im Filter mit Vorgängen in mehr als einem Profil (Abfolge in der Tabelle unten)', { raw: multi.total }),
@@ -443,6 +445,16 @@ export function formatPp(delta) {
   const rounded = Math.round(Math.abs(delta) * 10 + 1e-9) / 10;
   const sign = rounded === 0 ? '' : (delta > 0 ? '+' : '−');
   return sign + rounded.toFixed(1) + ' pp';
+}
+
+// Darstellung einer Differenz zum Benchmark (PROMPT-2 A.4): Symbol nach Vorzeichen, Ton nach Richtung der Kennzahl
+// (up: höher ist besser, down: tiefer ist besser, neutral: Mengen); unter 0.5 pp neutral «●». Farbe nie allein.
+export function deltaView(delta, direction = 'neutral') {
+  const text = formatPp(delta);
+  if (Math.abs(delta) < 0.5) return { symbol: '●', tone: 'neutral', text };
+  const symbol = delta > 0 ? '▲' : '▼';
+  const better = direction === 'up' ? delta > 0 : direction === 'down' ? delta < 0 : null;
+  return { symbol, tone: better === null ? 'neutral' : (better ? 'pos' : 'neg'), text };
 }
 
 export function comparisonTable(selectionKpis, benchmarkKpis, benchmarkLabel) {

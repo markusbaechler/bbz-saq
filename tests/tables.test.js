@@ -6,6 +6,7 @@ import {
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
+  deltaView,
 } from '../views/tables.js';
 import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
@@ -514,4 +515,36 @@ test('tables.historyTables: Stichtage chronologisch neben «Heute», Anteile mit
   const ohne = historyTables([], heute);
   assertEqual(ohne.kennzahlen.columns.map((c) => c.label), ['Kennzahl', 'Heute (05.09.2026)', 'Differenz zum letzten Snapshot']);
   assertEqual(row(ohne.kennzahlen, 'Vorgänge', 'kennzahl').differenz, '–');
+});
+
+test('tables.overviewModel: Gruppe (Mengen · Schriftlich · Mündlich) und Richtung je Kachel (A.4)', () => {
+  const m = overviewModel(cohort());
+  const by = Object.fromEntries(m.kpis.map((k) => [k.label, k]));
+  assertEqual(by['Vorgänge'].group, 'Mengen');
+  assertEqual(by['Vorgänge'].direction, 'neutral');
+  assertEqual(by['Vorgänge passiv (> 365 Tage)'].direction, 'down');
+  assertEqual(by['Vorgänge nicht erfasst'].direction, 'down');
+  assertEqual(by['Schriftlich: im 1. Versuch bestanden'].group, 'Schriftlich');
+  assertEqual(by['Schriftlich: im 1. Versuch bestanden'].direction, 'up');
+  assertEqual(by['Schriftlich: im 1. Versuch durchgefallen'].direction, 'down');
+  assertEqual(by['Schriftlich: Ø Resultat bestandener Run'].direction, 'up');
+  assertEqual(by['Mündlich: 2× durchgefallen'].group, 'Mündlich');
+  assertEqual(by['Mündlich: 2× durchgefallen'].direction, 'down');
+  assertEqual(by['Mündlich: Ø Resultat bestandener Run'].direction, 'up');
+  assertEqual(by['Ausgestellte Zertifikate'].group, 'Mengen');
+  assert(m.kpis.every((k) => ['Mengen', 'Schriftlich', 'Mündlich'].includes(k.group)), 'jede Kachel hat eine Gruppe');
+  assert(m.kpis.every((k) => ['up', 'down', 'neutral'].includes(k.direction)), 'jede Kachel hat eine Richtung');
+  assertEqual(m.kpis.filter((k) => k.group === 'Schriftlich').length, 5);
+  assertEqual(m.kpis.filter((k) => k.group === 'Mündlich').length, 5);
+});
+
+test('tables.deltaView: Symbol nach Vorzeichen, Ton nach Richtung, unter 0.5 pp neutral (A.4)', () => {
+  assertEqual(deltaView(2.1, 'up'), { symbol: '▲', tone: 'pos', text: '+2.1 pp' });
+  assertEqual(deltaView(2.1, 'down'), { symbol: '▲', tone: 'neg', text: '+2.1 pp' });
+  assertEqual(deltaView(-3, 'down'), { symbol: '▼', tone: 'pos', text: '−3.0 pp' });
+  assertEqual(deltaView(-3, 'up'), { symbol: '▼', tone: 'neg', text: '−3.0 pp' });
+  assertEqual(deltaView(0.4, 'up'), { symbol: '●', tone: 'neutral', text: '+0.4 pp' });
+  assertEqual(deltaView(-0.49, 'down'), { symbol: '●', tone: 'neutral', text: '−0.5 pp' });
+  assertEqual(deltaView(0, 'up'), { symbol: '●', tone: 'neutral', text: '0.0 pp' });
+  assertEqual(deltaView(5, 'neutral'), { symbol: '▲', tone: 'neutral', text: '+5.0 pp' });
 });

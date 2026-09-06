@@ -2,7 +2,8 @@
 // Nur Rendering; Zahlen und Texte kommen aus views/tables.js.
 
 import { downloadCsv, downloadXlsx, exportFileName, printPage, tablesToCsv } from '../export.js';
-import { numericColumns } from './tables.js';
+import { numericColumns, deltaView } from './tables.js';
+import { glossaryEntry } from '../glossary.js';
 
 export function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -81,15 +82,31 @@ export function renderCollapsible(summaryText, nodes, { open = false, printOpen 
   return el('details', { class: 'fold' + (printOpen ? ' print-open' : ''), open: open ? '' : null }, [el('summary', { text: summaryText })].concat(nodes));
 }
 
-// KPI-Kacheln: [{ label, value, n, small }]
-export function renderKpis(kpis) {
-  return el('div', { class: 'kpis' }, kpis.map((k) => el('div', { class: 'kpi' + (k.small ? ' small' : ''), title: k.hint || null }, [
-    el('div', { class: 'kpi-label', text: k.label }),
+// KPI-Kachel (PROMPT-2 A.4): Label als Glossar-Link (wenn ein Eintrag mit dieser Beschriftung existiert und glossaryHref
+// gegeben ist) plus ⓘ mit der Definition; Wert; n; Differenz zum Benchmark mit Symbol, Vorzeichen und Farbe nach Richtung.
+// Mengen (kind count oder ohne kind) sind kleinere Kacheln ohne Differenz.
+function kpiTile(k, glossaryHref) {
+  const isCount = !k.kind || k.kind === 'count';
+  const label = glossaryHref && glossaryEntry(k.label) ? el('a', { href: glossaryHref(k.label), text: k.label }) : k.label;
+  const d = !isCount && typeof k.delta === 'number' && Number.isFinite(k.delta) ? deltaView(k.delta, k.direction) : null;
+  return el('div', { class: 'kpi' + (k.small ? ' small' : '') + (isCount ? ' count' : '') }, [
+    el('div', { class: 'kpi-label' }, [label, k.hint ? infoIcon(k.hint, 'Definition: ') : null]),
     el('div', { class: 'kpi-value', text: k.value }),
     el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' Vorgängen' : 'n = ' + k.n) + (k.small ? ' *' : '') }),
-    k.benchmark ? el('div', { class: 'kpi-bench', text: 'Benchmark: ' + k.benchmark }) : null,
-    k.hint ? el('div', { class: 'kpi-hint', text: k.hint }) : null,
-  ])));
+    d ? el('div', { class: 'kpi-delta ' + d.tone }, [
+      el('span', { class: 'kpi-delta-symbol', 'aria-hidden': 'true', text: d.symbol + ' ' }),
+      d.text + ' vs. ' + (k.benchmarkLabel || 'Benchmark') + (k.benchmark ? ' (' + k.benchmark + ')' : ''),
+    ]) : null,
+  ]);
+}
+
+// KPI-Kacheln: [{ label, value, n, small, hint, kind, group, direction, delta, benchmark, benchmarkLabel }]
+// Mit group werden Blöcke Mengen · Schriftlich · Mündlich mit h3 gerendert; ohne group eine einzelne Reihe.
+export function renderKpis(kpis, { glossaryHref = null } = {}) {
+  const tile = (k) => kpiTile(k, glossaryHref);
+  const groups = ['Mengen', 'Schriftlich', 'Mündlich'].map((g) => ({ g, list: kpis.filter((k) => k.group === g) })).filter((x) => x.list.length);
+  if (!groups.length) return el('div', { class: 'kpis' }, kpis.map(tile));
+  return el('div', { class: 'kpi-groups' }, groups.map(({ g, list }) => el('section', { class: 'kpi-group' }, [el('h3', { text: g }), el('div', { class: 'kpis' }, list.map(tile))])));
 }
 
 // ⓘ mit Tooltip; für Screenreader als Bild mit Beschriftung

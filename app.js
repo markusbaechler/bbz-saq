@@ -360,6 +360,7 @@ function renderView() {
     timePersons: filterPersons(state.persons, filter, { period: false }), // kennzahlrelevant, alle Jahre (Zeitverlauf)
     bankBenchmarkPersons: filterPersons(state.persons, benchmarkFilter(filter, 'bank')), // Bank-Report: alle Banken
     today: new Date(),
+    glossaryHref: (term) => hashWithParam('glossar', 'begriff', glossarySlug(term)), // Kachel-Label → Glossar, Filter bleibt
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
     snapshots: state.ui.snapshots || [],
