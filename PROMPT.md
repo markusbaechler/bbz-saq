@@ -35,7 +35,7 @@ Lies zuerst `CLAUDE.md` (Projektregeln). Diese gelten dauerhaft.
   `.gitignore`: `*.xlsx`, `/data`, `/local`, `config.local.js`.
 - Personendaten nur im Browser-Memory; kein localStorage/sessionStorage/IndexedDB für Daten.
   Namen erscheinen nur in den Ansichten Personen, Offene Vorgänge, Geplante Prüfungen, Bestenlisten und Datenqualität
-  sowie in Exporten «nur intern» (E5, E7); nie in URL, Snapshots, Repo.
+  sowie in Exporten «nur intern» (E5, E7); Expertennamen in der Ansicht Experten und im Export Einsatzebene (E8); nie in URL, Snapshots, Repo.
 - Nur Sheets «First Certification» und «Ausgestellte Zertifikate». Alle anderen ignorieren.
 
 ## Architektur (Vorbild: https://github.com/markusbaechler/bbz-Fuehrung)

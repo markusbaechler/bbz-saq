@@ -12,6 +12,7 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 - Browser-Smoke-Test (Playwright, Chromium): `cd tests/smoke && npm ci && npx playwright install chromium && node run.mjs`. Erzeugt eine synthetische Excel im Temp-Verzeichnis, lädt sie in die App, rendert jede Ansicht, prüft Filter, Chips, Export-Menü, Glossar-Sprung, Kacheln, Tabellen-Encoding, aufklappbare Ereignisse, DQ-Suche, Tastaturbedienung, Druck, Dark Mode und den leeren Browser-Speicher; Screenshots unter `tests/smoke/output/`. Playwright ist die einzige npm-Abhängigkeit im Repo und reines Test-Tooling. Ohne Browser-Download lässt sich ein vorhandener Chromium über `SMOKE_CHROMIUM=<Pfad zur Headless-Shell>` verwenden.
 - CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Job «tests» (Syntaxprüfung aller Module, `node tests/run-node.js`, Kontrastprüfung der Farb-Tokens `node tools/contrast.js`, README-Glossar-Abgleich) und Job «smoke» (Browser-Smoke-Test, Screenshots als Artefakt bei Fehlern)
 - Modellbericht auf einer lokalen Kopie der Datei (nur Zähler und Quoten): `node tools/modellbericht.js <Datei.xlsx>`
+- Header-Übersicht beider Sheets ohne Zellwerte (Spalte, Header, gefüllte Zellen, unterschiedliche Werte, Experten-Markierung), vor jedem Mapping: `node tools/headers.js <Datei.xlsx>`
 - Snapshot der synthetischen Testdatei als Regressionsschutz bei Umbauten ohne fachliche Änderung: `node tools/snapshot-synth.js basis.json`, später `node tools/snapshot-synth.js --vergleich basis.json` (identisch = keine Zahl hat sich geändert)
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
 
@@ -38,6 +39,7 @@ der Navigation und lässt sich zu allen Zählern aufklappen.
 | Personen | Eine Person suchen (Name, Bank, Profil, Sprache, Zertifikat-Nr., Status; ab 2 Zeichen, mehrere Begriffe = UND) und ihren Weg nachvollziehen: Pfad über alle Vorgänge, je Vorgang Stammdaten, Status, Prüfungsraster (Teilprüfungen × RUN1–RUN3), Zeitachse, Datenqualität und Export «Diese Person»; mit Namen (E7). Ohne Suchtext leer, ausser eine Bank ist gefiltert (dann alle Personen der Bank); Geburtsjahr nur bei Namensgleichen |
 | Offene Vorgänge | Laufende Zertifizierungsprozesse (Gesamtergebnis leer) je Profil und mit Teilnehmenden: fehlende Teile, letzte Prüfung, nächster Termin, Versuche (mit Namen); Teilprüfungen je Profil; Frühwarnung «zweiter Fehlversuch»; passiv seit über 365 Tagen |
 | Geplante Prüfungen | Termine in der Zukunft ohne Ergebnis, zuerst schriftlich (WE), dann mündlich (OE): je Art die Prüfungsereignisse je Tag und Ort (Teilprüfungen mit Anzahl, Wiederholungen; Zeile anklicken → zugeteilte Personen) und die vollständige Teilnehmendenliste zum Aufklappen (mit Namen, Bank, Profil, Sprache) |
+| Experten | Je Experte/Expertin der mündlichen Prüfung: Einsätze, Rollen (als Experte 1/2, Anteil Experte 1), Durchfallquote im 1. Versuch und bei Wiederholungen, Ø Resultat, jeweils mit Δ zum Benchmark aller Experten im Filter (E9, neutral dargestellt); Zeilen-Detail je Jahr, Profil, Sprache und Partner; Paarungen Experte 1 × Experte 2; Export «Einsatzebene» mit Kandidaten- und Expertennamen «nur intern». Beobachtungswerte, keine Leistungsbeurteilung; mit Expertennamen (E8). Ohne Expertenspalten in der Datei erscheint ein Hinweis |
 | Datenqualität | «Nicht in den Kennzahlen» mit Grund je Zeile; jede nicht interpretierbare oder auffällige Zelle mit Wirkung auf die Kennzahlen, Stufe, Sheet, Zeile, Header, Rohwert, Grund; nach Wirkung priorisiert, sortier- und filterbar |
 | Glossar | Begriffe und Kennzahl-Definitionen (Definition, Nenner, Grenzfälle), auch ohne geladene Daten |
 
@@ -60,7 +62,7 @@ ihrem Rahmen). Die Navigation ist ein Auswahlfeld mit den vier Gruppen, die Filt
 zeigen nur Spalten der Priorität 1 (Tablet: 1 und 2); «Alle Spalten» blendet die übrigen ein und scrollt die Tabelle
 horizontal. Die Kacheln der Übersicht stehen in aufklappbaren Blöcken (Schriftlich und Mündlich offen, Mengen zu) mit
 nur Label, Wert, n und Delta-Symbol; Diagramme sind kompakt (360 × 200, Tooltip darunter). Vollständig für das Phone
-gestaltet sind Übersicht, Offene Vorgänge, Geplante Prüfungen und Personen (Nebenabschnitte eingeklappt); die übrigen Ansichten
+gestaltet sind Übersicht, Offene Vorgänge, Geplante Prüfungen, Personen und Experten (Nebenabschnitte eingeklappt); die übrigen Ansichten
 funktionieren ohne Überlauf. Die Anmeldung auf dem Phone läuft direkt über den Redirect-Flow von MSAL (kein Popup); der
 manuelle Gerätetest liegt beim Auftraggeber. Der Smoke-Test prüft die Viewports 1400 × 1000, 820 × 1180 und 390 × 844.
 
@@ -87,7 +89,11 @@ In der Ansicht «Personen» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausg
 Versuche und Wertung wirken nicht. Das Detail zeigt immer alle Vorgänge der Person. Suchtext und gewählte Person stehen nie in der
 URL (nur im Memory) und werden beim Neuladen der Daten geleert.
 
-## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E11)
+In der Ansicht «Experten» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» über die Vorgänge; der Zeitraum wirkt auf
+das Run-Datum des Einsatzes, nicht auf das Referenzdatum des Vorgangs («2025» zeigt die Einsätze des Jahres 2025). Versuche und Wertung
+wirken nicht. Die Sortierung der Haupttabelle liegt nur im Memory.
+
+## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E12)
 
 Eine Zeile der Datei ist ein **Zertifizierungsvorgang**; eine **Person** (Mensch) kann mehrere Vorgänge haben und wird über
 den **Personenschlüssel** aus «Last Name», «First Name» und Geburtsdatum identifiziert (nicht Employer). Zeilen derselben
@@ -115,6 +121,7 @@ Nenner der Bestehensquoten sind abgeschlossene Vorgänge. Definitionen und Grenz
 - **E9 (06.09.2026)** Die mündliche Prüfung prüft Methodik → profilübergreifend vergleichbar; Benchmark je Experte über alle Experten im Filter, getrennt nach Erstversuch und Wiederholung.
 - **E10 (06.09.2026)** Regel 1 präzisiert: die Struktur der Excel-Datei wird nie geändert; Zellwerte nur über den Schreibpfad (Paket E) mit Feature-Flag, Validierung, Konfliktprüfung und Audit. Scope `Files.ReadWrite.All` ist in Azure gesetzt.
 - **E11 (06.09.2026)** Personensuche: ohne Suchtext leere Liste, ausser der Bank-Filter ist gesetzt (alle Personen der Bank); Profil, Sprache, Bank, VSS/VSM und Zertifikate wirken auf die Trefferliste, Zeitraum, Versuche und Wertung nicht, das Detail zeigt alle Vorgänge; Geburtsjahr nur bei Namensgleichen, nie das volle Datum; Export «Diese Person» mit Dateiname ohne Namen, Inhalt «nur intern».
+- **E12 (06.09.2026)** Experten: Mapping über die am File verifizierten Header «OE{p} RUN{r} Expert 1/2» (optional, ältere Dateien laden weiterhin), erfasst ab 2018 (`CONFIG.experts.from`); Rollen neutral beschriftet (Beobachtung: Experte 1 kleinerer Kreis, Hypothese Prüfungsleitung), Spalte «OE Expert» nicht gemappt; ein Einsatz zählt für beide Experten, Runs mit Ergebnis ohne Datum zählen ohne Zeitraumfilter; Zeitraum wirkt auf das Run-Datum, Versuche und Wertung nicht; Δ zum Benchmark je Versuchsart neutral dargestellt (Beobachtungswerte); Paarungstabelle; Export «Einsatzebene» mit Namen «nur intern»; Alias-Liste leer.
 
 ## Kennzahl-Definitionen
 
@@ -236,6 +243,13 @@ Wirkungsklasse je Eintrag: **macht Zeile unsichtbar** (Zeile fehlt deswegen in a
 **ohne Kennzahlwirkung** (reine Interpretation, nicht ausgewertetes Feld). Das Log ist nach Wirkung, Stufe und Zeile
 sortiert; die Zusammenfassung nach Wirkung, Header und Grund lässt sich ohne Personendaten kopieren.
 
+**Experten (mündliche Prüfung):** Die Spalten «OE{p} RUN{r} Expert 1» und «Expert 2» (beide Sheets, optional) werden je Run gelesen:
+Text → Name (Mehrfach-Leerzeichen bereinigt, Alias aus `EXPERT_ALIASES`) und Schlüssel wie der Personenschlüssel. Zahl oder Datum ergibt
+den Fehler «Experte nicht lesbar» (verändert Kennzahl). Hinweise ohne Kennzahlwirkung: «Experte fehlt» (absolvierter Run mit Datum ab
+`CONFIG.experts.from` = 2018-01-01 ohne Experten), «Experte ohne Run» (Feld gefüllt, aber weder Datum noch Ergebnis), «Experte 1 = Experte 2»
+(beide Felder dieselbe Person). Duplikate füllen Experten auf, nie überschreiben. Ohne Expertenspalten in der Datei bleibt die Ansicht
+«Experten» leer mit Hinweis auf die erwarteten Header.
+
 ## Architektur
 
 Vanilla JS (ES-Module), kein Framework, kein Build-Schritt, GitHub Pages. Bibliotheken lokal unter `lib/`:
@@ -260,13 +274,15 @@ store.js                           Normalisierung → Personenmodell, Data-Quali
 metrics.js                         Reine Kennzahlfunktionen
 views/tables.js                    Tabellenmodelle je View (rein), views/*.js Rendering
 views/personen.js                  Ansicht «Personen»: Suche, Pfad, Karten je Vorgang, Export «Diese Person» (Paket C)
+views/experten.js                  Ansicht «Experten»: sortierbare Haupttabelle, Zeilen-Detail, Paarungen, Export «Einsatzebene» (Paket D)
 export.js                          CSV, XLSX, Druck
 config.js                          IDs, Pfade, Sheet-Namen, Header-Mapping, Whitelists, Aliase
 ```
 
 Datenschutz: Personendaten bleiben im Browser-Speicher (kein localStorage/IndexedDB); MSAL nutzt sessionStorage nur
 für Tokens. Namen erscheinen nur in den Ansichten Personen, Offene Vorgänge, Geplante Prüfungen und Bestenlisten, im
-Data-Quality-Log und in Exporten «nur intern» (E5, E7); Suchtext und gewählte Person der Personensuche stehen nie in der URL.
+Data-Quality-Log und in Exporten «nur intern» (E5, E7); Expertennamen erscheinen in der Ansicht «Experten» und im Export «Einsatzebene» (E8).
+Suchtext, gewählte Person und Sortierung stehen nie in der URL.
 Das Repository enthält keine Personendaten; `*.xlsx` und `local/` sind ausgeschlossen.
 
 Phase 2 (Schreibpfad, Paket E) ist nur vorbereitet: `CONFIG.features.write` (Standard `false`) und die dokumentierte Signatur

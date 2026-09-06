@@ -712,7 +712,7 @@ Umsetzung: `filterPersons(state.persons, filter, { period: false })` → `expert
 - [x] **D.3** `metrics.js` `expertRuns/expertStats/expertBenchmark/expertPairs`; Tests (Rollenzählung, Schichten, Δ, n < 5, gleicher Experte in beiden Rollen). Vorlegen.
 - [x] **D.4** `views/tables.js` Tabellenmodelle; `views/experten.js`; `app.js` `VIEWS` (Gruppe Experten, Export Einsatzebene). Vorlegen.
 - [x] **D.5** Phone-Layout; Smoke-Test: Ansicht rendert Haupttabelle mit synthetischen Experten, Sortierung, Zeilen-Detail, Zeitraumfilter wirkt auf Einsätze. Vorlegen.
-- [ ] **D.6** Glossar (Anhang A3), README (Ansichten, E8, E9, Normalisierung Experte, DQ-Regeln), `PROMPT.md` Harte Regeln. PR «Ready for review».
+- [x] **D.6** Glossar (Anhang A3), README (Ansichten, E8, E9, Normalisierung Experte, DQ-Regeln), `PROMPT.md` Harte Regeln. PR «Ready for review».
       ⛔ Abnahme Paket D (inkl. «Entscheide vor Start» Paket E).
 
 ### D.8 Akzeptanzkriterien
