@@ -173,17 +173,24 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--bo
 .views a { padding: var(--space-2) var(--space-3); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
 .views a:hover { background: var(--hover); }
 .views a.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
-.filterbar { padding: .6rem 1.25rem; background: var(--panel); border-bottom: 1px solid var(--border); }
-
-/* Filterleiste */
-.filterbar { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: flex-end; }
-.filterbar label { display: flex; flex-direction: column; gap: .15rem; font-size: .8rem; color: var(--muted); }
-.filterbar label > input, .filterbar label > select { font-size: .9rem; color: var(--text); }
-.filterbar .years { display: flex; gap: .25rem; flex-wrap: wrap; }
-.filterbar .years button, .filterbar .reset { padding: .25rem .5rem; font-size: .85rem; }
-.filterbar .years button.active { background: var(--accent); color: var(--on-accent); }
-.filterbar .check { flex-direction: row; align-items: center; gap: .4rem; font-size: .9rem; color: var(--text); }
-.filterbar .summary { flex-basis: 100%; color: var(--muted); font-size: .85rem; }
+/* Filterleiste (PROMPT-2 A.2): eine Zeile auf Desktop, haftet beim Scrollen oben; Chips je aktive Einschränkung */
+.filterbar {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: flex-end;
+  padding: var(--space-2) 1.25rem; background: var(--panel); border-bottom: 1px solid var(--border); box-shadow: 0 1px 0 var(--border);
+}
+.filterbar label { display: flex; flex-direction: column; gap: .15rem; font-size: var(--fs-xs); color: var(--muted); }
+.filterbar label > input, .filterbar label > select { font-size: var(--fs-sm); color: var(--text); }
+.filterbar .reset { padding: .25rem .5rem; font-size: var(--fs-sm); }
+.filterbar .check { flex-direction: row; align-items: center; gap: .4rem; font-size: var(--fs-sm); color: var(--text); }
+.filterbar .summary { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--fs-sm); }
+.filterbar .chips { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
+.chip {
+  display: inline-flex; align-items: center; gap: .3rem; padding: .1rem var(--space-2); line-height: 1.4;
+  border: 1px solid var(--accent); border-radius: 999px; background: var(--status-offen-bg); color: var(--accent); font-size: var(--fs-sm); cursor: pointer;
+}
+.chip:hover { background: var(--hover); }
+.chip-x { font-size: var(--fs-xs); }
 
 /* KPI-Kacheln und Blöcke */
 .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .6rem; margin: .5rem 0 1rem; }

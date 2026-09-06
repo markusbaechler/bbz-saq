@@ -8,6 +8,7 @@ import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.j
 import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount } from './metrics.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
+import { filterChips, yearOf } from './filterChips.js';
 import { el, exportBar } from './views/common.js';
 import { vorgangExportTables } from './views/tables.js';
 import { renderDataQuality } from './views/dataQuality.js';
@@ -169,10 +170,6 @@ function renderDatastand(visible) {
 
 const filterBar = { dataKey: null, controls: null };
 
-function isYear(filter, year) {
-  return !!(filter.from && filter.to && filter.from.getTime() === new Date(year, 0, 1).getTime() && filter.to.getTime() === new Date(year, 11, 31).getTime());
-}
-
 function selectControl(labelText, options, onChange) {
   const select = el('select', { onchange: (ev) => onChange(ev.target.value) }, options.map((o) => el('option', { value: o.value, text: o.label })));
   return { node: el('label', {}, [labelText, select]), select };
@@ -197,23 +194,31 @@ function buildFilterBar() {
   const c = {};
   c.from = el('input', { type: 'date', onchange: (ev) => set({ from: parseDay(ev.target.value) }) });
   c.to = el('input', { type: 'date', onchange: (ev) => set({ to: parseDay(ev.target.value) }) });
-  c.years = [{ year: null, button: el('button', { type: 'button', class: 'secondary', text: 'Alle', onclick: () => set({ from: null, to: null }) }) }]
-    .concat(years.map((y) => ({ year: y, button: el('button', { type: 'button', class: 'secondary', text: String(y), onclick: () => set({ from: new Date(y, 0, 1), to: new Date(y, 11, 31) }) }) })));
+  // Jahr als Auswahlfeld (PROMPT-2 A.2, Entscheid 06.09.2026): «Alle» + Jahre; setzt Von/Bis wie bisher die Buttons.
+  // Die temporäre Option «Von–Bis» (updateFilterBar) ist nur Anzeige eines freien Zeitraums und löst nichts aus.
+  const jahr = selectControl('Jahr', listOptions(years.map(String)), (v) => {
+    if (v === '') set({ from: null, to: null });
+    else if (v !== 'range') set({ from: new Date(Number(v), 0, 1), to: new Date(Number(v), 11, 31) });
+  });
   const profil = selectControl('Profil', listOptions(opts.profil), (v) => set({ profil: v ? [v] : [] }));
   const sprache = selectControl('Sprache', listOptions(opts.sprache), (v) => set({ sprache: v ? [v] : [] }));
   const bank = selectControl('Bank', listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] }));
   const vssVsm = selectControl('VSS/VSM', [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v }));
   const versuche = selectControl('Versuche', [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v }));
-  Object.assign(c, { profil: profil.select, sprache: sprache.select, bank: bank.select, vssVsm: vssVsm.select, versuche: versuche.select });
+  Object.assign(c, { jahr: jahr.select, profil: profil.select, sprache: sprache.select, bank: bank.select, vssVsm: vssVsm.select, versuche: versuche.select });
   c.onlyIssued = el('input', { type: 'checkbox', onchange: (ev) => set({ onlyIssued: ev.target.checked }) });
-  c.summary = el('div', { class: 'summary' });
+  // Reset nur sichtbar, wenn ein Filter vom Standard abweicht; Zusammenfassung = Zähler + Chips je aktive Einschränkung
+  c.reset = el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() });
+  c.count = el('span', { class: 'summary-count' });
+  c.chips = el('span', { class: 'chips' });
+  c.summary = el('div', { class: 'summary' }, [c.count, c.chips]);
   bar.append(
     el('label', {}, ['Von', c.from]),
     el('label', {}, ['Bis', c.to]),
-    el('label', {}, ['Jahr', el('div', { class: 'years' }, c.years.map((y) => y.button))]),
+    jahr.node,
     profil.node, sprache.node, bank.node, vssVsm.node, versuche.node,
     el('label', { class: 'check' }, [c.onlyIssued, 'Nur ausgestellte Zertifikate']),
-    el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() }),
+    c.reset,
     c.summary,
   );
   filterBar.controls = c;
@@ -238,7 +243,14 @@ function updateFilterBar() {
   const single = (list) => (list && list.length === 1 ? list[0] : '');
   c.from.value = formatDay(filter.from);
   c.to.value = formatDay(filter.to);
-  for (const { year, button } of c.years) button.classList.toggle('active', year === null ? !filter.from && !filter.to : isYear(filter, year));
+  // Jahr: ganzes Jahr → Jahr; freier Zeitraum → temporäre Option «Von–Bis»; kein Zeitraum → «Alle»
+  const year = yearOf(filter);
+  const custom = !year && !!(filter.from || filter.to);
+  const rangeOption = c.jahr.querySelector('option[value="range"]');
+  if (custom && !rangeOption) c.jahr.appendChild(el('option', { value: 'range', text: 'Von–Bis' }));
+  else if (!custom && rangeOption) rangeOption.remove();
+  if (custom) c.jahr.value = 'range';
+  else setSelect(c.jahr, year ? String(year) : '');
   setSelect(c.profil, single(filter.profil));
   setSelect(c.sprache, single(filter.sprache));
   setSelect(c.bank, single(filter.bank));
@@ -246,9 +258,14 @@ function updateFilterBar() {
   c.versuche.value = filter.versuche;
   c.onlyIssued.checked = !!filter.onlyIssued;
   const filtered = store.getFilteredPersons();
-  const multi = ['profil', 'sprache', 'bank'].some((k) => filter[k].length > 1) ? ' · Mehrfachauswahl aus der URL (Auswahlfelder zeigen «Alle»)' : '';
-  c.summary.textContent = filtered.length + ' Vorgänge (' + personCount(filtered) + ' Personen) im Filter, mit absolviertem, datiertem WE-Run · '
-    + filterLines(filter, meta).slice(1).filter((l) => !l.startsWith('Wertung')).join(' · ') + multi;
+  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+  c.count.textContent = plural(filtered.length, 'Vorgang', 'Vorgänge') + ' · ' + plural(personCount(filtered), 'Person', 'Personen');
+  // Chips werden in ihrem eigenen Container ersetzt; die Steuerelemente bleiben stehen (Fokusregel)
+  const chips = filterChips(filter);
+  c.chips.replaceChildren(...chips.map((ch) => el('button', { type: 'button', class: 'chip', 'aria-label': ch.ariaLabel, onclick: () => store.setFilter(ch.reset) }, [
+    ch.label, el('span', { class: 'chip-x', 'aria-hidden': 'true', text: '✕' }),
+  ])));
+  c.reset.hidden = chips.length === 0;
 }
 
 // ---------------------------------------------------------------------------

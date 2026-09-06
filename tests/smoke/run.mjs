@@ -74,7 +74,7 @@ try {
   check(!(await page.textContent('#view')).includes('Muster Anna'), 'Bank-Report ohne Namen');
   await shot(page, 'bank-report-mit-bank');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
-  await page.waitForFunction(() => /Bank: alle/.test(document.querySelector('#filterbar .summary').textContent), null, { timeout: 5000 });
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   check(views.includes('uebersicht') && views.includes('geplante-pruefungen') && views.includes('datenqualitaet'), 'Kern-Ansichten vorhanden: ' + views.join(', '));
 
   // Übersicht: Kacheln mit n
@@ -84,14 +84,25 @@ try {
   const kpiN = await page.$$eval('#view .kpi .kpi-n', (n) => n.filter((x) => /n = \d+|von \d+/.test(x.textContent)).length);
   check(kpiCount >= 10 && kpiN === kpiCount, 'Übersicht: ' + kpiCount + ' Kacheln, alle mit n');
 
-  // Filter: Profil = PK wirkt, steht in der URL, lässt sich zurücksetzen
+  // Filter (A.2): Profil = PK wirkt als Chip und in der URL; Fokus bleibt auf dem Auswahlfeld; Jahr als Auswahlfeld;
+  // Chip ✕ entfernt nur diesen Filter; Reset nur sichtbar, wenn ein Filter aktiv ist
+  check(await page.locator('#filterbar button.reset').isHidden(), 'Reset ohne aktiven Filter ausgeblendet');
   const before = await summaryText();
+  await page.focus('#filterbar label:has-text("Profil") select');
   await page.locator('#filterbar label:has-text("Profil") select').selectOption('PK');
   await page.waitForFunction((b) => document.querySelector('#filterbar .summary').textContent !== b, before, { timeout: 5000 });
-  check(/Profil: PK/.test(await summaryText()) && /profil=PK/.test(page.url()), 'Filter Profil = PK wirkt und steht in der URL');
+  check((await page.locator('#filterbar .chip', { hasText: 'Profil PK' }).count()) === 1 && /profil=PK/.test(page.url()), 'Filter Profil = PK wirkt: Chip «Profil PK», steht in der URL');
+  check(await page.evaluate(() => document.activeElement && document.activeElement.tagName === 'SELECT' && document.activeElement.closest('label').textContent.startsWith('Profil')), 'Fokus bleibt nach der Filteränderung auf dem Auswahlfeld Profil');
+  await page.locator('#filterbar label:has-text("Jahr") select').selectOption('2026');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 2, null, { timeout: 5000 });
+  check(/von=2026-01-01/.test(page.url()) && (await page.locator('#filterbar .chip', { hasText: '2026' }).count()) === 1 && (await page.locator('#filterbar button.reset').isVisible()), 'Jahr 2026 gewählt: Chip «2026», Von/Bis in der URL, Reset sichtbar');
+  await shot(page, 'filter-chips');
+  await page.locator('#filterbar .chip', { hasText: '2026' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  check(!/von=/.test(page.url()) && /profil=PK/.test(page.url()) && (await page.locator('#filterbar label:has-text("Jahr") select').inputValue()) === '', 'Chip ✕ entfernt nur den Zeitraum; Profil bleibt, Jahr zeigt «Alle»');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
-  await page.waitForFunction(() => /Profil: alle/.test(document.querySelector('#filterbar .summary').textContent), null, { timeout: 5000 });
-  check(!/profil=/.test(page.url()), 'Filter zurückgesetzt, URL ohne Filter');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+  check(!/profil=/.test(page.url()) && (await page.locator('#filterbar button.reset').isHidden()), 'Filter zurückgesetzt: URL ohne Filter, keine Chips, Reset ausgeblendet');
 
   // Geplante Prüfungen: Ereigniszeile per Klick und Enter, Teilnehmendenliste
   await page.goto(server.url + '#geplante-pruefungen');
