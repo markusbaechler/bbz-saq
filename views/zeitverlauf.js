@@ -2,14 +2,21 @@
 // Schwierigkeit je Teilprüfung über die Jahre (b6). Der Zeitraumfilter wirkt hier nicht (alle Jahre), die übrigen Filter schon.
 
 import { timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables, throughputTables } from './tables.js';
-import { renderTable, section, el } from './common.js';
+import { renderTable, section, hinted, el } from './common.js';
 import { renderLineChart } from './chart.js';
 import { formatPct, yearsOf } from '../metrics.js';
 
 export const id = 'zeitverlauf';
 export const label = 'Zeitverlauf';
+export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const intro = 'Kennzahlen je Jahr des Referenzdatums, zwei Jahre im Vergleich, Schwierigkeit je Teilprüfung; der Zeitraumfilter wirkt hier nicht.';
+export const glossar = 'Zeitverlauf (Ansicht)';
 
 export function build(ctx) {
+  const hints = [
+    'Entwicklung der Kennzahlen je Jahr des Referenzdatums (bestandene mündliche Prüfung, sonst letzte Prüfung). Die Filter Profil, Sprache, Bank, VSS/VSM, Versuche und «nur ausgestellte Zertifikate» gelten; der Zeitraumfilter wirkt hier nicht, damit alle Jahre sichtbar bleiben. Jahre mit weniger als 5 Vorgängen sind mit * markiert (hohle Marker).',
+  ];
+  const sec = hinted(hints);
   const persons = ctx.timePersons || [];
   const years = yearsOf(persons);
   const chartSeries = timeSeriesChartSeries(persons);
@@ -27,26 +34,23 @@ export function build(ctx) {
   const compareBar = compare ? el('div', { class: 'toolbar' }, [
     el('label', { class: 'inline' }, ['Jahr A ', yearSelect(compare.a, (a) => ctx.onCompareChange && ctx.onCompareChange({ a, b: compare.b }))]),
     el('label', { class: 'inline' }, ['Jahr B ', yearSelect(compare.b, (b) => ctx.onCompareChange && ctx.onCompareChange({ a: compare.a, b }))]),
-    el('span', { class: 'meta-list', text: 'Differenz = Jahr A minus Jahr B in Prozentpunkten. Standard: die zwei jüngsten Jahre mit Daten.' }),
   ]) : null;
   const pct = (v) => formatPct(v, 0);
   return {
     nodes: [
-      el('p', { class: 'meta-list', text: 'Entwicklung der Kennzahlen je Jahr des Referenzdatums (bestandene mündliche Prüfung, sonst letzte Prüfung). Die Filter Profil, Sprache, Bank, VSS/VSM, Versuche und «nur ausgestellte Zertifikate» gelten; der Zeitraumfilter wirkt hier nicht, damit alle Jahre sichtbar bleiben. Jahre mit weniger als 5 Vorgängen sind mit * markiert (hohle Marker).' }),
       years.length ? section('Bestehensquoten je Jahr', [
         renderLineChart(chartSeries.quoten, { title: 'Bestehensquoten je Jahr', yFormat: pct, yMax: 1, ariaLabel: 'Liniendiagramm: Bestehensquoten schriftlich (1. Versuch, insgesamt) und mündlich je Jahr; Werte in der Tabelle «Kennzahlen je Jahr»' }),
         renderLineChart(chartSeries.resultate, { title: 'Ø Resultate je Jahr (1. Versuch)', yFormat: pct, yMax: 1, ariaLabel: 'Liniendiagramm: Ø Resultat schriftlich und mündlich im 1. Versuch je Jahr; Werte in der Tabelle «Kennzahlen je Jahr»' }),
         renderTable(perYear),
       ]) : el('p', { class: 'empty', text: 'Keine Vorgänge mit Referenzdatum im aktiven Filter.' }),
       section('Kennzahlen je Profil und Jahr', [renderTable(perProfile)]),
-      comparison ? section('Zwei Jahre vergleichen', [compareBar, renderTable(comparison)], { intro: 'Dieselben Kennzahlen wie in der Übersicht für zwei Jahre nebeneinander.' }) : null,
-      section('Schwierigkeit je Teilprüfung', [renderTable(diff.pivot), renderTable(diff.long)], {
-        intro: 'Wie streng oder leicht war eine Teilprüfung in einem Jahr? Durchfallquote und Ø Resultat des ersten Versuchs je WE1–WE6 und OE1–OE2, Jahr = Datum des ersten Versuchs. Hohe Durchfallquoten bei gleichbleibenden Kandidatinnen und Kandidaten deuten auf die Prüfung, nicht auf die Teilnehmenden.',
-      }),
-      section('Durchlaufzeit', [renderTable(through.byProfil), renderTable(through.byYear)], {
-        intro: 'Tage vom ersten Prüfungsdatum bis zur bestandenen mündlichen Prüfung (nur bestandene Vorgänge) sowie bis zum Zertifikatsbeginn, wo «Certificate Start Date» vorhanden ist. Median ist robuster als der Mittelwert.',
-      }),
+      comparison ? sec('Zwei Jahre vergleichen', [compareBar, renderTable(comparison)], 'Dieselben Kennzahlen wie in der Übersicht für zwei Jahre nebeneinander. Differenz = Jahr A minus Jahr B in Prozentpunkten. Standard: die zwei jüngsten Jahre mit Daten.') : null,
+      sec('Schwierigkeit je Teilprüfung', [renderTable(diff.pivot), renderTable(diff.long)],
+        'Wie streng oder leicht war eine Teilprüfung in einem Jahr? Durchfallquote und Ø Resultat des ersten Versuchs je WE1–WE6 und OE1–OE2, Jahr = Datum des ersten Versuchs. Hohe Durchfallquoten bei gleichbleibenden Kandidatinnen und Kandidaten deuten auf die Prüfung, nicht auf die Teilnehmenden.'),
+      sec('Durchlaufzeit', [renderTable(through.byProfil), renderTable(through.byYear)],
+        'Tage vom ersten Prüfungsdatum bis zur bestandenen mündlichen Prüfung (nur bestandene Vorgänge) sowie bis zum Zertifikatsbeginn, wo «Certificate Start Date» vorhanden ist. Median ist robuster als der Mittelwert.'),
     ],
     tables: [perYear, perProfile].concat(comparison ? [comparison] : [], [diff.pivot, diff.long, through.byProfil, through.byYear]),
+    hints,
   };
 }

@@ -8,7 +8,9 @@ import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.j
 import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount } from './metrics.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
-import { el, exportBar } from './views/common.js';
+import { filterChips, yearOf } from './filterChips.js';
+import { el, renderExportMenu, renderCollapsible, renderEmptyState } from './views/common.js';
+import { glossarySlug } from './glossary.js';
 import { vorgangExportTables } from './views/tables.js';
 import { renderDataQuality } from './views/dataQuality.js';
 import * as overview from './views/overview.js';
@@ -23,9 +25,21 @@ import * as historie from './views/historie.js';
 import * as bankReport from './views/bankReport.js';
 import * as glossar from './views/glossar.js';
 
-const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, historie, ranking, bankReport, offen, planned];
-const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, build: v.build, noPersonExport: !!v.noPersonExport }))
-  .concat([{ id: 'datenqualitaet', label: 'Datenqualität' }, { id: glossar.id, label: glossar.label, build: glossar.build, isStatic: true }]);
+const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, bankReport, offen, planned, ranking, historie];
+const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, intro: v.intro, glossar: v.glossar, build: v.build, noPersonExport: !!v.noPersonExport }))
+  .concat([
+    {
+      id: 'datenqualitaet', label: 'Datenqualität', group: 'Daten', glossar: 'Data-Quality-Stufen',
+      intro: 'Jede nicht interpretierbare oder auffällige Zelle mit Wirkung, Stufe, Fundstelle und Grund; unabhängig vom Filter.',
+      hints: [
+        'Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit ihrer Wirkung auf die Kennzahlen, Stufe, Sheet, Excel-Zeile, Header, Rohwert und Grund – Wichtigstes zuerst. Unabhängig vom Filter.',
+        'Nicht in den Kennzahlen – Zeilen: Zeilen ohne absolvierten, datierten schriftlichen Run sowie zusammengeführte Duplikate. Zeilen ohne Namen erscheinen nur im Log (Fehler «Name fehlt»).',
+      ],
+    },
+    { id: glossar.id, label: glossar.label, group: glossar.group, intro: glossar.intro, build: glossar.build, isStatic: true },
+  ]);
+// Navigationsgruppen (PROMPT-2 A.2, Entscheid 06.09.2026); Gruppen ohne Ansicht (Experten bis Paket D) werden nicht gerendert
+const NAV_GROUPS = ['Kennzahlen', 'Personen', 'Experten', 'Daten'];
 
 // Aller Zustand liegt im Store (Filter, Anzeigezustand, Daten); app.js hält nur DOM-Referenzen und Lauf-Flags (Befund 16).
 const store = createStore();
@@ -79,12 +93,16 @@ function applyHash() {
 function renderNav() {
   const current = viewFromHash();
   const { filter, ui: uiState } = store.getState();
-  ui.nav.replaceChildren(...VIEWS.map((v) => {
-    // Links tragen den Filterzustand mit, damit der Ansichtswechsel ihn behält
-    const a = el('a', { href: buildHash(v.id, filter, uiState), text: v.label, class: v.id === current ? 'active' : null });
-    if (v.id === current) a.setAttribute('aria-current', 'page');
-    return a;
-  }));
+  const groups = NAV_GROUPS.map((name) => ({ name, views: VIEWS.filter((v) => v.group === name) })).filter((g) => g.views.length);
+  ui.nav.replaceChildren(...groups.map((g) => el('div', { class: 'nav-group', role: 'group', 'aria-label': g.name }, [
+    el('span', { class: 'nav-group-label', 'aria-hidden': 'true', text: g.name }),
+    el('div', { class: 'nav-links' }, g.views.map((v) => {
+      // Links tragen den Filterzustand mit, damit der Ansichtswechsel ihn behält
+      const a = el('a', { href: buildHash(v.id, filter, uiState), text: v.label, class: v.id === current ? 'active' : null });
+      if (v.id === current) a.setAttribute('aria-current', 'page');
+      return a;
+    })),
+  ])));
 }
 
 function renderSession() {
@@ -100,11 +118,13 @@ function renderStatus(text) {
   ui.status.classList.toggle('busy', busy);
   if (text) {
     ui.status.textContent = text;
+    renderDatastand(false);
     return;
   }
   const { meta, persons } = store.getState();
   if (!hasData()) {
     ui.status.textContent = 'Keine Daten geladen.';
+    renderDatastand(false);
     return;
   }
   const source = meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint';
@@ -116,6 +136,42 @@ function renderStatus(text) {
     + ' · kennzahlrelevant ' + eligible(persons).length + ' · offen ' + (counts.offen || 0) + ' · nicht erfasst ' + (counts.nichtErfasst || 0)
     + ' · Data-Quality-Log: ' + (counts.fehler || 0) + ' Fehler, ' + (counts.hinweise || 0) + ' Hinweise, ' + (counts.nichtAusgewertet || 0) + ' nicht ausgewertet'
     + keyNote;
+  renderDatastand(true);
+}
+
+// Datenstand (PROMPT-2 A.2, Befund B2): sichtbar nur ein Einzeiler als summary, alle übrigen Zähler als aufklappbare
+// zweispaltige Liste. Der Volltext bleibt in #status (aria-live, Smoke-Test), ist bei geladenen Daten aber nur für
+// Screenreader sichtbar; beim Laden und ohne Daten zeigt #status wie bisher.
+function renderDatastand(visible) {
+  const box = ui.datastand;
+  if (!visible) {
+    box.hidden = true;
+    box.replaceChildren();
+    ui.status.classList.remove('visually-hidden');
+    return;
+  }
+  const { meta, persons } = store.getState();
+  const c = meta.counts || {};
+  const fehler = c.fehler || 0;
+  const summary = el('summary', {}, [
+    'Datenstand: ' + meta.fileName + ' · geändert ' + (fmtDateTime(meta.lastModified) || '–') + ' · geladen ' + (fmtTime(meta.loadedAt) || '–')
+      + ' · ' + (c.zeilen || persons.length) + ' Zeilen · ',
+    el('span', { class: fehler ? 'warn' : null, text: 'DQ ' + fehler + ' Fehler' }),
+  ]);
+  const rows = [
+    ['Quelle', meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint'],
+    ['Zeilen je Sheet', (c.first || 0) + ' First Certification · ' + (c.issued || 0) + ' Ausgestellte Zertifikate'],
+    ['Vorgänge / Personen / Duplikate', (c.vorgaenge || 0) + ' / ' + (c.personen || 0) + ' / ' + (c.duplikate || 0)],
+    ['Kennzahlrelevant', String(eligible(persons).length)],
+    ['Offen / nicht erfasst', (c.offen || 0) + ' / ' + (c.nichtErfasst || 0)],
+    ['Data-Quality-Log', fehler + ' Fehler · ' + (c.hinweise || 0) + ' Hinweise · ' + (c.nichtAusgewertet || 0) + ' nicht ausgewertet'],
+    ['Schlüssel ohne Geburtsdatum', String(c.schluesselOhneGeburtsdatum || 0)],
+  ];
+  const open = box.open; // Auf-/Zuklappzustand beim Neurendern behalten
+  box.replaceChildren(summary, el('dl', { class: 'datastand-list' }, rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })])));
+  box.open = open;
+  box.hidden = false;
+  ui.status.classList.add('visually-hidden');
 }
 
 // ---------------------------------------------------------------------------
@@ -124,10 +180,6 @@ function renderStatus(text) {
 // ---------------------------------------------------------------------------
 
 const filterBar = { dataKey: null, controls: null };
-
-function isYear(filter, year) {
-  return !!(filter.from && filter.to && filter.from.getTime() === new Date(year, 0, 1).getTime() && filter.to.getTime() === new Date(year, 11, 31).getTime());
-}
 
 function selectControl(labelText, options, onChange) {
   const select = el('select', { onchange: (ev) => onChange(ev.target.value) }, options.map((o) => el('option', { value: o.value, text: o.label })));
@@ -153,23 +205,31 @@ function buildFilterBar() {
   const c = {};
   c.from = el('input', { type: 'date', onchange: (ev) => set({ from: parseDay(ev.target.value) }) });
   c.to = el('input', { type: 'date', onchange: (ev) => set({ to: parseDay(ev.target.value) }) });
-  c.years = [{ year: null, button: el('button', { type: 'button', class: 'secondary', text: 'Alle', onclick: () => set({ from: null, to: null }) }) }]
-    .concat(years.map((y) => ({ year: y, button: el('button', { type: 'button', class: 'secondary', text: String(y), onclick: () => set({ from: new Date(y, 0, 1), to: new Date(y, 11, 31) }) }) })));
+  // Jahr als Auswahlfeld (PROMPT-2 A.2, Entscheid 06.09.2026): «Alle» + Jahre; setzt Von/Bis wie bisher die Buttons.
+  // Die temporäre Option «Von–Bis» (updateFilterBar) ist nur Anzeige eines freien Zeitraums und löst nichts aus.
+  const jahr = selectControl('Jahr', listOptions(years.map(String)), (v) => {
+    if (v === '') set({ from: null, to: null });
+    else if (v !== 'range') set({ from: new Date(Number(v), 0, 1), to: new Date(Number(v), 11, 31) });
+  });
   const profil = selectControl('Profil', listOptions(opts.profil), (v) => set({ profil: v ? [v] : [] }));
   const sprache = selectControl('Sprache', listOptions(opts.sprache), (v) => set({ sprache: v ? [v] : [] }));
   const bank = selectControl('Bank', listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] }));
   const vssVsm = selectControl('VSS/VSM', [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v }));
   const versuche = selectControl('Versuche', [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v }));
-  Object.assign(c, { profil: profil.select, sprache: sprache.select, bank: bank.select, vssVsm: vssVsm.select, versuche: versuche.select });
+  Object.assign(c, { jahr: jahr.select, profil: profil.select, sprache: sprache.select, bank: bank.select, vssVsm: vssVsm.select, versuche: versuche.select });
   c.onlyIssued = el('input', { type: 'checkbox', onchange: (ev) => set({ onlyIssued: ev.target.checked }) });
-  c.summary = el('div', { class: 'summary' });
+  // Reset nur sichtbar, wenn ein Filter vom Standard abweicht; Zusammenfassung = Zähler + Chips je aktive Einschränkung
+  c.reset = el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() });
+  c.count = el('span', { class: 'summary-count' });
+  c.chips = el('span', { class: 'chips' });
+  c.summary = el('div', { class: 'summary' }, [c.count, c.chips]);
   bar.append(
     el('label', {}, ['Von', c.from]),
     el('label', {}, ['Bis', c.to]),
-    el('label', {}, ['Jahr', el('div', { class: 'years' }, c.years.map((y) => y.button))]),
+    jahr.node,
     profil.node, sprache.node, bank.node, vssVsm.node, versuche.node,
     el('label', { class: 'check' }, [c.onlyIssued, 'Nur ausgestellte Zertifikate']),
-    el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() }),
+    c.reset,
     c.summary,
   );
   filterBar.controls = c;
@@ -194,7 +254,14 @@ function updateFilterBar() {
   const single = (list) => (list && list.length === 1 ? list[0] : '');
   c.from.value = formatDay(filter.from);
   c.to.value = formatDay(filter.to);
-  for (const { year, button } of c.years) button.classList.toggle('active', year === null ? !filter.from && !filter.to : isYear(filter, year));
+  // Jahr: ganzes Jahr → Jahr; freier Zeitraum → temporäre Option «Von–Bis»; kein Zeitraum → «Alle»
+  const year = yearOf(filter);
+  const custom = !year && !!(filter.from || filter.to);
+  const rangeOption = c.jahr.querySelector('option[value="range"]');
+  if (custom && !rangeOption) c.jahr.appendChild(el('option', { value: 'range', text: 'Von–Bis' }));
+  else if (!custom && rangeOption) rangeOption.remove();
+  if (custom) c.jahr.value = 'range';
+  else setSelect(c.jahr, year ? String(year) : '');
   setSelect(c.profil, single(filter.profil));
   setSelect(c.sprache, single(filter.sprache));
   setSelect(c.bank, single(filter.bank));
@@ -202,9 +269,14 @@ function updateFilterBar() {
   c.versuche.value = filter.versuche;
   c.onlyIssued.checked = !!filter.onlyIssued;
   const filtered = store.getFilteredPersons();
-  const multi = ['profil', 'sprache', 'bank'].some((k) => filter[k].length > 1) ? ' · Mehrfachauswahl aus der URL (Auswahlfelder zeigen «Alle»)' : '';
-  c.summary.textContent = filtered.length + ' Vorgänge (' + personCount(filtered) + ' Personen) im Filter, mit absolviertem, datiertem WE-Run · '
-    + filterLines(filter, meta).slice(1).filter((l) => !l.startsWith('Wertung')).join(' · ') + multi;
+  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+  c.count.textContent = plural(filtered.length, 'Vorgang', 'Vorgänge') + ' · ' + plural(personCount(filtered), 'Person', 'Personen');
+  // Chips werden in ihrem eigenen Container ersetzt; die Steuerelemente bleiben stehen (Fokusregel)
+  const chips = filterChips(filter);
+  c.chips.replaceChildren(...chips.map((ch) => el('button', { type: 'button', class: 'chip', 'aria-label': ch.ariaLabel, onclick: () => store.setFilter(ch.reset) }, [
+    ch.label, el('span', { class: 'chip-x', 'aria-hidden': 'true', text: '✕' }),
+  ])));
+  c.reset.hidden = chips.length === 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -220,32 +292,71 @@ function renderDq(table) {
   }, { persons });
 }
 
+// Hash einer Ansicht mit dem aktuellen Filterzustand plus einem Zusatzparameter (Glossar-Sprung); urlState ignoriert ihn
+function hashWithParam(viewId, key, value) {
+  const { filter, ui: uiState } = store.getState();
+  const base = buildHash(viewId, filter, uiState);
+  return base + (base.includes('?') ? '&' : '?') + key + '=' + encodeURIComponent(value);
+}
+
+// Hinweise der View plus die eindeutigen Fussnoten ihrer Tabellen (Befund B9: nicht mehr unter jeder Tabelle)
+function legendHints(built) {
+  const notes = [...new Set((built.tables || []).map((t) => t && t.note).filter(Boolean))];
+  return (built.hints || []).concat(notes);
+}
+
+// Legende am Ende der View (PROMPT-2 A.3/A.5): verschobene Einleitungs- und Abschnittstexte, Fussnoten; im Druck geöffnet
+function appendLegend(container, hints) {
+  if (!hints || !hints.length) return;
+  const legend = renderCollapsible('Hinweise und Definitionen', [el('ul', { class: 'legend-list' }, hints.map((h) => el('li', { text: h })))], { printOpen: true });
+  legend.classList.add('legend');
+  container.appendChild(legend);
+}
+
+// Glossar-Sprung: #glossar?begriff=<slug> → Zeile fokussieren; syncHash() entfernt den Parameter danach wieder
+function jumpToGlossaryTerm() {
+  const begriff = new URLSearchParams(location.hash.split('?')[1] || '').get('begriff');
+  const target = begriff ? document.getElementById('glossar-' + begriff) : null;
+  if (!target) return;
+  target.scrollIntoView({ block: 'start' });
+  target.focus({ preventScroll: true });
+}
+
 function renderView() {
   const current = viewFromHash();
   renderNav();
   const view = VIEWS.find((v) => v.id === current);
   const container = ui.view;
   container.replaceChildren();
-  container.appendChild(el('h2', { text: view.label }));
+  // View-Kopf (PROMPT-2 A.3): Titel und Kurzbeschreibung links, rechts Export-Menü und Link «Definitionen» (Glossar-Anker)
+  const actions = el('div', { class: 'view-actions' });
+  container.appendChild(el('div', { class: 'view-head' }, [
+    el('div', { class: 'view-title' }, [el('h2', { text: view.label }), view.intro ? el('p', { class: 'view-intro', text: view.intro }) : null]),
+    actions,
+  ]));
+  const definitionen = view.glossar ? el('a', { class: 'link-definitionen', href: hashWithParam('glossar', 'begriff', glossarySlug(view.glossar)), text: 'Definitionen' }) : null;
 
   const state = store.getState();
   if (view.isStatic) {
     // Statische Ansicht (Glossar): unabhängig von Daten und Filter
     const built = view.build({});
-    container.appendChild(exportBar({ viewId: view.id, tables: built.tables, headerLines: [] }));
+    actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines: [] }));
     for (const node of built.nodes) container.appendChild(node);
+    appendLegend(container, legendHints(built));
+    jumpToGlossaryTerm();
     return;
   }
   if (!hasData()) {
-    container.appendChild(el('p', { class: 'empty', text: 'Noch keine Daten geladen. Bitte anmelden und «Daten von SharePoint laden» oder eine lokale Excel-Datei prüfen.' }));
+    container.appendChild(renderEmptyState({ canLoad: authReady, onLoad: () => run(signInAndLoad), onFile: () => ui.file.click() }));
     return;
   }
 
   if (current === 'datenqualitaet') {
-    container.appendChild(el('p', { class: 'meta-list', text: 'Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit ihrer Wirkung auf die Kennzahlen, Stufe, Sheet, Excel-Zeile, Header, Rohwert und Grund – Wichtigstes zuerst. Unabhängig vom Filter.' }));
+    if (definitionen) actions.append(definitionen);
     const table = el('div');
     container.appendChild(table);
     renderDq(table);
+    appendLegend(container, view.hints);
     return;
   }
 
@@ -258,6 +369,7 @@ function renderView() {
     timePersons: filterPersons(state.persons, filter, { period: false }), // kennzahlrelevant, alle Jahre (Zeitverlauf)
     bankBenchmarkPersons: filterPersons(state.persons, benchmarkFilter(filter, 'bank')), // Bank-Report: alle Banken
     today: new Date(),
+    glossaryHref: (term) => hashWithParam('glossar', 'begriff', glossarySlug(term)), // Kachel-Label → Glossar, Filter bleibt
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
     snapshots: state.ui.snapshots || [],
@@ -283,9 +395,11 @@ function renderView() {
     showError(e);
     return;
   }
+  actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines, extra: view.noPersonExport ? null : { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) } }));
+  if (definitionen) actions.append(definitionen);
   container.appendChild(el('div', { class: 'print-filter', text: headerLines.join(' · ') }));
-  container.appendChild(exportBar({ viewId: view.id, tables: built.tables, headerLines, extra: view.noPersonExport ? null : { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) } }));
   for (const node of built.nodes) container.appendChild(node);
+  appendLegend(container, legendHints(built));
 }
 
 function renderAll() {
@@ -352,12 +466,14 @@ async function run(action) {
   busy = true;
   clearError();
   renderSession();
+  ui.view.setAttribute('aria-busy', 'true'); // Laden (A.7): Inhalt wird gerade ersetzt
   try {
     await action();
   } catch (e) {
     showError(e);
   } finally {
     busy = false;
+    ui.view.removeAttribute('aria-busy');
     renderSession();
     renderStatus();
   }
@@ -366,6 +482,12 @@ async function run(action) {
 async function signIn() {
   renderStatus('Anmeldung …');
   await auth.signIn();
+}
+
+// Leerzustand-Karte: erst anmelden (falls nötig), dann laden – ein Klick
+async function signInAndLoad() {
+  if (!auth.getAccount()) await signIn();
+  await loadGraph();
 }
 
 async function signOut() {
@@ -394,6 +516,7 @@ async function init() {
   ui.load = $('btn-load');
   ui.file = $('file-input');
   ui.status = $('status');
+  ui.datastand = $('datastand');
   ui.error = $('error');
   ui.nav = $('nav');
   ui.filterbar = $('filterbar');

@@ -9,12 +9,21 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 - Live: https://markusbaechler.github.io/bbz-saq/ (Anmeldung mit M365-Konto, Zugriff gemäss SharePoint-Rechten)
 - Lokal: `python -m http.server 3000` → http://localhost:3000
 - Tests: `node tests/run-node.js` oder `tests.html` im Browser (synthetische Daten, keine Personendaten)
-- Browser-Smoke-Test (Playwright, Chromium): `cd tests/smoke && npm ci && npx playwright install chromium && node run.mjs`. Erzeugt eine synthetische Excel im Temp-Verzeichnis, lädt sie in die App, rendert jede Ansicht, prüft Filter, aufklappbare Ereignisse, DQ-Suche, Druck, Dark Mode und den leeren Browser-Speicher; Screenshots unter `tests/smoke/output/`. Playwright ist die einzige npm-Abhängigkeit im Repo und reines Test-Tooling.
-- CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Job «tests» (Syntaxprüfung aller Module, `node tests/run-node.js`, README-Glossar-Abgleich) und Job «smoke» (Browser-Smoke-Test, Screenshots als Artefakt bei Fehlern)
+- Browser-Smoke-Test (Playwright, Chromium): `cd tests/smoke && npm ci && npx playwright install chromium && node run.mjs`. Erzeugt eine synthetische Excel im Temp-Verzeichnis, lädt sie in die App, rendert jede Ansicht, prüft Filter, Chips, Export-Menü, Glossar-Sprung, Kacheln, Tabellen-Encoding, aufklappbare Ereignisse, DQ-Suche, Tastaturbedienung, Druck, Dark Mode und den leeren Browser-Speicher; Screenshots unter `tests/smoke/output/`. Playwright ist die einzige npm-Abhängigkeit im Repo und reines Test-Tooling. Ohne Browser-Download lässt sich ein vorhandener Chromium über `SMOKE_CHROMIUM=<Pfad zur Headless-Shell>` verwenden.
+- CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Job «tests» (Syntaxprüfung aller Module, `node tests/run-node.js`, Kontrastprüfung der Farb-Tokens `node tools/contrast.js`, README-Glossar-Abgleich) und Job «smoke» (Browser-Smoke-Test, Screenshots als Artefakt bei Fehlern)
 - Modellbericht auf einer lokalen Kopie der Datei (nur Zähler und Quoten): `node tools/modellbericht.js <Datei.xlsx>`
+- Snapshot der synthetischen Testdatei als Regressionsschutz bei Umbauten ohne fachliche Änderung: `node tools/snapshot-synth.js basis.json`, später `node tools/snapshot-synth.js --vergleich basis.json` (identisch = keine Zahl hat sich geändert)
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
 
 ## Ansichten
+
+Die Navigation ist in vier Gruppen gegliedert: **Kennzahlen** (Übersicht, Schriftlich, Mündlich, VSS/VSM, Zeitverlauf,
+Bank-Report), **Personen** (Offene Vorgänge, Geplante Prüfungen, Bestenlisten), **Experten** (ab Paket D) und **Daten**
+(Historie, Datenqualität, Glossar). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
+Menü «Export» und der Link «Definitionen», der die passende Zeile im Glossar fokussiert. Erklärungen und Fussnoten der
+Tabellen stehen gesammelt in der Legende «Hinweise und Definitionen» am Ende jeder Ansicht (im Druck geöffnet) und als ⓘ
+am jeweiligen Titel. Der Datenstand (Datei, Änderungs- und Ladezeit, Zeilen, Data-Quality-Fehler) steht als Einzeiler über
+der Navigation und lässt sich zu allen Zählern aufklappen.
 
 | Ansicht | Inhalt |
 |---|---|
@@ -31,14 +40,25 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 | Datenqualität | «Nicht in den Kennzahlen» mit Grund je Zeile; jede nicht interpretierbare oder auffällige Zelle mit Wirkung auf die Kennzahlen, Stufe, Sheet, Zeile, Header, Rohwert, Grund; nach Wirkung priorisiert, sortier- und filterbar |
 | Glossar | Begriffe und Kennzahl-Definitionen (Definition, Nenner, Grenzfälle), auch ohne geladene Daten |
 
-Jede Kennzahl-Ansicht bietet Export als CSV (alle Tabellen in einer Datei) und XLSX (ein Blatt je Tabelle) sowie eine
-Druckansicht. Zusätzlich exportiert jede Kennzahl-Ansicht die Vorgangsebene (eine Zeile je Vorgang, eine Zeile je Run,
-mit Namen, nur intern). Der Filterzustand steht im Kopf jedes Exports.
+Jede Kennzahl-Ansicht bietet im Menü «Export» CSV (alle Tabellen in einer Datei) und XLSX (ein Blatt je Tabelle) sowie
+eine Druckansicht. Zusätzlich exportiert jede Kennzahl-Ansicht die Vorgangsebene (eine Zeile je Vorgang, eine Zeile je
+Run, mit Namen, nur intern). Der Filterzustand steht im Kopf jedes Exports.
+
+**Darstellung:** Die Kacheln der Übersicht stehen in den Blöcken Mengen, Schriftlich und Mündlich; die Definition steckt
+im ⓘ, das Label verlinkt auf das Glossar. Bei aktivem Benchmark zeigt jede Quoten-Kachel die Differenz mit Symbol,
+Vorzeichen und Farbe nach Richtung der Kennzahl (▲ +2.1 pp; höher ist besser bei Bestehensquoten und Ø Resultat, tiefer
+ist besser bei Durchfallquoten und passiven Vorgängen; unter 0.5 pp neutral ●). In Tabellen tragen Prozentspalten einen
+Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die erste Spalte bleibt beim horizontalen
+Scrollen stehen. Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
+Desktop) für die mobile Darstellung.
 
 ## Globale Filter
 
-Zeitraum (Von–Bis, Jahres-Shortcuts, «Alle»; wirkt auf das Referenzdatum), Profil, Sprache, Bank, VSS/VSM,
-Versuche (alle | nur 1. Versuch | mehrere Versuche), «nur ausgestellte Zertifikate» (Sheet 2 oder damit zusammengeführt).
+Zeitraum (Von–Bis, Jahr als Auswahlfeld mit «Alle» und den Jahren; wirkt auf das Referenzdatum), Profil, Sprache, Bank,
+VSS/VSM, Versuche (alle | nur 1. Versuch | mehrere Versuche), «nur ausgestellte Zertifikate» (Sheet 2 oder damit
+zusammengeführt). Die Filterleiste haftet beim Scrollen oben. Unter den Steuerelementen stehen «n Vorgänge · n Personen»
+und je aktive Einschränkung ein Chip (z. B. «2026 ✕», «Profil PK ✕»); ✕ entfernt genau diesen Filter. «Filter
+zurücksetzen» erscheint nur, wenn ein Filter vom Standard abweicht.
 
 **Filterzustand in der URL:** Ansicht, Filter, Wertung und Benchmark stehen im Hash der Adresse
 (`#schriftlich?von=2025-01-01&bis=2025-12-31&profil=PK&bank=…&wertung=bestanden&benchmark=profil`) und lassen sich als
@@ -51,7 +71,7 @@ Ansichten zeigen beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfu
 dieselben Filter verwendet, nur ohne die gewählte Einschränkung: Alle Banken (Standard), Alle Profile, Alle Sprachen
 oder Gesamt (nur Zeitraum). Differenzen in Prozentpunkten.
 
-## Modell: Vorgänge, Personen, Duplikate, Status (Entscheide E1–E4)
+## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E10)
 
 Eine Zeile der Datei ist ein **Zertifizierungsvorgang**; eine **Person** (Mensch) kann mehrere Vorgänge haben und wird über
 den **Personenschlüssel** aus «Last Name», «First Name» und Geburtsdatum identifiziert (nicht Employer). Zeilen derselben
@@ -65,6 +85,19 @@ Nenner der Bestehensquoten sind abgeschlossene Vorgänge. Definitionen und Grenz
   einen Schlüssel nur aus dem Namen; die Anzahl steht im Modellbericht (`schluesselOhneGeburtsdatum`).
 - Lokaler Modellbericht (Zähler, Duplikate, offene Vorgänge, Quoten alt → neu je Profil, Score-Beispielwerte; keine Namen):
   `node tools/modellbericht.js /pfad/zu/Reporting_KUBA.xlsx`
+
+**Entscheid-Log des Auftraggebers** (verbindliche Grundlage; Details im Glossar):
+
+- **E1 (05.09.2026)** Duplikate: zwei Zeilen derselben Person mit gleichem Profil und ohne widersprüchliche Prüfungsdaten werden zu einem Vorgang zusammengeführt; widersprüchliche Zeilen bleiben eigene Vorgänge (Hinweis «Wiederholung?»).
+- **E2 (05.09.2026)** Personenschlüssel aus «Last Name», «First Name» und Geburtsdatum; ein Bankwechsel ändert die Person nicht (Employer ist nicht Teil des Schlüssels).
+- **E3 (05.09.2026)** Prüfungsbezogene Quoten zählen Vorgänge; eine Person mit zwei Profilen zählt zweimal. «Personen» wird nur ausgewiesen, wo Menschen gezählt werden.
+- **E4 (05.09.2026)** Nenner der Bestehensquoten sind abgeschlossene Vorgänge (bestanden + nicht bestanden); leeres Gesamtergebnis = offen, «no» gilt als abgeschlossen. Offene Vorgänge ohne Prüfung seit mehr als 365 Tagen und ohne Termin sind «passiv» (eigene Zahl, nie «nicht bestanden»).
+- **E5 (05.09.2026)** Bestenlisten nur ab 5 Vorgängen im Profil, Liste höchstens halbe Gruppe (maximal 5). Exporte auf Vorgangsebene und Listen mit Namen sind bbz-intern.
+- **E6 (05.09.2026)** «Result» ist massgebend, «Score» wird nicht ausgewertet; das Parsing bleibt, damit verrutschte Zellen sichtbar sind.
+- **E7 (06.09.2026)** Namen zusätzlich in der Ansicht «Personen» (Paket C); Nutzerkreis bbz-intern; nie in URL, Snapshots, Repo.
+- **E8 (06.09.2026)** Expertennamen in der Ansicht «Experten» (Paket D).
+- **E9 (06.09.2026)** Die mündliche Prüfung prüft Methodik → profilübergreifend vergleichbar; Benchmark je Experte über alle Experten im Filter, getrennt nach Erstversuch und Wiederholung.
+- **E10 (06.09.2026)** Regel 1 präzisiert: die Struktur der Excel-Datei wird nie geändert; Zellwerte nur über den Schreibpfad (Paket E) mit Feature-Flag, Validierung, Konfliktprüfung und Audit. Scope `Files.ReadWrite.All` ist in Azure gesetzt.
 
 ## Kennzahl-Definitionen
 
@@ -178,10 +211,16 @@ sortiert; die Zusammenfassung nach Wirkung, Header und Grund lässt sich ohne Pe
 Vanilla JS (ES-Module), kein Framework, kein Build-Schritt, GitHub Pages. Bibliotheken lokal unter `lib/`:
 MSAL.js 3.30.0 (MIT), SheetJS 0.20.3 (Apache-2.0), fflate 0.8.3 (MIT). Diagramme sind Inline-SVG ohne Bibliothek
 (`views/chart.js`), Farben nach validierter Palette. Dark Mode folgt der Systemeinstellung (`prefers-color-scheme`);
-der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern.
+der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die Gestaltung läuft über CSS-Tokens in
+`styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
+aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Linien ≥ 3:1) und läuft in der CI.
 
 ```
-index.html / app.js / styles.css   Shell, Filterleiste, Navigation, Fehleranzeige
+index.html / app.js / styles.css   Shell, Filterleiste, Navigation, View-Kopf, Legende, Fehleranzeige
+filterChips.js                     Aktive Filter als Chips (rein)
+urlState.js                        Filter- und Anzeigezustand in der URL (rein)
+glossary.js / snapshot.js          Begriffe und Kennzahl-Definitionen; Snapshots der Aggregate (rein)
+tools/                             contrast.js, glossar-readme.js, modellbericht.js, snapshot-synth.js (Node)
 auth.js                            MSAL (Popup, Redirect-Fallback, Silent-Token)
 graph.js                           Graph-HTTP mit Retry (429/503), Token-Erneuerung bei 401
 datasource/index.js                load() / loadFromFile() / write() (Phase 2)

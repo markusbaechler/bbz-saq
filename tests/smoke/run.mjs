@@ -41,10 +41,15 @@ try {
   // Laden
   await page.goto(server.url, { waitUntil: 'networkidle' });
   check((await page.locator('#nav a').count()) >= 8, 'Navigation gerendert');
+  check((await page.locator('#nav .nav-group').count()) >= 3 && (await page.locator('#nav .nav-group[aria-label="Kennzahlen"] a').count()) === 6, 'Navigation in Gruppen (Kennzahlen · Personen · Daten)');
+  check((await page.locator('#view .empty-card .actions button').count()) === 2 && (await page.locator('#view .empty-card h3').textContent()).startsWith('Noch keine Daten'), 'Leerzustand: Karte mit zwei Aktionen statt Fliesstext');
   await page.setInputFiles('#file-input', xlsx);
   await page.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
   const status = (await page.textContent('#status')).replace(/\s+/g, ' ').trim();
   check(/Data-Quality-Log/.test(status) && /Duplikate/.test(status), 'Datei geladen: ' + status.slice(0, 170));
+  // Datenstand (A.2): sichtbarer Einzeiler mit aufklappbaren Zählern; der Volltext in #status bleibt (nur für Screenreader)
+  const datastand = (await page.textContent('#datastand summary')).replace(/\s+/g, ' ').trim();
+  check(datastand.startsWith('Datenstand: synth.xlsx') && /DQ \d+ Fehler$/.test(datastand) && (await page.locator('#datastand dt').count()) >= 6 && (await page.locator('#status.visually-hidden').count()) === 1, 'Datenstand: «' + datastand.slice(0, 90) + '» mit Details, Volltext nur für Screenreader');
 
   // Jede Ansicht rendert Titel und mindestens eine Tabelle, ohne Fehler
   const views = await page.$$eval('#nav a', (as) => as.map((a) => a.getAttribute('href').replace(/^#/, '')));
@@ -56,6 +61,15 @@ try {
     const kpis = await page.$$eval('#view .kpi', (k) => k.map((x) => x.querySelector('.kpi-label').textContent + '=' + x.querySelector('.kpi-value').textContent));
     const hint = await page.locator('#view p.empty').count(); // z. B. Bank-Report ohne gewählte Bank
     check(h2.length > 0 && (tables > 0 || hint > 0), 'Ansicht ' + v + ': «' + h2 + '», ' + tables + ' Tabellen' + (kpis.length ? ', KPIs: ' + kpis.join('; ') : '') + (tables === 0 ? ', Hinweis statt Tabellen' : ''));
+    // View-Kopf (A.3): Kurzbeschreibung statt Einleitungsabsatz, höchstens eine Legende am Ende
+    check((await page.locator('#view .view-head .view-intro').count()) === 1 && (await page.locator('#view > p.meta-list').count()) === 0 && (await page.locator('#view details.legend').count()) <= 1, 'Ansicht ' + v + ': Kopf mit Kurzbeschreibung, kein Einleitungsabsatz, höchstens eine Legende');
+    // Tabellen (A.5): kein doppelter Titel (caption = h3 nur für Screenreader), keine Fussnoten unter Tabellen
+    const doubleTitle = await page.evaluate(() => [...document.querySelectorAll('#view section.block')].some((s) => {
+      const h3 = s.querySelector('h3');
+      const title = h3 && h3.firstChild ? h3.firstChild.textContent : '';
+      return [...s.querySelectorAll('caption')].some((c) => !c.classList.contains('visually-hidden') && (c.querySelector('.caption-text') || c).textContent === title);
+    }));
+    check(!doubleTitle && (await page.locator('#view p.note').count()) === 0, 'Ansicht ' + v + ': kein doppelter Tabellentitel, keine Fussnoten unter Tabellen');
     await shot(page, v);
   }
 
@@ -70,7 +84,7 @@ try {
   check(!(await page.textContent('#view')).includes('Muster Anna'), 'Bank-Report ohne Namen');
   await shot(page, 'bank-report-mit-bank');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
-  await page.waitForFunction(() => /Bank: alle/.test(document.querySelector('#filterbar .summary').textContent), null, { timeout: 5000 });
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   check(views.includes('uebersicht') && views.includes('geplante-pruefungen') && views.includes('datenqualitaet'), 'Kern-Ansichten vorhanden: ' + views.join(', '));
 
   // Übersicht: Kacheln mit n
@@ -79,15 +93,75 @@ try {
   const kpiCount = await page.locator('#view .kpi').count();
   const kpiN = await page.$$eval('#view .kpi .kpi-n', (n) => n.filter((x) => /n = \d+|von \d+/.test(x.textContent)).length);
   check(kpiCount >= 10 && kpiN === kpiCount, 'Übersicht: ' + kpiCount + ' Kacheln, alle mit n');
+  // Kacheln (A.4): drei Blöcke, Definition als ⓘ und Glossar-Link statt Absatz, Delta zum Benchmark mit Symbol und Vorzeichen
+  check((await page.$$eval('#view .kpi-group h3', (h) => h.map((x) => x.textContent))).join(',') === 'Mengen,Schriftlich,Mündlich', 'Übersicht: Kacheln in drei Blöcken (Mengen · Schriftlich · Mündlich)');
+  check((await page.locator('#view .kpi-hint').count()) === 0 && (await page.locator('#view .kpi .info').count()) >= 10 && (await page.locator('#view .kpi-label a[href*="begriff="]').count()) >= 10, 'Kacheln ohne Definitionsabsatz, mit ⓘ und Glossar-Link');
+  check((await page.locator('#view td.pct[style*="--v"]').count()) >= 4, 'Datenbalken in Prozentspalten (Kennzahlen je Profil)');
+  await page.locator('#filterbar label:has-text("Bank") select').selectOption({ label: 'Testbank AG' });
+  await page.waitForSelector('#view .kpi-delta');
+  const deltas = await page.$$eval('#view .kpi-delta', (d) => d.map((x) => x.textContent.trim()));
+  check(deltas.length >= 5 && deltas.every((t) => /^[▲▼●] [+−]?\d+\.\d pp vs\. /.test(t)), 'Benchmark-Delta je Quoten-Kachel mit Symbol und Vorzeichen (' + deltas.length + ', z. B. «' + deltas[0] + '»)');
+  const deltaCells = await page.$$eval('#view td.delta', (t) => t.map((x) => x.textContent.trim()));
+  check(deltaCells.length >= 5 && deltaCells.every((t) => /^[▲▼●] [+−]?\d+\.\d pp$/.test(t)) && (await page.locator('#view td.delta.pos, #view td.delta.neg').count()) >= 1, 'Differenzspalte der Vergleichstabelle mit Symbol, Vorzeichen und Farbe (' + deltaCells.length + ' Zellen)');
+  await shot(page, 'uebersicht-benchmark');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
-  // Filter: Profil = PK wirkt, steht in der URL, lässt sich zurücksetzen
+  // Tastatur (A.8): mit Tab von oben durch Navigation und Filterleiste bis zum Export-Menü
+  // Startpunkt der Tab-Reihenfolge an den Seitenanfang setzen (nach einem ausgeblendeten Button läge er sonst dahinter)
+  await page.evaluate(() => { const b = document.body; b.tabIndex = -1; b.focus(); b.removeAttribute('tabindex'); window.scrollTo(0, 0); });
+  const reached = { nav: false, filter: false, menu: false };
+  for (let i = 0; i < 40 && !reached.menu; i++) {
+    await page.keyboard.press('Tab');
+    const where = await page.evaluate(() => {
+      const a = document.activeElement;
+      if (!a) return '';
+      if (a.closest('#nav')) return 'nav';
+      if (a.closest('#filterbar')) return 'filter';
+      if (a.matches('#view details.menu > summary')) return 'menu';
+      return '';
+    });
+    if (where) reached[where] = true;
+  }
+  check(reached.nav && reached.filter && reached.menu, 'Tastatur: Tab erreicht Navigation, Filterleiste und Export-Menü (' + JSON.stringify(reached) + ')');
+
+  // View-Kopf (A.3): Export-Menü per Tastatur; «Definitionen» springt ins Glossar und fokussiert den Begriff
+  await page.focus('#view details.menu > summary');
+  await page.keyboard.press('Enter');
+  check((await page.locator('#view details.menu[open] .menu-item').count()) >= 3, 'Export-Menü per Tastatur geöffnet (CSV, XLSX, Druckansicht)');
+  await page.keyboard.press('Enter');
+  check((await page.locator('#view details.menu[open]').count()) === 0, 'Export-Menü per Tastatur geschlossen');
+  await page.click('#view a.link-definitionen');
+  await page.waitForFunction(() => location.hash.startsWith('#glossar') && !!document.querySelector('#view tr[id^="glossar-"]'), null, { timeout: 5000 });
+  const focusedTerm = await page.evaluate(() => (document.activeElement && document.activeElement.id) || '');
+  check(focusedTerm.startsWith('glossar-'), 'Definitionen: Sprung ins Glossar mit Fokus auf dem Begriff (' + focusedTerm + ')');
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+
+  // Filter (A.2): Profil = PK wirkt als Chip und in der URL; Fokus bleibt auf dem Auswahlfeld; Jahr als Auswahlfeld;
+  // Chip ✕ entfernt nur diesen Filter; Reset nur sichtbar, wenn ein Filter aktiv ist
+  check(await page.locator('#filterbar button.reset').isHidden(), 'Reset ohne aktiven Filter ausgeblendet');
   const before = await summaryText();
+  await page.focus('#filterbar label:has-text("Profil") select');
   await page.locator('#filterbar label:has-text("Profil") select').selectOption('PK');
   await page.waitForFunction((b) => document.querySelector('#filterbar .summary').textContent !== b, before, { timeout: 5000 });
-  check(/Profil: PK/.test(await summaryText()) && /profil=PK/.test(page.url()), 'Filter Profil = PK wirkt und steht in der URL');
+  check((await page.locator('#filterbar .chip', { hasText: 'Profil PK' }).count()) === 1 && /profil=PK/.test(page.url()), 'Filter Profil = PK wirkt: Chip «Profil PK», steht in der URL');
+  check(await page.evaluate(() => document.activeElement && document.activeElement.tagName === 'SELECT' && document.activeElement.closest('label').textContent.startsWith('Profil')), 'Fokus bleibt nach der Filteränderung auf dem Auswahlfeld Profil');
+  await page.locator('#filterbar label:has-text("Jahr") select').selectOption('2026');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 2, null, { timeout: 5000 });
+  check(/von=2026-01-01/.test(page.url()) && (await page.locator('#filterbar .chip', { hasText: '2026' }).count()) === 1 && (await page.locator('#filterbar button.reset').isVisible()), 'Jahr 2026 gewählt: Chip «2026», Von/Bis in der URL, Reset sichtbar');
+  await shot(page, 'filter-chips');
+  await page.locator('#filterbar .chip', { hasText: '2026' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  check(!/von=/.test(page.url()) && /profil=PK/.test(page.url()) && (await page.locator('#filterbar label:has-text("Jahr") select').inputValue()) === '', 'Chip ✕ entfernt nur den Zeitraum; Profil bleibt, Jahr zeigt «Alle»');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
-  await page.waitForFunction(() => /Profil: alle/.test(document.querySelector('#filterbar .summary').textContent), null, { timeout: 5000 });
-  check(!/profil=/.test(page.url()), 'Filter zurückgesetzt, URL ohne Filter');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+  check(!/profil=/.test(page.url()) && (await page.locator('#filterbar button.reset').isHidden()), 'Filter zurückgesetzt: URL ohne Filter, keine Chips, Reset ausgeblendet');
+
+  // Offene Vorgänge (A.5): Statuszellen als Badge (Spalte «Passiv» = ja)
+  await page.goto(server.url + '#offene-vorgaenge');
+  await page.waitForSelector('#view h2');
+  check((await page.locator('#view td .badge.status-passiv').count()) >= 1, 'Statuszellen als Badge (Offene Vorgänge, passiv)');
 
   // Geplante Prüfungen: Ereigniszeile per Klick und Enter, Teilnehmendenliste
   await page.goto(server.url + '#geplante-pruefungen');
@@ -139,20 +213,35 @@ try {
   const historyHeads = await page.$$eval('#view table.data caption', (c) => c.map((x) => x.textContent));
   check(historyHeads.length === 6 && /Kennzahlen je Stichtag/.test(historyHeads[0]), 'Snapshot geladen, Vergleich mit ' + historyHeads.length + ' Tabellen');
   const vorgRow = await page.$$eval('#view table.data tbody tr', (trs) => { const tr = trs.find((r) => r.children[0].textContent === 'Vorgänge'); return tr ? Array.from(tr.children).map((td) => td.textContent) : null; });
-  check(!!vorgRow && vorgRow[1] === '8' && vorgRow[2] === '8' && vorgRow[3] === '±0', 'Vergleich: Vorgänge Snapshot = Heute = 8, Differenz ±0 (' + (vorgRow || []).join(' | ') + ')');
+  check(!!vorgRow && vorgRow[1] === '8' && vorgRow[2] === '8' && /(^|\s)±0$/.test(vorgRow[3]), 'Vergleich: Vorgänge Snapshot = Heute = 8, Differenz ±0 mit Symbol (' + (vorgRow || []).join(' | ') + ')');
   check((await page.locator('#view .snapshot-list li').count()) === 1, 'Geladener Snapshot in der Liste');
   await shot(page, 'historie');
   await page.locator('#view .snapshot-list button:has-text("Entfernen")').click();
   await page.waitForSelector('#view p.empty');
   check((await page.locator('#view table.data').count()) === 0, 'Snapshot entfernt, Vergleich wieder leer');
 
-  // Dark Mode: Zeitverlauf mit Diagramm
+  // Dark Mode: Zeitverlauf mit Diagramm, Übersicht mit Kacheln und Tabellen (A.8)
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.goto(server.url + '#zeitverlauf');
   await page.waitForSelector('#view h2');
   check((await page.locator('#view svg').count()) >= 1, 'Dark Mode: Zeitverlauf mit Diagramm gerendert');
   await shot(page, 'dark-zeitverlauf');
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+  const darkBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  check(darkBg === 'rgb(20, 22, 26)', 'Dark Mode: Übersicht mit dunklem Hintergrund (' + darkBg + ')');
+  await shot(page, 'dark-uebersicht');
   await page.emulateMedia({ colorScheme: 'light' });
+
+  // Druck (A.8): Legende geöffnet, Datenbalken hell und grau, Kopf-Aktionen ausgeblendet
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  await page.emulateMedia({ media: 'print' });
+  const printBar = await page.evaluate(() => { const td = document.querySelector('#view td.pct'); return td ? getComputedStyle(td).backgroundImage : ''; });
+  const printActions = await page.evaluate(() => { const a = document.querySelector('#view .view-actions'); return a ? getComputedStyle(a).display : ''; });
+  check(/rgba\(0, 0, 0, 0\.12\)/.test(printBar) && printActions === 'none' && (await page.locator('#view details.legend[open]').count()) === 1, 'Druck: Datenbalken grau, Export-Menü ausgeblendet, Legende offen');
+  await shot(page, 'print-uebersicht');
+  await page.emulateMedia({ media: null });
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
 
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL
   const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));

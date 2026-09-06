@@ -3,12 +3,15 @@
 // (z. B. SharePoint neben der Excel) und später wieder lädt (nur Memory). Vergleich immer ohne Filter (Stand der Datei).
 
 import { historyTables } from './tables.js';
-import { renderKpis, renderTable, section, el } from './common.js';
+import { renderKpis, renderTable, hinted, el } from './common.js';
 import { buildSnapshot, parseSnapshot, snapshotFileName, snapshotJson, sortSnapshots } from '../snapshot.js';
 import { downloadBlob, fmtDate, fmtDateTime } from '../export.js';
 
 export const id = 'historie';
 export const label = 'Historie';
+export const group = 'Daten'; // Navigationsgruppe (PROMPT-2 A.2)
+export const intro = 'Snapshots der Aggregate erzeugen, laden und Stichtage vergleichen; ohne Namen, ohne Filter, nichts im Browser gespeichert.';
+export const glossar = 'Snapshot (Historisierung)';
 export const noPersonExport = true; // Snapshots und Vergleich enthalten keine Namen
 
 function dayLabel(stichtag) {
@@ -60,25 +63,29 @@ export function build(ctx) {
     ? [renderTable(t.kennzahlen), renderTable(t.zaehler)].concat(t.jeProfil.map((tbl) => renderTable(tbl)))
     : [el('p', { class: 'empty', text: 'Noch kein Snapshot geladen. Erst nach dem Laden mindestens eines Snapshots erscheinen hier die Stichtage nebeneinander.' })];
 
+  const hints = [
+    'Historisierung ohne Backend: Ein Snapshot hält die Aggregate zum Stichtag fest (Datei-Zähler, Kennzahlen gesamt, je Profil und je Jahr) – ohne Namen und ohne Zeilen. Die Datei wird heruntergeladen und vom Auftraggeber abgelegt, z. B. auf SharePoint neben der Excel; sie lässt sich später wieder laden und mit dem heutigen Stand vergleichen. Immer ohne Filter (Stand der Datei), nichts wird im Browser gespeichert.',
+  ];
+  const sec = hinted(hints);
   return {
     nodes: [
-      el('p', { class: 'meta-list', text: 'Historisierung ohne Backend: Ein Snapshot hält die Aggregate zum Stichtag fest (Datei-Zähler, Kennzahlen gesamt, je Profil und je Jahr) – ohne Namen und ohne Zeilen. Die Datei wird heruntergeladen und vom Auftraggeber abgelegt, z. B. auf SharePoint neben der Excel; sie lässt sich später wieder laden und mit dem heutigen Stand vergleichen. Immer ohne Filter (Stand der Datei), nichts wird im Browser gespeichert.' }),
-      section('Snapshot erzeugen', [
+      sec('Snapshot erzeugen', [
         renderKpis([
           { label: 'Stichtag', value: dayLabel(current.stichtag), n: current.kennzahlen.vorgaenge.n, small: false, hint: 'Heutiges Datum; Dateiname ' + snapshotFileName(current) },
           { label: 'Vorgänge', value: String(current.kennzahlen.vorgaenge.value), n: current.kennzahlen.vorgaenge.n, small: false, hint: 'Kennzahlrelevante Vorgänge ohne Filter' },
           { label: 'Personen', value: String(current.kennzahlen.personen.value), n: current.kennzahlen.vorgaenge.n, small: false, hint: 'Menschen hinter den Vorgängen (Personenschlüssel)' },
           { label: 'Quelle', value: current.quelle.dateiname || '–', n: current.zaehler.zeilen ?? 0, small: false, hint: 'Excel-Datei, geändert ' + whenLabel(current.quelle.geaendert) + '; n = Zeilen beider Sheets' },
         ]),
-        el('div', { class: 'toolbar' }, [download, el('span', { class: 'meta-list', text: 'Empfehlung: einmal pro Monat oder vor jeder Auswertung erzeugen und im SharePoint-Ordner der Excel ablegen.' })]),
-      ]),
-      section('Snapshots laden', [
-        el('div', { class: 'toolbar' }, [input, el('span', { class: 'meta-list', text: 'Mehrere Dateien möglich. Die Snapshots bleiben nur im Speicher dieses Browser-Tabs.' })]),
+        el('div', { class: 'toolbar' }, [download]),
+      ], 'Empfehlung: einmal pro Monat oder vor jeder Auswertung erzeugen und im SharePoint-Ordner der Excel ablegen.'),
+      sec('Snapshots laden', [
+        el('div', { class: 'toolbar' }, [input]),
         errors.length ? el('div', { class: 'note snapshot-errors', role: 'alert' }, errors.map((m) => el('p', { text: 'Nicht geladen – ' + m }))) : null,
         snapshots.length ? list : el('p', { class: 'empty', text: 'Keine Snapshots geladen.' }),
-      ]),
-      section('Vergleich der Stichtage', compareNodes, { intro: snapshots.length ? 'Spalten = geladene Snapshots (chronologisch) und der heutige Stand; Differenz = heute gegenüber dem jüngsten Snapshot, Anteile in Prozentpunkten. Ohne Filter.' : null }),
+      ], 'Mehrere Dateien möglich. Die Snapshots bleiben nur im Speicher dieses Browser-Tabs.'),
+      sec('Vergleich der Stichtage', compareNodes, snapshots.length ? 'Spalten = geladene Snapshots (chronologisch) und der heutige Stand; Differenz = heute gegenüber dem jüngsten Snapshot, Anteile in Prozentpunkten. Ohne Filter.' : null),
     ],
     tables: [t.kennzahlen, t.zaehler].concat(t.jeProfil),
+    hints,
   };
 }

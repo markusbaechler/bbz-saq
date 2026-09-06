@@ -3,10 +3,13 @@
 // Teilnehmendenliste zum Aufklappen. Hier erscheinen Namen (Auftraggeber: Einteilung der Teilnehmenden ist Zweck der Ansicht).
 
 import { plannedTables } from './tables.js';
-import { renderKpis, renderTable, renderExpandableTable, renderCollapsible, section, el } from './common.js';
+import { renderKpis, renderTable, renderExpandableTable, renderCollapsible, section } from './common.js';
 
 export const id = 'geplante-pruefungen';
 export const label = 'Geplante Prüfungen';
+export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const intro = 'Termine in der Zukunft ohne Ergebnis, schriftlich und mündlich, je Tag und Ort mit Teilnehmenden; mit Namen.';
+export const glossar = 'Geplante Prüfung';
 
 function kpi(label, value, hint) {
   return { label, value: String(value), n: value, small: false, hint };
@@ -16,7 +19,7 @@ function plural(n, one, many) {
   return n + ' ' + (n === 1 ? one : many);
 }
 
-function intro(part) {
+function summaryOf(part) {
   if (!part.total) return null;
   return plural(part.total, 'Termin', 'Termine') + ' an ' + plural(part.tage, 'Prüfungstag', 'Prüfungstagen') + ', ' + plural(part.personen, 'Person', 'Personen');
 }
@@ -31,14 +34,17 @@ function kindSection(title, part, artWort) {
   if (part.total) {
     nodes.push(renderCollapsible('Alle Teilnehmenden ' + artWort + ' anzeigen (' + plural(part.total, 'Termin', 'Termine') + ', ' + plural(part.personen, 'Person', 'Personen') + ')', [renderTable(part.details, { caption: false })]));
   }
-  return section(title, nodes, { intro: intro(part) });
+  return section(title, nodes, { meta: summaryOf(part) }); // Kurzwert sichtbar am Titel, keine Erklärung
 }
 
 export function build(ctx) {
   const t = plannedTables(ctx.plannedPersons || []);
+  const hints = [
+    'Geplant = Prüfungsdatum in der Zukunft ohne Passed-Wert. Zuerst schriftliche (WE), dann mündliche (OE) Prüfungen. Die Filter Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» gelten; Zeitraum und Versuchsmodus wirken hier nicht.',
+    'Prüfungsereignisse: Zeile anklicken (oder Enter) zeigt die zugeteilten Personen des Ereignisses.',
+  ];
   return {
     nodes: [
-      el('p', { class: 'meta-list', text: 'Geplant = Prüfungsdatum in der Zukunft ohne Passed-Wert. Zuerst schriftliche (WE), dann mündliche (OE) Prüfungen. Die Filter Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» gelten; Zeitraum und Versuchsmodus wirken hier nicht.' }),
       renderKpis([
         kpi('Geplante Termine', t.total, 'Alle geplanten Runs, schriftlich und mündlich'),
         kpi('davon schriftlich', t.we.total, 'Geplante schriftliche Teilprüfungen (WE1–WE6)'),
@@ -50,5 +56,6 @@ export function build(ctx) {
       kindSection('Mündliche Prüfungen', t.oe, 'mündlich'),
     ],
     tables: [t.we.summary, t.we.details, t.oe.summary, t.oe.details],
+    hints,
   };
 }

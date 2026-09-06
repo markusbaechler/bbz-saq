@@ -187,3 +187,14 @@ export function glossaryTerms(kind = null) {
 export function glossaryEntry(term) {
   return GLOSSARY.find((g) => g.term === term) || null;
 }
+
+// Anker für Sprünge ins Glossar (PROMPT-2 A.3): Kleinschreibung, Umlaute → ae/oe/ue, ß → ss, alles andere → Bindestrich
+export function glossarySlug(term) {
+  return String(term).toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+export function glossaryAnchor(term) {
+  return 'glossar-' + glossarySlug(term);
+}

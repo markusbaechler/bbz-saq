@@ -60,3 +60,9 @@ test('urlState.serializeState: geladene Snapshots (Historie) landen nie in der U
   assertEqual(serializeState(DEFAULT_FILTER, ui), '', 'nur Memory, keine Dateiinhalte in Links');
   assertEqual(buildHash('historie', DEFAULT_FILTER, ui), '#historie');
 });
+
+test('urlState.parseHash: Parameter «begriff» (Glossar-Sprung, A.3) ändert weder Ansicht noch Filter', () => {
+  const parsed = parseHash('#glossar?begriff=vorgaenge');
+  assertEqual(parsed.view, 'glossar');
+  assert(sameFilter(parsed.filter, DEFAULT_FILTER));
+});
