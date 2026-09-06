@@ -92,29 +92,47 @@ export function renderKpis(kpis) {
   ])));
 }
 
-export function section(title, nodes, { intro = null } = {}) {
-  const children = [el('h3', { text: title })];
-  if (intro) children.push(el('p', { class: 'meta-list', text: intro }));
-  return el('section', { class: 'block' }, children.concat(nodes));
+// ⓘ mit Tooltip; für Screenreader als Bild mit Beschriftung
+export function infoIcon(text, prefix = 'Hinweis: ') {
+  return el('span', { class: 'info', title: text, role: 'img', 'aria-label': prefix + text, text: 'ⓘ' });
 }
 
-// Export-Leiste: CSV (alle Tabellen in einer Datei), XLSX (ein Sheet je Tabelle), Druckansicht.
-// extra = { label, tables }: zusätzlicher Export auf Vorgangsebene (a7), eigene Dateien mit Suffix «-vorgaenge».
-export function exportBar({ viewId, tables, headerLines, extra = null }) {
+// Abschnitt (PROMPT-2 A.3): h3 mit optionalem ⓘ (info = Erklärung als Tooltip; der Text steht zusätzlich in der Legende
+// der View) und optionalem Kurzwert (meta, z. B. «5 Termine an 3 Prüfungstagen»). Keine Erklärungsabsätze mehr im Fluss.
+export function section(title, nodes, { info = null, meta = null } = {}) {
+  const head = el('h3', {}, [title, info ? infoIcon(info) : null, meta ? el('span', { class: 'section-meta', text: meta }) : null]);
+  return el('section', { class: 'block' }, [head].concat(nodes));
+}
+
+// Sammelt Abschnitts-Erklärungen für die Legende der View (app.js): sec(title, nodes, intro, meta)
+export function hinted(hints) {
+  return (title, nodes, intro = null, meta = null) => {
+    if (intro) hints.push(title + ': ' + intro);
+    return section(title, nodes, { info: intro, meta });
+  };
+}
+
+// Export-Menü (PROMPT-2 A.3, Befund B5): ein Aufklappmenü statt Button-Leiste – CSV (alle Tabellen in einer Datei),
+// XLSX (ein Blatt je Tabelle), Druckansicht; extra = { label, tables }: Vorgangsebene (mit Namen, nur intern), eigene
+// Dateien mit Suffix «-vorgaenge». Per Tastatur bedienbar (details/summary); schliesst nach der Wahl.
+export function renderExportMenu({ viewId, tables, headerLines, extra = null }) {
   const disabled = !tables.length;
-  const children = [
-    el('span', { class: 'meta-list', text: 'Export (Aggregate dieser Ansicht, Filterzustand im Kopf):' }),
-    el('button', { type: 'button', class: 'secondary small-button', disabled, text: 'CSV', onclick: () => downloadCsv(exportFileName(viewId, 'csv'), tablesToCsv(tables, headerLines)) }),
-    el('button', { type: 'button', class: 'secondary small-button', disabled, text: 'XLSX', onclick: () => downloadXlsx(exportFileName(viewId, 'xlsx'), tables, headerLines) }),
-    el('button', { type: 'button', class: 'secondary small-button', text: 'Druckansicht', onclick: () => printPage() }),
+  const menu = el('details', { class: 'menu export-menu' });
+  const item = (text, onclick, dis = false) => el('button', { type: 'button', class: 'menu-item', disabled: dis, text, onclick: () => { menu.open = false; onclick(); } });
+  const items = [
+    el('div', { class: 'menu-note', text: 'Aggregate dieser Ansicht, Filterzustand im Kopf' }),
+    item('CSV', () => downloadCsv(exportFileName(viewId, 'csv'), tablesToCsv(tables, headerLines)), disabled),
+    item('XLSX', () => downloadXlsx(exportFileName(viewId, 'xlsx'), tables, headerLines), disabled),
+    item('Druckansicht', () => printPage()),
   ];
   if (extra && extra.tables && extra.tables.length) {
     const rows = extra.tables[0].rows.length;
-    children.push(
-      el('span', { class: 'meta-list', text: '· ' + extra.label + ' (' + rows + ' Vorgänge, mit Namen):' }),
-      el('button', { type: 'button', class: 'secondary small-button', disabled: !rows, text: 'CSV', onclick: () => downloadCsv(exportFileName(viewId + '-vorgaenge', 'csv'), tablesToCsv(extra.tables, headerLines)) }),
-      el('button', { type: 'button', class: 'secondary small-button', disabled: !rows, text: 'XLSX', onclick: () => downloadXlsx(exportFileName(viewId + '-vorgaenge', 'xlsx'), extra.tables, headerLines) }),
+    items.push(
+      el('div', { class: 'menu-note', text: extra.label + ' (' + rows + ' Vorgänge, mit Namen, nur intern)' }),
+      item('CSV (Vorgangsebene)', () => downloadCsv(exportFileName(viewId + '-vorgaenge', 'csv'), tablesToCsv(extra.tables, headerLines)), !rows),
+      item('XLSX (Vorgangsebene)', () => downloadXlsx(exportFileName(viewId + '-vorgaenge', 'xlsx'), extra.tables, headerLines), !rows),
     );
   }
-  return el('div', { class: 'toolbar export-bar' }, children);
+  menu.append(el('summary', { text: 'Export' }), el('div', { class: 'menu-list', role: 'group', 'aria-label': 'Export' }, items));
+  return menu;
 }

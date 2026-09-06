@@ -1,14 +1,21 @@
 // views/overview.js – View 1 «Übersicht»: KPIs gesamt für den aktiven Filter, Kennzahlen je Profil.
 
 import { overviewModel, plannedTables, comparisonTable } from './tables.js';
-import { renderKpis, renderTable, section, el } from './common.js';
+import { renderKpis, renderTable, section, hinted, el } from './common.js';
 import { BENCHMARKS } from '../metrics.js';
 
 export const id = 'uebersicht';
 export const label = 'Übersicht';
 export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const intro = 'Kennzahlen der Vorgänge mit absolviertem schriftlichem Run im Filter; Quoten auf abgeschlossene Vorgänge, Personen zählen Menschen.';
+export const glossar = 'Kennzahlrelevant (Grundgesamtheit)'; // Ziel des Links «Definitionen»
 
 export function build(ctx) {
+  const hints = [
+    'Kennzahlen für Zertifizierungsvorgänge (eine Zeile der Datei, Duplikate zusammengeführt) mit mindestens einem absolvierten, datierten schriftlichen Run im aktiven Filter. Quoten sind Anteile von Vorgängen; «Personen» zählt Menschen (eine Person kann mehrere Vorgänge haben); Ø Resultat ist der Mittelwert der erreichten Punkte in Prozent. Bestehensquoten beziehen sich auf abgeschlossene Vorgänge; offene Vorgänge (Prozess läuft noch) sind separat ausgewiesen.',
+    '* Kennzahl auf Basis von n < 5 Vorgängen (Aussagekraft eingeschränkt).',
+  ];
+  const sec = hinted(hints);
   const m = overviewModel(ctx.persons, ctx.allPersons || ctx.persons);
   const planned = plannedTables(ctx.plannedPersons || []);
   const bench = ctx.benchmark || null;
@@ -23,14 +30,17 @@ export function build(ctx) {
     }
   }
   const kpis = m.kpis.concat([{ label: 'Geplante Prüfungstermine', value: String(planned.total), n: planned.total, small: false, hint: 'Termine in der Zukunft ohne Ergebnis (Filter Profil, Sprache, Bank, VSS/VSM)' }]);
-  const benchmarkBar = bench ? el('div', { class: 'toolbar benchmark-bar' }, [
-    el('label', { class: 'inline' }, ['Benchmark ', (() => {
-      const select = el('select', { onchange: (ev) => ctx.onBenchmarkChange && ctx.onBenchmarkChange(ev.target.value) }, BENCHMARKS.map((b) => el('option', { value: b.id, text: b.label })));
-      select.value = bench.kind;
-      return select;
-    })()]),
-    el('span', { class: 'meta-list', text: (BENCHMARKS.find((b) => b.id === bench.kind) || {}).hint + ' · Benchmark: ' + bench.persons.length + ' Vorgänge' + (bench.persons.length === ctx.persons.length ? ' (entspricht der Auswahl, kein entsprechender Filter aktiv)' : '') }),
-  ]) : null;
+  let benchmarkBar = null;
+  if (bench) {
+    const def = BENCHMARKS.find((b) => b.id === bench.kind) || {};
+    if (def.hint) hints.push('Benchmark «' + bench.label + '»: ' + def.hint);
+    const select = el('select', { onchange: (ev) => ctx.onBenchmarkChange && ctx.onBenchmarkChange(ev.target.value) }, BENCHMARKS.map((b) => el('option', { value: b.id, text: b.label })));
+    select.value = bench.kind;
+    benchmarkBar = el('div', { class: 'toolbar benchmark-bar' }, [
+      el('label', { class: 'inline' }, ['Benchmark ', select]),
+      el('span', { class: 'meta-list', text: bench.persons.length + ' Vorgänge im Benchmark' + (bench.persons.length === ctx.persons.length ? ' (entspricht der Auswahl, kein entsprechender Filter aktiv)' : '') }),
+    ]);
+  }
   const kpiTable = {
     title: 'Kennzahlen gesamt',
     columns: [{ key: 'label', label: 'Kennzahl' }, { key: 'value', label: 'Wert' }, { key: 'count', label: 'Anzahl' }, { key: 'n', label: 'n' }, { key: 'hint', label: 'Beschreibung' }],
@@ -38,14 +48,13 @@ export function build(ctx) {
   };
   return {
     nodes: [
-      el('p', { class: 'meta-list', text: 'Kennzahlen für Zertifizierungsvorgänge (eine Zeile der Datei, Duplikate zusammengeführt) mit mindestens einem absolvierten, datierten schriftlichen Run im aktiven Filter. Quoten sind Anteile von Vorgängen; «Personen» zählt Menschen (eine Person kann mehrere Vorgänge haben); Ø Resultat ist der Mittelwert der erreichten Punkte in Prozent. Bestehensquoten beziehen sich auf abgeschlossene Vorgänge; offene Vorgänge (Prozess läuft noch) sind separat ausgewiesen. Definitionen: Ansicht «Glossar».' }),
       benchmarkBar,
       renderKpis(kpis),
-      el('p', { class: 'note', text: '* Kennzahl auf Basis von n < 5 Vorgängen (Aussagekraft eingeschränkt)' }),
-      comparison ? section('Auswahl im Vergleich zum Benchmark', [renderTable(comparison)], { intro: 'Differenz in Prozentpunkten: Auswahl minus Benchmark. Der Benchmark verwendet dieselben Filter wie die Auswahl, nur ohne die gewählte Einschränkung.' }) : null,
+      comparison ? sec('Auswahl im Vergleich zum Benchmark', [renderTable(comparison)], 'Differenz in Prozentpunkten: Auswahl minus Benchmark. Der Benchmark verwendet dieselben Filter wie die Auswahl, nur ohne die gewählte Einschränkung.') : null,
       section('Kennzahlen je Profil', [renderTable(m.byProfil)]),
-      section('Personen mit mehreren Profilen', [renderTable(m.multi)], { intro: 'Menschen mit Zertifizierungsvorgängen in mehr als einem Profil, gruppiert nach der zeitlichen Abfolge der Profile.' }),
+      sec('Personen mit mehreren Profilen', [renderTable(m.multi)], 'Menschen mit Zertifizierungsvorgängen in mehr als einem Profil, gruppiert nach der zeitlichen Abfolge der Profile.'),
     ],
     tables: (comparison ? [kpiTable, comparison, m.byProfil] : [kpiTable, m.byProfil]).concat([m.multi]),
+    hints,
   };
 }

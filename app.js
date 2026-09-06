@@ -9,7 +9,8 @@ import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount } fro
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
-import { el, exportBar } from './views/common.js';
+import { el, renderExportMenu, renderCollapsible } from './views/common.js';
+import { glossarySlug } from './glossary.js';
 import { vorgangExportTables } from './views/tables.js';
 import { renderDataQuality } from './views/dataQuality.js';
 import * as overview from './views/overview.js';
@@ -25,8 +26,15 @@ import * as bankReport from './views/bankReport.js';
 import * as glossar from './views/glossar.js';
 
 const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, bankReport, offen, planned, ranking, historie];
-const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, build: v.build, noPersonExport: !!v.noPersonExport }))
-  .concat([{ id: 'datenqualitaet', label: 'Datenqualität', group: 'Daten' }, { id: glossar.id, label: glossar.label, group: glossar.group, build: glossar.build, isStatic: true }]);
+const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, intro: v.intro, glossar: v.glossar, build: v.build, noPersonExport: !!v.noPersonExport }))
+  .concat([
+    {
+      id: 'datenqualitaet', label: 'Datenqualität', group: 'Daten', glossar: 'Data-Quality-Stufen',
+      intro: 'Jede nicht interpretierbare oder auffällige Zelle mit Wirkung, Stufe, Fundstelle und Grund; unabhängig vom Filter.',
+      hints: ['Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit ihrer Wirkung auf die Kennzahlen, Stufe, Sheet, Excel-Zeile, Header, Rohwert und Grund – Wichtigstes zuerst. Unabhängig vom Filter.'],
+    },
+    { id: glossar.id, label: glossar.label, group: glossar.group, intro: glossar.intro, build: glossar.build, isStatic: true },
+  ]);
 // Navigationsgruppen (PROMPT-2 A.2, Entscheid 06.09.2026); Gruppen ohne Ansicht (Experten bis Paket D) werden nicht gerendert
 const NAV_GROUPS = ['Kennzahlen', 'Personen', 'Experten', 'Daten'];
 
@@ -281,20 +289,52 @@ function renderDq(table) {
   }, { persons });
 }
 
+// Hash einer Ansicht mit dem aktuellen Filterzustand plus einem Zusatzparameter (Glossar-Sprung); urlState ignoriert ihn
+function hashWithParam(viewId, key, value) {
+  const { filter, ui: uiState } = store.getState();
+  const base = buildHash(viewId, filter, uiState);
+  return base + (base.includes('?') ? '&' : '?') + key + '=' + encodeURIComponent(value);
+}
+
+// Legende am Ende der View (PROMPT-2 A.3/A.5): verschobene Einleitungs- und Abschnittstexte; im Druck geöffnet
+function appendLegend(container, hints) {
+  if (!hints || !hints.length) return;
+  const legend = renderCollapsible('Hinweise und Definitionen', [el('ul', { class: 'legend-list' }, hints.map((h) => el('li', { text: h })))], { printOpen: true });
+  legend.classList.add('legend');
+  container.appendChild(legend);
+}
+
+// Glossar-Sprung: #glossar?begriff=<slug> → Zeile fokussieren; syncHash() entfernt den Parameter danach wieder
+function jumpToGlossaryTerm() {
+  const begriff = new URLSearchParams(location.hash.split('?')[1] || '').get('begriff');
+  const target = begriff ? document.getElementById('glossar-' + begriff) : null;
+  if (!target) return;
+  target.scrollIntoView({ block: 'start' });
+  target.focus({ preventScroll: true });
+}
+
 function renderView() {
   const current = viewFromHash();
   renderNav();
   const view = VIEWS.find((v) => v.id === current);
   const container = ui.view;
   container.replaceChildren();
-  container.appendChild(el('h2', { text: view.label }));
+  // View-Kopf (PROMPT-2 A.3): Titel und Kurzbeschreibung links, rechts Export-Menü und Link «Definitionen» (Glossar-Anker)
+  const actions = el('div', { class: 'view-actions' });
+  container.appendChild(el('div', { class: 'view-head' }, [
+    el('div', { class: 'view-title' }, [el('h2', { text: view.label }), view.intro ? el('p', { class: 'view-intro', text: view.intro }) : null]),
+    actions,
+  ]));
+  const definitionen = view.glossar ? el('a', { class: 'link-definitionen', href: hashWithParam('glossar', 'begriff', glossarySlug(view.glossar)), text: 'Definitionen' }) : null;
 
   const state = store.getState();
   if (view.isStatic) {
     // Statische Ansicht (Glossar): unabhängig von Daten und Filter
     const built = view.build({});
-    container.appendChild(exportBar({ viewId: view.id, tables: built.tables, headerLines: [] }));
+    actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines: [] }));
     for (const node of built.nodes) container.appendChild(node);
+    appendLegend(container, built.hints);
+    jumpToGlossaryTerm();
     return;
   }
   if (!hasData()) {
@@ -303,10 +343,11 @@ function renderView() {
   }
 
   if (current === 'datenqualitaet') {
-    container.appendChild(el('p', { class: 'meta-list', text: 'Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit ihrer Wirkung auf die Kennzahlen, Stufe, Sheet, Excel-Zeile, Header, Rohwert und Grund – Wichtigstes zuerst. Unabhängig vom Filter.' }));
+    if (definitionen) actions.append(definitionen);
     const table = el('div');
     container.appendChild(table);
     renderDq(table);
+    appendLegend(container, view.hints);
     return;
   }
 
@@ -344,9 +385,11 @@ function renderView() {
     showError(e);
     return;
   }
+  actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines, extra: view.noPersonExport ? null : { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) } }));
+  if (definitionen) actions.append(definitionen);
   container.appendChild(el('div', { class: 'print-filter', text: headerLines.join(' · ') }));
-  container.appendChild(exportBar({ viewId: view.id, tables: built.tables, headerLines, extra: view.noPersonExport ? null : { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) } }));
   for (const node of built.nodes) container.appendChild(node);
+  appendLegend(container, built.hints);
 }
 
 function renderAll() {

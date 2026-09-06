@@ -60,6 +60,8 @@ try {
     const kpis = await page.$$eval('#view .kpi', (k) => k.map((x) => x.querySelector('.kpi-label').textContent + '=' + x.querySelector('.kpi-value').textContent));
     const hint = await page.locator('#view p.empty').count(); // z. B. Bank-Report ohne gewählte Bank
     check(h2.length > 0 && (tables > 0 || hint > 0), 'Ansicht ' + v + ': «' + h2 + '», ' + tables + ' Tabellen' + (kpis.length ? ', KPIs: ' + kpis.join('; ') : '') + (tables === 0 ? ', Hinweis statt Tabellen' : ''));
+    // View-Kopf (A.3): Kurzbeschreibung statt Einleitungsabsatz, höchstens eine Legende am Ende
+    check((await page.locator('#view .view-head .view-intro').count()) === 1 && (await page.locator('#view > p.meta-list').count()) === 0 && (await page.locator('#view details.legend').count()) <= 1, 'Ansicht ' + v + ': Kopf mit Kurzbeschreibung, kein Einleitungsabsatz, höchstens eine Legende');
     await shot(page, v);
   }
 
@@ -83,6 +85,19 @@ try {
   const kpiCount = await page.locator('#view .kpi').count();
   const kpiN = await page.$$eval('#view .kpi .kpi-n', (n) => n.filter((x) => /n = \d+|von \d+/.test(x.textContent)).length);
   check(kpiCount >= 10 && kpiN === kpiCount, 'Übersicht: ' + kpiCount + ' Kacheln, alle mit n');
+
+  // View-Kopf (A.3): Export-Menü per Tastatur; «Definitionen» springt ins Glossar und fokussiert den Begriff
+  await page.focus('#view details.menu > summary');
+  await page.keyboard.press('Enter');
+  check((await page.locator('#view details.menu[open] .menu-item').count()) >= 3, 'Export-Menü per Tastatur geöffnet (CSV, XLSX, Druckansicht)');
+  await page.keyboard.press('Enter');
+  check((await page.locator('#view details.menu[open]').count()) === 0, 'Export-Menü per Tastatur geschlossen');
+  await page.click('#view a.link-definitionen');
+  await page.waitForFunction(() => location.hash.startsWith('#glossar') && !!document.querySelector('#view tr[id^="glossar-"]'), null, { timeout: 5000 });
+  const focusedTerm = await page.evaluate(() => (document.activeElement && document.activeElement.id) || '');
+  check(focusedTerm.startsWith('glossar-'), 'Definitionen: Sprung ins Glossar mit Fokus auf dem Begriff (' + focusedTerm + ')');
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
 
   // Filter (A.2): Profil = PK wirkt als Chip und in der URL; Fokus bleibt auf dem Auswahlfeld; Jahr als Auswahlfeld;
   // Chip ✕ entfernt nur diesen Filter; Reset nur sichtbar, wenn ein Filter aktiv ist

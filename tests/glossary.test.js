@@ -1,5 +1,5 @@
 import { test, assert, assertEqual } from './runner.js';
-import { GLOSSARY, glossaryTerms, glossaryEntry } from '../glossary.js';
+import { GLOSSARY, glossaryTerms, glossaryEntry, glossarySlug, glossaryAnchor } from '../glossary.js';
 import { overviewModel, plannedTables } from '../views/tables.js';
 import { makePerson } from './fixtures.js';
 
@@ -23,4 +23,15 @@ test('glossary: jede Kachel der Übersicht hat einen Glossar-Eintrag mit identis
   const kennzahlen = glossaryTerms('Kennzahl');
   for (const label of labels) assert(kennzahlen.includes(label), 'Glossar-Eintrag fehlt für Kachel «' + label + '»');
   assertEqual(plannedTables([]).total, 0);
+});
+
+test('glossary.glossarySlug: Umlaute, ß und Sonderzeichen; Anker «glossar-<slug>»; Slugs aller Begriffe eindeutig (A.3)', () => {
+  assertEqual(glossarySlug('Mündlich: bestanden'), 'muendlich-bestanden');
+  assertEqual(glossarySlug('Passiv (> 365 Tage)'), 'passiv-365-tage');
+  assertEqual(glossarySlug('Wertung «Resultat 1. Versuch» / «Resultat bestandener Run»'), 'wertung-resultat-1-versuch-resultat-bestandener-run');
+  assertEqual(glossarySlug('Grösse ß'), 'groesse-ss');
+  assertEqual(glossaryAnchor('Vorgänge'), 'glossar-vorgaenge');
+  const slugs = glossaryTerms().map(glossarySlug);
+  assertEqual(new Set(slugs).size, slugs.length, 'Slugs eindeutig');
+  assert(slugs.every((s) => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(s)), 'nur a-z, 0-9 und Bindestrich');
 });

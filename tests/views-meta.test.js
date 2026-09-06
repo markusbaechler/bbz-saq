@@ -1,6 +1,7 @@
 // tests/views-meta.test.js – Metadaten aller Ansichten (PROMPT-2 A.2/A.3): id, label, Navigationsgruppe.
 // Die View-Module verwenden das DOM nur innerhalb von build(); sie lassen sich deshalb in Node importieren.
 import { test, assert, assertEqual } from './runner.js';
+import { glossaryEntry } from '../glossary.js';
 import * as overview from '../views/overview.js';
 import * as written from '../views/written.js';
 import * as oral from '../views/oral.js';
@@ -28,4 +29,12 @@ test('views: jede View hat id, label und eine der vier Navigationsgruppen (A.2)'
   assertEqual(ranking.group, 'Personen');
   assertEqual(historie.group, 'Daten');
   assertEqual(glossar.group, 'Daten');
+});
+
+test('views: Kurzbeschreibung (intro) mit höchstens 160 Zeichen und Glossar-Begriff für «Definitionen» (A.3)', () => {
+  for (const [name, v] of Object.entries(VIEW_MODULES)) {
+    assert(typeof v.intro === 'string' && v.intro.length >= 20 && v.intro.length <= 160, name + ': intro (' + String(v.intro || '').length + ' Zeichen)');
+    assert(!/ß/.test(v.intro), name + ': ss statt ß');
+    if (v.id !== 'glossar') assert(glossaryEntry(v.glossar), name + ': Glossar-Begriff «' + v.glossar + '» fehlt');
+  }
 });

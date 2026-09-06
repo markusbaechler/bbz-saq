@@ -214,6 +214,32 @@ table.data tr.small td { color: var(--muted); font-style: italic; }
 
 /* Inhalt */
 .view { flex: 1; padding: 1rem 1.25rem 2rem; background: var(--panel); margin: var(--space-4) 1.25rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); }
+
+/* View-Kopf (PROMPT-2 A.3): Titel und Kurzbeschreibung links, rechts Export-Menü und «Definitionen» */
+.view-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.view-intro { color: var(--muted); margin: var(--space-1) 0 0; max-width: 60rem; }
+.view-actions { display: flex; align-items: center; gap: var(--space-3); }
+.link-definitionen { color: var(--accent); }
+.menu { position: relative; }
+.menu > summary { list-style: none; cursor: pointer; padding: .35rem var(--space-3); border: 1px solid var(--accent); border-radius: var(--radius); color: var(--accent); background: var(--panel); }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu > summary::after { content: ' ▾'; }
+.menu[open] > summary { background: var(--hover); }
+.menu-list {
+  position: absolute; right: 0; z-index: 4; min-width: 16rem; margin-top: var(--space-1); padding: var(--space-1);
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 16px var(--shadow);
+}
+.menu-item { text-align: left; background: none; border: none; color: var(--text); padding: var(--space-2) var(--space-3); border-radius: var(--radius); }
+.menu-item:hover:not(:disabled) { background: var(--hover); }
+.menu-note { color: var(--muted); font-size: var(--fs-xs); padding: var(--space-2) var(--space-3) 0; }
+.info { color: var(--muted); font-size: var(--fs-sm); cursor: help; margin-left: var(--space-1); }
+h3 .info { font-weight: 400; }
+.section-meta { color: var(--muted); font-weight: 400; font-size: var(--fs-sm); margin-left: var(--space-2); }
+.legend-list { margin: 0; padding-left: 1.2rem; color: var(--muted); font-size: var(--fs-sm); }
+.legend-list li { margin-bottom: var(--space-1); }
+tr[id^="glossar-"] { scroll-margin-top: 6rem; }
+tr[id^="glossar-"]:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media print { .view-actions { display: none !important; } }
 .placeholder { color: var(--muted); }
 .empty { color: var(--muted); }
 .toolbar { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: .75rem; }

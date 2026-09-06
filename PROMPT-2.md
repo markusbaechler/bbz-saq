@@ -375,7 +375,7 @@ bedienbar (`details/summary`); Chips als Buttons mit `aria-label="Filter Profil 
 - [x] **A.2** Tokens und Skalen in `styles.css`, `tools/contrast.js` + CI-Aufruf im Job `tests`. Vorlegen.
 - [x] **A.3** Shell: Datenstand (`renderStatus()` + `details`), Navigation mit Gruppen (`VIEWS.group`, `renderNav()`), Untertitel. Smoke-Test anpassen. Vorlegen.
 - [x] **A.4** Filterleiste: Jahr-Select, Sticky, Chips, Reset-Sichtbarkeit; Fokusregel prüfen; Smoke-Test (Summary-Format) anpassen. Vorlegen.
-- [ ] **A.5** View-Kopf: `view-intro`, Export-Menü (ersetzt `exportBar()`), Glossar-Anker. Alle Views durchgehen, Einleitungsabsätze verschieben. Vorlegen.
+- [x] **A.5** View-Kopf: `view-intro`, Export-Menü (ersetzt `exportBar()`), Glossar-Anker. Alle Views durchgehen, Einleitungsabsätze verschieben. Vorlegen.
 - [ ] **A.6** KPI-Kacheln: `direction`, `group`, Delta-Darstellung, ⓘ; `overviewModel()`-Tests erweitern. Vorlegen.
 - [ ] **A.7** Tabellen: `col(key,label,prio)`, `data-prio`, Datenbalken, Delta-/Statuszellen, Sticky-Spalte, Doppeltitel, Legende; Prioritäten gemäss Anhang A1 eintragen. Vorlegen.
 - [ ] **A.8** Zustände, Barrierefreiheit, Druck prüfen; Dark-Mode-Screenshots. Snapshot-Vergleich mit Baseline (identisch). README «Ansichten»/«Globale Filter»
