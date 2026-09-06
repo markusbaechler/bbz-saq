@@ -29,6 +29,8 @@ export const CONFIG = {
   oe: { parts: 2, runs: 3 }, // mündliche Teilprüfungen OE1–OE2, je bis zu 3 Runs
   // Phase 2 (PROMPT-2 C.8, Paket E): Schreibpfad nur mit Flag. false = keine Bearbeiten-Elemente, kein Schreibzugriff.
   features: { write: false },
+  // Experten (Paket D, bestätigt 06.09.2026): ab diesem Datum sind Experten je OE-Run erfasst; früher fehlende Experten ergeben keinen Hinweis
+  experts: { from: '2018-01-01' },
 };
 
 // ---------------------------------------------------------------------------
@@ -131,6 +133,9 @@ export const PERSON_KEY_FIELDS = ['lastName', 'firstName', 'birthDate'];
 // unterschiedlich); die Excel-Datei enthält ohnehin keine Kapazitätsdaten. «Geplante Prüfungen» zeigt Termine und Teilnehmende.
 
 // VSS/VSM aus Threaded Comment auf B{row}, z. B. «VSM 8718 28.08./05.09.24: Name», «VSS 07.05.2026: Name».
+// Expertennamen (Paket D): Schreibvariante → kanonischer Name; leer starten (Entscheid 06.09.2026), Auftraggeber füllt bei Bedarf
+export const EXPERT_ALIASES = {};
+
 export const VSS_REGEX = /\bVSS\b/i;
 export const VSM_REGEX = /\bVSM\b/i;
 
@@ -181,6 +186,11 @@ function buildHeaderFields() {
         fields.push({ key: runKey(g.kind, p, r, 'score'),  candidates: [run + ' Score'],  required: 'all' });
         fields.push({ key: runKey(g.kind, p, r, 'result'), candidates: [run + ' Result'], required: 'all' });
         fields.push({ key: runKey(g.kind, p, r, 'location'), candidates: [run + ' Location'], required: 'none' }); // Prüfungsort (geplante Prüfungen)
+        if (g.kind === 'oe') {
+          // Experten der mündlichen Prüfung (Paket D): Header am File verifiziert (06.09.2026, beide Sheets), optional
+          fields.push({ key: runKey(g.kind, p, r, 'expert1'), candidates: [run + ' Expert 1'], required: 'none' });
+          fields.push({ key: runKey(g.kind, p, r, 'expert2'), candidates: [run + ' Expert 2'], required: 'none' });
+        }
       }
     }
   }

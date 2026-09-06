@@ -11,6 +11,7 @@ import {
   earlyWarnings, durationDays, certificateDays, quantiles, throughputStats, passiveCases, PASSIVE_DAYS, partsByProfile, missingParts,
   profileParts, partsOutsideProfile, personIndex, passerelleFrom,
   normalizeNamePart, personSearchIndex, searchPersons, personPath, runTimeline, examGrid,
+  expertRuns, expertStats, expertBenchmark, expertPairs,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -919,4 +920,79 @@ test('metrics.examGrid: Teile der Vorgabe × RUN1–RUN3, Runs ausserhalb der Vo
   assertEqual(g.rows[0].runs[0].date, d('2026-01-10'));
   const unknown = examGrid(makePerson({ profil: null, we: { 3: [{ passed: true, date: '2026-02-01', result: 0.6 }] } }));
   assertEqual([unknown.spec, unknown.rows.map((r) => r.label)], [false, ['WE3']]);
+});
+
+// ---------------------------------------------------------------------------
+// Paket D: Experten – Einsätze, Rollen, Durchfallquote je Versuchsart, Ø Resultat, Partner, Benchmark, Paarungen (D.8: bekannte Ergebnisse)
+// ---------------------------------------------------------------------------
+
+function expertCohort() {
+  const mk = (i, runs, extra = {}) => makePerson({ lastName: 'Kandidat' + i, profil: 'PK', sprache: 'DE', employerCanon: 'Testbank AG', weAllPassed: true, we: { 1: [{ passed: true, date: '2025-01-10', result: 0.8 }] }, oe: { 1: runs }, ...extra });
+  return [
+    mk(1, [{ passed: true, date: '2025-03-01', result: 0.9, experts: ['Prüfer Pia', 'Experte Emil'] }]),
+    mk(2, [{ passed: false, date: '2025-03-01', result: 0.4, experts: ['Prüfer Pia', 'Experte Emil'] }, { passed: true, date: '2025-06-01', result: 0.7, experts: ['Prüfer Pia', 'Beisitz Bruno'] }]),
+    mk(3, [{ passed: true, date: '2025-04-01', result: 0.8, experts: ['Experte Emil', 'Beisitz Bruno'] }], { profil: 'IK', sprache: 'FR' }),
+    mk(4, [{ passed: false, date: '2025-05-01', result: 0.5, experts: ['Beisitz Bruno', 'Prüfer Pia'] }]),
+    mk(5, [{ passed: true, date: '2024-11-01', result: 0.85, experts: ['Prüfer Pia', null] }]),
+    mk(6, [{ passed: false, date: '2026-02-01', result: 0.45, experts: ['Experte Emil', 'Experte Emil'] }], { profil: 'IK' }),
+    mk(7, [{ passed: true, date: '2026-03-01', result: 0.95, experts: ['Beisitz Bruno', 'Experte Emil'] }, { date: '2030-01-01', planned: true, experts: ['Prüfer Pia', 'Beisitz Bruno'] }]),
+    mk(8, [{ passed: true, date: '2025-09-01', result: 0.6, experts: [] }]),                                                              // ohne Experten: kein Einsatz
+    mk(9, [{ passed: true, date: '2025-10-01', result: 0.75, experts: ['Prüfer Pia', 'Experte Emil'] }], { duplicateOf: { sheet: 'x', row: 1 } }), // Duplikat: zählt nicht
+  ];
+}
+
+test('metrics.expertRuns: absolvierte OE-Runs mit Experten, Zeitraum auf das Run-Datum, keine Duplikate, keine geplanten Runs', () => {
+  const runs = expertRuns(expertCohort());
+  assertEqual(runs.length, 8);
+  assertEqual(runs.slice(0, 2).map((r) => r.experts.map((e) => e.role + ':' + e.key).join('/')), ['1:prufer pia/2:experte emil', '1:prufer pia/2:experte emil']);
+  assertEqual([runs[0].part, runs[0].run, runs[0].erstversuch, runs[0].jahr, runs[0].profil, runs[0].sprache, runs[0].bank], ['OE1', 1, true, 2025, 'PK', 'DE', 'Testbank AG']);
+  assertEqual(runs[2].erstversuch, false, 'RUN2 = Wiederholung');
+  assertEqual(expertRuns(expertCohort(), { from: d('2025-01-01'), to: d('2025-12-31') }).length, 5);
+  assertEqual(expertRuns(expertCohort(), { from: d('2026-01-01') }).length, 2);
+  assertEqual(expertRuns([]), []);
+});
+
+test('metrics.expertRuns: Run mit Ergebnis ohne Datum zählt als Einsatz (Jahr null), bei Zeitraumfilter ausgeschlossen (Entscheid D.2)', () => {
+  const p = makePerson({ weAllPassed: true, oe: { 1: [{ passed: true, result: 0.7, experts: ['Beisitz Bruno'] }] } });
+  const runs = expertRuns([p]);
+  assertEqual([runs.length, runs[0].date, runs[0].jahr], [1, null, null]);
+  assertEqual(expertRuns([p], { from: d('2018-01-01') }).length, 0);
+  assertEqual(expertStats(runs)[0].byYear.map((y) => y.key), ['ohne Datum']);
+});
+
+test('metrics.expertStats: Einsätze, Rollen, Durchfallquote nach Versuchsart, Ø Resultat, Partner, Aufschlüsselung; Rollen-Summe = 2 × Einsätze mit zwei Nennungen + Einsätze mit einer', () => {
+  const runs = expertRuns(expertCohort());
+  const stats = expertStats(runs);
+  assertEqual(stats.map((s) => [s.name, s.einsaetze, s.role1, s.role2, s.small]), [['Experte Emil', 5, 2, 4, false], ['Prüfer Pia', 5, 4, 1, false], ['Beisitz Bruno', 4, 2, 2, true]], 'Einsätze absteigend, Gleichstand nach Name');
+  const pia = stats[1];
+  assertEqual([pia.fail.gesamt.count, pia.fail.gesamt.n, pia.fail.erst.count, pia.fail.erst.n, pia.fail.wdh.count, pia.fail.wdh.n], [2, 5, 2, 4, 0, 1]);
+  assertClose(pia.result.mean, (0.9 + 0.4 + 0.7 + 0.5 + 0.85) / 5, 1e-9);
+  assertEqual(pia.result.n, 5);
+  assertClose(pia.anteilRole1.pct, 0.8, 1e-9);
+  assertEqual([pia.first, pia.last], [d('2024-11-01'), d('2025-06-01')]);
+  assertEqual(pia.partners.map((p) => [p.name, p.einsaetze, p.fail.gesamt.count]), [['Beisitz Bruno', 2, 1], ['Experte Emil', 2, 1]]);
+  assertEqual(pia.byYear.map((y) => [y.key, y.einsaetze, y.fail.gesamt.count]), [['2024', 1, 0], ['2025', 4, 2]]);
+  assertEqual(pia.byProfil.map((y) => [y.key, y.einsaetze]), [['PK', 5]]);
+  assertEqual(pia.bySprache.map((y) => [y.key, y.einsaetze]), [['DE', 5]]);
+  const emil = stats[0];
+  assertEqual(emil.partners.map((p) => p.name), ['Beisitz Bruno', 'Prüfer Pia'], 'Einsatz mit sich selbst zählt einmal und ohne Partner');
+  assertEqual(emil.byProfil.map((y) => [y.key, y.einsaetze]), [['IK', 2], ['PK', 3]]);
+  const roles = stats.reduce((acc, s) => acc + s.role1 + s.role2, 0);
+  const two = runs.filter((r) => r.experts.length === 2).length; // auch Emil/Emil: zwei Rollen-Nennungen, ein Einsatz
+  const one = runs.length - two;
+  assertEqual(roles, 2 * two + one, 'Rollen-Summe (D.8)');
+  assertEqual(expertStats([]), []);
+});
+
+test('metrics.expertBenchmark und expertPairs: Basis der Δ-Werte; Paare nur mit zwei verschiedenen Experten, nach Einsätzen und Namen', () => {
+  const runs = expertRuns(expertCohort());
+  const b = expertBenchmark(runs);
+  assertEqual([b.einsaetze, b.fail.gesamt.count, b.fail.gesamt.n, b.fail.erst.count, b.fail.erst.n, b.fail.wdh.count, b.fail.wdh.n], [8, 3, 8, 3, 7, 0, 1]);
+  assertClose(b.result.mean, (0.9 + 0.4 + 0.7 + 0.8 + 0.5 + 0.85 + 0.45 + 0.95) / 8, 1e-9);
+  assertEqual(b.experten, 3);
+  const pairs = expertPairs(runs);
+  assertEqual(pairs.map((p) => [p.expert1, p.expert2, p.einsaetze, p.fail.count]), [['Beisitz Bruno', 'Experte Emil', 2, 0], ['Beisitz Bruno', 'Prüfer Pia', 2, 1], ['Experte Emil', 'Prüfer Pia', 2, 1]]);
+  assertClose(pairs[2].result.mean, (0.9 + 0.4) / 2, 1e-9);
+  assertEqual(expertPairs(runs, 1).length, 1);
+  assertEqual(expertPairs([]), []);
 });

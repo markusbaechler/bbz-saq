@@ -10,7 +10,8 @@ import { DEFAULT_FILTER, MODE, BENCHMARKS, dayKey } from './metrics.js';
 // compare: zwei Jahre für den Zeitraumvergleich (a6), null = automatisch die zwei jüngsten Jahre mit Daten
 // snapshots / snapshotErrors (Historie, b7): nur im Memory, nie in der URL (Aggregate, aber Datei-Inhalte gehören nicht in Links)
 // personen: Suchtext und gewählte Person der Ansicht «Personen» (Paket C) – nur im Memory, nie in der URL (C.4)
-export const DEFAULT_UI = Object.freeze({ benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null });
+// experten: Sortierung der Experten-Tabelle (Paket D) – nur im Memory, nie in der URL
+export const DEFAULT_UI = Object.freeze({ benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null, experten: null });
 
 const VSS_VALUES = ['alle', 'vss', 'vsm', 'ohne'];
 const VERSUCHE_VALUES = ['alle', 'erstversuch', 'mehrere'];

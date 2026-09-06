@@ -851,6 +851,134 @@ export function plannedGroups(runs) {
 }
 
 // ---------------------------------------------------------------------------
+// Experten (PROMPT-2 Paket D, E8/E9): Einsätze = absolvierte OE-Runs mit mindestens einem Experten. Ein Einsatz zählt für
+// beide beteiligten Experten voll; Beobachtungswerte, keine Leistungsbeurteilung. Zeitraum wirkt auf das Run-Datum (D.6).
+// ---------------------------------------------------------------------------
+
+// Einsätze aus Vorgängen ohne Duplikat: taken (Passed-Wert vorhanden) und ≥ 1 Experte; Runs mit Ergebnis ohne Datum zählen
+// (Jahr null, Gruppe «ohne Datum»), bei gesetztem Zeitraum werden sie ausgeschlossen (Entscheid 06.09.2026)
+export function expertRuns(persons, { from = null, to = null } = {}) {
+  const fromT = from ? new Date(from).getTime() : null;
+  const toT = to ? endOfDay(to).getTime() : null;
+  const out = [];
+  for (const p of persons) {
+    if (!isVorgang(p)) continue;
+    for (const part of p.oe) {
+      for (const r of part.runs) {
+        if (!r.taken || !r.experts || !r.experts.length) continue;
+        if (fromT !== null || toT !== null) {
+          if (!r.date) continue;
+          const t = r.date.getTime();
+          if (fromT !== null && t < fromT) continue;
+          if (toT !== null && t > toT) continue;
+        }
+        out.push({
+          person: p, part: 'OE' + part.part, run: r.n, date: r.date, passed: r.passed, result: r.result, experts: r.experts.map((e) => ({ ...e })),
+          erstversuch: r.n === 1, jahr: r.date ? r.date.getFullYear() : null,
+          profil: p.profil === undefined || p.profil === null ? null : p.profil, sprache: p.sprache || null, bank: p.employerCanon || null,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+const failed = (r) => r.passed === false;
+
+// Kennzahlen einer Einsatzmenge: Durchfallquote gesamt / 1. Versuch / Wiederholung (E9: getrennt), Ø Resultat (E6: Result)
+function runsStats(runs) {
+  const erst = runs.filter((r) => r.erstversuch);
+  const wdh = runs.filter((r) => !r.erstversuch);
+  return {
+    einsaetze: runs.length,
+    fail: { gesamt: ratio(runs.filter(failed).length, runs.length), erst: ratio(erst.filter(failed).length, erst.length), wdh: ratio(wdh.filter(failed).length, wdh.length) },
+    result: mean(runs.map((r) => r.result)),
+  };
+}
+
+function groupLabelOf(v) {
+  return v === null || v === undefined || v === '' ? 'unbekannt' : String(v);
+}
+
+// Aufschlüsselung einer Einsatzmenge nach Schlüssel: [{ key, ...runsStats }]; Jahre aufsteigend («ohne Datum» am Ende), sonst alphabetisch
+function groupRuns(runs, keyOf) {
+  const m = new Map();
+  for (const r of runs) {
+    const k = keyOf(r);
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(r);
+  }
+  return [...m.entries()].map(([key, list]) => ({ key, ...runsStats(list) }))
+    .sort((a, b) => (a.key === 'ohne Datum') - (b.key === 'ohne Datum') || collator.compare(a.key, b.key));
+}
+
+function dateRange(runs) {
+  const dated = runs.filter((r) => r.date).map((r) => r.date.getTime());
+  return { first: dated.length ? new Date(Math.min(...dated)) : null, last: dated.length ? new Date(Math.max(...dated)) : null };
+}
+
+// Je Experte (Schlüssel wie Personenschlüssel): Einsätze (ein Einsatz je Run, auch wenn beide Rollen dieselbe Person nennen),
+// Rollen-Nennungen, Quoten je Versuchsart, Ø Resultat, erster/letzter Einsatz, Aufschlüsselung je Jahr/Profil/Sprache, Partner.
+// Sortierung: Einsätze absteigend, dann Name.
+export function expertStats(runs) {
+  const byExpert = new Map();
+  for (const r of runs) {
+    const seen = new Set();
+    for (const e of r.experts) {
+      let s = byExpert.get(e.key);
+      if (!s) {
+        s = { key: e.key, name: e.name, runs: [], role1: 0, role2: 0, partners: new Map() };
+        byExpert.set(e.key, s);
+      }
+      if (e.role === 1) s.role1 += 1;
+      else s.role2 += 1;
+      if (seen.has(e.key)) continue; // gleicher Experte in beiden Rollen: ein Einsatz
+      seen.add(e.key);
+      s.runs.push(r);
+      for (const o of r.experts) {
+        if (o.key === e.key) continue;
+        const pt = s.partners.get(o.key) || { key: o.key, name: o.name, runs: [] };
+        pt.runs.push(r);
+        s.partners.set(o.key, pt);
+      }
+    }
+  }
+  const byEinsaetze = (a, b) => b.einsaetze - a.einsaetze || collator.compare(a.name, b.name);
+  return [...byExpert.values()].map((s) => ({
+    key: s.key, name: s.name, role1: s.role1, role2: s.role2, anteilRole1: ratio(s.role1, s.role1 + s.role2),
+    ...runsStats(s.runs), ...dateRange(s.runs), small: s.runs.length < SMALL_N,
+    byYear: groupRuns(s.runs, (r) => (r.jahr === null ? 'ohne Datum' : String(r.jahr))),
+    byProfil: groupRuns(s.runs, (r) => groupLabelOf(r.profil)),
+    bySprache: groupRuns(s.runs, (r) => groupLabelOf(r.sprache)),
+    partners: [...s.partners.values()].map((pt) => ({ key: pt.key, name: pt.name, ...runsStats(pt.runs) })).sort(byEinsaetze),
+  })).sort(byEinsaetze);
+}
+
+// Benchmark (E9): alle Einsätze im Filter, je Versuchsart – Basis der Δ-Werte; experten = Anzahl beteiligter Experten
+export function expertBenchmark(runs) {
+  const keys = new Set();
+  for (const r of runs) for (const e of r.experts) keys.add(e.key);
+  return { ...runsStats(runs), experten: keys.size };
+}
+
+// Paarungen Experte 1 × Experte 2 (Entscheid 06.09.2026, Frage 1): nur Einsätze mit zwei verschiedenen Experten, Paar
+// unabhängig von der Rollenreihenfolge (Namen alphabetisch); nach Einsätzen absteigend, dann Namen; höchstens limit Zeilen
+export function expertPairs(runs, limit = 30) {
+  const m = new Map();
+  for (const r of runs) {
+    if (r.experts.length !== 2 || r.experts[0].key === r.experts[1].key) continue;
+    const [a, b] = r.experts.slice().sort((x, y) => collator.compare(x.name, y.name));
+    const k = a.key + '|' + b.key;
+    if (!m.has(k)) m.set(k, { expert1: a.name, expert2: b.name, runs: [] });
+    m.get(k).runs.push(r);
+  }
+  return [...m.values()]
+    .map((p) => ({ expert1: p.expert1, expert2: p.expert2, einsaetze: p.runs.length, fail: ratio(p.runs.filter(failed).length, p.runs.length), result: mean(p.runs.map((r) => r.result)) }))
+    .sort((a, b) => b.einsaetze - a.einsaetze || collator.compare(a.expert1, b.expert1) || collator.compare(a.expert2, b.expert2))
+    .slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
 // Übersicht
 // ---------------------------------------------------------------------------
 

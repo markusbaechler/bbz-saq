@@ -618,10 +618,10 @@ Statusfarbe je Schritt (A.1), Passerelle-Kennzeichen aus `passerelleFrom()`, feh
 
 ## Paket D – Experten-Layer (mündliche Prüfung)
 
-> **⛔ Entscheide vor Start** (eine Nachricht zu Beginn von Schritt D.1; die Header-abhängigen Fragen folgen in D.2):
-> 1. Paarungstabelle Experte 1 × Experte 2 `[optional]` (D.4, D.5): umsetzen, wenn D.1–D.4 im Plan liegen. Empfehlung: ja.
-> 2. Filterverhalten (D.6): Zeitraum wirkt auf das Run-Datum des Einsatzes, nicht auf das Referenzdatum; Versuche und Wertung wirken nicht. Empfehlung: ja.
-> 3. Export «Einsatzebene» mit Kandidatennamen «nur intern» (D.5). Empfehlung: ja, analog Vorgangsebene (E5).
+> **⛔ Entscheide vor Start – entschieden 06.09.2026 (alle wie empfohlen; die Header-abhängigen Fragen folgen in D.2):**
+> 1. Paarungstabelle Experte 1 × Experte 2 `[optional]` (D.4, D.5): umsetzen, wenn D.1–D.4 im Plan liegen. Empfehlung: ja. **Ja.**
+> 2. Filterverhalten (D.6): Zeitraum wirkt auf das Run-Datum des Einsatzes, nicht auf das Referenzdatum; Versuche und Wertung wirken nicht. Empfehlung: ja. **Ja.**
+> 3. Export «Einsatzebene» mit Kandidatennamen «nur intern» (D.5). Empfehlung: ja, analog Vorgangsebene (E5). **Ja.**
 
 ### D.1 Ziel und Rahmen
 
@@ -642,6 +642,10 @@ beteiligten Experten voll; kleine Gruppen sind markiert.
    statt je Run? Gibt es Experten für schriftliche Teile (dann ausserhalb des Umfangs)?
 4. ⛔ Bestätigung des Mappings und der Semantik durch den Auftraggeber, in derselben Nachricht gebündelt: Pflicht-Header ja/nein (D.3),
    `CONFIG.experts.from` (Datum, ab dem Experten erfasst sind), Rollen-Semantik, Alias-Liste (leer starten). Erst dann D.3.
+
+> **Entschieden 06.09.2026 (D.2, alle wie empfohlen):** Mapping `OE{p} RUN{r} Expert 1` / `Expert 2` (beide Sheets, am File verifiziert), optional (`required: 'none'`);
+> `experts.from` = 2018-01-01; Rollen neutral beschriftet (Beobachtung: Experte 1 kleinerer, regelmässiger Kreis, Hypothese Prüfungsleitung); Spalte `OE Expert` nicht gemappt (unklar);
+> Runs mit Ergebnis ohne Datum zählen als Einsätze (Gruppe «ohne Datum», bei Zeitraumfilter ausgeschlossen); «Experte ohne Run» nur ohne Datum und Ergebnis; Alias-Liste leer; Δ-Werte neutral gefärbt.
 
 ### D.3 Mapping, Normalisierung, Datenqualität
 
@@ -701,14 +705,14 @@ Umsetzung: `filterPersons(state.persons, filter, { period: false })` → `expert
 
 ### D.7 Schritte
 
-- [ ] **D.1** Entscheide vor Start einholen (eine Nachricht). `tools/headers.js` schreiben, selbst auf `local/Reporting_KUBA.xlsx` ausführen, Ausgabe
+- [x] **D.1** Entscheide vor Start einholen (eine Nachricht). `tools/headers.js` schreiben, selbst auf `local/Reporting_KUBA.xlsx` ausführen, Ausgabe
       und Mapping-Vorschlag vorlegen. ⛔ Bestätigung (D.2, gebündelt).
-- [ ] **D.2** `config.js` Felder + `EXPERT_ALIASES` + `experts.from`; `store.js` `parseExpert`, DQ-Regeln, `fillRun`; Tests mit synthetischen
+- [x] **D.2** `config.js` Felder + `EXPERT_ALIASES` + `experts.from`; `store.js` `parseExpert`, DQ-Regeln, `fillRun`; Tests mit synthetischen
       Experten (Fixtures und `tests/smoke/synth.mjs` um zwei Expertenspalten je OE-Run erweitern, erfundene Namen). Vorlegen.
-- [ ] **D.3** `metrics.js` `expertRuns/expertStats/expertBenchmark/expertPairs`; Tests (Rollenzählung, Schichten, Δ, n < 5, gleicher Experte in beiden Rollen). Vorlegen.
-- [ ] **D.4** `views/tables.js` Tabellenmodelle; `views/experten.js`; `app.js` `VIEWS` (Gruppe Experten, Export Einsatzebene). Vorlegen.
-- [ ] **D.5** Phone-Layout; Smoke-Test: Ansicht rendert Haupttabelle mit synthetischen Experten, Sortierung, Zeilen-Detail, Zeitraumfilter wirkt auf Einsätze. Vorlegen.
-- [ ] **D.6** Glossar (Anhang A3), README (Ansichten, E8, E9, Normalisierung Experte, DQ-Regeln), `PROMPT.md` Harte Regeln. PR «Ready for review».
+- [x] **D.3** `metrics.js` `expertRuns/expertStats/expertBenchmark/expertPairs`; Tests (Rollenzählung, Schichten, Δ, n < 5, gleicher Experte in beiden Rollen). Vorlegen.
+- [x] **D.4** `views/tables.js` Tabellenmodelle; `views/experten.js`; `app.js` `VIEWS` (Gruppe Experten, Export Einsatzebene). Vorlegen.
+- [x] **D.5** Phone-Layout; Smoke-Test: Ansicht rendert Haupttabelle mit synthetischen Experten, Sortierung, Zeilen-Detail, Zeitraumfilter wirkt auf Einsätze. Vorlegen.
+- [x] **D.6** Glossar (Anhang A3), README (Ansichten, E8, E9, Normalisierung Experte, DQ-Regeln), `PROMPT.md` Harte Regeln. PR «Ready for review».
       ⛔ Abnahme Paket D (inkl. «Entscheide vor Start» Paket E).
 
 ### D.8 Akzeptanzkriterien

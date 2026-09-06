@@ -75,3 +75,9 @@ test('urlState: DEFAULT_UI.personen = null; Suchtext und Personenschlüssel werd
   assert(!/muster|anna|1985|query|selected/i.test(hash), hash);
   assertEqual(parseHash('#personen?bank=Testbank+AG').ui.personen, null);
 });
+
+test('urlState: DEFAULT_UI.experten = null; Sortierung der Experten-Tabelle wird nie serialisiert (Paket D)', () => {
+  assertEqual(DEFAULT_UI.experten, null);
+  assertEqual(serializeState(DEFAULT_FILTER, { ...DEFAULT_UI, experten: { sortKey: 'fail1', sortDir: 'desc' } }), '');
+  assertEqual(parseHash('#experten?profil=PK').ui.experten, null);
+});

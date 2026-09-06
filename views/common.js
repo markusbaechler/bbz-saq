@@ -160,7 +160,7 @@ function kpiTile(k, glossaryHref) {
   return el('div', { class: 'kpi' + (k.small ? ' small' : '') + (isCount ? ' count' : '') }, [
     el('div', { class: 'kpi-label' }, [label, k.hint ? infoIcon(k.hint, 'Definition: ') : null]),
     el('div', { class: 'kpi-value', text: k.value }),
-    el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' Vorgängen' : 'n = ' + k.n) + (k.small ? ' *' : '') }),
+    el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' ' + (k.unit || 'Vorgängen') : 'n = ' + k.n) + (k.small ? ' *' : '') }),
     d ? el('div', { class: 'kpi-delta ' + d.tone }, [
       el('span', { class: 'kpi-delta-symbol', 'aria-hidden': 'true', text: d.symbol + ' ' }),
       el('span', { class: 'kpi-delta-value', text: d.text }),
@@ -285,10 +285,12 @@ export function renderExportMenu({ viewId, tables, headerLines, extra = null, la
   ];
   if (extra && extra.tables && extra.tables.length) {
     const rows = extra.tables[0].rows.length;
+    const suffix = extra.suffix || '-vorgaenge'; // Paket D: Einsatzebene mit eigenem Suffix und eigener Einheit
+    const unit = extra.unit || 'Vorgänge';
     items.push(
-      el('div', { class: 'menu-note', text: extra.label + ' (' + rows + ' Vorgänge, mit Namen, nur intern)' }),
-      item('CSV (Vorgangsebene)', () => downloadCsv(exportFileName(viewId + '-vorgaenge', 'csv'), tablesToCsv(extra.tables, headerLines)), !rows),
-      item('XLSX (Vorgangsebene)', () => downloadXlsx(exportFileName(viewId + '-vorgaenge', 'xlsx'), extra.tables, headerLines), !rows),
+      el('div', { class: 'menu-note', text: extra.label + ' (' + rows + ' ' + unit + ', mit Namen, nur intern)' }),
+      item('CSV (' + extra.label + ')', () => downloadCsv(exportFileName(viewId + suffix, 'csv'), tablesToCsv(extra.tables, headerLines)), !rows),
+      item('XLSX (' + extra.label + ')', () => downloadXlsx(exportFileName(viewId + suffix, 'xlsx'), extra.tables, headerLines), !rows),
     );
   }
   menu.append(el('summary', { text: label }), el('div', { class: 'menu-list', role: 'group', 'aria-label': label }, items));

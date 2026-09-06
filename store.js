@@ -36,7 +36,7 @@
 
 import {
   CONFIG, HEADER_FIELDS, PROFILES, PROFILE_ALIASES, LANGUAGES, LANGUAGE_ALIASES, PROFILE_LANGUAGE_HINTS,
-  PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, BIRTH_DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
+  PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES, EXPERT_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, BIRTH_DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
 } from './config.js';
 import { DEFAULT_FILTER, STATUS, PASSIVE_DAYS, filterPersons, eligible, groupBy, groupByPerson, dayKey, partsByProfile, missingParts, profileParts, partsOutsideProfile, personIndex, passerelleFrom, normalizeNamePart } from './metrics.js';
 
@@ -151,6 +151,23 @@ function resultFromNumber(n, shown) {
   if (n >= 0 && n <= 1) return ok(n);
   if (n > 1 && n <= 100) return interpreted(n / 100, 'Result «' + shown + '» ohne Prozentzeichen und > 1 – als Prozentwert interpretiert (' + n + ' % → ' + (n / 100) + ')');
   return bad(null, 'Result ausserhalb 0–100');
+}
+
+// Experte (Paket D, bestätigtes Mapping 06.09.2026): Text → { name, key }; Alias (EXPERT_ALIASES) vor der Normalisierung;
+// leer → null ohne Hinweis; Zahl, Datum oder unlesbar → Fehler «Experte nicht lesbar» (Wirkung «verändert Kennzahl»: Experten-Kennzahlen)
+export function parseExpert(raw) {
+  if (isBlank(raw)) return ok(null);
+  if (typeof raw !== 'string' && typeof raw !== 'number') return bad(null, 'Experte nicht lesbar (' + typeName(raw) + ')');
+  const text = String(raw).trim().replace(/\s+/g, ' ');
+  if (typeof raw === 'number' || /^\d+([.,]\d+)?$/.test(text)) return bad(null, 'Experte nicht lesbar (Zahl «' + text + '»)');
+  const name = EXPERT_ALIASES[text] || text;
+  return ok({ name, key: normalizeNamePart(name) });
+}
+
+// Datum, ab dem Experten erfasst sind (CONFIG.experts.from, JJJJ-MM-TT, lokaler Tagesanfang); null ohne Konfiguration
+export function expertsFromDate(config = CONFIG) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((config.experts && config.experts.from) || '');
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
 }
 
 export function parseResult(raw) {
@@ -363,6 +380,9 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
   const horizon = endOfDay(options.today || new Date());
   const map = resolveHeaders(headerRow, source, sheetName);
   const mappedIndices = Object.values(map);
+  const isExpertKey = (key) => key.endsWith('.expert1') || key.endsWith('.expert2');
+  const expertColumns = Object.keys(map).some(isExpertKey); // Expertenspalten in diesem Sheet vorhanden (Paket D)
+  const expertsFrom = expertsFromDate();
   const headerNameOf = (key) => (map[key] === undefined ? headerCandidates(key)[0] : String(headerRow[map[key]]).trim());
   const persons = [];
   const dq = [];
@@ -417,6 +437,28 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
           run.planned = !run.taken && run.date !== null && run.date > horizon;
           const rawPassed = get(passedKey);
           const rawDate = get(dateKey);
+          // Experten (Paket D): nur OE-Runs, optionale Spalten «OE{p} RUN{r} Expert 1/2» (bestätigt 06.09.2026)
+          run.experts = [];
+          if (kind === 'oe' && expertColumns) {
+            const e1Key = runKey(kind, p, r, 'expert1');
+            const e2Key = runKey(kind, p, r, 'expert2');
+            const e1 = map[e1Key] === undefined ? null : field(e1Key, parseExpert);
+            const e2 = map[e2Key] === undefined ? null : field(e2Key, parseExpert);
+            if (e1) run.experts.push({ role: 1, ...e1 });
+            if (e2) run.experts.push({ role: 2, ...e2 });
+            const rawE1 = get(e1Key);
+            const rawE2 = get(e2Key);
+            const hintKeine = (key, rawValue, reason) => logDq(key, rawValue, reason, LEVEL.HINWEIS, IMPACT.KEINE);
+            if (run.taken && run.date !== null && expertsFrom && run.date >= expertsFrom && run.experts.length === 0) {
+              hintKeine(e1Key, rawE1, 'Experte fehlt – absolvierter mündlicher Run ab ' + CONFIG.experts.from + ' ohne Experten');
+            }
+            if (run.experts.length && !run.taken && isBlank(rawPassed) && isBlank(rawDate)) {
+              hintKeine(e1Key, rawE1, 'Experte ohne Run – Feld gefüllt, aber weder Prüfungsdatum noch Ergebnis');
+            }
+            if (e1 && e2 && e1.key === e2.key) {
+              hintKeine(e2Key, rawE2, 'Experte 1 = Experte 2 – beide Felder nennen dieselbe Person');
+            }
+          }
           if (!run.taken && isBlank(rawPassed) && run.date !== null && run.date <= horizon) {
             hint(passedKey, rawPassed, 'Prüfungsdatum vergangen, aber kein Passed-Wert (Ergebnis ausstehend oder nicht erfasst) – Run zählt nicht als Versuch');
           }
@@ -530,7 +572,8 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
     persons.push(person);
   }
 
-  return { persons, dq, headers: { birthDate: map.birthDate === undefined ? null : String(headerRow[map.birthDate]).trim() } };
+  const expertHeaders = Object.keys(map).filter(isExpertKey).map((key) => String(headerRow[map[key]]).trim());
+  return { persons, dq, headers: { birthDate: map.birthDate === undefined ? null : String(headerRow[map.birthDate]).trim(), experts: expertHeaders } };
 }
 
 // Abgeleitete Felder eines Vorgangs (nach Normalisierung und nach jeder Zusammenführung neu berechnet);
@@ -598,6 +641,8 @@ function fillRun(target, sourceRun) {
   }
   target.taken = target.passed !== null;
   target.planned = !target.taken && (target.planned || sourceRun.planned);
+  // Experten (Paket D): Lücke auffüllen, nie überschreiben
+  if ((!target.experts || !target.experts.length) && sourceRun.experts && sourceRun.experts.length) target.experts = sourceRun.experts.map((x) => ({ ...x }));
 }
 
 // Lücken des behaltenen Vorgangs aus dem Duplikat auffüllen – nie überschreiben (Widersprüche wurden vorher ausgeschlossen).
@@ -715,6 +760,7 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
   const persons = [];
   const dq = [];
   const birthDateHeaders = {};
+  const expertHeaders = new Set();
   const counts = { first: 0, issued: 0 };
   for (const sheet of sheets) {
     if (!SOURCES.includes(sheet.source)) {
@@ -725,6 +771,7 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
     dq.push(...result.dq);
     counts[sheet.source] += result.persons.length;
     birthDateHeaders[sheet.source] = result.headers.birthDate;
+    for (const h of result.headers.experts || []) expertHeaders.add(h);
   }
   const horizon = endOfDay(options.today || new Date());
   const { duplikate, profilKonflikte } = linkPersons(persons, dq, horizon);
@@ -793,7 +840,9 @@ export function normalizeWorkbook({ sheets = [], comments = {}, meta = {} } = {}
     wirkungKeine: dq.filter((e) => e.impact === IMPACT.KEINE).length,
   });
   const personKey = { fields: ['Last Name', 'First Name', 'Geburtsdatum'], birthDateHeaders, complete: Object.values(birthDateHeaders).every((h) => h !== null) };
-  return { persons, dq, meta: { ...meta, counts, personKey } };
+  // Experten (Paket D): Spalten vorhanden? Startdatum der Erfassung (CONFIG.experts.from)
+  const experts = { columns: expertHeaders.size > 0, from: expertsFromDate(), headers: [...expertHeaders] };
+  return { persons, dq, meta: { ...meta, counts, personKey, experts } };
 }
 
 // ---------------------------------------------------------------------------

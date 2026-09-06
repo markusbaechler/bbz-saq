@@ -1,5 +1,6 @@
 // Synthetische Testdaten – ausschliesslich erfundene Namen und Banken. Keine Personendaten.
 import { CONFIG, HEADER_FIELDS, headerCandidates, partKey, runKey } from '../config.js';
+import { normalizeNamePart } from '../metrics.js';
 
 // Header-Name für ein Feld je Sheet-Variante:
 // 'first'  → erste Variante («… Passed»), 'issued' → zweite Variante («… yes»), falls vorhanden.
@@ -11,7 +12,8 @@ export function headerFor(source, key) {
 
 // Header-Zeile (Zeile 10) eines Sheets in plausibler Spaltenreihenfolge.
 // Sheet 1: zusätzlich «WE6 RUN1 Location»; Sheet 2: zusätzlich Certificate Number/Start/End.
-export function headerRowFor(source) {
+// experts: Expertenspalten je OE-Run mitführen (Paket D); Standard false, damit bestehende Fixtures unverändert bleiben
+export function headerRowFor(source, { experts = false } = {}) {
   const h = (key) => headerFor(source, key);
   const row = ['Nr', h('lastName'), h('firstName'), h('role'), h('employer'), h('profil'), h('sprache'), h('commLanguage'), h('birthDate')];
   if (source === 'issued') row.push(h('certNumber'), h('certStart'), h('certEnd'));
@@ -24,6 +26,7 @@ export function headerRowFor(source) {
           h(runKey(kind, p, r, 'score')), h(runKey(kind, p, r, 'result')));
         // Ort je Run; «WE6 RUN1 Location» fehlt in Sheet 2 (Spezifikation)
         if (!(kind === 'we' && p === 6 && r === 1 && source === 'issued')) row.push(h(runKey(kind, p, r, 'location')));
+        if (experts && kind === 'oe') row.push(h(runKey(kind, p, r, 'expert1')), h(runKey(kind, p, r, 'expert2'))); // Experten je OE-Run (Paket D)
       }
     }
   }
@@ -45,8 +48,10 @@ export function cellsFor(source, headerRow, values) {
 
 // Sheet-Objekt, wie es der Datasource-Adapter liefert (rows ab Zeile 11).
 // extraFields: optionale Felder, deren Header zusätzlich in Zeile 10 stehen soll (z. B. 'birthDate' → «Date of Birth»).
-export function makeSheet(source, rowValues, { startRow = CONFIG.dataStartRow, extraFields = [] } = {}) {
-  const headerRow = headerRowFor(source).concat(extraFields.map((key) => headerFor(source, key)));
+// withoutFields: Feldschlüssel, deren Header aus Zeile 10 entfernt werden (z. B. Datei ohne Expertenspalten)
+export function makeSheet(source, rowValues, { startRow = CONFIG.dataStartRow, extraFields = [], withoutFields = [], experts = false } = {}) {
+  const removed = new Set(withoutFields.map((key) => headerFor(source, key)));
+  const headerRow = headerRowFor(source, { experts }).filter((h) => !removed.has(h)).concat(extraFields.map((key) => headerFor(source, key)));
   const rows = rowValues.map((values, i) => ({ row: startRow + i, cells: cellsFor(source, headerRow, values) }));
   return { source, sheetName: CONFIG.sheets[source], headerRow, rows };
 }
@@ -58,7 +63,7 @@ export function runValues(kind, parts) {
     for (let i = 0; i < runs.length; i++) {
       const r = runs[i];
       if (!r) continue;
-      for (const what of ['passed', 'date', 'score', 'result', 'location']) {
+      for (const what of ['passed', 'date', 'score', 'result', 'location', 'expert1', 'expert2']) {
         if (r[what] !== undefined) out[runKey(kind, Number(p), i + 1, what)] = r[what];
       }
     }
@@ -73,7 +78,7 @@ export const ALL_FIELD_KEYS = HEADER_FIELDS.map((f) => f.key);
 // ---------------------------------------------------------------------------
 
 function emptyRun(n) {
-  return { n, passed: null, date: null, score: null, result: null, location: null, taken: false, planned: false };
+  return { n, passed: null, date: null, score: null, result: null, location: null, taken: false, planned: false, experts: [] };
 }
 
 function emptyPart(part, runs) {
@@ -173,6 +178,8 @@ function applyRuns(parts, spec) {
       if (r.score !== undefined) run.score = r.score;
       if (r.result !== undefined) run.result = r.result;
       if (r.location !== undefined) run.location = r.location;
+      // experts: [name1, name2] (null = Rolle leer) → [{ role, name, key }] wie store.js (Paket D)
+      if (r.experts !== undefined) run.experts = r.experts.map((name, k) => (name ? { role: k + 1, name, key: normalizeNamePart(name) } : null)).filter(Boolean);
       run.taken = run.passed !== null;
       run.planned = r.planned === undefined ? false : !!r.planned;
     });

@@ -232,6 +232,36 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   await shot(page, 'personen');
 
+  // Experten (Paket D): Kacheln, Haupttabelle mit synthetischen Experten, Sortierung, Zeilen-Detail, Paarungen, Zeitraum auf Einsätze, Export Einsatzebene
+  await page.goto(server.url + '#experten');
+  await page.waitForSelector('#view .expert-table table');
+  const expertNames = await page.$$eval('#view .expert-table tbody tr.expandable td:nth-child(2)', (tds) => tds.map((td) => td.textContent.trim()));
+  check((await page.locator('#view .kpi').count()) >= 6 && expertNames.join(',') === 'Experte Emil,Prüfer Pia,Beisitz Bruno', 'Experten: sechs Kacheln, Haupttabelle nach Einsätzen absteigend (' + expertNames.join(', ') + ')');
+  check(!(await page.textContent('#view .expert-table')).includes('Muster Anna'), 'Experten: keine Kandidatennamen in der Haupttabelle');
+  const einsaetzeKpi = () => page.$$eval('#view .kpi', (k) => { const t = k.find((x) => x.querySelector('.kpi-label').textContent.startsWith('Einsätze')); return t ? t.querySelector('.kpi-value').textContent.trim() : ''; });
+  check((await einsaetzeKpi()) === '7', 'Experten: Kachel Einsätze = 7 (synthetische Datei)');
+  await page.click('#view .expert-table th.sortable button[aria-label="Sortieren nach Experte"]');
+  await page.waitForFunction(() => { const td = document.querySelector('#view .expert-table tbody tr.expandable td:nth-child(2)'); return td && td.textContent.trim() === 'Beisitz Bruno'; }, null, { timeout: 5000 });
+  check((await page.getAttribute('#view .expert-table th.sortable.active', 'aria-sort')) === 'ascending' && !/sort/i.test(page.url()), 'Experten: Sortierung nach Name (aria-sort ascending), nicht in der URL');
+  await page.click('#view .expert-table th.sortable button[aria-label="Sortieren nach Durchfallquote 1. Versuch"]');
+  await page.waitForFunction(() => { const td = document.querySelector('#view .expert-table tbody tr.expandable td:nth-child(2)'); return td && td.textContent.trim() === 'Experte Emil'; }, null, { timeout: 5000 });
+  check((await page.getAttribute('#view .expert-table th.sortable.active', 'aria-sort')) === 'descending', 'Experten: Sortierung nach Durchfallquote 1. Versuch absteigend (Emil 40.0 % zuerst)');
+  await page.locator('#view .expert-table tr.expandable').first().click();
+  await page.waitForSelector('#view .expert-table tr.event-detail:not([hidden]) .expert-detail');
+  check((await page.locator('#view .expert-table tr.event-detail:not([hidden]) .expert-detail table').count()) === 4, 'Experten: Zeilen-Detail mit vier Tabellen (Jahr, Profil, Sprache, Partner)');
+  const pairRows = await page.evaluate(() => { const s = [...document.querySelectorAll('#view section.block')].find((x) => (x.querySelector('h3') || {}).textContent.startsWith('Paarungen')); return s ? s.querySelectorAll('tbody tr').length : -1; });
+  check(pairRows >= 3, 'Experten: Paarungstabelle mit ' + pairRows + ' Paaren');
+  await page.click('#view details.menu > summary');
+  check((await page.locator('#view details.menu[open] .menu-item', { hasText: 'CSV (Einsatzebene)' }).count()) === 1, 'Experten: Export-Menü mit «CSV (Einsatzebene)»');
+  await page.click('#view details.menu > summary');
+  await page.locator('#filterbar label:has-text("Jahr") select').selectOption('2024');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  await page.waitForSelector('#view .expert-table table');
+  check((await einsaetzeKpi()) === '4', 'Experten: Zeitraum 2024 → Einsätze = 4 (Run-Datum, nicht Referenzdatum)');
+  await shot(page, 'experten');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
   // Historie (b7): Snapshot herunterladen (ohne Namen), wieder laden, Vergleich mit «Heute»
   await page.goto(server.url + '#historie');
   await page.waitForSelector('#view h2');
@@ -380,6 +410,22 @@ try {
   const phoneStorage = await phone.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
   check(phoneStorage.local.length === 0 && phoneStorage.session.every((k) => /msal|login\.|authority|client\.info/i.test(k)), 'Phone Personen: keine Daten im Browser-Speicher (' + JSON.stringify(phoneStorage) + ')');
   await phone.screenshot({ path: join(outDir, 'phone-personen-detail.png'), fullPage: true });
+  // Phone (D.5): Experten – kein Seitenscroll, Prio-1-Spalten, Paarungen eingeklappt, Sortier-Buttons als Touch-Ziele, Detail einspaltig
+  await phone.goto(server.url + '#experten');
+  await phone.waitForSelector('#view .expert-table table');
+  const expertOverflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check(expertOverflow <= 0, 'Phone Experten: kein Seitenscroll (' + expertOverflow + ' px)');
+  const expertHeads = (await visibleHeads(phone, 'Experten')).map((h) => h.replace(/ [▲▼]$/, '')); // Sortierpfeil abstreifen
+  check(JSON.stringify(expertHeads) === JSON.stringify(['Experte', 'Einsätze', 'Durchfallquote 1. Versuch', 'Δ 1. Versuch']), 'Phone Experten: Haupttabelle mit Prio-1-Spalten (' + expertHeads.join(', ') + ')');
+  check((await collapsed(phone, ['Paarungen Experte 1 × Experte 2'])).join(',') === 'Paarungen Experte 1 × Experte 2:zu', 'Phone Experten: Paarungen eingeklappt');
+  const sortTarget = await phone.evaluate(() => document.querySelector('#view .expert-table th.sortable button').getBoundingClientRect().height);
+  check(sortTarget >= 44, 'Phone Experten: Sortier-Buttons ≥ 44 px (' + Math.round(sortTarget) + ' px)');
+  await phone.locator('#view .expert-table tr.expandable').first().click();
+  await phone.waitForSelector('#view .expert-table tr.event-detail:not([hidden]) .expert-detail');
+  const detailCols = await phone.evaluate(() => getComputedStyle(document.querySelector('#view .expert-table tr.event-detail:not([hidden]) .expert-detail')).gridTemplateColumns.split(' ').length);
+  const expertDetailOverflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check(detailCols === 1 && expertDetailOverflow <= 0, 'Phone Experten: Zeilen-Detail einspaltig ohne Seitenscroll (' + detailCols + ' Spalte(n), ' + expertDetailOverflow + ' px)');
+  await phone.screenshot({ path: join(outDir, 'phone-experten-detail.png'), fullPage: true });
   await phone.close();
 
   // Tablet (B.4): 820 × 1180 – kein Seitenscroll, Prio 1 + 2 sichtbar, Prio 3 versteckt, Navigation mit Gruppen, Filter offen

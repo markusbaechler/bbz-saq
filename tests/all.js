@@ -17,3 +17,4 @@ import './contrast.test.js';
 import './views-meta.test.js';
 import './filterChips.test.js';
 import './common.test.js';
+import './headers.test.js';

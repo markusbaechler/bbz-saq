@@ -2,7 +2,7 @@ import { test, assert, assertEqual } from './runner.js';
 import {
   CONFIG, PROFILES, PROFILE_ALIASES, LANGUAGES, PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES,
   VSS_REGEX, VSM_REGEX, HEADER_FIELDS, headerCandidates, requiredFieldKeys, partKey, runKey, DATE_RULES,
-  LANGUAGE_ALIASES, PROFILE_LANGUAGE_HINTS,
+  LANGUAGE_ALIASES, PROFILE_LANGUAGE_HINTS, EXPERT_ALIASES,
 } from '../config.js';
 
 test('config: Sheet-Namen und Header-Zeile gemäss Spezifikation', () => {
@@ -109,4 +109,13 @@ test('config: HEADER_FIELDS ist vollständig und eindeutig', () => {
 
 test('config.features: Schreibpfad (Phase 2) standardmässig aus – ohne Flag keine Bearbeiten-Elemente (PROMPT-2 C.8)', () => {
   assertEqual(CONFIG.features, { write: false });
+});
+
+test('config: Expertenfelder je OE-Run (optional, bestätigte Header «OE{p} RUN{r} Expert 1/2») und CONFIG.experts.from (PROMPT-2 D.3)', () => {
+  assertEqual(headerCandidates(runKey('oe', 1, 1, 'expert1')), ['OE1 RUN1 Expert 1']);
+  assertEqual(headerCandidates(runKey('oe', 2, 3, 'expert2')), ['OE2 RUN3 Expert 2']);
+  assert(!requiredFieldKeys('first').includes(runKey('oe', 1, 1, 'expert1')) && !requiredFieldKeys('issued').includes(runKey('oe', 1, 1, 'expert2')), 'optional: ältere Dateien ohne Spalten laden weiterhin');
+  assertEqual(CONFIG.experts, { from: '2018-01-01' });
+  assertEqual(EXPERT_ALIASES, {});
+  assertEqual(headerCandidates(runKey('we', 1, 1, 'expert1')), null, 'keine Expertenfelder für schriftliche Teile');
 });

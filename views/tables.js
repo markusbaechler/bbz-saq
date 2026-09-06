@@ -9,7 +9,7 @@ import {
   multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
   timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
   earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS, profileParts, personIndex, passerelleFrom,
-  runTimeline, examGrid } from '../metrics.js';
+  runTimeline, examGrid, expertStats, expertBenchmark, expertPairs, mean } from '../metrics.js';
 import { compareKennzahlen, compareZaehler, compareByGroup } from '../snapshot.js';
 import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
 
@@ -979,4 +979,131 @@ export function personDqTable(dq, vorgaenge) {
     })),
     empty: 'Keine Einträge im Data-Quality-Log zu dieser Person.',
   };
+}
+
+// ---------------------------------------------------------------------------
+// Experten (PROMPT-2 Paket D, E8/E9): KPIs, Haupttabelle mit Δ zum Benchmark, Detail je Experte, Paarungen, Export Einsatzebene
+// ---------------------------------------------------------------------------
+
+function pctOrDash(r) {
+  return r && isNum(r.pct) ? formatPct(r.pct) : '–';
+}
+
+function meanOrDash(m) {
+  return m && isNum(m.mean) ? formatPct(m.mean) : '–';
+}
+
+// Δ in Prozentpunkten zwischen zwei Anteilen; leer, wenn eine Seite keinen Wert hat
+function ppDelta(a, b) {
+  return isNum(a) && isNum(b) ? formatPp((a - b) * 100) : '';
+}
+
+function median(values) {
+  const s = values.filter(isNum).slice().sort((a, b) => a - b);
+  if (!s.length) return null;
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+function groupTable(title, label, groups) {
+  return {
+    title,
+    columns: [col('gruppe', label, 1), col('einsaetze', 'Einsätze', 1), col('fail', 'Durchfallquote', 1), col('result', 'Ø Resultat', 2)],
+    rows: groups.map((g) => ({ gruppe: g.key, einsaetze: g.einsaetze, fail: pctOrDash(g.fail.gesamt), result: meanOrDash(g.result), small: g.einsaetze < SMALL_N })),
+    empty: 'Keine Einsätze.',
+  };
+}
+
+// runs = metrics.expertRuns(); deltaDirection: Farbe der Δ-Spalten (Entscheid 06.09.2026: neutral – Beobachtungswerte, keine Leistungsbeurteilung)
+export function expertTables(runs, { deltaDirection = 'neutral' } = {}) {
+  const bench = expertBenchmark(runs);
+  const stats = expertStats(runs);
+  const perExpert = stats.map((s) => s.einsaetze);
+  const avg = mean(perExpert);
+  const med = median(perExpert);
+  const kpi = (label, value, n, extra = {}) => ({ label, value, n, small: false, kind: 'count', group: 'Experten', direction: 'neutral', ...extra });
+  const kpis = [
+    kpi('Experten', String(bench.experten), bench.experten, { hint: 'Experten mit mindestens einem Einsatz im aktiven Filter' }),
+    kpi('Einsätze', String(runs.length), runs.length, { hint: 'Absolvierte mündliche Runs mit mindestens einem Experten; ein Einsatz zählt für beide Experten' }),
+    kpi('Ø Einsätze je Experte', isNum(avg.mean) ? (Math.round(avg.mean * 10) / 10).toFixed(1) + ' (Median ' + (Math.round(med * 10) / 10) + ')' : '–', bench.experten, { hint: 'Einsätze geteilt durch Experten; Median in Klammern' }),
+    kpi('Durchfallquote 1. Versuch', pctOrDash(bench.fail.erst), bench.fail.erst.n, { kind: 'ratio', unit: 'Einsätzen', count: bench.fail.erst.count, small: bench.fail.erst.small, hint: 'Benchmark aller Experten: Anteil nicht bestandener Einsätze im ersten Versuch (RUN1)' }),
+    kpi('Durchfallquote Wiederholung', pctOrDash(bench.fail.wdh), bench.fail.wdh.n, { kind: 'ratio', unit: 'Einsätzen', count: bench.fail.wdh.count, small: bench.fail.wdh.small, hint: 'Benchmark aller Experten: Anteil nicht bestandener Einsätze bei Wiederholungen (RUN2, RUN3)' }),
+    kpi('Ø Resultat (Experten)', meanOrDash(bench.result), bench.result.n, { kind: 'mean', hint: 'Mittel der Resultate aller Einsätze mit Wert (Result, E6)' }),
+  ];
+  const delta = (key, label, prio) => col(key, label, prio, { direction: deltaDirection });
+  const main = {
+    title: 'Experten',
+    columns: [
+      col('experte', 'Experte', 1), col('einsaetze', 'Einsätze', 1), col('role1', 'als Experte 1', 2), col('role2', 'als Experte 2', 2), col('anteil1', 'Anteil Experte 1', 2),
+      col('fail1', 'Durchfallquote 1. Versuch', 1), delta('delta1', 'Δ 1. Versuch', 1), col('failW', 'Durchfallquote Wiederholung', 2), delta('deltaW', 'Δ Wiederholung', 2),
+      col('result', 'Ø Resultat', 2), delta('deltaR', 'Δ Ø Resultat', 3), col('erster', 'Erster Einsatz', 3), col('letzter', 'Letzter Einsatz', 3),
+    ],
+    rows: stats.map((s) => ({
+      key: s.key, experte: s.name, einsaetze: s.einsaetze, role1: s.role1, role2: s.role2, anteil1: pctOrDash(s.anteilRole1),
+      fail1: pctOrDash(s.fail.erst), delta1: ppDelta(s.fail.erst.pct, bench.fail.erst.pct), failW: pctOrDash(s.fail.wdh), deltaW: ppDelta(s.fail.wdh.pct, bench.fail.wdh.pct),
+      result: meanOrDash(s.result), deltaR: ppDelta(s.result.mean, bench.result.mean), erster: fmtDate(s.first), letzter: fmtDate(s.last), small: s.small,
+    })),
+    empty: 'Keine Einsätze im aktiven Filter.',
+    note: 'Beobachtungswerte, keine Leistungsbeurteilung: ein Einsatz zählt für beide Experten voll; Δ = Wert des Experten minus Benchmark aller Experten derselben Versuchsart, in Prozentpunkten, neutral dargestellt (E9). ' + SMALL_NOTE,
+  };
+  const details = new Map(stats.map((s) => [s.key, {
+    jahr: groupTable('Je Jahr', 'Jahr', s.byYear),
+    profil: groupTable('Je Profil', 'Profil', s.byProfil),
+    sprache: groupTable('Je Sprache', 'Sprache', s.bySprache),
+    partner: {
+      title: 'Partner',
+      columns: [col('partner', 'Partner', 1), col('einsaetze', 'Einsätze', 1), col('fail', 'Durchfallquote', 2), col('result', 'Ø Resultat', 3)],
+      rows: s.partners.map((p) => ({ partner: p.name, einsaetze: p.einsaetze, fail: pctOrDash(p.fail.gesamt), result: meanOrDash(p.result), small: p.einsaetze < SMALL_N })),
+      empty: 'Keine gemeinsamen Einsätze.',
+    },
+  }]));
+  const pairs = {
+    title: 'Paarungen Experte 1 × Experte 2',
+    columns: [col('expert1', 'Experte 1', 1), col('expert2', 'Experte 2', 1), col('einsaetze', 'Einsätze', 1), col('fail', 'Durchfallquote', 2), col('result', 'Ø Resultat', 3)],
+    rows: expertPairs(runs).map((p) => ({ expert1: p.expert1, expert2: p.expert2, einsaetze: p.einsaetze, fail: pctOrDash(p.fail), result: meanOrDash(p.result), small: p.einsaetze < SMALL_N })),
+    empty: 'Keine Einsätze mit zwei verschiedenen Experten.',
+    note: 'Einsätze mit zwei verschiedenen Experten, unabhängig von der Rollenreihenfolge; häufigste Paare zuerst (höchstens 30).',
+  };
+  return { benchmark: bench, kpis, main, details, pairs };
+}
+
+// Einsatzebene (Entscheid 06.09.2026, Frage 3): eine Zeile je Einsatz mit Kandidatenname – mit Namen, nur intern (E5, E8)
+export function expertRunExportTable(runs) {
+  const expertName = (r, role) => { const e = r.experts.find((x) => x.role === role); return e ? e.name : ''; };
+  return {
+    title: 'Einsätze',
+    columns: [
+      col('datum', 'Datum'), col('teil', 'Teilprüfung'), col('run', 'Run'), col('versuch', 'Versuch'), col('experte1', 'Experte 1'), col('experte2', 'Experte 2'), col('bestanden', 'Bestanden'), col('resultat', 'Resultat'),
+      col('profil', 'Profil'), col('sprache', 'Sprache'), col('bank', 'Bank'), col('kandidat', 'Kandidat'), col('sheet', 'Sheet'), col('row', 'Zeile'),
+    ],
+    rows: runs.map((r) => ({
+      datum: fmtDate(r.date), teil: r.part, run: r.run, versuch: r.erstversuch ? '1. Versuch' : 'Wiederholung', experte1: expertName(r, 1), experte2: expertName(r, 2),
+      bestanden: yesNo(r.passed), resultat: formatPct(r.result), profil: groupLabel(r.profil), sprache: groupLabel(r.sprache), bank: r.bank || '', kandidat: personName(r.person), sheet: r.person.sheetName, row: r.person.row,
+    })),
+    note: 'Eine Zeile je Einsatz (absolvierter mündlicher Run mit Experten) im aktiven Filter. Enthält Namen von Kandidaten und Experten – mit Namen, nur intern (E5, E8).',
+  };
+}
+
+// Sortierung für Tabellen mit Textzellen (Experten-Haupttabelle): Prozent, pp, Datum dd.mm.yyyy und Zahlen numerisch,
+// Text mit Collator; Strich und leere Zellen am Ende; stabil; liefert eine Kopie
+export function sortTableRows(rows, key, dir = 'asc') {
+  const sign = dir === 'desc' ? -1 : 1;
+  const value = (v) => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return v;
+    const s = String(v).trim();
+    if (!s || s === '–') return null;
+    const dm = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s);
+    if (dm) return Number(dm[3] + dm[2] + dm[1]);
+    const nm = /^([−+-]?)(\d+(?:[.,]\d+)?)\s*(%|pp)?$/.exec(s);
+    if (nm) return (nm[1] === '−' || nm[1] === '-' ? -1 : 1) * Number(nm[2].replace(',', '.'));
+    return s;
+  };
+  return rows.map((row, i) => ({ row, i, v: value(row[key]) })).sort((a, b) => {
+    if (a.v === null && b.v === null) return a.i - b.i;
+    if (a.v === null) return 1;
+    if (b.v === null) return -1;
+    const cmp = typeof a.v === 'number' && typeof b.v === 'number' ? a.v - b.v : collatorDe.compare(String(a.v), String(b.v));
+    return sign * cmp || a.i - b.i;
+  }).map((x) => x.row);
 }
