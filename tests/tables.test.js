@@ -724,6 +724,7 @@ test('tables.expertTables: KPIs, Haupttabelle mit Prioritäten und neutralen Δ 
   assertEqual(t.pairs.columns.map((c) => c.label), ['Experte 1', 'Experte 2', 'Einsätze', 'Durchfallquote', 'Ø Resultat']);
   assertEqual(t.pairs.rows.map((r) => [r.expert1, r.expert2, r.einsaetze]), [['Beisitz Bruno', 'Experte Emil', 2], ['Beisitz Bruno', 'Prüfer Pia', 2], ['Experte Emil', 'Prüfer Pia', 2]]);
   assert(t.main.note.includes('Beobachtungswerte'));
+  assertEqual([t.main.wide, t.pairs.wide], [true, undefined], 'Haupttabelle mit 13 Spalten ist «wide»: Prio 3 erst ab 1400 px (PROMPT-2 F.2, Option 1); Paarungen nicht');
   const empty = expertTables([]);
   assertEqual([empty.main.rows, empty.pairs.rows, empty.kpis[0].value], [[], [], '0']);
 });

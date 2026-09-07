@@ -534,6 +534,40 @@ try {
   check((await page.locator('#nav-secondary a[aria-current="page"]').count()) === 1 && (await page.locator('#nav a[aria-current="page"], #nav a.active').count()) === 0 && (await page.locator('#nav-select').inputValue()) === 'glossar', 'Desktop: Glossar aktiv in der Sekundärnavigation, kein aktiver Link in #nav, Auswahlfeld zeigt Glossar');
   await page.setViewportSize({ width: 1400, height: 1000 });
 
+  // Tabellenbreite (PROMPT-2 F.2, Option 1): ab 1280 px keine Tabelle mit horizontalem Überlauf in Übersicht, Schriftlich, Mündlich,
+  // Experten; Prio 3 ab 1200 px sichtbar, die breite Experten-Tabelle (.wide) zeigt Prio 3 erst ab 1400 px; darunter Schalter «Alle Spalten»
+  const tableViews = ['uebersicht', 'schriftlich', 'muendlich', 'experten'];
+  const tableState = () => page.evaluate(() => {
+    const wraps = [...document.querySelectorAll('#view .table-wrap')];
+    const over = wraps.filter((x) => x.scrollWidth > x.clientWidth).map((x) => ((x.querySelector('caption') || {}).textContent || '?').trim().slice(0, 45) + ' +' + (x.scrollWidth - x.clientWidth) + ' px');
+    const p3 = (sel) => [...document.querySelectorAll(sel)];
+    const shown = (els) => els.every((td) => getComputedStyle(td).display !== 'none');
+    const hidden = (els) => els.every((td) => getComputedStyle(td).display === 'none');
+    const toggles = (sel) => [...document.querySelectorAll(sel)].filter((b) => b.getClientRects().length > 0).length;
+    const normal = p3('#view .table-wrap:not(.wide) table.data td[data-prio="3"]');
+    const wide = p3('#view .table-wrap.wide > table > tbody > tr > td[data-prio="3"]');
+    return { n: wraps.length, over, wide: document.querySelectorAll('#view .table-wrap.wide').length, p3: normal.length, p3Shown: shown(normal), p3Hidden: hidden(normal),
+      wideP3: wide.length, wideShown: shown(wide), wideHidden: hidden(wide), toggles: toggles('#view .table-wrap:not(.wide) > .all-columns'), wideToggles: toggles('#view .table-wrap.wide > .all-columns') };
+  });
+  for (const [w, h] of [[1280, 900], [1400, 1000]]) {
+    await page.setViewportSize({ width: w, height: h });
+    for (const v of tableViews) {
+      await page.goto(server.url + '#' + v);
+      await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
+      const t = await tableState();
+      const wideOk = v === 'experten' ? (t.wide === 1 && t.wideP3 > 0 && (w >= 1400 ? t.wideShown && t.wideToggles === 0 : t.wideHidden && t.wideToggles === 1)) : t.wide === 0;
+      check(t.n > 0 && t.over.length === 0 && t.p3 > 0 && t.p3Shown && t.toggles === 0 && wideOk, 'Desktop ' + w + ' px ' + v + ': ' + t.n + ' Tabellen ohne Überlauf, Prio-3-Spalten sichtbar' + (v === 'experten' ? (w >= 1400 ? ', Experten-Tabelle vollständig' : ', Experten-Tabelle ohne Prio 3 mit Schalter «Alle Spalten»') : '') + (t.over.length ? ' – Überlauf: ' + t.over.join(' | ') : ''));
+      if (w === 1280) await page.screenshot({ path: join(outDir, 'desktop-1280-' + v + '.png') });
+    }
+  }
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto(server.url + '#schriftlich');
+  await page.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'schriftlich' && !!document.querySelector('#view h2'), null, { timeout: 5000 });
+  const t1100 = await tableState();
+  check(t1100.p3 > 0 && t1100.p3Hidden && t1100.toggles === t1100.n && t1100.over.length === 0, 'Desktop 1100 px Schriftlich: Prio-3-Spalten ausgeblendet, Schalter «Alle Spalten» je Tabelle (' + t1100.toggles + ' von ' + t1100.n + '), kein Überlauf');
+  await page.screenshot({ path: join(outDir, 'desktop-1100-schriftlich.png') });
+  await page.setViewportSize({ width: 1400, height: 1000 });
+
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL
   const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
   check(storage.local.length === 0 && storage.session.every((k) => /msal|login\.|authority|client\.info/i.test(k)), 'Keine Daten im Browser-Speicher: ' + JSON.stringify(storage));
