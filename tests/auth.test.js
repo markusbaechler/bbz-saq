@@ -5,7 +5,7 @@ const CONFIGURED = { clientId: '11111111-2222-3333-4444-555555555555', tenantId:
 const LOCATION = { origin: 'http://localhost:3000', pathname: '/' };
 
 // Fake der MSAL-Bibliothek (window.msal): zeichnet Aufrufe auf
-function fakeMsal({ accounts = [], redirectResult = null, silentError = null, popupError = null } = {}) {
+function fakeMsal({ accounts = [], redirectResult = null, redirectError = null, silentError = null, popupError = null } = {}) {
   class InteractionRequiredAuthError extends Error {
     constructor(message) { super(message); this.errorCode = 'interaction_required'; }
   }
@@ -13,7 +13,7 @@ function fakeMsal({ accounts = [], redirectResult = null, silentError = null, po
   class PublicClientApplication {
     constructor(cfg) { calls.push(['ctor', cfg]); this.active = null; }
     async initialize() { calls.push(['initialize']); }
-    async handleRedirectPromise() { calls.push(['handleRedirectPromise']); return redirectResult; }
+    async handleRedirectPromise() { calls.push(['handleRedirectPromise']); if (redirectError) throw redirectError; return redirectResult; }
     getAllAccounts() { return accounts; }
     setActiveAccount(a) { this.active = a; calls.push(['setActiveAccount', a]); }
     async loginPopup(req) {
@@ -78,6 +78,7 @@ test('createAuth.init: MSAL mit Tenant-Authority, Redirect-URI und sessionStorag
   assertEqual(cfg.auth.redirectUri, 'http://localhost:3000/');
   assertEqual(cfg.cache.cacheLocation, 'sessionStorage');
   assertEqual(cfg.cache.storeAuthStateInCookie, false);
+  assertEqual(cfg.auth.navigateToLoginRequestUrl, false, 'kein zweiter Sprung nach dem Redirect-Login (Hotfix Anmeldung 07.09.2026)');
   assertEqual(calls.map((c) => c[0]), ['ctor', 'initialize', 'handleRedirectPromise', 'setActiveAccount']);
   assertEqual(auth.isAuthenticated(), true);
   assertEqual(auth.getAccount(), account);
@@ -229,4 +230,20 @@ test('auth.getToken({ scopes }): bei InteractionRequired Popup mit denselben Sco
   await auth.init();
   assertEqual(await auth.getToken({ scopes: ['Files.ReadWrite.All'] }), 'tok-popup');
   assertEqual(calls.filter((c) => c[0] === 'acquireTokenPopup').pop()[1].scopes, ['https://graph.microsoft.com/Files.ReadWrite.All']);
+});
+
+test('createAuth.init: unbrauchbare MSAL-Antwort im Hash (z. B. veralteter state) → Warnung, kein Fehler, kein Konto; #error=… wird gemeldet (Hotfix Anmeldung 07.09.2026)', async () => {
+  const stale = new Error('state_not_found');
+  const { msal, calls } = fakeMsal({ redirectError: stale });
+  const warnings = [];
+  const auth = createAuth({ msal, authConfig: CONFIGURED, location: { ...LOCATION, hash: '#code=x&state=y' }, warn: (m) => warnings.push(m) });
+  assertEqual(await auth.init(), null, 'kein Konto, kein Wurf');
+  assertEqual(auth.isAuthenticated(), false);
+  assertEqual(calls.map((c) => c[0]), ['ctor', 'initialize', 'handleRedirectPromise']);
+  assert(warnings.length === 1 && /state_not_found/.test(warnings[0]), 'Warnung mit MSAL-Meldung');
+  const denied = new Error('access_denied');
+  const withError = createAuth({ msal: fakeMsal({ redirectError: denied }).msal, authConfig: CONFIGURED, location: { ...LOCATION, hash: '#error=access_denied&error_description=AADSTS65001' } });
+  let thrown = null;
+  try { await withError.init(); } catch (e) { thrown = e; }
+  assertEqual(thrown, denied, 'echte Anmeldefehler bleiben sichtbar');
 });
