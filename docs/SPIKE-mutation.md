@@ -2,7 +2,7 @@
 
 Stand 06.09.2026. Ziel: eine einzelne Run-Zelle (Passed, Date, Result, Location, Expert 1/2) eines Vorgangs in einer bestehenden Spalte
 der Excel ändern, ohne die Struktur der Datei zu verändern (E10). Testumgebung: Testkopie `General/07_KUBA/Test_Reporting_KUBA.xlsx`
-(Auftraggeber, 06.09.2026); Testseite `spike/mutation.html` (nur lokal, Scope `Files.ReadWrite.All` nur dort, Protokoll ohne Personendaten).
+(Auftraggeber, 06.09.2026); Testseite `spike/mutation.html` (nur lokal; mit Paket F am 07.09.2026 entfernt, Ablauf durch `datasource/workbookAdapter.js` und Tests abgedeckt).
 Entscheide vor Start (06.09.2026): Audit als `Reporting_KUBA.changes.json` neben der Datei; Umfang nur Run-Felder; Flag `features.write`
 bleibt `false` bis zur Aktivierung durch den Auftraggeber. **Go durch den Auftraggeber am 06.09.2026** – die Umsetzung E.2–E.4 folgt; der
 Lauf der Testseite auf der Testkopie ist Bedingung vor der Flag-Aktivierung (Abschnitt 8).
@@ -81,3 +81,9 @@ auf der Testkopie aus (Schritte 1–9) und schickt das Protokoll; die Abschnitte
 die Schreibweise je Feld wird gegen die Protokollwerte abgeglichen. **Entscheid des Auftraggebers: Go (06.09.2026).** Test des Auftraggebers über die App auf der Testkopie am 06.09.2026 erfolgreich
 (Bearbeitungsmodus, Dialog, Schreiben, Neuladen, Audit, Historie); der formale Lauf der Testseite wurde nicht protokolliert, die
 Schreibweise je Feld liest der Adapter zur Laufzeit aus den Nachbarzellen. Produktiv freigeschaltet am 06.09.2026 (PR #16).
+
+**Entscheid E13 (06.09.2026, nachgetragen 07.09.2026 mit Paket F):** Schreibpfad produktiv freigeschaltet (`features.write = true`) auf Anweisung
+des Auftraggebers nach dessen Test über die App auf der Testkopie. Der formale Lauf dieser Testseite ist nicht protokolliert; die Abschnitte 2 und 4
+bleiben formal `[unklar]`, die Schreibweise je Feld liest der Adapter zur Laufzeit aus den Nachbarzellen. Das Restrisiko «Datei gleichzeitig in
+Excel Desktop geöffnet» (423/409 → Konfliktmeldung, kein Datenverlust) ist akzeptiert. Die Testseite `spike/` wurde mit Paket F entfernt;
+Adapter (`datasource/workbookAdapter.js`) und Tests mit Graph-Mock decken den Ablauf ab.
