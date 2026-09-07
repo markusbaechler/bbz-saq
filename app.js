@@ -41,8 +41,11 @@ const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, 
     },
     { id: glossar.id, label: glossar.label, group: glossar.group, intro: glossar.intro, build: glossar.build, isStatic: true },
   ]);
-// Navigationsgruppen (PROMPT-2 A.2, Entscheid 06.09.2026); Gruppen ohne Ansicht (Experten bis Paket D) werden nicht gerendert
+// Navigationsgruppen (PROMPT-2 A.2, Entscheid 06.09.2026); Gruppen ohne Ansicht (Experten bis Paket D) werden nicht gerendert.
+// Die Gruppe «Daten» steht als Sekundärnavigation rechts im Kopf (PROMPT-2 F.1, Option b, Entscheid 07.09.2026): 14 Links
+// passen bei 1100 px nicht in eine Zeile; das Auswahlfeld auf dem Phone behält alle Gruppen.
 const NAV_GROUPS = ['Kennzahlen', 'Personen', 'Experten', 'Daten'];
+const NAV_SECONDARY = 'Daten';
 
 // Aller Zustand liegt im Store (Filter, Anzeigezustand, Daten); app.js hält nur DOM-Referenzen und Lauf-Flags (Befund 16).
 const store = createStore();
@@ -97,19 +100,22 @@ function renderNav() {
   const current = viewFromHash();
   const { filter, ui: uiState } = store.getState();
   const groups = NAV_GROUPS.map((name) => ({ name, views: VIEWS.filter((v) => v.group === name) })).filter((g) => g.views.length);
-  // Phone (PROMPT-2 B.2): Auswahlfeld mit optgroup je Gruppe; die Links bleiben im DOM und sind auf Phone per CSS ausgeblendet
+  // Links tragen den Filterzustand mit, damit der Ansichtswechsel ihn behält
+  const link = (v) => {
+    const a = el('a', { href: buildHash(v.id, filter, uiState), text: v.label, class: v.id === current ? 'active' : null });
+    if (v.id === current) a.setAttribute('aria-current', 'page');
+    return a;
+  };
+  // Phone (PROMPT-2 B.2): Auswahlfeld mit optgroup je Gruppe (alle vier); die Links bleiben im DOM und sind auf Phone per CSS ausgeblendet
   const select = el('select', { id: 'nav-select', class: 'nav-select', 'aria-label': 'Ansicht', onchange: (ev) => { location.hash = buildHash(ev.target.value, filter, uiState); } },
     groups.map((g) => el('optgroup', { label: g.name }, g.views.map((v) => el('option', { value: v.id, text: v.label })))));
   select.value = current;
-  ui.nav.replaceChildren(select, ...groups.map((g) => el('div', { class: 'nav-group', role: 'group', 'aria-label': g.name }, [
+  ui.nav.replaceChildren(select, ...groups.filter((g) => g.name !== NAV_SECONDARY).map((g) => el('div', { class: 'nav-group', role: 'group', 'aria-label': g.name }, [
     el('span', { class: 'nav-group-label', 'aria-hidden': 'true', text: g.name }),
-    el('div', { class: 'nav-links' }, g.views.map((v) => {
-      // Links tragen den Filterzustand mit, damit der Ansichtswechsel ihn behält
-      const a = el('a', { href: buildHash(v.id, filter, uiState), text: v.label, class: v.id === current ? 'active' : null });
-      if (v.id === current) a.setAttribute('aria-current', 'page');
-      return a;
-    })),
+    el('div', { class: 'nav-links' }, g.views.map(link)),
   ])));
+  const secondary = groups.find((g) => g.name === NAV_SECONDARY);
+  ui.navSecondary.replaceChildren(...(secondary ? secondary.views.map(link) : []));
 }
 
 function renderSession() {
@@ -606,6 +612,7 @@ async function init() {
   ui.datastand = $('datastand');
   ui.error = $('error');
   ui.nav = $('nav');
+  ui.navSecondary = $('nav-secondary');
   ui.filterbar = $('filterbar');
   ui.view = $('view');
   ui.accountMenu = $('account-menu');

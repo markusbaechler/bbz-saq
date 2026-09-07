@@ -46,7 +46,7 @@ try {
   // Laden
   await page.goto(server.url, { waitUntil: 'networkidle' });
   check((await page.locator('#nav a').count()) >= 8, 'Navigation gerendert');
-  check((await page.locator('#nav .nav-group').count()) >= 3 && (await page.locator('#nav .nav-group[aria-label="Kennzahlen"] a').count()) === 6, 'Navigation in Gruppen (Kennzahlen · Personen · Daten)');
+  check((await page.locator('#nav .nav-group').count()) === 3 && (await page.locator('#nav .nav-group[aria-label="Kennzahlen"] a').count()) === 6 && (await page.locator('#nav-secondary a').count()) === 3, 'Navigation in drei Gruppen (Kennzahlen · Personen · Experten), Daten-Links als Sekundärnavigation im Kopf');
   check((await page.locator('#view .empty-card .actions button').count()) === 2 && (await page.locator('#view .empty-card h3').textContent()).startsWith('Noch keine Daten'), 'Leerzustand: Karte mit zwei Aktionen statt Fliesstext');
   await page.setInputFiles('#file-input', xlsx);
   await page.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
@@ -57,7 +57,7 @@ try {
   check(datastand.startsWith('Datenstand: synth.xlsx') && /DQ \d+ Fehler$/.test(datastand) && (await page.locator('#datastand dt').count()) >= 6 && (await page.locator('#status.visually-hidden').count()) === 1, 'Datenstand: «' + datastand.slice(0, 90) + '» mit Details, Volltext nur für Screenreader');
 
   // Jede Ansicht rendert Titel und mindestens eine Tabelle, ohne Fehler
-  const views = await page.$$eval('#nav a', (as) => as.map((a) => a.getAttribute('href').replace(/^#/, '')));
+  const views = await page.$$eval('#nav a, #nav-secondary a', (as) => as.map((a) => a.getAttribute('href').replace(/^#/, '')));
   for (const v of views) {
     await page.goto(server.url + '#' + v);
     await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
@@ -514,6 +514,25 @@ try {
   }
   check(await tablet.evaluate(() => document.querySelector('#nav a').getClientRects().length > 0 && document.querySelector('#nav-select').getClientRects().length === 0 && document.querySelector('#filterbar details.filter-drawer').open && document.querySelector('#filterbar .filter-summary').getClientRects().length === 0), 'Tablet: Navigation mit Gruppen, Filter offen ohne Drawer-Kopfzeile');
   await tablet.close();
+
+  // Desktop-Breiten (PROMPT-2 F.1, Option b): Navigation ab 1100 px in einer Zeile ohne horizontalen Scroll; Daten-Links als
+  // Sekundärnavigation im Kopf, der Kopf bleibt ohne Überlauf; der aktive Link liegt je nach Ansicht in #nav oder #nav-secondary
+  for (const [w, h] of [[1100, 900], [1280, 900], [1400, 1000]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(server.url + '#uebersicht');
+    await page.waitForSelector('#view h2');
+    const nav = await page.evaluate(() => {
+      const n = document.getElementById('nav'); const head = document.querySelector('.app-header');
+      const sec = [...document.querySelectorAll('#nav-secondary a')].filter((a) => a.getClientRects().length > 0);
+      return { scroll: n.scrollWidth, client: n.clientWidth, headScroll: head.scrollWidth, headClient: head.clientWidth, sec: sec.length, active: document.querySelectorAll('#nav a[aria-current="page"]').length };
+    });
+    check(nav.scroll <= nav.client && nav.headScroll <= nav.headClient && nav.sec === 3 && nav.active === 1, 'Desktop ' + w + ' px: Navigation ohne Scroll (' + nav.scroll + ' von ' + nav.client + ' px), drei Daten-Links im Kopf ohne Überlauf, Übersicht aktiv');
+    await page.screenshot({ path: join(outDir, 'desktop-' + w + '-uebersicht.png') });
+  }
+  await page.goto(server.url + '#glossar');
+  await page.waitForSelector('#view h2');
+  check((await page.locator('#nav-secondary a[aria-current="page"]').count()) === 1 && (await page.locator('#nav a[aria-current="page"], #nav a.active').count()) === 0 && (await page.locator('#nav-select').inputValue()) === 'glossar', 'Desktop: Glossar aktiv in der Sekundärnavigation, kein aktiver Link in #nav, Auswahlfeld zeigt Glossar');
+  await page.setViewportSize({ width: 1400, height: 1000 });
 
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL
   const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
