@@ -17,6 +17,13 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 - Snapshot der synthetischen Testdatei als Regressionsschutz bei Umbauten ohne fachliche Änderung: `node tools/snapshot-synth.js basis.json`, später `node tools/snapshot-synth.js --vergleich basis.json` (identisch = keine Zahl hat sich geändert)
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
 
+**Anmeldung (Betrieb):** MSAL (Popup, auf dem Phone Redirect) mit der App-URL als Redirect-URI. Entra schreibt die Antwort als
+`#code=…&state=…` in diese URL; die App liest den Hash nie selbst und überschreibt ihn nicht (`isAuthResponseHash()` in `urlState.js`):
+im Popup rendert sie nichts, das Elternfenster liest den Hash; im Redirect-Flow konsumiert MSAL die Antwort zuerst, danach kommen
+Filter und Ansicht aus dem Hash. Eine unverwertbare Antwort (etwa nach Neuladen einer alten URL) wird verworfen und nur in der
+Konsole gemeldet; echte Anmeldefehler (`#error=…`) erscheinen im Fehlerpanel. Nach dem Redirect-Login springt MSAL nicht mehr auf
+die Ausgangs-URL (`navigateToLoginRequestUrl: false`). Hotfix vom 07.09.2026, Fehlerbild in DEPLOY.md.
+
 ## Ansichten
 
 Die Navigation ist in drei Gruppen gegliedert: **Kennzahlen** (Übersicht, Schriftlich, Mündlich, VSS/VSM, Zeitverlauf,
