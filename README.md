@@ -30,14 +30,14 @@ der Navigation und lässt sich zu allen Zählern aufklappen.
 
 | Ansicht | Inhalt |
 |---|---|
-| Übersicht | KPIs für den aktiven Filter (Vorgänge, Personen, offene Vorgänge, Quoten), Kennzahlen je Profil, Personen mit mehreren Profilen |
-| Schriftlich | Bestehensquoten (Erstversuch, gesamt) nach Profil, Sprache, Bank; Ø Performance nach Profil, Sprache, Bank und Teilprüfung WE1–WE6 |
-| Mündlich | Bestehensquote gesamt und je Profil, Anteil 1× / 2× durchgefallen; Ø Performance nach Profil, Sprache, Bank |
+| Übersicht | KPIs für den aktiven Filter (Vorgänge, Personen, offene Vorgänge, Quoten; Ø-Kacheln mit Streuung σ, Median und Quartilen), Auswahl gegen Benchmark mit Differenz und Einordnung (Effektstärke bzw. Wilson-Intervall), Kennzahlen je Profil, Personen mit mehreren Profilen |
+| Schriftlich | Bestehensquoten (Erstversuch, gesamt) nach Profil, Sprache, Bank; Ø Performance mit σ, Median, P25, P75 nach Profil, Sprache, Bank und Teilprüfung WE1–WE6; Verteilung der Resultate (Histogramm Auswahl vs. Benchmark) |
+| Mündlich | Bestehensquote gesamt und je Profil, Anteil 1× / 2× durchgefallen; Ø Performance mit σ, Median, P25, P75 nach Profil, Sprache, Bank; Verteilung der Resultate (Histogramm) |
 | VSS/VSM | Bestehensquoten schriftlich und mündlich für VSS / VSM / ohne, je Profil |
 | Zeitverlauf | Kennzahlen je Jahr (Liniendiagramm und Tabelle, gesamt und je Profil), zwei Jahre vergleichen (Prozentpunkte), Schwierigkeit je Teilprüfung und Jahr, Durchlaufzeit je Profil und Jahr |
 | Historie | Snapshots der Aggregate (ohne Namen) als JSON erzeugen, ablegen (z. B. SharePoint) und später wieder laden: Kennzahlen gesamt, Datei-Zähler und je Profil je Stichtag nebeneinander, Differenz zum letzten Snapshot; ohne Filter, nur im Memory (b7) |
 | Bestenlisten | Je Profil: bbz-Award, beste schriftliche, beste mündliche Prüfung (mit Namen); Mindestgruppengrösse 5, Liste höchstens halbe Gruppe (maximal 5); Award-Dossier mit Begründung je Rang |
-| Bank-Report | Kennzahlen einer gewählten Bank gegen den anonymen Benchmark «alle Banken», je Profil und je Jahr; ohne Namen; Druck/PDF |
+| Bank-Report | Kennzahlen einer gewählten Bank gegen den anonymen Benchmark «alle Banken» mit Differenz und Einordnung (Effektstärke bzw. Wilson-Intervall), je Profil und je Jahr; ohne Namen; Druck/PDF |
 | Personen | Eine Person suchen (Name, Bank, Profil, Sprache, Zertifikat-Nr., Status; ab 2 Zeichen, mehrere Begriffe = UND) und ihren Weg nachvollziehen: Pfad über alle Vorgänge, je Vorgang Stammdaten, Status, Prüfungsraster (Teilprüfungen × RUN1–RUN3), Zeitachse, Datenqualität und Export «Diese Person»; mit Namen (E7). Ohne Suchtext leer, ausser eine Bank ist gefiltert (dann alle Personen der Bank); Geburtsjahr nur bei Namensgleichen |
 | Offene Vorgänge | Laufende Zertifizierungsprozesse (Gesamtergebnis leer) je Profil und mit Teilnehmenden: fehlende Teile, letzte Prüfung, nächster Termin, Versuche (mit Namen); Teilprüfungen je Profil; Frühwarnung «zweiter Fehlversuch»; passiv seit über 365 Tagen |
 | Geplante Prüfungen | Termine in der Zukunft ohne Ergebnis, zuerst schriftlich (WE), dann mündlich (OE): je Art die Prüfungsereignisse je Tag und Ort (Teilprüfungen mit Anzahl, Wiederholungen; Zeile anklicken → zugeteilte Personen) und die vollständige Teilnehmendenliste zum Aufklappen (mit Namen, Bank, Profil, Sprache) |
@@ -55,8 +55,8 @@ Vorzeichen und Farbe nach Richtung der Kennzahl (▲ +2.1 pp; höher ist besser 
 ist besser bei Durchfallquoten und passiven Vorgängen; unter 0.5 pp neutral ●). In Tabellen tragen Prozentspalten einen
 Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die erste Spalte bleibt beim horizontalen
 Scrollen stehen. Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
-1200 px) für schmale Bildschirme; unter 1200 px blendet «Alle Spalten» die Prio-3-Spalten ein; die Experten-Tabelle mit 13 Spalten zeigt Prio 3
-erst ab 1500 px. Kopfzellen brechen um, Zahlen nicht (Paket F).
+1200 px) für schmale Bildschirme; unter 1200 px blendet «Alle Spalten» die Prio-3-Spalten ein; breite Tabellen (Experten, Ø-Tabellen mit Streuung) zeigen Prio 3
+erst ab 1900 px (Full HD). Kopfzellen brechen um, Zahlen nicht (Paket F).
 
 **Mobile:** Phone bis 600 px, Tablet 601–900 px, darüber Desktop; der Druck behält immer das Desktop-Layout. Auf dem
 Phone gilt: Grundschrift 16 px, Touch-Ziele mindestens 44 px, nie horizontaler Seitenscroll (nur Tabellen scrollen in
@@ -65,10 +65,10 @@ ihrem Rahmen). Die Navigation ist ein Auswahlfeld mit den vier Gruppen, die Filt
 Datenleiste zeigt auf dem Phone keine Knöpfe, vor dem Laden ist die Leerzustand-Karte der einzige Aufruf), das Konto ein
 Initialen-Button mit «Abmelden». Tabellen zeigen nur Spalten der Priorität 1 (Tablet und Desktop bis 1200 px: 1 und 2);
 «Alle Spalten» blendet die übrigen ein und scrollt die Tabelle horizontal. Die Kacheln der Übersicht stehen in aufklappbaren Blöcken (Schriftlich und Mündlich offen, Mengen zu) mit
-nur Label, Wert, n und Delta-Symbol; Diagramme sind kompakt (360 × 200, Tooltip darunter). Vollständig für das Phone
+nur Label, Wert, n, Streuung als «σ x pp» und Delta-Symbol; Diagramme sind kompakt (360 × 200, Tooltip darunter). Vollständig für das Phone
 gestaltet sind Übersicht, Offene Vorgänge, Geplante Prüfungen, Personen und Experten (Nebenabschnitte eingeklappt); die übrigen Ansichten
 funktionieren ohne Überlauf. Die Anmeldung auf dem Phone läuft direkt über den Redirect-Flow von MSAL (kein Popup); der
-manuelle Gerätetest liegt beim Auftraggeber. Der Smoke-Test prüft die Viewports 1400 × 1000, 820 × 1180 und 390 × 844 sowie die Desktop-Breiten 1100, 1280 und 1600 px
+manuelle Gerätetest liegt beim Auftraggeber. Der Smoke-Test prüft die Viewports 1400 × 1000, 820 × 1180 und 390 × 844 sowie die Desktop-Breiten 1100, 1280, 1400 und 1920 px
 (Navigation ohne Scroll, Tabellen ohne Überlauf, Filterleiste einzeilig; Paket F).
 
 ## Globale Filter
@@ -99,7 +99,7 @@ In der Ansicht «Experten» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausg
 das Run-Datum des Einsatzes, nicht auf das Referenzdatum des Vorgangs («2025» zeigt die Einsätze des Jahres 2025). Versuche und Wertung
 wirken nicht. Die Sortierung der Haupttabelle liegt nur im Memory.
 
-## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E13)
+## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E14)
 
 Eine Zeile der Datei ist ein **Zertifizierungsvorgang**; eine **Person** (Mensch) kann mehrere Vorgänge haben und wird über
 den **Personenschlüssel** aus «Last Name», «First Name» und Geburtsdatum identifiziert (nicht Employer). Zeilen derselben
@@ -132,6 +132,10 @@ Nenner der Bestehensquoten sind abgeschlossene Vorgänge. Definitionen und Grenz
   auf der Testkopie (Bearbeitungsmodus, Dialog, Schreiben, Neuladen, Audit, Historie). Der formale Lauf der Spike-Testseite ist nicht protokolliert;
   das Restrisiko «Datei gleichzeitig in Excel Desktop geöffnet» (423/409 → Konfliktmeldung, kein Datenverlust) ist akzeptiert. Die Testseite `spike/`
   wurde mit Paket F entfernt (07.09.2026).
+- **E14 (07.09.2026)** Streuung: σ als Stichproben-SD (n−1) über die Vorgänge mit Wert, immer mit Median und Quartilen; keine SD für Quoten, stattdessen
+  95-%-Wilson-Intervall; Einordnung von Differenzen über die Effektstärke (Ø-Kennzahlen, Skala < 0.2 gering, ≤ 0.5 mittel, < 0.8 deutlich, ≥ 0.8 gross)
+  bzw. das Intervall (Quoten); Streuung erst ab n ≥ 5; nicht im Snapshot; Histogramm der Resultate in Schriftlich und Mündlich; auf dem Phone nur
+  «σ x pp», neue Tabellenspalten als Prio 3 (breite Tabellen zeigen Prio 3 erst ab 1900 px).
 
 ## Kennzahl-Definitionen
 
@@ -180,6 +184,12 @@ identisch mit der Ansicht «Glossar» in der App.
 | **Schreibpfad (Phase 2)** | Änderung einzelner Run-Zellen (Passed, Datum, Resultat, Ort, Experte 1/2) in bestehenden Spalten über die Graph-Workbook-API mit Validierung, Konfliktprüfung (Datei-Version, Zellwert) und Audit-Protokoll neben der Datei; danach lädt die App die Datei neu. | Nur mit Feature-Flag CONFIG.features.write (E10); die Struktur der Datei bleibt unverändert; Schreiben nur bei Daten von SharePoint, nicht bei lokaler Datei. Ohne Schreibrecht (HTTP 403), bei geänderter oder gesperrter Datei wird nichts geschrieben. |
 | **Bank-Report** | Ansicht für die Weitergabe an ein Institut: Kennzahlen einer gewählten Bank im Vergleich zum Benchmark «alle Banken» (gleicher Zeitraum, gleiche übrigen Filter), je Profil und je Jahr. Ohne Namen, andere Banken nur als Aggregat. PDF über die Druckansicht des Browsers. | Voraussetzung: genau eine Bank in der Filterleiste gewählt. Kleine Gruppen (n < 5) sind markiert. |
 | **Data-Quality-Stufen** | Fehler = Zelle nicht interpretierbar, Wert wird ignoriert. Hinweis = Wert interpretiert oder abgeleitet, aber auffällig (z. B. Result als Prozentwert umgedeutet, Duplikat zusammengeführt, Konsistenzregel verletzt). Nicht ausgewertet = Zelle nicht interpretierbar, aber das Feld fliesst in keine Kennzahl (Score). | Score-Header: «WE{n} RUN{r} Score», «OE{n} RUN{r} Score» (24 Spalten). Entscheid E6 (05.09.2026): Score wird nicht ausgewertet, Result ist massgebend; das Parsing bleibt, damit verrutschte Zellen sichtbar sind. |
+| **Streuung σ (Resultat)** | Stichproben-Standardabweichung (n−1, wie Excel STABW.S) der Resultat-Werte je Vorgang (Mittel über die Teilprüfungen gemäss Wertung, wie «Ø Resultat»), in Prozentpunkten. Zweitzeile der vier Ø-Kacheln der Übersicht und der Kachel «Ø Resultat (Experten)»; Spalten «σ (…)» in den Ø-Tabellen (Prio 3). | Paket G. n < 5 → «–». Immer zusammen mit Median und Quartilen, weil Resultate linksschief sind (viele bei 70–90 %, wenige Ausreisser nach unten). Nicht im Snapshot. Auf dem Phone nur die Kurzform «σ x pp». |
+| **Median / Quartile (Resultat)** | Median, P25 und P75 derselben Resultat-Werte, lineare Interpolation wie bei der Durchlaufzeit; Spalten «Median (…)», «P25 (…)», «P75 (…)» in den Ø-Tabellen (Prio 3, ohne Datenbalken). | n < 5 → «–». Robuster als σ gegen Ausreisser nach unten. |
+| **Effektstärke (d)** | (Ø Auswahl − Ø Benchmark) / σ(Benchmark); Skala nach dem Betrag von d: unter 0.2 gering, bis 0.5 mittel, bis 0.8 deutlich, ab 0.8 gross (Cohen). Vorzeichen wie die Differenz. | Nur wenn beide Gruppen n ≥ 5 und σ(Benchmark) > 0, sonst «–». Grössenordnung, kein Signifikanztest (bewusst keine p-Werte). |
+| **Wilson-Intervall (95 %)** | Konfidenzintervall eines Anteils (z = 1.96), ausgewiesen als ±pp (halbe Breite) mit der Angabe «Benchmark im Intervall: ja/nein» (Benchmark-Anteil innerhalb der Grenzen). | Für Bestehensquoten statt einer Standardabweichung (die wäre nur eine Funktion des Anteils). n = 0 → «–»; bei n < 5 bleibt die Markierung «*». |
+| **Einordnung (Differenz)** | Spalte in «Auswahl im Vergleich zum Benchmark» (Übersicht, Jahresvergleich) und im Bank-Report: Ø-Kennzahlen mit Effektstärke («d +0.3 · mittel»), Quoten mit Wilson-Intervall («±4.1 pp · Benchmark im Intervall: ja»), Mengen ohne («–»). | Farbe wie die Differenz, die Bedeutung steht im Text. Verhindert, dass wenige Prozentpunkte Differenz als Rangfolge gelesen werden. |
+| **Verteilung der Resultate (Histogramm)** | Anteil der Vorgänge je Resultatklasse à 10 Prozentpunkte (0–10 … 90–100, obere Grenze ausgeschlossen, 100 % in der letzten Klasse), Wertung 1. Versuch; Balkendiagramm Auswahl gegen den Benchmark der Übersicht mit Tabellen-Zwilling in den Ansichten Schriftlich und Mündlich. | Auswahl n < 5 → Hinweis statt Diagramm, die Tabelle bleibt; Benchmark n < 5 → keine zweite Reihe. Zeigt die Form der Verteilung (Ausreisser nach unten), die Ø und σ allein nicht verraten. |
 | **Snapshot (Historisierung)** | JSON-Datei mit den Aggregaten zum Stichtag: Datei-Zähler, Kennzahlen gesamt, je Profil und je Jahr – ohne Namen und ohne Zeilen. Erzeugt in der Ansicht «Historie», abgelegt durch den Auftraggeber (z. B. SharePoint neben der Excel), später wieder geladen (nur Memory) für den Vergleich der Stichtage nebeneinander. | Immer ohne Filter (kennzahlrelevante Vorgänge, Stand der Datei). Differenz = heute gegenüber dem jüngsten geladenen Snapshot, Anteile in Prozentpunkten. Kein Backend, keine Persistenz im Browser (Regel 4); beim Import werden nur bekannte Felder übernommen (b7). |
 
 ### Kennzahlen

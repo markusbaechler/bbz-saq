@@ -442,6 +442,8 @@ export function partFirstAttempt(persons, kind = 'we') {
       anyPassed: ratio(withRun1.filter((p) => p[kind][i].runs.some((r) => r.passed === true)).length, n),
       meanFirst: mean(withRun1.map((p) => partResult(p[kind][i], MODE.ERSTVERSUCH))),
       meanPassed: mean(withRun1.map((p) => partResult(p[kind][i], MODE.BESTANDEN))),
+      spreadFirst: reportedDispersion(withRun1.map((p) => partResult(p[kind][i], MODE.ERSTVERSUCH))), // Streuung (Paket G)
+      spreadPassed: reportedDispersion(withRun1.map((p) => partResult(p[kind][i], MODE.BESTANDEN))),
     });
   }
   return out;
@@ -492,6 +494,74 @@ export function oralPassRates(persons) {
 
 export function oralPerformance(persons, mode) {
   return mean(persons.map((p) => oralScore(p, mode)));
+}
+
+// ---------------------------------------------------------------------------
+// Streuung und Einordnung (PROMPT-2 Paket G, E14 – additiv, nicht im Snapshot)
+// ---------------------------------------------------------------------------
+
+// Streuung einer Zahlenliste (Werte als Anteile 0..1): Stichproben-SD (n−1, wie Excel STABW.S), Median, P25, P75 (lineare Interpolation
+// wie quantiles()), Mittel. sd = null bei weniger als zwei Werten; small = n < SMALL_N (die Ansicht zeigt dann «–» statt Streuung).
+export function dispersion(values) {
+  const q = quantiles(values);
+  const nums = values.filter(isNum);
+  const sd = nums.length >= 2 ? Math.sqrt(nums.reduce((acc, v) => acc + (v - q.mean) ** 2, 0) / (nums.length - 1)) : null;
+  return { n: q.n, mean: q.mean, sd, median: q.median, p25: q.p25, p75: q.p75, small: q.n < SMALL_N };
+}
+
+// Streuung erst ab SMALL_N Werten ausweisen (Entscheid vor Start G, Frage 2): darunter sd/median/p25/p75 = null; n und Mittel bleiben
+// wie bei «Ø Resultat». Basis der Kacheln, Tabellenspalten und Effektstärke (views/tables.js).
+export function reportedDispersion(values) {
+  const d = dispersion(values);
+  return d.small ? { ...d, sd: null, median: null, p25: null, p75: null } : d;
+}
+
+export function writtenDispersion(persons, mode) {
+  return reportedDispersion(persons.map((p) => writtenScore(p, mode)));
+}
+
+export function oralDispersion(persons, mode) {
+  return reportedDispersion(persons.map((p) => oralScore(p, mode)));
+}
+
+// 95-%-Wilson-Intervall eines Anteils count/n (z = 1.96): { low, high, half } mit Grenzen in 0..1, half = halbe Breite; n = 0 → null.
+// Für Bestehensquoten statt einer Standardabweichung (die wäre nur eine Funktion des Anteils).
+export function wilsonInterval(count, n, z = 1.96) {
+  if (!isNum(count) || !isNum(n) || n <= 0) return { low: null, high: null, half: null };
+  const p = count / n;
+  const z2 = z * z;
+  const denom = 1 + z2 / n;
+  const center = (p + z2 / (2 * n)) / denom;
+  const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
+  return { low: Math.max(0, center - half), high: Math.min(1, center + half), half };
+}
+
+// Effektstärke d = (Ø Auswahl − Ø Benchmark) / σ(Benchmark), Skala nach Cohen: |d| < 0.2 gering, ≤ 0.5 mittel, < 0.8 deutlich, ≥ 0.8 gross.
+// Grössenordnung, kein Signifikanztest. Ohne Mittelwerte oder mit σ ≤ 0 → null (die Ansicht prüft zusätzlich beide n ≥ SMALL_N).
+export function effectSize(meanA, meanB, sdB) {
+  if (!isNum(meanA) || !isNum(meanB) || !isNum(sdB) || sdB <= 0) return { d: null, label: null };
+  const d = (meanA - meanB) / sdB;
+  const a = Math.round(Math.abs(d) * 1e6) / 1e6; // Gleitkomma-Rest (0.05 / 0.1 = 0.5000…04) darf die Klasse an der Grenze nicht kippen
+  const label = a < 0.2 ? 'gering' : a <= 0.5 ? 'mittel' : a < 0.8 ? 'deutlich' : 'gross';
+  return { d, label };
+}
+
+// Histogramm der Resultate (Paket G, Stufe 4): 10 Klassen à 10 Prozentpunkte über 0–100, Werte als Anteile 0..1; obere
+// Klassengrenze ausgeschlossen, 100 % fällt in die letzte Klasse. { n, small, bins: [{ from, to, label, count, share }] }; share null bei n = 0.
+export function resultHistogram(values) {
+  const nums = values.filter(isNum);
+  const bins = Array.from({ length: 10 }, (_, i) => ({ from: i * 10, to: (i + 1) * 10, label: i * 10 + '–' + (i + 1) * 10, count: 0, share: null }));
+  for (const v of nums) bins[Math.min(9, Math.max(0, Math.floor(v * 10 + 1e-9)))].count += 1;
+  for (const b of bins) b.share = nums.length ? b.count / nums.length : null;
+  return { n: nums.length, small: nums.length < SMALL_N, bins };
+}
+
+export function writtenHistogram(persons, mode) {
+  return resultHistogram(persons.map((p) => writtenScore(p, mode)));
+}
+
+export function oralHistogram(persons, mode) {
+  return resultHistogram(persons.map((p) => oralScore(p, mode)));
 }
 
 // ---------------------------------------------------------------------------
@@ -893,6 +963,7 @@ function runsStats(runs) {
     einsaetze: runs.length,
     fail: { gesamt: ratio(runs.filter(failed).length, runs.length), erst: ratio(erst.filter(failed).length, erst.length), wdh: ratio(wdh.filter(failed).length, wdh.length) },
     result: mean(runs.map((r) => r.result)),
+    spread: reportedDispersion(runs.map((r) => r.result)), // Streuung der Resultate (Paket G)
   };
 }
 
@@ -1066,7 +1137,7 @@ export function partDifficultyByYear(persons) {
     }
   }
   return [...cells.values()]
-    .map((c) => ({ year: c.year, part: c.part, kind: c.kind, n: c.n, small: c.n < SMALL_N, failed: ratio(c.failedCount, c.n), passed: ratio(c.passedCount, c.n), meanFirst: mean(c.results1), meanPassed: mean(c.resultsPassed) }))
+    .map((c) => ({ year: c.year, part: c.part, kind: c.kind, n: c.n, small: c.n < SMALL_N, failed: ratio(c.failedCount, c.n), passed: ratio(c.passedCount, c.n), meanFirst: mean(c.results1), meanPassed: mean(c.resultsPassed), spreadFirst: reportedDispersion(c.results1), spreadPassed: reportedDispersion(c.resultsPassed) }))
     .sort((a, b) => a.year - b.year || (a.kind === b.kind ? 0 : a.kind === 'we' ? -1 : 1) || collator.compare(a.part, b.part, { numeric: true }));
 }
 

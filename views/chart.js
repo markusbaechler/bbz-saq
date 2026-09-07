@@ -1,4 +1,5 @@
-// views/chart.js – Liniendiagramm (Zeitverlauf) als Inline-SVG ohne Bibliothek. Nur Rendering; Werte kommen aus metrics/tables.
+// views/chart.js – Liniendiagramm (Zeitverlauf) und Balkendiagramm (Histogramm der Resultate, Paket G) als Inline-SVG ohne Bibliothek.
+// Nur Rendering; Werte kommen aus metrics/tables.
 // Gestaltung: 2px-Linien, Marker r = 4 mit Ring in Oberflächenfarbe, haarfeine durchgezogene Gitterlinien, eine Achse,
 // Legende bei ≥ 2 Reihen, sparsame Direktbeschriftung am Linienende, Fadenkreuz-Tooltip über alle Reihen
 // (auch per Tastatur: Pfeiltasten), Tabellen-Zwilling in der Ansicht. Reihenfarben: CSS-Variablen --series-1 … --series-3.
@@ -82,11 +83,22 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
     root.appendChild(text(x + 18, y + 4, e.value + ' ' + e.label, 'viz-label'));
   }
 
-  // Fadenkreuz + Tooltip (alle Reihen am nächsten x), auch per Tastatur
+  // Fadenkreuz + Tooltip (alle Reihen am nächsten x, auch per Tastatur) und Legende: gemeinsame Bausteine unten (Paket G)
   const cross = svg('line', { x1: 0, x2: 0, y1: pad.top, y2: height - pad.bottom, class: 'viz-cross', visibility: 'hidden' });
   root.appendChild(cross);
+  const figure = el('figure', { class: 'viz' + (compact ? ' compact' : '') }, [root]);
+  attachTooltip(root, figure, { xs, xPos, series, yFormat, width, cross });
+  const leg = legend(series);
+  if (leg) figure.appendChild(leg);
+  if (title) figure.appendChild(el('figcaption', { text: title + ' · * Jahr mit n < 5 Vorgängen (hohler Marker)' }));
+  return figure;
+}
+
+// Gemeinsame Bausteine der Diagramme (Paket G): Tooltip mit Fadenkreuz (Zeiger und Tastatur) und Legende
+// series wie oben; xs = Kategorien in Reihenfolge, xPos(i) = x-Mitte der Kategorie i im viewBox-Mass, width = viewBox-Breite
+function attachTooltip(root, figure, { xs, xPos, series, yFormat, width, cross }) {
   const tip = el('div', { class: 'viz-tip', hidden: true, role: 'status' });
-  const figure = el('figure', { class: 'viz' + (compact ? ' compact' : '') }, [root, tip]);
+  figure.appendChild(tip);
   let current = -1;
   const show = (i) => {
     if (i < 0 || i >= xs.length) return;
@@ -123,13 +135,65 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
     if (ev.key === 'ArrowLeft') { show(Math.max(0, current - 1)); ev.preventDefault(); }
     if (ev.key === 'ArrowRight') { show(Math.min(xs.length - 1, current + 1)); ev.preventDefault(); }
   });
+}
 
-  // Legende (immer bei ≥ 2 Reihen)
-  if (series.length >= 2) {
-    figure.appendChild(el('div', { class: 'viz-legend' }, series.map((s, si) => el('span', { class: 'viz-legend-item' }, [
-      el('span', { class: 'viz-key-box', style: 'background:var(--series-' + (si + 1) + ')' }), s.label,
-    ]))));
+// Legende (immer bei ≥ 2 Reihen)
+function legend(series) {
+  if (series.length < 2) return null;
+  return el('div', { class: 'viz-legend' }, series.map((s, si) => el('span', { class: 'viz-legend-item' }, [
+    el('span', { class: 'viz-key-box', style: 'background:var(--series-' + (si + 1) + ')' }), s.label,
+  ])));
+}
+
+// Balkendiagramm (PROMPT-2 Paket G, Stufe 4): Gruppen je Kategorie (x), ein Balken je Reihe; dieselben Konventionen wie das
+// Liniendiagramm (Tokens, Gitter, eine Achse, Legende, Tooltip mit Tastatur, Tabellen-Zwilling in der Ansicht).
+// series: [{ label, points: [{ x, y: number|null, n }] }] – Anteile 0..1; yMax = null → kleinste Skala aus 20/40/60/80/100 %,
+// damit die Viertel-Ticks auf 5-%-Schritten liegen. compact (Phone): 360 × 200, jede zweite Kategorie beschriftet.
+export function renderBarChart(series, { title = '', yFormat = (v) => String(v), yMax = null, height = 260, ariaLabel = '', compact = false } = {}) {
+  const xs = [...new Set(series.flatMap((s) => s.points.map((p) => p.x)))];
+  const width = compact ? 360 : 820;
+  const pad = compact ? { top: 12, right: 12, bottom: 30, left: 40 } : { top: 16, right: 24, bottom: 34, left: 48 };
+  if (compact) height = 200;
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const maxY = Math.max(0, ...series.flatMap((s) => s.points.map((p) => (p.y === null || p.y === undefined ? 0 : p.y))));
+  if (yMax === null) yMax = [0.2, 0.4, 0.6, 0.8, 1].find((m) => m >= maxY - 1e-9) || 1;
+  const groupW = plotW / Math.max(1, xs.length);
+  const barW = (groupW * 0.72) / Math.max(1, series.length);
+  const xPos = (i) => pad.left + groupW * (i + 0.5);
+  const yPos = (v) => pad.top + plotH - (plotH * v) / yMax;
+  const root = svg('svg', { viewBox: '0 0 ' + width + ' ' + height, class: 'viz-svg viz-bars', role: 'img', 'aria-label': ariaLabel || title, tabindex: 0 });
+  if (title) root.appendChild(svg('title', {}, [document.createTextNode(title)]));
+
+  // Gitter und Achsen wie im Liniendiagramm
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * yMax);
+  for (const tv of ticks) {
+    root.appendChild(svg('line', { x1: pad.left, x2: width - pad.right, y1: yPos(tv), y2: yPos(tv), class: tv === 0 ? 'viz-axis' : 'viz-grid' }));
+    root.appendChild(text(pad.left - 8, yPos(tv) + 4, yFormat(tv), 'viz-tick', 'end'));
   }
-  if (title) figure.appendChild(el('figcaption', { text: title + ' · * Jahr mit n < 5 Vorgängen (hohler Marker)' }));
+  xs.forEach((x, i) => {
+    if (compact && i % 2 === 1) return; // Phone: jede zweite Klasse, sonst überlappen die Beschriftungen
+    root.appendChild(text(xPos(i), height - pad.bottom + 18, x, 'viz-tick', 'middle'));
+  });
+
+  // Balken: je Kategorie eine Gruppe, Reihen nebeneinander; Farbe über --series-n
+  series.forEach((s, si) => {
+    const color = 'var(--series-' + (si + 1) + ')';
+    for (const p of s.points) {
+      const i = xs.indexOf(p.x);
+      if (i < 0 || p.y === null || p.y === undefined) continue;
+      const h = (plotH * Math.min(p.y, yMax)) / yMax;
+      const x = pad.left + groupW * i + (groupW - barW * series.length) / 2 + barW * si;
+      root.appendChild(svg('rect', { x: x.toFixed(1), y: (pad.top + plotH - h).toFixed(1), width: barW.toFixed(1), height: h.toFixed(1), class: 'viz-bar', style: 'fill:' + color }));
+    }
+  });
+
+  const cross = svg('line', { x1: 0, x2: 0, y1: pad.top, y2: height - pad.bottom, class: 'viz-cross', visibility: 'hidden' });
+  root.appendChild(cross);
+  const figure = el('figure', { class: 'viz' + (compact ? ' compact' : '') }, [root]);
+  attachTooltip(root, figure, { xs, xPos, series, yFormat, width, cross });
+  const leg = legend(series);
+  if (leg) figure.appendChild(leg);
+  if (title) figure.appendChild(el('figcaption', { text: title + ' · Anteil der Vorgänge je Klasse à 10 Prozentpunkte' }));
   return figure;
 }

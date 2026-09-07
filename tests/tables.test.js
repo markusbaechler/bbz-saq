@@ -1,4 +1,4 @@
-import { test, assert, assertEqual } from './runner.js';
+import { test, assert, assertEqual, assertClose } from './runner.js';
 import { MODE, personSearchIndex, expertRuns } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
@@ -8,7 +8,7 @@ import {
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
   deltaView, col, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, directionOfLabel,
   personResultsTable, personGridTable, personTimelineTable, personDqTable,
-  expertTables, expertRunExportTable, sortTableRows, auditTable, runFieldTarget,
+  expertTables, expertRunExportTable, sortTableRows, auditTable, runFieldTarget, formatSpread, histogramModel,
 } from '../views/tables.js';
 import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
@@ -64,25 +64,25 @@ test('tables.passRateTable: offene und nicht erfasste Vorgänge stehen nicht im 
 
 test('tables.performanceTable: Ø Resultat beider Wertungen je Gruppe, je mit n', () => {
   const t = performanceTable(cohort(), 'sprache', 'written');
-  assertEqual(t.columns.map((c) => c.label), ['Sprache', 'n (1. Versuch)', 'Ø Resultat 1. Versuch', 'n (bestanden)', 'Ø Resultat bestandener Run']);
+  assertEqual(t.columns.map((c) => c.label), ['Sprache', 'n (1. Versuch)', 'Ø Resultat 1. Versuch', 'σ (1. Versuch)', 'Median (1. Versuch)', 'P25 (1. Versuch)', 'P75 (1. Versuch)', 'n (bestanden)', 'Ø Resultat bestandener Run', 'σ (bestandener Run)', 'Median (bestandener Run)', 'P25 (bestandener Run)', 'P75 (bestandener Run)']);
   assertEqual(t.rows[0].gruppe, 'Gesamt *');
   // 1. Versuch: A 0.7, B 0.5, C 0.55, D 0.7 → 0.6125; bestanden: A 0.7, B 0.65, D 0.7 (C nicht alle Teile bestanden)
   assertEqual([t.rows[0].n, t.rows[0].mean1, t.rows[0].n2, t.rows[0].mean2], [4, '61.3 %', 3, '68.3 %']);
   assertEqual(t.rows.map((r) => r.gruppe), ['Gesamt *', 'DE *', 'FR *']);
-  assertEqual(t.rows[2], { gruppe: 'FR *', n: 1, small: true, mean1: '50.0 %', n2: 1, mean2: '65.0 %' });
+  assertEqual(t.rows[2], { gruppe: 'FR *', n: 1, small: true, mean1: '50.0 %', sd1: '–', median1: '–', p25_1: '–', p75_1: '–', n2: 1, mean2: '65.0 %', sd2: '–', median2: '–', p25_2: '–', p75_2: '–' });
   const oral = performanceTable(cohort(), 'profil', 'oral');
   assertEqual([oral.rows[0].n, oral.rows[0].mean1, oral.rows[0].n2, oral.rows[0].mean2], [4, '77.5 %', 3, '90.0 %']);
 });
 
 test('tables.partTable: je Teilprüfung 1. Versuch bestanden/durchgefallen, insgesamt bestanden, Ø beider Wertungen', () => {
   const t = partTable(cohort(), 'we');
-  assertEqual(t.columns.map((c) => c.label), ['Teilprüfung', 'n', 'Im 1. Versuch bestanden', 'Im 1. Versuch durchgefallen', 'Insgesamt bestanden', 'Ø Resultat 1. Versuch', 'Ø Resultat bestandener Run']);
+  assertEqual(t.columns.map((c) => c.label), ['Teilprüfung', 'n', 'Im 1. Versuch bestanden', 'Im 1. Versuch durchgefallen', 'Insgesamt bestanden', 'Ø Resultat 1. Versuch', 'σ (1. Versuch)', 'Median (1. Versuch)', 'P25 (1. Versuch)', 'P75 (1. Versuch)', 'Ø Resultat bestandener Run', 'σ (bestandener Run)', 'Median (bestandener Run)', 'P25 (bestandener Run)', 'P75 (bestandener Run)']);
   assertEqual(t.rows.length, 6);
-  assertEqual(t.rows[0], { gruppe: 'WE1 *', n: 4, small: true, bestanden1: '75.0 %', durchgefallen1: '25.0 %', gesamt: '100.0 %', mean1: '70.0 %', mean2: '77.5 %' });
-  assertEqual(t.rows[2], { gruppe: 'WE3 *', n: 0, small: true, bestanden1: '–', durchgefallen1: '–', gesamt: '–', mean1: '–', mean2: '–' });
+  assertEqual(t.rows[0], { gruppe: 'WE1 *', n: 4, small: true, bestanden1: '75.0 %', durchgefallen1: '25.0 %', gesamt: '100.0 %', mean1: '70.0 %', sd1: '–', median1: '–', p25_1: '–', p75_1: '–', mean2: '77.5 %', sd2: '–', median2: '–', p25_2: '–', p75_2: '–' });
+  assertEqual(t.rows[2], { gruppe: 'WE3 *', n: 0, small: true, bestanden1: '–', durchgefallen1: '–', gesamt: '–', mean1: '–', sd1: '–', median1: '–', p25_1: '–', p75_1: '–', mean2: '–', sd2: '–', median2: '–', p25_2: '–', p75_2: '–' });
   const oe = partTable(cohort(), 'oe');
   assertEqual(oe.rows.length, 2);
-  assertEqual(oe.rows[0], { gruppe: 'OE1 *', n: 4, small: true, bestanden1: '75.0 %', durchgefallen1: '25.0 %', gesamt: '75.0 %', mean1: '77.5 %', mean2: '90.0 %' });
+  assertEqual(oe.rows[0], { gruppe: 'OE1 *', n: 4, small: true, bestanden1: '75.0 %', durchgefallen1: '25.0 %', gesamt: '75.0 %', mean1: '77.5 %', sd1: '–', median1: '–', p25_1: '–', p75_1: '–', mean2: '90.0 %', sd2: '–', median2: '–', p25_2: '–', p75_2: '–' });
 });
 
 test('tables.oralRateTable: Nenner = Personen mit OE1 RUN1-Datum, bestanden, 1× und 2× durchgefallen', () => {
@@ -223,10 +223,10 @@ test('tables.comparisonTable: Auswahl gegen Benchmark je Kennzahl, Differenz in 
   const selection = overviewModel(cohort().filter((p) => p.employerCanon === 'Testbank AG'));
   const benchmark = overviewModel(cohort());
   const t = comparisonTable(selection.kpis, benchmark.kpis, 'Alle Banken');
-  assertEqual(t.columns.map((c) => c.label), ['Kennzahl', 'Auswahl', 'n (Auswahl)', 'Benchmark: Alle Banken', 'n (Benchmark)', 'Differenz']);
+  assertEqual(t.columns.map((c) => c.label), ['Kennzahl', 'Auswahl', 'n (Auswahl)', 'Benchmark: Alle Banken', 'n (Benchmark)', 'Differenz', 'Einordnung']);
   const byLabel = Object.fromEntries(t.rows.map((r) => [r.kennzahl, r]));
   // Testbank: A, B → im 1. Versuch bestanden A (50.0 %); alle: 50.0 % → Differenz 0
-  assertEqual(byLabel['Schriftlich: im 1. Versuch bestanden'], { kennzahl: 'Schriftlich: im 1. Versuch bestanden', auswahl: '50.0 %', n: 2, benchmark: '50.0 %', n2: 4, differenz: '0.0 pp', small: true, direction: 'up' });
+  assertEqual(byLabel['Schriftlich: im 1. Versuch bestanden'], { kennzahl: 'Schriftlich: im 1. Versuch bestanden', auswahl: '50.0 %', n: 2, benchmark: '50.0 %', n2: 4, differenz: '0.0 pp', small: true, direction: 'up', einordnung: '±40.5 pp · Benchmark im Intervall: ja', einordnungTone: 'neutral' });
   // insgesamt bestanden: Testbank 100 % (A, B) vs alle 75 % → +25.0 pp
   assertEqual(byLabel['Schriftlich: insgesamt bestanden'].differenz, '+25.0 pp');
   // Ø Resultat 1. Versuch: Testbank (0.7+0.5)/2 = 0.6 vs alle 0.6125 → −1.3 pp
@@ -383,7 +383,7 @@ test('tables.yearComparisonTable / defaultCompareYears: zwei Jahre nebeneinander
   assertEqual(defaultCompareYears([]), null);
   const t = yearComparisonTable(ps, 2025, 2023);
   assertEqual(t.title, 'Vergleich 2025 gegenüber 2023');
-  assertEqual(t.columns.map((c) => c.label), ['Kennzahl', '2025', 'n 2025', 'Benchmark: 2023', 'n 2023', 'Differenz']);
+  assertEqual(t.columns.map((c) => c.label), ['Kennzahl', '2025', 'n 2025', 'Benchmark: 2023', 'n 2023', 'Differenz', 'Einordnung']);
   const byLabel = Object.fromEntries(t.rows.map((r) => [r.kennzahl, r]));
   assertEqual([byLabel['Vorgänge'].auswahl, byLabel['Vorgänge'].benchmark], ['2', '2']);
   assertEqual(byLabel['Schriftlich: insgesamt bestanden'].differenz, '+50.0 pp');
@@ -393,8 +393,8 @@ test('tables.yearComparisonTable / defaultCompareYears: zwei Jahre nebeneinander
 
 test('tables.difficultyTables: lange Tabelle und Pivot Teil × Jahr (Durchfallquote 1. Versuch)', () => {
   const { long, pivot } = difficultyTables(yearCohort());
-  assertEqual(long.columns.map((c) => c.label), ['Jahr', 'Teilprüfung', 'n', 'Im 1. Versuch durchgefallen', 'Im 1. Versuch bestanden', 'Ø Resultat 1. Versuch', 'Ø Resultat bestandener Run']);
-  assertEqual(long.rows[0], { jahr: 2023, teil: 'WE1 *', n: 1, small: true, durchgefallen: '100.0 %', bestanden: '0.0 %', mean1: '40.0 %', mean2: '–' });
+  assertEqual(long.columns.map((c) => c.label), ['Jahr', 'Teilprüfung', 'n', 'Im 1. Versuch durchgefallen', 'Im 1. Versuch bestanden', 'Ø Resultat 1. Versuch', 'σ (1. Versuch)', 'Median (1. Versuch)', 'P25 (1. Versuch)', 'P75 (1. Versuch)', 'Ø Resultat bestandener Run', 'σ (bestandener Run)', 'Median (bestandener Run)', 'P25 (bestandener Run)', 'P75 (bestandener Run)']);
+  assertEqual(long.rows[0], { jahr: 2023, teil: 'WE1 *', n: 1, small: true, durchgefallen: '100.0 %', bestanden: '0.0 %', mean1: '40.0 %', sd1: '–', median1: '–', p25_1: '–', p75_1: '–', mean2: '–', sd2: '–', median2: '–', p25_2: '–', p75_2: '–' });
   assertEqual(pivot.columns.map((c) => c.label), ['Teilprüfung', '2023', '2024', '2025']);
   assertEqual(pivot.rows.map((r) => r.teil), ['WE1', 'OE1', 'WE2']);
   assertEqual(pivot.rows[0], { teil: 'WE1', y2023: '100.0 % *', y2024: '0.0 % *', y2025: '0.0 % *' });
@@ -463,7 +463,7 @@ test('tables.bankReportTables: Bank gegen alle Banken – Kennzahlen, je Profil,
   const bank = all.filter((p) => p.employerCanon === 'Testbank AG');
   const t = bankReportTables(bank, all, 'Testbank AG');
   assertEqual(t.kpis.title, 'Kennzahlen Testbank AG im Vergleich zu allen Banken');
-  assertEqual(t.kpis.columns.map((c) => c.label), ['Kennzahl', 'Testbank AG', 'n Testbank AG', 'Benchmark: Alle Banken', 'n alle Banken', 'Differenz']);
+  assertEqual(t.kpis.columns.map((c) => c.label), ['Kennzahl', 'Testbank AG', 'n Testbank AG', 'Benchmark: Alle Banken', 'n alle Banken', 'Differenz', 'Einordnung']);
   const byLabel = Object.fromEntries(t.kpis.rows.map((r) => [r.kennzahl, r]));
   assertEqual([byLabel['Vorgänge'].auswahl, byLabel['Vorgänge'].benchmark], ['2', '4']);
   assertEqual(byLabel['Schriftlich: insgesamt bestanden'].differenz, '+25.0 pp');
@@ -707,7 +707,7 @@ test('tables.expertTables: KPIs, Haupttabelle mit Prioritäten und neutralen Δ 
   assertEqual([t.kpis[0].value, t.kpis[1].value, t.kpis[2].value, t.kpis[3].value, t.kpis[3].n, t.kpis[4].value, t.kpis[4].n], ['3', '8', '4.7 (Median 5)', '42.9 %', 7, '0.0 %', 1]);
   assert(t.kpis.every((k) => k.group === 'Experten' && k.direction === 'neutral'));
   assertEqual([t.kpis[3].unit, t.kpis[4].unit], ['Einsätzen', 'Einsätzen'], 'Kachel «x von n Einsätzen» statt Vorgängen');
-  assertEqual(t.main.columns.map((c) => [c.label, c.prio]), [['Experte', 1], ['Einsätze', 1], ['als Experte 1', 2], ['als Experte 2', 2], ['Anteil Experte 1', 2], ['Durchfallquote 1. Versuch', 1], ['Δ 1. Versuch', 1], ['Durchfallquote Wiederholung', 2], ['Δ Wiederholung', 2], ['Ø Resultat', 2], ['Δ Ø Resultat', 3], ['Erster Einsatz', 3], ['Letzter Einsatz', 3]]);
+  assertEqual(t.main.columns.map((c) => [c.label, c.prio]), [['Experte', 1], ['Einsätze', 1], ['als Experte 1', 2], ['als Experte 2', 2], ['Anteil Experte 1', 2], ['Durchfallquote 1. Versuch', 1], ['Δ 1. Versuch', 1], ['Durchfallquote Wiederholung', 2], ['Δ Wiederholung', 2], ['Ø Resultat', 2], ['Δ Ø Resultat', 3], ['σ (Resultat)', 3], ['Median (Resultat)', 3], ['P25 (Resultat)', 3], ['P75 (Resultat)', 3], ['Erster Einsatz', 3], ['Letzter Einsatz', 3]]);
   assertEqual(t.main.rows.map((r) => [r.experte, r.small]), [['Experte Emil', false], ['Prüfer Pia', false], ['Beisitz Bruno', true]]);
   const pia = t.main.rows.find((r) => r.experte === 'Prüfer Pia');
   assertEqual([pia.einsaetze, pia.role1, pia.role2, pia.anteil1, pia.fail1, pia.failW, pia.result, pia.erster, pia.letzter], [5, 4, 1, '80.0 %', '50.0 %', '0.0 %', '67.0 %', '01.11.2024', '01.06.2025']);
@@ -772,4 +772,121 @@ test('tables.runFieldTarget: Feldschlüssel eines Runs → Ziel im Prüfungsrast
   assertEqual(runFieldTarget('lastName'), null);
   assertEqual(runFieldTarget('we1.passed'), null);
   assertEqual(runFieldTarget(null), null);
+});
+
+// ---------------------------------------------------------------------------
+// Paket G: Streuung (σ, Median, Quartile) und Einordnung von Differenzen (Effektstärke, Wilson-Intervall)
+// ---------------------------------------------------------------------------
+
+// Vorgänge mit bekannten Resultaten (schriftlich beide Teile, mündlich OE1 je gleich r), alle bestanden
+function withResults(results, extra = {}) {
+  return results.map((r, i) => simple({
+    lastName: 'S' + i, profil: 'PK', sprache: 'DE', employerCanon: 'Testbank AG',
+    we: { 1: [{ passed: true, date: '2024-03-01', result: r }], 2: [{ passed: true, date: '2024-03-01', result: r }] },
+    oe: { 1: [{ passed: true, date: '2024-06-01', result: r }] },
+    ...extra,
+  }));
+}
+
+test('tables.formatSpread: «σ x pp · Median y % (P25 a · P75 b)» und Kurzform «σ x pp»; ohne σ (n < 5) null (G.2)', () => {
+  assertEqual(formatSpread({ n: 5, sd: 0.158114, median: 0.8, p25: 0.7, p75: 0.9, small: false }),
+    { text: 'σ 15.8 pp · Median 80.0 % (P25 70.0 · P75 90.0)', short: 'σ 15.8 pp', sd: '15.8 pp', median: '80.0 %', p25: '70.0 %', p75: '90.0 %' });
+  assertEqual(formatSpread({ n: 3, sd: null, median: null, p25: null, p75: null, small: true }), null);
+  assertEqual(formatSpread(null), null);
+});
+
+test('tables.overviewModel: Streuungszeile (spread) und Roh-σ der vier Ø-Kacheln, keine bei n < 5, Kachelzahl unverändert (G.2)', () => {
+  const m = overviewModel(withResults([0.6, 0.7, 0.8, 0.9, 1.0]));
+  const by = Object.fromEntries(m.kpis.map((k) => [k.label, k]));
+  assertEqual(by['Schriftlich: Ø Resultat 1. Versuch'].spread, { text: 'σ 15.8 pp · Median 80.0 % (P25 70.0 · P75 90.0)', short: 'σ 15.8 pp', sd: '15.8 pp', median: '80.0 %', p25: '70.0 %', p75: '90.0 %' });
+  assertClose(by['Schriftlich: Ø Resultat 1. Versuch'].sd, Math.sqrt(0.025), 1e-9, 'Roh-σ (Anteil) für die Effektstärke');
+  assertEqual(by['Schriftlich: Ø Resultat 1. Versuch'].value, '80.0 %', 'Ø unverändert');
+  assertEqual(by['Mündlich: Ø Resultat bestandener Run'].spread.short, 'σ 15.8 pp');
+  assertEqual(m.kpis.filter((k) => k.spread).map((k) => k.label), ['Schriftlich: Ø Resultat 1. Versuch', 'Schriftlich: Ø Resultat bestandener Run', 'Mündlich: Ø Resultat 1. Versuch', 'Mündlich: Ø Resultat bestandener Run']);
+  assertEqual(m.kpis.length, overviewModel(cohort()).kpis.length, 'keine neue Kachel');
+  const small = Object.fromEntries(overviewModel(cohort()).kpis.map((k) => [k.label, k]));
+  assertEqual([small['Schriftlich: Ø Resultat 1. Versuch'].spread, small['Schriftlich: Ø Resultat 1. Versuch'].sd], [null, null], 'n < 5: keine Streuung, Ø bleibt');
+  assertEqual(small['Schriftlich: Ø Resultat 1. Versuch'].value, '61.3 %');
+});
+
+test('tables.comparisonTable: Spalte «Einordnung» (Prio 1) – Effektstärke bei Ø, Wilson-Intervall bei Quoten, Strich bei Mengen, n < 5 und n = 0 (G.2)', () => {
+  const selection = withResults([0.85, 0.9, 0.9, 0.95, 1.0]);
+  const others = withResults([0.6, 0.65, 0.7, 0.7, 0.75], { employerCanon: 'Musterbank' });
+  const t = comparisonTable(overviewModel(selection).kpis, overviewModel(selection.concat(others)).kpis, 'Alle Banken');
+  const e = t.columns.find((c) => c.key === 'einordnung');
+  assertEqual([e.label, e.prio], ['Einordnung', 1]);
+  assertEqual(t.columns.map((c) => c.key).slice(-2), ['differenz', 'einordnung']);
+  const by = Object.fromEntries(t.rows.map((r) => [r.kennzahl, r]));
+  const mean1 = by['Schriftlich: Ø Resultat 1. Versuch'];
+  assertEqual([mean1.differenz, mean1.einordnung, mean1.einordnungTone], ['+12.0 pp', 'd +0.9 · gross', 'pos'], 'd = 0.12 / 0.137 = 0.87');
+  const rate = by['Schriftlich: im 1. Versuch bestanden'];
+  assertEqual([rate.differenz, rate.einordnung, rate.einordnungTone], ['0.0 pp', '±21.7 pp · Benchmark im Intervall: ja', 'neutral'], 'Wilson 5/5');
+  assertEqual([by['Vorgänge'].einordnung, by['Vorgänge'].einordnungTone], ['–', 'neutral'], 'Mengen ohne Einordnung');
+  const few = Object.fromEntries(comparisonTable(overviewModel(selection.slice(0, 4)).kpis, overviewModel(selection.concat(others)).kpis, 'Alle Banken').rows.map((r) => [r.kennzahl, r]));
+  assertEqual(few['Schriftlich: Ø Resultat 1. Versuch'].einordnung, '–', 'Auswahl n < 5: keine Effektstärke');
+  assert(/^±\d+\.\d pp · Benchmark im Intervall: (ja|nein)$/.test(few['Schriftlich: im 1. Versuch bestanden'].einordnung), 'Quote mit n < 5: Intervall trotzdem, Markierung * bleibt');
+  const benchSmall = Object.fromEntries(comparisonTable(overviewModel(selection).kpis, overviewModel(selection.slice(0, 4)).kpis, 'Alle Banken').rows.map((r) => [r.kennzahl, r]));
+  assertEqual(benchSmall['Schriftlich: Ø Resultat 1. Versuch'].einordnung, '–', 'Benchmark n < 5: keine Effektstärke');
+  const none = comparisonTable(overviewModel([]).kpis, overviewModel(selection).kpis, 'Alle Banken');
+  assertEqual(none.rows.find((r) => r.kennzahl === 'Schriftlich: im 1. Versuch bestanden').einordnung, '–', 'n = 0 → Strich');
+  assert(/Effektstärke/.test(t.note) && /Wilson/.test(t.note), 'Legende erklärt beide Regeln');
+  const bank = bankReportTables(selection, selection.concat(others), 'Testbank AG');
+  assertEqual(bank.kpis.rows.find((r) => r.kennzahl === 'Schriftlich: Ø Resultat 1. Versuch').einordnung, 'd +0.9 · gross', 'Bank-Report trägt die Einordnung');
+});
+
+test('tables.performanceTable / partTable / difficultyTables: Spalten σ, Median, P25, P75 je Wertung als Prio 3 ohne Datenbalken, Tabelle «wide»; «–» bei n < 5 (G.2)', () => {
+  const t = performanceTable(withResults([0.6, 0.7, 0.8, 0.9, 1.0]), 'profil', 'written');
+  const spread = t.columns.filter((c) => /^(σ|Median|P25|P75) \(/.test(c.label));
+  assertEqual(spread.map((c) => c.label), ['σ (1. Versuch)', 'Median (1. Versuch)', 'P25 (1. Versuch)', 'P75 (1. Versuch)', 'σ (bestandener Run)', 'Median (bestandener Run)', 'P25 (bestandener Run)', 'P75 (bestandener Run)']);
+  assert(spread.every((c) => c.prio === 3), 'Prio 3');
+  assert(spread.filter((c) => !/^σ/.test(c.label)).every((c) => c.bar === false), 'Median/P25/P75 ohne Datenbalken');
+  assert(t.columns.filter((c) => /^Ø/.test(c.label)).every((c) => c.bar !== false), 'Ø behält den Datenbalken');
+  assertEqual(t.wide, true);
+  assertEqual([t.rows[0].mean1, t.rows[0].sd1, t.rows[0].median1, t.rows[0].p25_1, t.rows[0].p75_1, t.rows[0].sd2, t.rows[0].median2], ['80.0 %', '15.8 pp', '80.0 %', '70.0 %', '90.0 %', '15.8 pp', '80.0 %']);
+  const oral = performanceTable(withResults([0.6, 0.7, 0.8, 0.9, 1.0]), 'sprache', 'oral');
+  assertEqual([oral.rows[0].sd1, oral.rows[0].p75_1], ['15.8 pp', '90.0 %']);
+  const part = partTable(withResults([0.6, 0.7, 0.8, 0.9, 1.0]), 'we');
+  assertEqual([part.wide, part.rows[0].gruppe, part.rows[0].sd1, part.rows[0].median2], [true, 'WE1', '15.8 pp', '80.0 %']);
+  assert(part.columns.filter((c) => /^(σ|Median|P25|P75) \(/.test(c.label)).every((c) => c.prio === 3));
+  const { long } = difficultyTables(withResults([0.6, 0.7, 0.8, 0.9, 1.0]));
+  assertEqual([long.wide, long.rows[0].teil, long.rows[0].sd1, long.rows[0].p25_1, long.rows[0].sd2], [true, 'WE1', '15.8 pp', '70.0 %', '15.8 pp']);
+  assert(long.columns.filter((c) => /^(σ|Median|P25|P75) \(/.test(c.label)).length === 8 && long.columns.filter((c) => c.prio === 3).length >= 8);
+});
+
+test('tables.expertTables: Kachel «Ø Resultat (Experten)» mit Streuung, Haupttabelle mit σ/Median/P25/P75 (Prio 3); «–» bei n < 5 (G.2)', () => {
+  const t = expertTables(expertRuns(expertCohortT()));
+  const kpi = t.kpis.find((k) => k.label === 'Ø Resultat (Experten)');
+  assertEqual(kpi.spread, { text: 'σ 21.6 pp · Median 75.0 % (P25 48.8 · P75 86.3)', short: 'σ 21.6 pp', sd: '21.6 pp', median: '75.0 %', p25: '48.8 %', p75: '86.3 %' });
+  const cols = t.main.columns.filter((c) => /^(σ|Median|P25|P75) \(Resultat\)$/.test(c.label));
+  assertEqual(cols.map((c) => [c.key, c.prio, c.bar]), [['sd', 3, undefined], ['median', 3, false], ['p25', 3, false], ['p75', 3, false]]);
+  const pia = t.main.rows.find((r) => r.experte === 'Prüfer Pia');
+  assertEqual([pia.result, pia.sd, pia.median, pia.p25, pia.p75], ['67.0 %', '21.7 pp', '70.0 %', '50.0 %', '85.0 %']);
+  const bruno = t.main.rows.find((r) => r.experte === 'Beisitz Bruno');
+  assertEqual([bruno.sd, bruno.median, bruno.p25, bruno.p75], ['–', '–', '–', '–'], 'vier Einsätze: keine Streuung');
+  assertEqual(expertTables([]).kpis.find((k) => k.label === 'Ø Resultat (Experten)').spread, null);
+});
+
+test('tables.histogramModel: Reihen Auswahl vs. Benchmark (Anteile je Klasse), Tabellen-Zwilling, small bei n < 5, Benchmark-Reihe nur ab n ≥ 5 (G.4)', () => {
+  const selection = withResults([0.85, 0.9, 0.9, 0.95, 1.0]);
+  const others = withResults([0.6, 0.65, 0.7, 0.7, 0.75], { employerCanon: 'Musterbank' });
+  const m = histogramModel(selection, selection.concat(others), 'written', { benchmarkLabel: 'Alle Banken' });
+  assertEqual([m.n, m.small, m.benchmarkSmall], [5, false, false]);
+  assertEqual(m.series.map((s) => s.label), ['Auswahl', 'Benchmark: Alle Banken']);
+  assertEqual(m.series[0].points.map((p) => p.x).slice(-2), ['80–90', '90–100']);
+  assertEqual(m.series[0].points.map((p) => p.n), [0, 0, 0, 0, 0, 0, 0, 0, 1, 4]);
+  assertClose(m.series[0].points[9].y, 0.8);
+  assertEqual(m.series[1].points.map((p) => p.n), [0, 0, 0, 0, 0, 0, 2, 3, 1, 4]);
+  assertClose(m.series[1].points[7].y, 0.3);
+  assertEqual(m.table.title, 'Verteilung der Resultate (1. Versuch)');
+  assertEqual(m.table.columns.map((c) => [c.label, c.prio]), [['Klasse', 1], ['Auswahl (Anzahl)', 3], ['Auswahl (Anteil)', 1], ['Benchmark: Alle Banken (Anzahl)', 3], ['Benchmark: Alle Banken (Anteil)', 2]]);
+  assertEqual(m.table.rows[9], { klasse: '90–100 %', n1: 4, anteil1: '80.0 %', n2: 4, anteil2: '40.0 %' });
+  assertEqual(m.table.rows[0], { klasse: '0–10 %', n1: 0, anteil1: '0.0 %', n2: 0, anteil2: '0.0 %' });
+  assert(/Klasse/.test(m.table.note) && /1\. Versuch/.test(m.table.note));
+  const few = histogramModel(selection.slice(0, 3), selection.concat(others), 'written', { benchmarkLabel: 'Alle Banken' });
+  assertEqual([few.n, few.small, few.table.rows[9].n1], [3, true, 2], 'Tabelle bleibt, das Diagramm ersetzt die Ansicht durch einen Hinweis');
+  const noBench = histogramModel(selection, null, 'written');
+  assertEqual([noBench.series.length, noBench.table.columns.length], [1, 3]);
+  const benchSmall = histogramModel(selection, selection.slice(0, 2), 'oral', { benchmarkLabel: 'Alle Banken' });
+  assertEqual([benchSmall.benchmarkSmall, benchSmall.series.length, benchSmall.table.columns.length], [true, 1, 5], 'Benchmark n < 5: keine zweite Reihe, Tabelle vollständig');
+  assertEqual(histogramModel([], null, 'written').series[0].points.map((p) => p.y), Array(10).fill(null));
 });

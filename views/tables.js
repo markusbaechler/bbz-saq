@@ -9,7 +9,8 @@ import {
   multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
   timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
   earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS, profileParts, personIndex, passerelleFrom,
-  runTimeline, examGrid, expertStats, expertBenchmark, expertPairs, mean } from '../metrics.js';
+  runTimeline, examGrid, expertStats, expertBenchmark, expertPairs, mean,
+  writtenDispersion, oralDispersion, wilsonInterval, effectSize, writtenHistogram, oralHistogram } from '../metrics.js';
 import { compareKennzahlen, compareZaehler, compareByGroup } from '../snapshot.js';
 import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
 
@@ -50,6 +51,32 @@ function personName(p) {
 export function col(key, label, prio = 2, extra = {}) {
   return { key, label, prio, ...extra };
 }
+
+// Streuung (PROMPT-2 Paket G, E14): Text «σ 9.8 pp · Median 76.0 % (P25 70.0 · P75 84.5)» für die Kachel-Zweitzeile, Kurzform
+// «σ 9.8 pp» (Phone) und Einzelwerte für Tabellenspalten; null, wenn keine Streuung ausgewiesen wird (n < 5, metrics.reportedDispersion)
+export function formatSpread(d) {
+  if (!d || !isNum(d.sd)) return null;
+  const pp = (v) => (Math.round(v * 1000) / 10).toFixed(1);
+  return {
+    text: 'σ ' + pp(d.sd) + ' pp · Median ' + formatPct(d.median) + ' (P25 ' + pp(d.p25) + ' · P75 ' + pp(d.p75) + ')',
+    short: 'σ ' + pp(d.sd) + ' pp', sd: pp(d.sd) + ' pp', median: formatPct(d.median), p25: formatPct(d.p25), p75: formatPct(d.p75),
+  };
+}
+
+// Spalten σ · Median · P25 · P75 einer Wertung (Prio 3, Entscheid 6); Lagewerte in Prozent ohne Datenbalken (bar: false), der Balken bleibt auf Ø
+function spreadKeys(suffix) {
+  return { sd: 'sd' + suffix, median: 'median' + suffix, p25: 'p25' + (suffix ? '_' + suffix : ''), p75: 'p75' + (suffix ? '_' + suffix : '') };
+}
+function spreadColumns(suffix, wertung) {
+  const k = spreadKeys(suffix);
+  return [col(k.sd, 'σ (' + wertung + ')', 3), col(k.median, 'Median (' + wertung + ')', 3, { bar: false }), col(k.p25, 'P25 (' + wertung + ')', 3, { bar: false }), col(k.p75, 'P75 (' + wertung + ')', 3, { bar: false })];
+}
+function spreadCells(suffix, d) {
+  const k = spreadKeys(suffix);
+  const s = formatSpread(d);
+  return { [k.sd]: s ? s.sd : '–', [k.median]: s ? s.median : '–', [k.p25]: s ? s.p25 : '–', [k.p75]: s ? s.p75 : '–' };
+}
+const SPREAD_NOTE = 'σ = Stichproben-Standardabweichung der Resultate je Vorgang in Prozentpunkten, Median/P25/P75 = Lage der Resultate; Streuung erst ab n ≥ ' + SMALL_N;
 
 // Differenzspalten (Δ in Prozentpunkten oder absolut): Symbol, Vorzeichen und Farbe nach Richtung (views/common.js)
 export function isDeltaColumn(column) {
@@ -102,19 +129,20 @@ export function passRateTable(persons, key) {
 
 // kind: 'written' | 'oral' – beide Wertungen nebeneinander (Resultat des 1. Versuchs, Resultat des bestandenen Runs)
 export function performanceTable(persons, key, kind = 'written') {
-  const fn = kind === 'oral' ? oralPerformance : writtenPerformance;
+  const fn = kind === 'oral' ? oralDispersion : writtenDispersion; // Mittel wie bisher, dazu Streuung (Paket G)
   const row = (label, ps) => {
     const first = fn(ps, MODE.ERSTVERSUCH);
     const passed = fn(ps, MODE.BESTANDEN);
-    return { gruppe: mark(label, first.n < SMALL_N), n: first.n, small: first.n < SMALL_N, mean1: formatPct(first.mean), n2: passed.n, mean2: formatPct(passed.mean) };
+    return { gruppe: mark(label, first.n < SMALL_N), n: first.n, small: first.n < SMALL_N, mean1: formatPct(first.mean), ...spreadCells('1', first), n2: passed.n, mean2: formatPct(passed.mean), ...spreadCells('2', passed) };
   };
   const rows = [row('Gesamt', persons)];
   for (const g of byGroup(persons, key, (ps) => ps)) rows.push(row(groupLabel(g.key), g.value));
   return {
     title: 'Ø Resultat ' + (kind === 'oral' ? 'mündlich' : 'schriftlich') + ' nach ' + GROUP_LABELS[key],
-    columns: [col('gruppe', GROUP_LABELS[key], 1), col('n', 'n (1. Versuch)', 2), col('mean1', 'Ø Resultat 1. Versuch', 1), col('n2', 'n (bestanden)', 2), col('mean2', 'Ø Resultat bestandener Run', 1)],
+    wide: true, // 13 Spalten mit Streuung: Prio 3 erst ab 1900 px, Full HD (F.2, Paket G)
+    columns: [col('gruppe', GROUP_LABELS[key], 1), col('n', 'n (1. Versuch)', 2), col('mean1', 'Ø Resultat 1. Versuch', 1), ...spreadColumns('1', '1. Versuch'), col('n2', 'n (bestanden)', 2), col('mean2', 'Ø Resultat bestandener Run', 1), ...spreadColumns('2', 'bestandener Run')],
     rows,
-    note: SMALL_NOTE + '; Resultat = erreichte Punkte in Prozent; n = Vorgänge mit Wert; «bestandener Run» nur für Vorgänge, deren absolvierte Teilprüfungen alle bestanden sind',
+    note: SMALL_NOTE + '; Resultat = erreichte Punkte in Prozent; n = Vorgänge mit Wert; «bestandener Run» nur für Vorgänge, deren absolvierte Teilprüfungen alle bestanden sind; ' + SPREAD_NOTE,
   };
 }
 
@@ -123,13 +151,14 @@ export function partTable(persons, kind = 'we') {
   const rows = partFirstAttempt(persons, kind).map((p) => ({
     gruppe: mark(p.label, p.n < SMALL_N), n: p.n, small: p.n < SMALL_N,
     bestanden1: formatPct(p.passed.pct), durchgefallen1: formatPct(p.failed.pct), gesamt: formatPct(p.anyPassed.pct),
-    mean1: formatPct(p.meanFirst.mean), mean2: formatPct(p.meanPassed.mean),
+    mean1: formatPct(p.meanFirst.mean), ...spreadCells('1', p.spreadFirst), mean2: formatPct(p.meanPassed.mean), ...spreadCells('2', p.spreadPassed),
   }));
   return {
     title: (kind === 'oe' ? 'Mündlich' : 'Schriftlich') + ' je Teilprüfung',
-    columns: [col('gruppe', 'Teilprüfung', 1), col('n', 'n', 1), col('bestanden1', 'Im 1. Versuch bestanden', 1), col('durchgefallen1', 'Im 1. Versuch durchgefallen', 2), col('gesamt', 'Insgesamt bestanden', 2), col('mean1', 'Ø Resultat 1. Versuch', 1), col('mean2', 'Ø Resultat bestandener Run', 3)],
+    wide: true, // 15 Spalten mit Streuung: Prio 3 erst ab 1900 px, Full HD (F.2, Paket G)
+    columns: [col('gruppe', 'Teilprüfung', 1), col('n', 'n', 1), col('bestanden1', 'Im 1. Versuch bestanden', 1), col('durchgefallen1', 'Im 1. Versuch durchgefallen', 2), col('gesamt', 'Insgesamt bestanden', 2), col('mean1', 'Ø Resultat 1. Versuch', 1), ...spreadColumns('1', '1. Versuch'), col('mean2', 'Ø Resultat bestandener Run', 3), ...spreadColumns('2', 'bestandener Run')],
     rows,
-    note: SMALL_NOTE + '; n = Vorgänge mit absolviertem RUN1 der Teilprüfung',
+    note: SMALL_NOTE + '; n = Vorgänge mit absolviertem RUN1 der Teilprüfung; ' + SPREAD_NOTE,
   };
 }
 
@@ -411,10 +440,11 @@ export function multiProfileTable(persons, allPersons = persons) {
 
 export function overviewModel(persons, allPersons = persons) {
   const o = overview(persons, MODE.ERSTVERSUCH);
-  const wp1 = writtenPerformance(persons, MODE.ERSTVERSUCH);
-  const wp2 = writtenPerformance(persons, MODE.BESTANDEN);
-  const op1 = oralPerformance(persons, MODE.ERSTVERSUCH);
-  const op2 = oralPerformance(persons, MODE.BESTANDEN);
+  // Ø wie bisher (Mittel der Vorgänge mit Wert), dazu Streuung σ/Median/Quartile ab n ≥ 5 (Paket G, additiv)
+  const wp1 = writtenDispersion(persons, MODE.ERSTVERSUCH);
+  const wp2 = writtenDispersion(persons, MODE.BESTANDEN);
+  const op1 = oralDispersion(persons, MODE.ERSTVERSUCH);
+  const op2 = oralDispersion(persons, MODE.BESTANDEN);
   const multi = multiProfileTable(persons, allPersons);
   // count: absolute Zahl bei Anteilen (x von n Vorgängen), null bei Mittelwerten und Zählungen
   // kind/raw: Art und Rohwert für Vergleiche (ratio: Anteil 0..1, mean: Mittel 0..1, count: Zahl)
@@ -422,7 +452,8 @@ export function overviewModel(persons, allPersons = persons) {
   // neutral bei Mengen – bestimmt die Farbe der Differenz zum Benchmark (PROMPT-2 A.4)
   const kpi = (label, value, n, hint, extra = {}) => ({ label, value, n, small: n < SMALL_N, hint, count: null, kind: 'count', raw: null, group: 'Mengen', direction: 'neutral', ...extra });
   const rate = (label, r, hint, group, direction) => kpi(label, formatPct(r.pct), r.n, hint, { count: r.count, kind: 'ratio', raw: r.pct, group, direction });
-  const avg = (label, m, hint, group) => kpi(label, formatPct(m.mean), m.n, hint, { kind: 'mean', raw: m.mean, group, direction: 'up' });
+  // spread: Zweitzeile der Kachel (null bei n < 5); sd: Roh-σ (Anteil) als Basis der Effektstärke im Benchmark-Vergleich
+  const avg = (label, m, hint, group) => kpi(label, formatPct(m.mean), m.n, hint, { kind: 'mean', raw: m.mean, group, direction: 'up', sd: isNum(m.sd) ? m.sd : null, spread: formatSpread(m) });
   const kpis = [
     kpi('Vorgänge', String(o.n), o.n, 'Zertifizierungsvorgänge (Zeilen ohne Duplikate) im Filter mit mindestens einem absolvierten, datierten schriftlichen Run', { raw: o.n }),
     kpi('Personen', String(o.personen), o.n, 'Menschen hinter den Vorgängen im Filter (Personenschlüssel aus Name und Geburtsdatum); eine Person kann mehrere Vorgänge haben', { raw: o.personen }),
@@ -491,19 +522,43 @@ export function directionOfLabel(label) {
   return directionByLabel.get(label) || 'neutral';
 }
 
+// Einordnung einer Differenz (PROMPT-2 Paket G, Entscheid 3): Ø-Kennzahlen über die Effektstärke d = Δ / σ(Benchmark), nur wenn
+// beide n ≥ SMALL_N und σ > 0; Quoten über das 95-%-Wilson-Intervall der Auswahl («±pp · Benchmark im Intervall: ja/nein», auch bei
+// n < 5, die Markierung * bleibt); Mengen und fehlende Werte «–». Vorzeichen von d wie Δ. Der Text trägt die Bedeutung, der Ton folgt Δ.
+function einordnung(k, b) {
+  if (!b || k.kind === 'count' || !isNum(k.raw) || !isNum(b.raw)) return '–';
+  if (k.kind === 'mean') {
+    if (k.small || b.small) return '–';
+    const e = effectSize(k.raw, b.raw, b.sd);
+    if (!isNum(e.d)) return '–';
+    const r = Math.round(Math.abs(e.d) * 10 + 1e-9) / 10;
+    return 'd ' + (r === 0 ? '' : (e.d > 0 ? '+' : '−')) + r.toFixed(1) + ' · ' + e.label;
+  }
+  if (!isNum(k.count) || !k.n) return '–';
+  const w = wilsonInterval(k.count, k.n);
+  if (!isNum(w.half)) return '–';
+  const inside = b.raw >= w.low - 1e-12 && b.raw <= w.high + 1e-12;
+  return '±' + (Math.round(w.half * 1000) / 10).toFixed(1) + ' pp · Benchmark im Intervall: ' + (inside ? 'ja' : 'nein');
+}
+
 export function comparisonTable(selectionKpis, benchmarkKpis, benchmarkLabel) {
   const byLabel = new Map(benchmarkKpis.map((k) => [k.label, k]));
   const rows = selectionKpis.map((k) => {
     const b = byLabel.get(k.label);
     let differenz = '';
-    if (k.kind !== 'count') differenz = isNum(k.raw) && b && isNum(b.raw) ? formatPp((k.raw - b.raw) * 100) : '–';
-    return { kennzahl: k.label, auswahl: k.value, n: k.n, benchmark: b ? b.value : '–', n2: b ? b.n : 0, differenz, small: k.small, direction: k.direction || 'neutral' };
+    const delta = isNum(k.raw) && b && isNum(b.raw) ? (k.raw - b.raw) * 100 : null;
+    if (k.kind !== 'count') differenz = isNum(delta) ? formatPp(delta) : '–';
+    const direction = k.direction || 'neutral';
+    return {
+      kennzahl: k.label, auswahl: k.value, n: k.n, benchmark: b ? b.value : '–', n2: b ? b.n : 0, differenz, small: k.small, direction,
+      einordnung: einordnung(k, b), einordnungTone: k.kind !== 'count' && isNum(delta) ? deltaView(delta, direction).tone : 'neutral',
+    };
   });
   return {
     title: 'Auswahl im Vergleich zum Benchmark',
-    columns: [col('kennzahl', 'Kennzahl', 1), col('auswahl', 'Auswahl', 1), col('n', 'n (Auswahl)', 3), col('benchmark', 'Benchmark: ' + benchmarkLabel, 2), col('n2', 'n (Benchmark)', 3), col('differenz', 'Differenz', 1)],
+    columns: [col('kennzahl', 'Kennzahl', 1), col('auswahl', 'Auswahl', 1), col('n', 'n (Auswahl)', 3), col('benchmark', 'Benchmark: ' + benchmarkLabel, 2), col('n2', 'n (Benchmark)', 3), col('differenz', 'Differenz', 1), col('einordnung', 'Einordnung', 1, { toneKey: 'einordnungTone' })],
     rows,
-    note: 'Differenz in Prozentpunkten (Auswahl minus Benchmark); ' + SMALL_NOTE,
+    note: 'Differenz in Prozentpunkten (Auswahl minus Benchmark). Einordnung: bei Ø-Kennzahlen die Effektstärke d = Differenz geteilt durch σ des Benchmarks (unter 0.2 gering, bis 0.5 mittel, bis 0.8 deutlich, ab 0.8 gross; nur wenn beide n ≥ ' + SMALL_N + '); bei Quoten das 95-%-Wilson-Intervall der Auswahl (±pp) mit der Angabe, ob der Benchmark darin liegt; Mengen ohne Einordnung. ' + SMALL_NOTE,
   };
 }
 
@@ -709,9 +764,10 @@ export function difficultyTables(persons) {
   const cells = partDifficultyByYear(persons);
   const long = {
     title: 'Schwierigkeit je Teilprüfung und Jahr',
-    columns: [col('jahr', 'Jahr', 1), col('teil', 'Teilprüfung', 1), col('n', 'n', 2), col('durchgefallen', 'Im 1. Versuch durchgefallen', 1), col('bestanden', 'Im 1. Versuch bestanden', 3), col('mean1', 'Ø Resultat 1. Versuch', 2), col('mean2', 'Ø Resultat bestandener Run', 3)],
-    rows: cells.map((c) => ({ jahr: c.year, teil: mark(c.part, c.small), n: c.n, small: c.small, durchgefallen: formatPct(c.failed.pct), bestanden: formatPct(c.passed.pct), mean1: formatPct(c.meanFirst.mean), mean2: formatPct(c.meanPassed.mean) })),
-    note: SMALL_NOTE + '; Jahr = Datum des ersten Versuchs (RUN1) der Teilprüfung; n = Vorgänge mit absolviertem, datiertem RUN1',
+    wide: true, // 16 Spalten mit Streuung: Prio 3 erst ab 1900 px, Full HD (F.2, Paket G)
+    columns: [col('jahr', 'Jahr', 1), col('teil', 'Teilprüfung', 1), col('n', 'n', 2), col('durchgefallen', 'Im 1. Versuch durchgefallen', 1), col('bestanden', 'Im 1. Versuch bestanden', 3), col('mean1', 'Ø Resultat 1. Versuch', 2), ...spreadColumns('1', '1. Versuch'), col('mean2', 'Ø Resultat bestandener Run', 3), ...spreadColumns('2', 'bestandener Run')],
+    rows: cells.map((c) => ({ jahr: c.year, teil: mark(c.part, c.small), n: c.n, small: c.small, durchgefallen: formatPct(c.failed.pct), bestanden: formatPct(c.passed.pct), mean1: formatPct(c.meanFirst.mean), ...spreadCells('1', c.spreadFirst), mean2: formatPct(c.meanPassed.mean), ...spreadCells('2', c.spreadPassed) })),
+    note: SMALL_NOTE + '; Jahr = Datum des ersten Versuchs (RUN1) der Teilprüfung; n = Vorgänge mit absolviertem, datiertem RUN1; ' + SPREAD_NOTE,
   };
   const years = [...new Set(cells.map((c) => c.year))].sort((a, b) => a - b);
   const parts = [...new Set(cells.map((c) => c.part))];
@@ -729,6 +785,32 @@ export function difficultyTables(persons) {
     note: '* Zelle mit n < ' + SMALL_N + ' Vorgängen; leer = keine Erstversuche im Jahr',
   };
   return { long, pivot };
+}
+
+// Histogramm der Resultate (PROMPT-2 Paket G, Stufe 4): Reihen für renderBarChart() (Anteil der Vorgänge je Klasse à 10 pp, Wertung
+// 1. Versuch), Auswahl gegen Benchmark (zweite Reihe nur, wenn der Benchmark n ≥ 5 hat), und Tabellen-Zwilling mit Anzahl und Anteil.
+// small = Auswahl mit n < 5: die Ansicht zeigt statt des Diagramms einen Hinweis; die Tabelle bleibt (Export vollständig).
+export function histogramModel(persons, benchmarkPersons, kind = 'written', { benchmarkLabel = 'Benchmark' } = {}) {
+  const fn = kind === 'oral' ? oralHistogram : writtenHistogram;
+  const sel = fn(persons, MODE.ERSTVERSUCH);
+  const bench = benchmarkPersons ? fn(benchmarkPersons, MODE.ERSTVERSUCH) : null;
+  const points = (h) => h.bins.map((b) => ({ x: b.label, y: b.share, n: b.count, small: false }));
+  const series = [{ label: 'Auswahl', points: points(sel) }];
+  if (bench && !bench.small) series.push({ label: 'Benchmark: ' + benchmarkLabel, points: points(bench) });
+  const columns = [col('klasse', 'Klasse', 1), col('n1', 'Auswahl (Anzahl)', 3), col('anteil1', 'Auswahl (Anteil)', 1)];
+  if (bench) columns.push(col('n2', 'Benchmark: ' + benchmarkLabel + ' (Anzahl)', 3), col('anteil2', 'Benchmark: ' + benchmarkLabel + ' (Anteil)', 2));
+  const rows = sel.bins.map((b, i) => {
+    const row = { klasse: b.label + ' %', n1: b.count, anteil1: formatPct(b.share) };
+    if (bench) { row.n2 = bench.bins[i].count; row.anteil2 = formatPct(bench.bins[i].share); }
+    return row;
+  });
+  return {
+    n: sel.n, small: sel.small, benchmarkSmall: !!bench && bench.small, series,
+    table: {
+      title: 'Verteilung der Resultate (1. Versuch)', columns, rows,
+      note: 'Klassen à 10 Prozentpunkte des Resultats je Vorgang (Mittel der Teilprüfungen, Wertung 1. Versuch); obere Klassengrenze ausgeschlossen, 100 % in der letzten Klasse; Anteil = Vorgänge der Klasse an allen Vorgängen mit Wert (Auswahl n = ' + sel.n + (bench ? ', Benchmark n = ' + bench.n : '') + '); Diagramm erst ab n ≥ ' + SMALL_N,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1028,21 +1110,21 @@ export function expertTables(runs, { deltaDirection = 'neutral' } = {}) {
     kpi('Ø Einsätze je Experte', isNum(avg.mean) ? (Math.round(avg.mean * 10) / 10).toFixed(1) + ' (Median ' + (Math.round(med * 10) / 10) + ')' : '–', bench.experten, { hint: 'Einsätze geteilt durch Experten; Median in Klammern' }),
     kpi('Durchfallquote 1. Versuch', pctOrDash(bench.fail.erst), bench.fail.erst.n, { kind: 'ratio', unit: 'Einsätzen', count: bench.fail.erst.count, small: bench.fail.erst.small, hint: 'Benchmark aller Experten: Anteil nicht bestandener Einsätze im ersten Versuch (RUN1)' }),
     kpi('Durchfallquote Wiederholung', pctOrDash(bench.fail.wdh), bench.fail.wdh.n, { kind: 'ratio', unit: 'Einsätzen', count: bench.fail.wdh.count, small: bench.fail.wdh.small, hint: 'Benchmark aller Experten: Anteil nicht bestandener Einsätze bei Wiederholungen (RUN2, RUN3)' }),
-    kpi('Ø Resultat (Experten)', meanOrDash(bench.result), bench.result.n, { kind: 'mean', hint: 'Mittel der Resultate aller Einsätze mit Wert (Result, E6)' }),
+    kpi('Ø Resultat (Experten)', meanOrDash(bench.result), bench.result.n, { kind: 'mean', hint: 'Mittel der Resultate aller Einsätze mit Wert (Result, E6)', spread: formatSpread(bench.spread) }),
   ];
   const delta = (key, label, prio) => col(key, label, prio, { direction: deltaDirection });
   const main = {
     title: 'Experten',
-    wide: true, // 13 Spalten: Prio 3 erst ab 1500 px statt 1200 px (PROMPT-2 F.2, Option 1, 07.09.2026; 1400 px reichte in der CI nicht)
+    wide: true, // 17 Spalten (13 + Streuung): Prio 3 erst ab 1900 px statt 1200 px (PROMPT-2 F.2, Option 1, 07.09.2026; mit Streuung 17 Spalten, in der CI 1761 px breit)
     columns: [
       col('experte', 'Experte', 1), col('einsaetze', 'Einsätze', 1), col('role1', 'als Experte 1', 2), col('role2', 'als Experte 2', 2), col('anteil1', 'Anteil Experte 1', 2),
       col('fail1', 'Durchfallquote 1. Versuch', 1), delta('delta1', 'Δ 1. Versuch', 1), col('failW', 'Durchfallquote Wiederholung', 2), delta('deltaW', 'Δ Wiederholung', 2),
-      col('result', 'Ø Resultat', 2), delta('deltaR', 'Δ Ø Resultat', 3), col('erster', 'Erster Einsatz', 3), col('letzter', 'Letzter Einsatz', 3),
+      col('result', 'Ø Resultat', 2), delta('deltaR', 'Δ Ø Resultat', 3), ...spreadColumns('', 'Resultat'), col('erster', 'Erster Einsatz', 3), col('letzter', 'Letzter Einsatz', 3),
     ],
     rows: stats.map((s) => ({
       key: s.key, experte: s.name, einsaetze: s.einsaetze, role1: s.role1, role2: s.role2, anteil1: pctOrDash(s.anteilRole1),
       fail1: pctOrDash(s.fail.erst), delta1: ppDelta(s.fail.erst.pct, bench.fail.erst.pct), failW: pctOrDash(s.fail.wdh), deltaW: ppDelta(s.fail.wdh.pct, bench.fail.wdh.pct),
-      result: meanOrDash(s.result), deltaR: ppDelta(s.result.mean, bench.result.mean), erster: fmtDate(s.first), letzter: fmtDate(s.last), small: s.small,
+      result: meanOrDash(s.result), deltaR: ppDelta(s.result.mean, bench.result.mean), ...spreadCells('', s.spread), erster: fmtDate(s.first), letzter: fmtDate(s.last), small: s.small,
     })),
     empty: 'Keine Einsätze im aktiven Filter.',
     note: 'Beobachtungswerte, keine Leistungsbeurteilung: ein Einsatz zählt für beide Experten voll; Δ = Wert des Experten minus Benchmark aller Experten derselben Versuchsart, in Prozentpunkten, neutral dargestellt (E9). ' + SMALL_NOTE,

@@ -226,6 +226,9 @@ details.kpi-group > summary { list-style: none; }
 .kpi-delta.pos { color: var(--delta-pos); }
 .kpi-delta.neg { color: var(--delta-neg); }
 .kpi-delta.neutral { color: var(--delta-neutral); }
+/* Streuung (PROMPT-2 Paket G): Zweitzeile der Ø-Kacheln; Kurzform «σ x pp» nur auf Phone */
+.kpi-spread { font-size: var(--fs-xs); color: var(--muted); margin-top: var(--space-1); font-variant-numeric: tabular-nums; }
+.kpi-spread-short { display: none; }
 label.inline { display: inline-flex; align-items: center; gap: .4rem; }
 .kpi.small .kpi-value { color: var(--muted); }
 .block { margin: 1rem 0 1.5rem; }
@@ -345,6 +348,10 @@ td.pct { background-image: linear-gradient(to right, var(--bar) calc(var(--v) * 
 td.delta.pos { color: var(--delta-pos); }
 td.delta.neg { color: var(--delta-neg); }
 td.delta.neutral { color: var(--delta-neutral); }
+/* Einordnung (Paket G): Ton wie Δ, ohne Symbol – der Text trägt die Bedeutung */
+td.tone.pos { color: var(--delta-pos); }
+td.tone.neg { color: var(--delta-neg); }
+td.tone.neutral { color: var(--delta-neutral); }
 .delta-symbol { font-size: .8em; }
 .badge { display: inline-block; padding: .05rem var(--space-2); border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; line-height: 1.5; }
 .badge.status-bestanden { color: var(--status-bestanden); background: var(--status-bestanden-bg); }
@@ -413,6 +420,8 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .viz-leader { stroke: var(--viz-grid); stroke-width: 1; }
 .viz-key { stroke-width: 2; stroke-linecap: round; }
 .viz-cross { stroke: var(--viz-tick); stroke-width: 1; pointer-events: none; }
+.viz-bar { stroke: none; } /* Balkendiagramm (Paket G): Farbe über --series-n inline */
+.viz-bar:hover { opacity: .85; }
 .viz-tip { position: absolute; top: .5rem; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: .4rem .6rem; font-size: .8rem; box-shadow: 0 2px 8px var(--shadow); pointer-events: none; min-width: 12rem; }
 .viz-tip-x { font-weight: 600; margin-bottom: .2rem; }
 .viz-tip-row { display: flex; align-items: center; gap: .4rem; }
@@ -434,7 +443,8 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 /* Tabellenbreite (PROMPT-2 F.2, Option 1 vom 07.09.2026): Kopfzellen brechen um, Zahlenspalten mindestens 4.5rem, erste
    Spalte mindestens 9rem – bei aufklappbaren Tabellen die Spalte nach der Aufklapp-Spalte (ab Tablet; auf dem Phone würden
    die Mindestbreiten die Prio-1-Tabellen sprengen). Prio-3-Spalten unter 1200 px ausgeblendet, Schalter «Alle Spalten»
-   sichtbar; breite Tabellen (.wide, Experten mit 13 Spalten) blenden Prio 3 schon unter 1500 px aus (CI-Schriften: 1368 px bei 1400 px). Nur Bildschirm: der
+   sichtbar; breite Tabellen (.wide: Experten mit 17 Spalten, Ø-Tabellen mit Streuung ab Paket G) blenden Prio 3 unter 1900 px aus, also erst ab Full HD
+   vollständig (CI-Schriften: 1368 px bei 1400 px für 13 Spalten, 1761 px bei 1800 px für 17 Spalten). Nur Bildschirm: der
    Druck behält alle Spalten. */
 @media screen and (min-width: 601px) {
   table.data th.num { min-width: 4.5rem; }
@@ -444,7 +454,7 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .table-wrap:not(.all-columns) th[data-prio="3"], .table-wrap:not(.all-columns) td[data-prio="3"] { display: none; }
   .table-wrap .all-columns { display: inline-block; margin: var(--space-1) 0 var(--space-2); }
 }
-@media screen and (max-width: 1499px) {
+@media screen and (max-width: 1899px) {
   .table-wrap.wide:not(.all-columns) > table > thead > tr > th[data-prio="3"], .table-wrap.wide:not(.all-columns) > table > tbody > tr > td[data-prio="3"] { display: none; }
   .table-wrap.wide > .all-columns { display: inline-block; margin: var(--space-1) 0 var(--space-2); }
 }
@@ -509,6 +519,8 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .datastand-actions { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; margin-top: var(--space-1); }
   /* B.3: Kacheln nur mit Label, Wert, n und Δ-Symbol/Wert */
   .kpi-delta-vs { display: none; }
+  .kpi-spread-full { display: none; } /* Paket G, Entscheid 6: Phone nur «σ x pp» */
+  .kpi-spread-short { display: inline; }
   /* C.4: Personen – Pfad vertikal (Pfeil nach unten), Stammdaten einspaltig, Karten und Detail randnah, Suchfeld volle Breite */
   .person-path { flex-direction: column; gap: var(--space-1); }
   .person-path li + li { margin-left: 0; margin-top: 1.25rem; }

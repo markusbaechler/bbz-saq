@@ -87,6 +87,7 @@ try {
   const bankTables = await page.$$eval('#view table caption', (c) => c.map((x) => x.textContent));
   check(bankTables.length >= 3 && bankTables.every((t) => /Testbank AG/.test(t)), 'Bank-Report mit Bank: ' + bankTables.length + ' Tabellen (' + bankTables.join(' | ') + ')');
   check(!(await page.textContent('#view')).includes('Muster Anna'), 'Bank-Report ohne Namen');
+  check((await page.$$eval('#view thead th', (th) => th.map((x) => x.textContent))).includes('Einordnung') && (await page.locator('#view td.tone').count()) >= 5, 'Bank-Report: Spalte «Einordnung» mit Ton je Kennzahlzeile (' + (await page.locator('#view td.tone').count()) + ')');
   await shot(page, 'bank-report-mit-bank');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
@@ -102,6 +103,13 @@ try {
   check((await page.$$eval('#view .kpi-group h3', (h) => h.map((x) => x.textContent))).join(',') === 'Mengen,Schriftlich,Mündlich', 'Übersicht: Kacheln in drei Blöcken (Mengen · Schriftlich · Mündlich)');
   check((await page.locator('#view .kpi-hint').count()) === 0 && (await page.locator('#view .kpi .info').count()) >= 10 && (await page.locator('#view .kpi-label a[href*="begriff="]').count()) >= 10, 'Kacheln ohne Definitionsabsatz, mit ⓘ und Glossar-Link');
   check((await page.locator('#view td.pct[style*="--v"]').count()) >= 4, 'Datenbalken in Prozentspalten (Kennzahlen je Profil)');
+  // Streuung (PROMPT-2 Paket G, G.3): Zweitzeile «σ … · Median … (P25 … · P75 …)» auf den vier Ø-Kacheln (Kurzform nur auf Phone);
+  // Spalte «Einordnung» der Benchmark-Tabelle: Effektstärke bei Ø, Wilson-Intervall bei Quoten, Ton wie Δ (td.tone), Mengen ohne
+  const spreads = await page.$$eval('#view .kpi .kpi-spread-full', (s) => s.map((x) => x.textContent.trim()));
+  const spreadShortHidden = await page.evaluate(() => [...document.querySelectorAll('#view .kpi .kpi-spread-short')].every((x) => x.getClientRects().length === 0));
+  check(spreads.length === 4 && spreads.every((t) => /^σ \d+\.\d pp · Median \d+\.\d % \(P25 \d+\.\d · P75 \d+\.\d\)$/.test(t)) && spreadShortHidden, 'Übersicht: Streuungszeile auf den vier Ø-Kacheln, Kurzform ausgeblendet (' + spreads.length + ', z. B. «' + (spreads[0] || '') + '»)');
+  const einordnung = await page.$$eval('#view td.tone', (t) => t.map((x) => x.textContent.trim()));
+  check(einordnung.length >= 8 && einordnung.some((t) => /^d [+−]?\d\.\d · (gering|mittel|deutlich|gross)$/.test(t)) && einordnung.some((t) => /^±\d+\.\d pp · Benchmark im Intervall: (ja|nein)$/.test(t)) && (await page.$$eval('#view thead th', (th) => th.map((x) => x.textContent))).includes('Einordnung') && (await page.locator('#view td.tone.neutral, #view td.tone.pos, #view td.tone.neg').count()) === einordnung.length, 'Übersicht: Spalte «Einordnung» mit Effektstärke und Wilson-Intervall, Ton je Zelle (' + einordnung.length + ' Zellen, z. B. «' + (einordnung[0] || '') + '»)');
   await page.locator('#filterbar label:has-text("Bank") select').selectOption({ label: 'Testbank AG' });
   await page.waitForSelector('#view .kpi-delta');
   const deltas = await page.$$eval('#view .kpi-delta', (d) => d.map((x) => x.textContent.trim()));
@@ -111,6 +119,30 @@ try {
   await shot(page, 'uebersicht-benchmark');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
+  // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
+  // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
+  for (const v of ['schriftlich', 'muendlich']) {
+    await page.goto(server.url + '#' + v);
+    await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
+    const bars = await page.evaluate(() => ({
+      svg: document.querySelectorAll('#view svg.viz-bars').length, rects: document.querySelectorAll('#view svg.viz-bars rect.viz-bar').length,
+      legend: document.querySelectorAll('#view .viz-legend-item').length, twin: [...document.querySelectorAll('#view table caption')].some((c) => /Verteilung der Resultate/.test(c.textContent)),
+      ticks: [...document.querySelectorAll('#view svg.viz-bars text.viz-tick')].map((t) => t.textContent),
+    }));
+    check(bars.svg === 1 && bars.rects >= 10 && bars.legend === 2 && bars.twin && bars.ticks.includes('90–100') && bars.ticks.some((t) => /%$/.test(t)), 'Ansicht ' + v + ': Histogramm der Resultate (' + bars.rects + ' Balken, 2 Reihen, Tabellen-Zwilling, Klassen bis 90–100)');
+  }
+  await page.focus('#view svg.viz-bars');
+  await page.keyboard.press('ArrowLeft');
+  const barTip = await page.evaluate(() => { const t = document.querySelector('#view .viz-tip'); return { hidden: !t || t.hidden, text: t ? t.textContent : '' }; });
+  check(!barTip.hidden && /Auswahl/.test(barTip.text) && /%/.test(barTip.text), 'Histogramm: Tooltip per Tastatur (' + barTip.text.slice(0, 70) + ')');
+  await page.selectOption('#filterbar label:has-text("Profil") select', 'IK');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  check((await page.locator('#view svg.viz-bars').count()) === 0 && /Verteilung erst ab 5/.test(await page.textContent('#view')) && (await page.locator('#view table caption:has-text("Verteilung der Resultate")').count()) === 1, 'Histogramm: Profil IK (n < 5) → Hinweis statt Diagramm, Tabelle bleibt');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
 
   // Tastatur (A.8): mit Tab von oben durch Navigation und Filterleiste bis zum Export-Menü
   // Startpunkt der Tab-Reihenfolge an den Seitenanfang setzen (nach einem ausgeblendeten Button läge er sonst dahinter)
@@ -361,6 +393,10 @@ try {
   const darkBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   check(darkBg === 'rgb(20, 22, 26)', 'Dark Mode: Übersicht mit dunklem Hintergrund (' + darkBg + ')');
   await shot(page, 'dark-uebersicht');
+  await page.goto(server.url + '#schriftlich');
+  await page.waitForSelector('#view svg.viz-bars');
+  check((await page.locator('#view svg.viz-bars rect.viz-bar').count()) >= 10, 'Dark Mode: Schriftlich mit Histogramm gerendert');
+  await shot(page, 'dark-schriftlich');
   await page.emulateMedia({ colorScheme: 'light' });
 
   // Druck (A.8): Legende geöffnet, Datenbalken hell und grau, Kopf-Aktionen ausgeblendet
@@ -430,6 +466,8 @@ try {
   await phone.waitForSelector('#view .kpi-groups'); // erste Kachel liegt auf Phone im geschlossenen Block «Mengen»
   const kpiGroups = await phone.$$eval('#view details.kpi-group', (ds) => ds.map((d) => d.querySelector('summary').textContent + ':' + (d.open ? 'offen' : 'zu')));
   const kpiCols = await phone.evaluate(() => { const k = document.querySelector('#view details.kpi-group[open] .kpis'); return k ? getComputedStyle(k).gridTemplateColumns.split(' ').length : 0; });
+  const phoneSpread = await phone.evaluate(() => { const full = document.querySelector('#view details.kpi-group[open] .kpi-spread-full'); const short = document.querySelector('#view details.kpi-group[open] .kpi-spread-short'); return { full: full ? full.getClientRects().length : -1, short: short ? short.getClientRects().length : -1, text: short ? short.textContent.trim() : '' }; });
+  check(phoneSpread.full === 0 && phoneSpread.short > 0 && /^σ \d+\.\d pp$/.test(phoneSpread.text), 'Phone: Streuung nur als Kurzform «σ x pp» (' + phoneSpread.text + ')');
   check(kpiGroups.join(',') === 'Mengen:zu,Schriftlich:offen,Mündlich:offen' && kpiCols === 2, 'Phone: Kachel-Blöcke als details (' + kpiGroups.join(', ') + '), zwei Spalten');
   const deltaVs = await phone.evaluate(() => { const s = [...document.querySelectorAll('#view .kpi-delta-vs')]; return { n: s.length, hidden: s.every((x) => getComputedStyle(x).display === 'none') }; });
   check(deltaVs.n >= 5 && deltaVs.hidden, 'Phone: Delta nur mit Symbol und Wert, «vs. Benchmark» ausgeblendet (' + deltaVs.n + ')');
@@ -438,6 +476,10 @@ try {
   await phone.waitForSelector('#view svg');
   const compactSvg = await phone.evaluate(() => ({ viewBox: document.querySelector('#view svg').getAttribute('viewBox'), labels: document.querySelectorAll('#view .viz-label').length, tip: (() => { const t = document.querySelector('#view .viz.compact .viz-tip'); return t ? getComputedStyle(t).position : 'fehlt'; })() }));
   check(compactSvg.viewBox === '0 0 360 200' && compactSvg.labels === 0 && compactSvg.tip === 'static', 'Phone: kompaktes Diagramm 360 × 200 ohne Endbeschriftung, Tooltip unter dem Diagramm (' + JSON.stringify(compactSvg) + ')');
+  await phone.goto(server.url + '#schriftlich');
+  await phone.waitForSelector('#view svg.viz-bars', { state: 'attached' });
+  const phoneBars = await phone.evaluate(() => { const s = document.querySelector('#view svg.viz-bars'); const d = s.closest('details'); return { viewBox: s.getAttribute('viewBox'), folded: !!d && !d.open, ticks: [...s.querySelectorAll('text.viz-tick')].filter((t) => /–/.test(t.textContent)).length }; });
+  check(phoneBars.viewBox === '0 0 360 200' && phoneBars.folded && phoneBars.ticks === 5, 'Phone Schriftlich: kompaktes Histogramm 360 × 200 im eingeklappten Abschnitt, jede zweite Klasse beschriftet (' + JSON.stringify(phoneBars) + ')');
   await phone.screenshot({ path: join(outDir, 'phone-zeitverlauf-kompakt.png'), fullPage: true });
 
   // Phone (B.4): priorisierte Ansichten – Nebenabschnitte eingeklappt, Kernspalten sichtbar
@@ -545,7 +587,7 @@ try {
   await page.setViewportSize({ width: 1400, height: 1000 });
 
   // Tabellenbreite (PROMPT-2 F.2, Option 1): ab 1280 px keine Tabelle mit horizontalem Überlauf in Übersicht, Schriftlich, Mündlich,
-  // Experten; Prio 3 ab 1200 px sichtbar, die breite Experten-Tabelle (.wide) zeigt Prio 3 erst ab 1500 px (1400 px reichte in der CI nicht); darunter Schalter «Alle Spalten»
+  // Experten; Prio 3 ab 1200 px sichtbar, die breite Experten-Tabelle (.wide) zeigt Prio 3 erst ab 1900 px, Full HD (17 Spalten mit Streuung, Paket G; 1400, 1600 und 1800 px reichten in der CI nicht); darunter Schalter «Alle Spalten»
   const tableViews = ['uebersicht', 'schriftlich', 'muendlich', 'experten'];
   const tableState = () => page.evaluate(() => {
     const wraps = [...document.querySelectorAll('#view .table-wrap')];
@@ -559,22 +601,44 @@ try {
     return { n: wraps.length, over, wide: document.querySelectorAll('#view .table-wrap.wide').length, p3: normal.length, p3Shown: shown(normal), p3Hidden: hidden(normal),
       wideP3: wide.length, wideShown: shown(wide), wideHidden: hidden(wide), toggles: toggles('#view .table-wrap:not(.wide) > .all-columns'), wideToggles: toggles('#view .table-wrap.wide > .all-columns') };
   });
-  for (const [w, h] of [[1280, 900], [1400, 1000], [1600, 1000]]) {
+  for (const [w, h] of [[1280, 900], [1400, 1000], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
     for (const v of tableViews) {
       await page.goto(server.url + '#' + v);
       await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
       const t = await tableState();
-      const wideOk = v === 'experten' ? (t.wide === 1 && t.wideP3 > 0 && (w >= 1500 ? t.wideShown && t.wideToggles === 0 : t.wideHidden && t.wideToggles === 1)) : t.wide === 0;
-      check(t.n > 0 && t.over.length === 0 && t.p3 > 0 && t.p3Shown && t.toggles === 0 && wideOk, 'Desktop ' + w + ' px ' + v + ': ' + t.n + ' Tabellen ohne Überlauf, Prio-3-Spalten sichtbar' + (v === 'experten' ? (w >= 1500 ? ', Experten-Tabelle vollständig' : ', Experten-Tabelle ohne Prio 3 mit Schalter «Alle Spalten»') : '') + (t.over.length ? ' – Überlauf: ' + t.over.join(' | ') : ''));
+      // Breite Tabellen (wide: Experten, ab Paket G auch Ø-Tabellen mit Streuung) zeigen Prio 3 erst ab 1900 px, darunter Schalter je Tabelle
+      const expectedWide = { uebersicht: 0, schriftlich: 4, muendlich: 4, experten: 1 }[v];
+      const wideOk = t.wide === expectedWide && (t.wide === 0 || (t.wideP3 > 0 && (w >= 1900 ? t.wideShown && t.wideToggles === 0 : t.wideHidden && t.wideToggles === t.wide)));
+      check(t.n > 0 && t.over.length === 0 && t.p3 > 0 && t.p3Shown && t.toggles === 0 && wideOk, 'Desktop ' + w + ' px ' + v + ': ' + t.n + ' Tabellen ohne Überlauf, Prio-3-Spalten sichtbar' + (expectedWide ? ', ' + t.wide + ' breite Tabelle(n) ' + (w >= 1900 ? 'vollständig' : 'ohne Prio 3 mit Schalter «Alle Spalten»') : '') + (t.over.length ? ' – Überlauf: ' + t.over.join(' | ') : ''));
       if (w === 1280) await page.screenshot({ path: join(outDir, 'desktop-1280-' + v + '.png') });
     }
   }
+  // Streuungsspalten (G.3): bei 1920 px sichtbar, Lagewerte in % ohne Datenbalken (bar: false), Ø behält den Balken
+  await page.goto(server.url + '#schriftlich');
+  await page.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'schriftlich' && !!document.querySelector('#view h2'), null, { timeout: 5000 });
+  const lage = await page.evaluate(() => {
+    let cells = 0, bars = 0, sigma = 0, meanBars = 0;
+    const sigmaTh = [...document.querySelectorAll('#view thead th')].find((x) => x.textContent.trim() === 'σ (1. Versuch)');
+    for (const table of document.querySelectorAll('#view table.data')) {
+      const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+      const idx = heads.map((h, i) => (/^(Median|P25|P75) \(/.test(h) ? i : -1)).filter((i) => i >= 0);
+      const meanIdx = heads.map((h, i) => (/^Ø Resultat/.test(h) ? i : -1)).filter((i) => i >= 0);
+      for (const tr of table.querySelectorAll('tbody tr')) {
+        const tds = tr.querySelectorAll('td');
+        for (const i of idx) if (tds[i]) { cells++; if (tds[i].classList.contains('pct')) bars++; }
+        for (const i of meanIdx) if (tds[i] && tds[i].classList.contains('pct')) meanBars++;
+        for (const td of tds) if (/^\d+\.\d pp$/.test(td.textContent.trim())) sigma++;
+      }
+    }
+    return { visible: !!sigmaTh && sigmaTh.getClientRects().length > 0, cells, bars, sigma, meanBars };
+  });
+  check(lage.visible && lage.cells > 0 && lage.bars === 0 && lage.sigma > 0 && lage.meanBars > 0, 'Desktop 1920 px Schriftlich: σ-Spalten sichtbar (' + lage.sigma + ' σ-Zellen), Median/P25/P75 ohne Datenbalken (' + lage.cells + ' Zellen), Balken auf Ø (' + lage.meanBars + ')');
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.goto(server.url + '#schriftlich');
   await page.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'schriftlich' && !!document.querySelector('#view h2'), null, { timeout: 5000 });
   const t1100 = await tableState();
-  check(t1100.p3 > 0 && t1100.p3Hidden && t1100.toggles === t1100.n && t1100.over.length === 0, 'Desktop 1100 px Schriftlich: Prio-3-Spalten ausgeblendet, Schalter «Alle Spalten» je Tabelle (' + t1100.toggles + ' von ' + t1100.n + '), kein Überlauf');
+  check(t1100.p3 > 0 && t1100.p3Hidden && t1100.wideHidden && t1100.toggles + t1100.wideToggles === t1100.n && t1100.over.length === 0, 'Desktop 1100 px Schriftlich: Prio-3-Spalten ausgeblendet, Schalter «Alle Spalten» je Tabelle (' + (t1100.toggles + t1100.wideToggles) + ' von ' + t1100.n + '), kein Überlauf');
   await page.screenshot({ path: join(outDir, 'desktop-1100-schriftlich.png') });
   await page.setViewportSize({ width: 1400, height: 1000 });
 
