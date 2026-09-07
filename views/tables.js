@@ -139,7 +139,7 @@ export function performanceTable(persons, key, kind = 'written') {
   for (const g of byGroup(persons, key, (ps) => ps)) rows.push(row(groupLabel(g.key), g.value));
   return {
     title: 'Ø Resultat ' + (kind === 'oral' ? 'mündlich' : 'schriftlich') + ' nach ' + GROUP_LABELS[key],
-    wide: true, // 13 Spalten mit Streuung: Prio 3 erst ab 1800 px (F.2, Paket G)
+    wide: true, // 13 Spalten mit Streuung: Prio 3 erst ab 1900 px, Full HD (F.2, Paket G)
     columns: [col('gruppe', GROUP_LABELS[key], 1), col('n', 'n (1. Versuch)', 2), col('mean1', 'Ø Resultat 1. Versuch', 1), ...spreadColumns('1', '1. Versuch'), col('n2', 'n (bestanden)', 2), col('mean2', 'Ø Resultat bestandener Run', 1), ...spreadColumns('2', 'bestandener Run')],
     rows,
     note: SMALL_NOTE + '; Resultat = erreichte Punkte in Prozent; n = Vorgänge mit Wert; «bestandener Run» nur für Vorgänge, deren absolvierte Teilprüfungen alle bestanden sind; ' + SPREAD_NOTE,
@@ -155,7 +155,7 @@ export function partTable(persons, kind = 'we') {
   }));
   return {
     title: (kind === 'oe' ? 'Mündlich' : 'Schriftlich') + ' je Teilprüfung',
-    wide: true, // 15 Spalten mit Streuung: Prio 3 erst ab 1800 px (F.2, Paket G)
+    wide: true, // 15 Spalten mit Streuung: Prio 3 erst ab 1900 px, Full HD (F.2, Paket G)
     columns: [col('gruppe', 'Teilprüfung', 1), col('n', 'n', 1), col('bestanden1', 'Im 1. Versuch bestanden', 1), col('durchgefallen1', 'Im 1. Versuch durchgefallen', 2), col('gesamt', 'Insgesamt bestanden', 2), col('mean1', 'Ø Resultat 1. Versuch', 1), ...spreadColumns('1', '1. Versuch'), col('mean2', 'Ø Resultat bestandener Run', 3), ...spreadColumns('2', 'bestandener Run')],
     rows,
     note: SMALL_NOTE + '; n = Vorgänge mit absolviertem RUN1 der Teilprüfung; ' + SPREAD_NOTE,
@@ -764,7 +764,7 @@ export function difficultyTables(persons) {
   const cells = partDifficultyByYear(persons);
   const long = {
     title: 'Schwierigkeit je Teilprüfung und Jahr',
-    wide: true, // 16 Spalten mit Streuung: Prio 3 erst ab 1800 px (F.2, Paket G)
+    wide: true, // 16 Spalten mit Streuung: Prio 3 erst ab 1900 px, Full HD (F.2, Paket G)
     columns: [col('jahr', 'Jahr', 1), col('teil', 'Teilprüfung', 1), col('n', 'n', 2), col('durchgefallen', 'Im 1. Versuch durchgefallen', 1), col('bestanden', 'Im 1. Versuch bestanden', 3), col('mean1', 'Ø Resultat 1. Versuch', 2), ...spreadColumns('1', '1. Versuch'), col('mean2', 'Ø Resultat bestandener Run', 3), ...spreadColumns('2', 'bestandener Run')],
     rows: cells.map((c) => ({ jahr: c.year, teil: mark(c.part, c.small), n: c.n, small: c.small, durchgefallen: formatPct(c.failed.pct), bestanden: formatPct(c.passed.pct), mean1: formatPct(c.meanFirst.mean), ...spreadCells('1', c.spreadFirst), mean2: formatPct(c.meanPassed.mean), ...spreadCells('2', c.spreadPassed) })),
     note: SMALL_NOTE + '; Jahr = Datum des ersten Versuchs (RUN1) der Teilprüfung; n = Vorgänge mit absolviertem, datiertem RUN1; ' + SPREAD_NOTE,
@@ -1089,7 +1089,7 @@ export function expertTables(runs, { deltaDirection = 'neutral' } = {}) {
   const delta = (key, label, prio) => col(key, label, prio, { direction: deltaDirection });
   const main = {
     title: 'Experten',
-    wide: true, // 17 Spalten (13 + Streuung): Prio 3 erst ab 1800 px statt 1200 px (PROMPT-2 F.2, Option 1, 07.09.2026; mit Streuung 17 Spalten, 1600 px reichte nicht)
+    wide: true, // 17 Spalten (13 + Streuung): Prio 3 erst ab 1900 px statt 1200 px (PROMPT-2 F.2, Option 1, 07.09.2026; mit Streuung 17 Spalten, in der CI 1761 px breit)
     columns: [
       col('experte', 'Experte', 1), col('einsaetze', 'Einsätze', 1), col('role1', 'als Experte 1', 2), col('role2', 'als Experte 2', 2), col('anteil1', 'Anteil Experte 1', 2),
       col('fail1', 'Durchfallquote 1. Versuch', 1), delta('delta1', 'Δ 1. Versuch', 1), col('failW', 'Durchfallquote Wiederholung', 2), delta('deltaW', 'Δ Wiederholung', 2),

@@ -545,7 +545,7 @@ try {
   await page.setViewportSize({ width: 1400, height: 1000 });
 
   // Tabellenbreite (PROMPT-2 F.2, Option 1): ab 1280 px keine Tabelle mit horizontalem Überlauf in Übersicht, Schriftlich, Mündlich,
-  // Experten; Prio 3 ab 1200 px sichtbar, die breite Experten-Tabelle (.wide) zeigt Prio 3 erst ab 1800 px (17 Spalten mit Streuung, Paket G; 1400 und 1600 px reichten in der CI nicht); darunter Schalter «Alle Spalten»
+  // Experten; Prio 3 ab 1200 px sichtbar, die breite Experten-Tabelle (.wide) zeigt Prio 3 erst ab 1900 px, Full HD (17 Spalten mit Streuung, Paket G; 1400, 1600 und 1800 px reichten in der CI nicht); darunter Schalter «Alle Spalten»
   const tableViews = ['uebersicht', 'schriftlich', 'muendlich', 'experten'];
   const tableState = () => page.evaluate(() => {
     const wraps = [...document.querySelectorAll('#view .table-wrap')];
@@ -559,16 +559,16 @@ try {
     return { n: wraps.length, over, wide: document.querySelectorAll('#view .table-wrap.wide').length, p3: normal.length, p3Shown: shown(normal), p3Hidden: hidden(normal),
       wideP3: wide.length, wideShown: shown(wide), wideHidden: hidden(wide), toggles: toggles('#view .table-wrap:not(.wide) > .all-columns'), wideToggles: toggles('#view .table-wrap.wide > .all-columns') };
   });
-  for (const [w, h] of [[1280, 900], [1400, 1000], [1800, 1000]]) {
+  for (const [w, h] of [[1280, 900], [1400, 1000], [1920, 1080]]) {
     await page.setViewportSize({ width: w, height: h });
     for (const v of tableViews) {
       await page.goto(server.url + '#' + v);
       await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
       const t = await tableState();
-      // Breite Tabellen (wide: Experten, ab Paket G auch Ø-Tabellen mit Streuung) zeigen Prio 3 erst ab 1800 px, darunter Schalter je Tabelle
+      // Breite Tabellen (wide: Experten, ab Paket G auch Ø-Tabellen mit Streuung) zeigen Prio 3 erst ab 1900 px, darunter Schalter je Tabelle
       const expectedWide = { uebersicht: 0, schriftlich: 4, muendlich: 4, experten: 1 }[v];
-      const wideOk = t.wide === expectedWide && (t.wide === 0 || (t.wideP3 > 0 && (w >= 1800 ? t.wideShown && t.wideToggles === 0 : t.wideHidden && t.wideToggles === t.wide)));
-      check(t.n > 0 && t.over.length === 0 && t.p3 > 0 && t.p3Shown && t.toggles === 0 && wideOk, 'Desktop ' + w + ' px ' + v + ': ' + t.n + ' Tabellen ohne Überlauf, Prio-3-Spalten sichtbar' + (expectedWide ? ', ' + t.wide + ' breite Tabelle(n) ' + (w >= 1800 ? 'vollständig' : 'ohne Prio 3 mit Schalter «Alle Spalten»') : '') + (t.over.length ? ' – Überlauf: ' + t.over.join(' | ') : ''));
+      const wideOk = t.wide === expectedWide && (t.wide === 0 || (t.wideP3 > 0 && (w >= 1900 ? t.wideShown && t.wideToggles === 0 : t.wideHidden && t.wideToggles === t.wide)));
+      check(t.n > 0 && t.over.length === 0 && t.p3 > 0 && t.p3Shown && t.toggles === 0 && wideOk, 'Desktop ' + w + ' px ' + v + ': ' + t.n + ' Tabellen ohne Überlauf, Prio-3-Spalten sichtbar' + (expectedWide ? ', ' + t.wide + ' breite Tabelle(n) ' + (w >= 1900 ? 'vollständig' : 'ohne Prio 3 mit Schalter «Alle Spalten»') : '') + (t.over.length ? ' – Überlauf: ' + t.over.join(' | ') : ''));
       if (w === 1280) await page.screenshot({ path: join(outDir, 'desktop-1280-' + v + '.png') });
     }
   }
