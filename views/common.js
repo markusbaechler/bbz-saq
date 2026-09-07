@@ -85,7 +85,7 @@ function allColumnsToggle(wrap, columns) {
 }
 
 // Tabellenmodell → <div class="table-wrap"><table>…; Zeilen mit small=true erhalten die Klasse «small».
-// table.wide = true (breite Tabellen, z. B. Experten mit 13 Spalten): Klasse «wide» am Rahmen, Prio 3 erst ab 1500 px (F.2).
+// table.wide = true (breite Tabellen, z. B. Experten mit 13 Spalten): Klasse «wide» am Rahmen, Prio 3 erst ab 1800 px (F.2, Paket G).
 // Fussnoten (note) erscheinen nicht mehr unter der Tabelle, sondern als ⓘ am Titel und in der Legende der View.
 export function renderTable(table, { caption = true } = {}) {
   const numeric = numericColumns(table); // Befund 13: Zahlen- und Prozentspalten rechtsbündig

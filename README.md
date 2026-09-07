@@ -55,8 +55,8 @@ Vorzeichen und Farbe nach Richtung der Kennzahl (▲ +2.1 pp; höher ist besser 
 ist besser bei Durchfallquoten und passiven Vorgängen; unter 0.5 pp neutral ●). In Tabellen tragen Prozentspalten einen
 Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die erste Spalte bleibt beim horizontalen
 Scrollen stehen. Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
-1200 px) für schmale Bildschirme; unter 1200 px blendet «Alle Spalten» die Prio-3-Spalten ein; die Experten-Tabelle mit 13 Spalten zeigt Prio 3
-erst ab 1500 px. Kopfzellen brechen um, Zahlen nicht (Paket F).
+1200 px) für schmale Bildschirme; unter 1200 px blendet «Alle Spalten» die Prio-3-Spalten ein; breite Tabellen (Experten, Ø-Tabellen mit Streuung) zeigen Prio 3
+erst ab 1800 px. Kopfzellen brechen um, Zahlen nicht (Paket F).
 
 **Mobile:** Phone bis 600 px, Tablet 601–900 px, darüber Desktop; der Druck behält immer das Desktop-Layout. Auf dem
 Phone gilt: Grundschrift 16 px, Touch-Ziele mindestens 44 px, nie horizontaler Seitenscroll (nur Tabellen scrollen in
@@ -68,7 +68,7 @@ Initialen-Button mit «Abmelden». Tabellen zeigen nur Spalten der Priorität 1 
 nur Label, Wert, n und Delta-Symbol; Diagramme sind kompakt (360 × 200, Tooltip darunter). Vollständig für das Phone
 gestaltet sind Übersicht, Offene Vorgänge, Geplante Prüfungen, Personen und Experten (Nebenabschnitte eingeklappt); die übrigen Ansichten
 funktionieren ohne Überlauf. Die Anmeldung auf dem Phone läuft direkt über den Redirect-Flow von MSAL (kein Popup); der
-manuelle Gerätetest liegt beim Auftraggeber. Der Smoke-Test prüft die Viewports 1400 × 1000, 820 × 1180 und 390 × 844 sowie die Desktop-Breiten 1100, 1280 und 1600 px
+manuelle Gerätetest liegt beim Auftraggeber. Der Smoke-Test prüft die Viewports 1400 × 1000, 820 × 1180 und 390 × 844 sowie die Desktop-Breiten 1100, 1280, 1400 und 1800 px
 (Navigation ohne Scroll, Tabellen ohne Überlauf, Filterleiste einzeilig; Paket F).
 
 ## Globale Filter

@@ -12,7 +12,7 @@ import {
   profileParts, partsOutsideProfile, personIndex, passerelleFrom,
   normalizeNamePart, personSearchIndex, searchPersons, personPath, runTimeline, examGrid,
   expertRuns, expertStats, expertBenchmark, expertPairs,
-  dispersion, writtenDispersion, oralDispersion, wilsonInterval, effectSize,
+  dispersion, writtenDispersion, oralDispersion, wilsonInterval, effectSize, reportedDispersion,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -240,7 +240,7 @@ test('partFirstAttempt: je Teilprüfung n, 1. Versuch bestanden/durchgefallen, i
   assertEqual([we2.passed, we2.failed, we2.anyPassed], [ratio(2, 3), ratio(1, 3), ratio(2, 3)]);
   assertClose(we2.meanPassed.mean, 0.6);
   assertEqual(we2.meanPassed.n, 2);
-  assertEqual(parts[2], { part: 3, label: 'WE3', n: 0, passed: ratio(0, 0), failed: ratio(0, 0), anyPassed: ratio(0, 0), meanFirst: { mean: null, n: 0 }, meanPassed: { mean: null, n: 0 } });
+  assertEqual(parts[2], { part: 3, label: 'WE3', n: 0, passed: ratio(0, 0), failed: ratio(0, 0), anyPassed: ratio(0, 0), meanFirst: { mean: null, n: 0 }, meanPassed: { mean: null, n: 0 }, spreadFirst: { n: 0, mean: null, sd: null, median: null, p25: null, p75: null, small: true }, spreadPassed: { n: 0, mean: null, sd: null, median: null, p25: null, p75: null, small: true } });
   const oe = partFirstAttempt([simple()], 'oe');
   assertEqual(oe.map((p) => p.label), ['OE1', 'OE2']);
   assertEqual(oe[0].passed, ratio(1, 1));
@@ -849,6 +849,27 @@ test('metrics.effectSize: d = (Ø Auswahl − Ø Benchmark) / σ(Benchmark) mit 
   assertEqual(effectSize(0.75, 0.70, 0), { d: null, label: null }, 'σ(Benchmark) = 0');
   assertEqual(effectSize(0.75, 0.70, null), { d: null, label: null });
   assertEqual(effectSize(null, 0.70, 0.10), { d: null, label: null });
+});
+
+test('metrics.reportedDispersion / partFirstAttempt / partDifficultyByYear / expertStats: Streuung mitgeliefert, unter 5 Werten null (G.2)', () => {
+  assertEqual(reportedDispersion([0.7, 0.8, 0.9]).sd, null);
+  assertClose(reportedDispersion([0.6, 0.7, 0.8, 0.9, 1.0]).sd, Math.sqrt(0.025));
+  const persons = [0.6, 0.7, 0.8, 0.9, 1.0].map((r) => simple({
+    we: { 1: [{ passed: true, date: '2024-03-01', result: r }], 2: [{ passed: true, date: '2024-03-01', result: r }] },
+    oe: { 1: [{ passed: true, date: '2024-06-01', result: r }] },
+  }));
+  const we1 = partFirstAttempt(persons, 'we')[0];
+  assertClose(we1.spreadFirst.sd, Math.sqrt(0.025));
+  assertClose(we1.spreadPassed.median, 0.8);
+  assertClose(we1.meanFirst.mean, we1.spreadFirst.mean, 1e-12, 'Mittel unverändert');
+  const cell = partDifficultyByYear(persons)[0];
+  assertClose(cell.spreadFirst.sd, Math.sqrt(0.025));
+  assertEqual(partFirstAttempt(persons.slice(0, 3), 'we')[0].spreadFirst.sd, null, 'n < 5');
+  const runs = expertRuns(expertCohort());
+  const stats = expertStats(runs);
+  assert(stats.length > 0 && stats.every((s) => s.spread && s.spread.n <= s.einsaetze && (s.spread.n < 5 ? s.spread.sd === null : typeof s.spread.sd === 'number')), 'je Experte: Streuung über die Einsätze mit Wert, null unter 5');
+  const bench = expertBenchmark(runs);
+  assertEqual(bench.spread.n, runs.filter((r) => typeof r.result === 'number').length, 'Benchmark: Streuung aller Einsätze mit Wert');
 });
 
 test('passiveCases: offene Vorgänge mit Kennzeichen passiv (store setzt es beim Laden); Tage aus today', () => {

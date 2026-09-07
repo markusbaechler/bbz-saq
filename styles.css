@@ -434,7 +434,8 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 /* Tabellenbreite (PROMPT-2 F.2, Option 1 vom 07.09.2026): Kopfzellen brechen um, Zahlenspalten mindestens 4.5rem, erste
    Spalte mindestens 9rem – bei aufklappbaren Tabellen die Spalte nach der Aufklapp-Spalte (ab Tablet; auf dem Phone würden
    die Mindestbreiten die Prio-1-Tabellen sprengen). Prio-3-Spalten unter 1200 px ausgeblendet, Schalter «Alle Spalten»
-   sichtbar; breite Tabellen (.wide, Experten mit 13 Spalten) blenden Prio 3 schon unter 1500 px aus (CI-Schriften: 1368 px bei 1400 px). Nur Bildschirm: der
+   sichtbar; breite Tabellen (.wide: Experten mit 17 Spalten, Ø-Tabellen mit Streuung ab Paket G) blenden Prio 3 schon unter 1800 px aus
+   (CI-Schriften: 1368 px bei 1400 px für 13 Spalten; 17 Spalten überlaufen bei 1600 px). Nur Bildschirm: der
    Druck behält alle Spalten. */
 @media screen and (min-width: 601px) {
   table.data th.num { min-width: 4.5rem; }
@@ -444,7 +445,7 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .table-wrap:not(.all-columns) th[data-prio="3"], .table-wrap:not(.all-columns) td[data-prio="3"] { display: none; }
   .table-wrap .all-columns { display: inline-block; margin: var(--space-1) 0 var(--space-2); }
 }
-@media screen and (max-width: 1499px) {
+@media screen and (max-width: 1799px) {
   .table-wrap.wide:not(.all-columns) > table > thead > tr > th[data-prio="3"], .table-wrap.wide:not(.all-columns) > table > tbody > tr > td[data-prio="3"] { display: none; }
   .table-wrap.wide > .all-columns { display: inline-block; margin: var(--space-1) 0 var(--space-2); }
 }

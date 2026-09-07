@@ -442,6 +442,8 @@ export function partFirstAttempt(persons, kind = 'we') {
       anyPassed: ratio(withRun1.filter((p) => p[kind][i].runs.some((r) => r.passed === true)).length, n),
       meanFirst: mean(withRun1.map((p) => partResult(p[kind][i], MODE.ERSTVERSUCH))),
       meanPassed: mean(withRun1.map((p) => partResult(p[kind][i], MODE.BESTANDEN))),
+      spreadFirst: reportedDispersion(withRun1.map((p) => partResult(p[kind][i], MODE.ERSTVERSUCH))), // Streuung (Paket G)
+      spreadPassed: reportedDispersion(withRun1.map((p) => partResult(p[kind][i], MODE.BESTANDEN))),
     });
   }
   return out;
@@ -507,9 +509,10 @@ export function dispersion(values) {
   return { n: q.n, mean: q.mean, sd, median: q.median, p25: q.p25, p75: q.p75, small: q.n < SMALL_N };
 }
 
-// Streuung erst ab SMALL_N Vorgängen mit Wert ausweisen (Entscheid vor Start G, Frage 2); n und Mittel bleiben wie bei «Ø Resultat»
-function reportedDispersion(scores) {
-  const d = dispersion(scores);
+// Streuung erst ab SMALL_N Werten ausweisen (Entscheid vor Start G, Frage 2): darunter sd/median/p25/p75 = null; n und Mittel bleiben
+// wie bei «Ø Resultat». Basis der Kacheln, Tabellenspalten und Effektstärke (views/tables.js).
+export function reportedDispersion(values) {
+  const d = dispersion(values);
   return d.small ? { ...d, sd: null, median: null, p25: null, p75: null } : d;
 }
 
@@ -942,6 +945,7 @@ function runsStats(runs) {
     einsaetze: runs.length,
     fail: { gesamt: ratio(runs.filter(failed).length, runs.length), erst: ratio(erst.filter(failed).length, erst.length), wdh: ratio(wdh.filter(failed).length, wdh.length) },
     result: mean(runs.map((r) => r.result)),
+    spread: reportedDispersion(runs.map((r) => r.result)), // Streuung der Resultate (Paket G)
   };
 }
 
@@ -1115,7 +1119,7 @@ export function partDifficultyByYear(persons) {
     }
   }
   return [...cells.values()]
-    .map((c) => ({ year: c.year, part: c.part, kind: c.kind, n: c.n, small: c.n < SMALL_N, failed: ratio(c.failedCount, c.n), passed: ratio(c.passedCount, c.n), meanFirst: mean(c.results1), meanPassed: mean(c.resultsPassed) }))
+    .map((c) => ({ year: c.year, part: c.part, kind: c.kind, n: c.n, small: c.n < SMALL_N, failed: ratio(c.failedCount, c.n), passed: ratio(c.passedCount, c.n), meanFirst: mean(c.results1), meanPassed: mean(c.resultsPassed), spreadFirst: reportedDispersion(c.results1), spreadPassed: reportedDispersion(c.resultsPassed) }))
     .sort((a, b) => a.year - b.year || (a.kind === b.kind ? 0 : a.kind === 'we' ? -1 : 1) || collator.compare(a.part, b.part, { numeric: true }));
 }
 
