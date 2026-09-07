@@ -671,6 +671,28 @@ try {
   const kpiHover = await page.evaluate(() => getComputedStyle(document.querySelector('#view .kpi-label a')).textDecorationLine);
   check(kpiLink.border === 'none' && kpiLink.deco === 'none' && kpiHover === 'underline', 'KPI-Labels ohne Dauerunterstreichung (Rand ' + kpiLink.border + ', Dekoration ' + kpiLink.deco + '), unterstrichen bei Hover (' + kpiHover + ')');
 
+  // Hotfix Anmeldung (07.09.2026): die MSAL-Antwort im Hash (#code=…&state=…) darf die App nicht überschreiben.
+  // Popup (window.opener gesetzt): Hash bleibt, nichts wird gerendert. Ohne Opener: auth.init() konsumiert bzw. verwirft die
+  // Antwort, danach normale Ansicht, kein Fehlerpanel, Hash ohne code/state.
+  const popupPage = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+  await routeConfig(popupPage, false);
+  popupPage.on('pageerror', (e) => errors.push('popup pageerror: ' + e.message));
+  await popupPage.addInitScript(() => { window.opener = { closed: false }; });
+  await popupPage.goto(server.url + '#code=x&state=y', { waitUntil: 'networkidle' });
+  await popupPage.waitForTimeout(500);
+  const popupState = await popupPage.evaluate(() => ({ hash: location.hash, view: document.getElementById('view').children.length, nav: document.querySelectorAll('#nav a').length }));
+  check(popupState.hash === '#code=x&state=y' && popupState.view === 0 && popupState.nav === 0, 'Anmeldung: Popup mit MSAL-Antwort im Hash → Hash unverändert, keine Renderung (' + JSON.stringify(popupState) + ')');
+  await popupPage.close();
+  const redirectPage = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+  await routeConfig(redirectPage, false);
+  redirectPage.on('pageerror', (e) => errors.push('redirect pageerror: ' + e.message));
+  redirectPage.on('console', (m) => { if (m.type() === 'error') errors.push('redirect console: ' + m.text()); });
+  await redirectPage.goto(server.url + '#code=x&state=y', { waitUntil: 'networkidle' });
+  await redirectPage.waitForSelector('#view .empty-card, #view h2', { timeout: 10000 });
+  const redirectState = await redirectPage.evaluate(() => ({ hash: location.hash, error: !document.getElementById('error').hidden, nav: document.querySelectorAll('#nav a').length }));
+  check(!/code=|state=/.test(redirectState.hash) && !redirectState.error && redirectState.nav >= 8, 'Anmeldung: Seite mit MSAL-Antwort ohne Opener → Hash bereinigt, kein Fehlerpanel, App gerendert (' + JSON.stringify(redirectState) + ')');
+  await redirectPage.close();
+
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL
   const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
   check(storage.local.length === 0 && storage.session.every((k) => /msal|login\.|authority|client\.info/i.test(k)), 'Keine Daten im Browser-Speicher: ' + JSON.stringify(storage));

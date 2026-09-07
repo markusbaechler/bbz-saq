@@ -8,7 +8,7 @@ import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.j
 import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount, isVorgang, expertRuns } from './metrics.js';
 import { CONFIG, headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
-import { parseHash, buildHash, sameFilter, parseDay, formatDay } from './urlState.js';
+import { parseHash, buildHash, sameFilter, parseDay, formatDay, isAuthResponseHash } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
 import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials } from './views/common.js';
 import { glossarySlug } from './glossary.js';
@@ -74,6 +74,7 @@ function viewFromHash() {
 
 // Zustand → URL (replaceState: keine History-Einträge je Filterklick, kein hashchange)
 function syncHash() {
+  if (isAuthResponseHash(location.hash)) return; // Hotfix Anmeldung (07.09.2026): MSAL-Antwort nie überschreiben, auch nicht bei Re-Render während des Logins
   const { filter, ui: uiState } = store.getState();
   const target = buildHash(viewFromHash(), filter, uiState);
   if (location.hash !== target) history.replaceState(null, '', target);
@@ -616,6 +617,11 @@ async function loadLocal(file) {
 // ---------------------------------------------------------------------------
 
 async function init() {
+  // Hotfix Anmeldung (07.09.2026): Die Redirect-URI ist die App selbst. Steht die MSAL-Antwort (#code=…&state=…) im Hash, darf die App
+  // sie nicht überschreiben: im Popup liest sie das Elternfenster (nichts rendern, sofort zurück); sonst konsumiert handleRedirectPromise()
+  // sie zuerst, erst danach kommen Filter und Ansicht aus dem Hash (applyHash → syncHash → replaceState).
+  const authHash = isAuthResponseHash(location.hash);
+  if (authHash && window.opener && window.opener !== window) return;
   ui.account = $('account');
   ui.signin = $('btn-signin');
   ui.signout = $('btn-signout');
@@ -663,13 +669,22 @@ async function init() {
   });
   store.subscribe(renderAll);
 
-  applyHash(); // Filter aus der URL übernehmen und erste Ansicht rendern
-  try {
-    await auth.init();
-    authReady = true;
-  } catch (e) {
-    authReady = false;
-    showError(e);
+  const initAuth = async () => {
+    try {
+      await auth.init();
+      authReady = true;
+    } catch (e) {
+      authReady = false;
+      showError(e);
+    }
+  };
+  if (authHash) {
+    await initAuth(); // handleRedirectPromise() konsumiert und bereinigt den Hash
+    if (isAuthResponseHash(location.hash)) history.replaceState(null, '', location.pathname + location.search); // unverwertete Antwort verwerfen
+    applyHash(); // Filter aus der URL übernehmen und erste Ansicht rendern
+  } else {
+    applyHash(); // Filter aus der URL übernehmen und erste Ansicht rendern
+    await initAuth();
   }
   renderSession();
   if (!hasData()) renderView(); // Leerzustand-Karte kennt jetzt den Anmeldestatus («Anmelden und laden» aktiv)

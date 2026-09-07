@@ -91,3 +91,13 @@ export function parseHash(hash) {
 export function sameFilter(a, b) {
   return serializeState(a, DEFAULT_UI) === serializeState(b, DEFAULT_UI);
 }
+
+// MSAL-Antwort im Hash (Hotfix Anmeldung 07.09.2026): nach dem Login schreibt Entra die Antwort als #code=…&state=… (oder
+// #error=…, Token-Formen) in die Redirect-URI. Solange ein solcher Hash steht, darf die App ihn weder lesen noch per
+// replaceState überschreiben – im Popup liest ihn das Elternfenster, im Redirect-Flow handleRedirectPromise().
+const AUTH_HASH_START = /^#(code|state|error|error_description|id_token|access_token|client_info)=/;
+const AUTH_HASH_STATE = /[#&]state=/;
+export function isAuthResponseHash(hash) {
+  if (typeof hash !== 'string' || !hash) return false;
+  return AUTH_HASH_START.test(hash) || AUTH_HASH_STATE.test(hash);
+}

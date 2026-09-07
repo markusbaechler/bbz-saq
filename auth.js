@@ -36,7 +36,7 @@ function isPopupBlocked(e) {
   return !!e && (e.errorCode === 'popup_window_error' || e.errorCode === 'empty_window_error');
 }
 
-export function createAuth({ msal, authConfig = CONFIG.auth, location = globalThis.location, matchMedia = globalThis.matchMedia } = {}) {
+export function createAuth({ msal, authConfig = CONFIG.auth, location = globalThis.location, matchMedia = globalThis.matchMedia, warn = (m) => console.warn(m) } = {}) {
   let pca = null;
   let account = null;
   const scopes = Array.isArray(authConfig.scopes) ? authConfig.scopes.map(qualify) : SCOPES;
@@ -63,6 +63,7 @@ export function createAuth({ msal, authConfig = CONFIG.auth, location = globalTh
         authority: 'https://login.microsoftonline.com/' + authConfig.tenantId,
         redirectUri,
         postLogoutRedirectUri: redirectUri,
+        navigateToLoginRequestUrl: false, // Hotfix Anmeldung (07.09.2026): kein zweiter Sprung nach dem Redirect-Login
       },
       cache: {
         cacheLocation: 'sessionStorage',
@@ -71,7 +72,15 @@ export function createAuth({ msal, authConfig = CONFIG.auth, location = globalTh
     });
     await pca.initialize();
 
-    const redirectResult = await pca.handleRedirectPromise();
+    // Antwort im Hash verarbeiten. Eine unbrauchbare Antwort (z. B. veralteter state nach Neuladen) darf die App nicht blockieren:
+    // Warnung, weiter mit gecachten Konten; echte Anmeldefehler (#error=…) bleiben sichtbar (Hotfix Anmeldung 07.09.2026).
+    let redirectResult = null;
+    try {
+      redirectResult = await pca.handleRedirectPromise();
+    } catch (e) {
+      if (/[#&]error=/.test(String((location && location.hash) || ''))) throw e;
+      warn('MSAL-Antwort im Hash nicht verwertbar und verworfen: ' + (e && e.message ? e.message : e));
+    }
     if (redirectResult && redirectResult.account) {
       setAccount(redirectResult.account);
     } else {

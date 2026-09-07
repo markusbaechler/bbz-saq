@@ -1,5 +1,5 @@
 import { test, assert, assertEqual } from './runner.js';
-import { serializeState, parseHash, buildHash, parseDay, formatDay, sameFilter, DEFAULT_UI } from '../urlState.js';
+import { serializeState, parseHash, buildHash, parseDay, formatDay, sameFilter, DEFAULT_UI, isAuthResponseHash } from '../urlState.js';
 import { DEFAULT_FILTER, MODE } from '../metrics.js';
 import { d } from './fixtures.js';
 
@@ -86,4 +86,17 @@ test('urlState: DEFAULT_UI.editMode = false (Bearbeitungsmodus nur im Memory, ni
   assertEqual(DEFAULT_UI.editMode, false);
   assertEqual(serializeState(DEFAULT_FILTER, { ...DEFAULT_UI, editMode: true }), '');
   assertEqual(parseHash('#personen?editMode=1').ui.editMode, false);
+});
+
+test('urlState.isAuthResponseHash: MSAL-Antwort im Hash erkennen (Hotfix Anmeldung 07.09.2026)', () => {
+  assertEqual(isAuthResponseHash('#code=abc&state=eyJpZCI6IjEifQ&client_info=xyz'), true);
+  assertEqual(isAuthResponseHash('#state=eyJpZCI6IjEifQ&code=abc'), true);
+  assertEqual(isAuthResponseHash('#error=access_denied&error_description=AADSTS65001'), true);
+  assertEqual(isAuthResponseHash('#id_token=abc'), true);
+  assertEqual(isAuthResponseHash('#uebersicht?profil=PK&state=x'), true, 'state als Parameter gilt als Antwort');
+  assertEqual(isAuthResponseHash('#uebersicht?profil=PK'), false);
+  assertEqual(isAuthResponseHash('#uebersicht'), false);
+  assertEqual(isAuthResponseHash('#glossar?begriff=Vorgang'), false);
+  assertEqual(isAuthResponseHash(''), false);
+  assertEqual(isAuthResponseHash(null), false);
 });
