@@ -1033,6 +1033,7 @@ export function expertTables(runs, { deltaDirection = 'neutral' } = {}) {
   const delta = (key, label, prio) => col(key, label, prio, { direction: deltaDirection });
   const main = {
     title: 'Experten',
+    wide: true, // 13 Spalten: Prio 3 erst ab 1500 px statt 1200 px (PROMPT-2 F.2, Option 1, 07.09.2026; 1400 px reichte in der CI nicht)
     columns: [
       col('experte', 'Experte', 1), col('einsaetze', 'Einsätze', 1), col('role1', 'als Experte 1', 2), col('role2', 'als Experte 2', 2), col('anteil1', 'Anteil Experte 1', 2),
       col('fail1', 'Durchfallquote 1. Versuch', 1), delta('delta1', 'Δ 1. Versuch', 1), col('failW', 'Durchfallquote Wiederholung', 2), delta('deltaW', 'Δ Wiederholung', 2),

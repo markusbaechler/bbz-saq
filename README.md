@@ -13,15 +13,16 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 - CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Job «tests» (Syntaxprüfung aller Module, `node tests/run-node.js`, Kontrastprüfung der Farb-Tokens `node tools/contrast.js`, README-Glossar-Abgleich) und Job «smoke» (Browser-Smoke-Test, Screenshots als Artefakt bei Fehlern)
 - Modellbericht auf einer lokalen Kopie der Datei (nur Zähler und Quoten): `node tools/modellbericht.js <Datei.xlsx>`
 - Header-Übersicht beider Sheets ohne Zellwerte (Spalte, Header, gefüllte Zellen, unterschiedliche Werte, Experten-Markierung), vor jedem Mapping: `node tools/headers.js <Datei.xlsx>`
-- Spike Schreibpfad (Paket E, nur lokal, nur Testkopie «Test_Reporting_KUBA.xlsx»): python -m http.server 3000, dann http://localhost:3000/spike/mutation.html; Protokoll ohne Personendaten
+- Spike Schreibpfad (Paket E): Bericht `docs/SPIKE-mutation.md`; die lokale Testseite `spike/mutation.html` wurde mit Paket F entfernt (07.09.2026), der Ablauf ist durch `datasource/workbookAdapter.js` und die Tests mit Graph-Mock abgedeckt
 - Snapshot der synthetischen Testdatei als Regressionsschutz bei Umbauten ohne fachliche Änderung: `node tools/snapshot-synth.js basis.json`, später `node tools/snapshot-synth.js --vergleich basis.json` (identisch = keine Zahl hat sich geändert)
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
 
 ## Ansichten
 
-Die Navigation ist in vier Gruppen gegliedert: **Kennzahlen** (Übersicht, Schriftlich, Mündlich, VSS/VSM, Zeitverlauf,
-Bank-Report), **Personen** (Offene Vorgänge, Geplante Prüfungen, Bestenlisten), **Experten** (ab Paket D) und **Daten**
-(Historie, Datenqualität, Glossar). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
+Die Navigation ist in drei Gruppen gegliedert: **Kennzahlen** (Übersicht, Schriftlich, Mündlich, VSS/VSM, Zeitverlauf,
+Bank-Report), **Personen** (Personen, Offene Vorgänge, Geplante Prüfungen, Bestenlisten) und **Experten**; die Gruppe **Daten**
+(Historie, Datenqualität, Glossar) steht als Sekundärnavigation rechts im Kopf, damit die Navigation ab 1100 px in einer
+Zeile bleibt (Paket F). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
 Menü «Export» und der Link «Definitionen», der die passende Zeile im Glossar fokussiert. Erklärungen und Fussnoten der
 Tabellen stehen gesammelt in der Legende «Hinweise und Definitionen» am Ende jeder Ansicht (im Druck geöffnet) und als ⓘ
 am jeweiligen Titel. Der Datenstand (Datei, Änderungs- und Ladezeit, Zeilen, Data-Quality-Fehler) steht als Einzeiler über
@@ -54,26 +55,30 @@ Vorzeichen und Farbe nach Richtung der Kennzahl (▲ +2.1 pp; höher ist besser 
 ist besser bei Durchfallquoten und passiven Vorgängen; unter 0.5 pp neutral ●). In Tabellen tragen Prozentspalten einen
 Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die erste Spalte bleibt beim horizontalen
 Scrollen stehen. Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
-Desktop) für die mobile Darstellung.
+1200 px) für schmale Bildschirme; unter 1200 px blendet «Alle Spalten» die Prio-3-Spalten ein; die Experten-Tabelle mit 13 Spalten zeigt Prio 3
+erst ab 1500 px. Kopfzellen brechen um, Zahlen nicht (Paket F).
 
 **Mobile:** Phone bis 600 px, Tablet 601–900 px, darüber Desktop; der Druck behält immer das Desktop-Layout. Auf dem
 Phone gilt: Grundschrift 16 px, Touch-Ziele mindestens 44 px, nie horizontaler Seitenscroll (nur Tabellen scrollen in
 ihrem Rahmen). Die Navigation ist ein Auswahlfeld mit den vier Gruppen, die Filter liegen in einem Drawer «Filter
-(n aktiv)» mit Chips darunter, der Datenstand ist ein Einzeiler, das Konto ein Initialen-Button mit «Abmelden». Tabellen
-zeigen nur Spalten der Priorität 1 (Tablet: 1 und 2); «Alle Spalten» blendet die übrigen ein und scrollt die Tabelle
-horizontal. Die Kacheln der Übersicht stehen in aufklappbaren Blöcken (Schriftlich und Mündlich offen, Mengen zu) mit
+(n aktiv) · n Vorgänge · n Personen» mit Chips darunter, der Datenstand ist ein Einzeiler mit den Lade-Aktionen «Neu laden · Lokale Datei» im aufgeklappten Zustand (die
+Datenleiste zeigt auf dem Phone keine Knöpfe, vor dem Laden ist die Leerzustand-Karte der einzige Aufruf), das Konto ein
+Initialen-Button mit «Abmelden». Tabellen zeigen nur Spalten der Priorität 1 (Tablet und Desktop bis 1200 px: 1 und 2);
+«Alle Spalten» blendet die übrigen ein und scrollt die Tabelle horizontal. Die Kacheln der Übersicht stehen in aufklappbaren Blöcken (Schriftlich und Mündlich offen, Mengen zu) mit
 nur Label, Wert, n und Delta-Symbol; Diagramme sind kompakt (360 × 200, Tooltip darunter). Vollständig für das Phone
 gestaltet sind Übersicht, Offene Vorgänge, Geplante Prüfungen, Personen und Experten (Nebenabschnitte eingeklappt); die übrigen Ansichten
 funktionieren ohne Überlauf. Die Anmeldung auf dem Phone läuft direkt über den Redirect-Flow von MSAL (kein Popup); der
-manuelle Gerätetest liegt beim Auftraggeber. Der Smoke-Test prüft die Viewports 1400 × 1000, 820 × 1180 und 390 × 844.
+manuelle Gerätetest liegt beim Auftraggeber. Der Smoke-Test prüft die Viewports 1400 × 1000, 820 × 1180 und 390 × 844 sowie die Desktop-Breiten 1100, 1280 und 1600 px
+(Navigation ohne Scroll, Tabellen ohne Überlauf, Filterleiste einzeilig; Paket F).
 
 ## Globale Filter
 
-Zeitraum (Von–Bis, Jahr als Auswahlfeld mit «Alle» und den Jahren; wirkt auf das Referenzdatum), Profil, Sprache, Bank,
-VSS/VSM, Versuche (alle | nur 1. Versuch | mehrere Versuche), «nur ausgestellte Zertifikate» (Sheet 2 oder damit
-zusammengeführt). Die Filterleiste haftet beim Scrollen oben. Unter den Steuerelementen stehen «n Vorgänge · n Personen»
+Jahr (Auswahlfeld mit «Alle» und den Jahren; setzt Von–Bis), Von–Bis (wirkt auf das Referenzdatum), Profil, Sprache, Bank
+(Auswahlfeld höchstens 12rem breit, langer Name abgeschnitten, voll als Tooltip), VSS/VSM, Versuche (alle | nur 1. Versuch |
+mehrere Versuche), «nur ausgestellte Zertifikate» (Sheet 2 oder damit zusammengeführt). Die Filterleiste haftet beim Scrollen
+oben und bleibt ab 1280 px einzeilig (Paket F). Unter den Steuerelementen stehen «n Vorgänge · n Personen»
 und je aktive Einschränkung ein Chip (z. B. «2026 ✕», «Profil PK ✕»); ✕ entfernt genau diesen Filter. «Filter
-zurücksetzen» erscheint nur, wenn ein Filter vom Standard abweicht.
+zurücksetzen» steht rechts in dieser Zeile und erscheint nur, wenn ein Filter vom Standard abweicht.
 
 **Filterzustand in der URL:** Ansicht, Filter, Wertung und Benchmark stehen im Hash der Adresse
 (`#schriftlich?von=2025-01-01&bis=2025-12-31&profil=PK&bank=…&wertung=bestanden&benchmark=profil`) und lassen sich als
@@ -94,7 +99,7 @@ In der Ansicht «Experten» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausg
 das Run-Datum des Einsatzes, nicht auf das Referenzdatum des Vorgangs («2025» zeigt die Einsätze des Jahres 2025). Versuche und Wertung
 wirken nicht. Die Sortierung der Haupttabelle liegt nur im Memory.
 
-## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E12)
+## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E13)
 
 Eine Zeile der Datei ist ein **Zertifizierungsvorgang**; eine **Person** (Mensch) kann mehrere Vorgänge haben und wird über
 den **Personenschlüssel** aus «Last Name», «First Name» und Geburtsdatum identifiziert (nicht Employer). Zeilen derselben
@@ -123,6 +128,10 @@ Nenner der Bestehensquoten sind abgeschlossene Vorgänge. Definitionen und Grenz
 - **E10 (06.09.2026)** Regel 1 präzisiert: die Struktur der Excel-Datei wird nie geändert; Zellwerte nur über den Schreibpfad (Paket E) mit Feature-Flag, Validierung, Konfliktprüfung und Audit. Scope `Files.ReadWrite.All` ist in Azure gesetzt.
 - **E11 (06.09.2026)** Personensuche: ohne Suchtext leere Liste, ausser der Bank-Filter ist gesetzt (alle Personen der Bank); Profil, Sprache, Bank, VSS/VSM und Zertifikate wirken auf die Trefferliste, Zeitraum, Versuche und Wertung nicht, das Detail zeigt alle Vorgänge; Geburtsjahr nur bei Namensgleichen, nie das volle Datum; Export «Diese Person» mit Dateiname ohne Namen, Inhalt «nur intern».
 - **E12 (06.09.2026)** Experten: Mapping über die am File verifizierten Header «OE{p} RUN{r} Expert 1/2» (optional, ältere Dateien laden weiterhin), erfasst ab 2018 (`CONFIG.experts.from`); Rollen neutral beschriftet (Beobachtung: Experte 1 kleinerer Kreis, Hypothese Prüfungsleitung), Spalte «OE Expert» nicht gemappt; ein Einsatz zählt für beide Experten, Runs mit Ergebnis ohne Datum zählen ohne Zeitraumfilter; Zeitraum wirkt auf das Run-Datum, Versuche und Wertung nicht; Δ zum Benchmark je Versuchsart neutral dargestellt (Beobachtungswerte); Paarungstabelle; Export «Einsatzebene» mit Namen «nur intern»; Alias-Liste leer.
+- **E13 (06.09.2026)** Schreibpfad produktiv freigeschaltet (`features.write = true`) auf Anweisung des Auftraggebers nach dessen Test über die App
+  auf der Testkopie (Bearbeitungsmodus, Dialog, Schreiben, Neuladen, Audit, Historie). Der formale Lauf der Spike-Testseite ist nicht protokolliert;
+  das Restrisiko «Datei gleichzeitig in Excel Desktop geöffnet» (423/409 → Konfliktmeldung, kein Datenverlust) ist akzeptiert. Die Testseite `spike/`
+  wurde mit Paket F entfernt (07.09.2026).
 
 ## Kennzahl-Definitionen
 
@@ -279,7 +288,7 @@ Gesamtergebnisse, Zertifikatsfelder; keine neuen Zeilen, keine Sheet-Änderungen
 - **Historie:** Die App liest das Änderungsprotokoll beim Laden von SharePoint mit (nur im Memory) und zeigt es in der Ansicht
   «Historie» als eigenen Abschnitt «Änderungen über die App» (Zeitpunkt, Name aus den geladenen Daten, Fundstelle, alt → neu, Grund, Konto;
   exportierbar, nur intern) sowie je Vorgangskarte in «Personen». Bei lokal geladener Datei bleibt der Abschnitt leer.
-- Spike-Bericht: `docs/SPIKE-mutation.md`; Testseite `spike/mutation.html` (nur lokal, nur Testkopie).
+- Spike-Bericht: `docs/SPIKE-mutation.md` (die Testseite `spike/mutation.html` wurde mit Paket F entfernt; Ablauf durch Adapter und Tests abgedeckt).
 
 ## Architektur
 
@@ -309,7 +318,6 @@ views/tables.js                    Tabellenmodelle je View (rein), views/*.js Re
 views/personen.js                  Ansicht «Personen»: Suche, Pfad, Karten je Vorgang, Export «Diese Person» (Paket C)
 views/experten.js                  Ansicht «Experten»: sortierbare Haupttabelle, Zeilen-Detail, Paarungen, Export «Einsatzebene» (Paket D)
 views/editDialog.js                Dialog «Zelle bearbeiten» des Schreibpfads (nur mit Feature-Flag, Paket E)
-spike/                             Testseite des Schreibpfad-Spikes (nur lokal, nur Testkopie)
 export.js                          CSV, XLSX, Druck
 config.js                          IDs, Pfade, Sheet-Namen, Header-Mapping, Whitelists, Aliase
 ```

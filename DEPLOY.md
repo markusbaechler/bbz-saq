@@ -66,9 +66,9 @@ Der Schreibpfad (`datasource/workbookAdapter.js`, Dialog in der Ansicht «Person
 `CONFIG.features.write = true` produktiv freigeschaltet (Test auf der Testkopie durch den Auftraggeber). So wurde er eingerichtet, so
 lässt er sich abschalten:
 
-1. Testkopie prüfen: `python -m http.server 3000`, dann http://localhost:3000/spike/mutation.html – Schritte 1 bis 9 auf der Testkopie
-   `General/07_KUBA/Test_Reporting_KUBA.xlsx` ausführen; das Protokoll (ohne Personendaten) bestätigt Schreibweise, Konflikterkennung und
-   Audit (`docs/SPIKE-mutation.md`, Abschnitt 8).
+1. Testkopie prüfen: in `config.js` vorübergehend die Pfade auf die Testkopie `General/07_KUBA/Test_Reporting_KUBA.xlsx` setzen (nie
+   committen), «Bearbeiten» einschalten, eine Raster-Zelle schreiben, neu laden, Audit und Historie prüfen (so geschehen am 06.09.2026,
+   Entscheid E13). Die frühere Spike-Testseite `spike/mutation.html` wurde mit Paket F entfernt; der Ablauf steht in `docs/SPIKE-mutation.md`.
 2. In `config.js` `features: { write: true }` setzen, committen und pushen; GitHub Pages veröffentlicht automatisch.
 3. Im Kopf «Bearbeiten» einschalten (Standard aus; nach Neuladen der Seite wieder aus), in der Ansicht «Personen» eine Zelle des
    Prüfungsrasters anklicken. Beim ersten Schreiben fordert die App `Files.ReadWrite.All` an (Zustimmung bestätigen). Der Dialog zeigt

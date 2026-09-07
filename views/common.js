@@ -85,6 +85,7 @@ function allColumnsToggle(wrap, columns) {
 }
 
 // Tabellenmodell → <div class="table-wrap"><table>…; Zeilen mit small=true erhalten die Klasse «small».
+// table.wide = true (breite Tabellen, z. B. Experten mit 13 Spalten): Klasse «wide» am Rahmen, Prio 3 erst ab 1500 px (F.2).
 // Fussnoten (note) erscheinen nicht mehr unter der Tabelle, sondern als ⓘ am Titel und in der Legende der View.
 export function renderTable(table, { caption = true } = {}) {
   const numeric = numericColumns(table); // Befund 13: Zahlen- und Prozentspalten rechtsbündig
@@ -93,7 +94,7 @@ export function renderTable(table, { caption = true } = {}) {
   const children = [];
   if (caption && table.title) children.push(captionNode(table.title, table.note));
   children.push(thead, tbody);
-  const wrap = el('div', { class: 'table-wrap' }, [el('table', { class: 'data' }, children)]);
+  const wrap = el('div', { class: 'table-wrap' + (table.wide ? ' wide' : '') }, [el('table', { class: 'data' }, children)]);
   const toggle = allColumnsToggle(wrap, table.columns);
   if (toggle) wrap.appendChild(toggle);
   if (!table.rows.length) wrap.appendChild(el('p', { class: 'empty', text: table.empty || 'Keine Daten für den aktiven Filter.' }));
@@ -138,7 +139,7 @@ export function renderExpandableTable(table, { detail, hint = null, isOpen = nul
   const info = [table.rows.length && hint ? hint : null, table.note].filter(Boolean).join(' ');
   if (table.title) children.push(captionNode(table.title, info || null));
   children.push(thead, tbody);
-  const wrap = el('div', { class: 'table-wrap' }, [el('table', { class: 'data expandable-table' }, children)]);
+  const wrap = el('div', { class: 'table-wrap' + (table.wide ? ' wide' : '') }, [el('table', { class: 'data expandable-table' }, children)]);
   const columnsToggle = allColumnsToggle(wrap, cols);
   if (columnsToggle) wrap.appendChild(columnsToggle);
   if (!table.rows.length) wrap.appendChild(el('p', { class: 'empty', text: table.empty || 'Keine Daten für den aktiven Filter.' }));

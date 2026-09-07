@@ -46,7 +46,7 @@ try {
   // Laden
   await page.goto(server.url, { waitUntil: 'networkidle' });
   check((await page.locator('#nav a').count()) >= 8, 'Navigation gerendert');
-  check((await page.locator('#nav .nav-group').count()) >= 3 && (await page.locator('#nav .nav-group[aria-label="Kennzahlen"] a').count()) === 6, 'Navigation in Gruppen (Kennzahlen · Personen · Daten)');
+  check((await page.locator('#nav .nav-group').count()) === 3 && (await page.locator('#nav .nav-group[aria-label="Kennzahlen"] a').count()) === 6 && (await page.locator('#nav-secondary a').count()) === 3, 'Navigation in drei Gruppen (Kennzahlen · Personen · Experten), Daten-Links als Sekundärnavigation im Kopf');
   check((await page.locator('#view .empty-card .actions button').count()) === 2 && (await page.locator('#view .empty-card h3').textContent()).startsWith('Noch keine Daten'), 'Leerzustand: Karte mit zwei Aktionen statt Fliesstext');
   await page.setInputFiles('#file-input', xlsx);
   await page.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
@@ -57,7 +57,7 @@ try {
   check(datastand.startsWith('Datenstand: synth.xlsx') && /DQ \d+ Fehler$/.test(datastand) && (await page.locator('#datastand dt').count()) >= 6 && (await page.locator('#status.visually-hidden').count()) === 1, 'Datenstand: «' + datastand.slice(0, 90) + '» mit Details, Volltext nur für Screenreader');
 
   // Jede Ansicht rendert Titel und mindestens eine Tabelle, ohne Fehler
-  const views = await page.$$eval('#nav a', (as) => as.map((a) => a.getAttribute('href').replace(/^#/, '')));
+  const views = await page.$$eval('#nav a, #nav-secondary a', (as) => as.map((a) => a.getAttribute('href').replace(/^#/, '')));
   for (const v of views) {
     await page.goto(server.url + '#' + v);
     await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
@@ -381,6 +381,16 @@ try {
   await phone.goto(server.url, { waitUntil: 'networkidle' });
   await phone.setInputFiles('#file-input', xlsx);
   await phone.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
+  // Phone-Kopf (PROMPT-2 F.3, F4): nach dem Laden Kopf bis zum Inhalt ≤ 260 px; Lade-Aktionen nicht in der Datenleiste, sondern
+  // als Zeile «Neu laden · Lokale Datei» im Datenstand-details; Marke und Konto in einer Zeile
+  const phoneHead = await phone.evaluate(() => {
+    const top = Math.round(document.getElementById('view').getBoundingClientRect().top);
+    const hidden = (sel) => document.querySelector(sel).getClientRects().length === 0;
+    const brand = document.querySelector('.app-header .brand').getBoundingClientRect(); const session = document.querySelector('.app-header .session').getBoundingClientRect();
+    return { top, loadHidden: hidden('#btn-load') && hidden('.file-label'), actions: document.querySelectorAll('#datastand .datastand-actions button').length, sameRow: brand.bottom > session.top && session.bottom > brand.top };
+  });
+  check(phoneHead.top <= 260 && phoneHead.loadHidden && phoneHead.actions === 2 && phoneHead.sameRow, 'Phone: Kopf bis zum Inhalt ' + phoneHead.top + ' px (≤ 260), Lade-Aktionen im Datenstand (' + phoneHead.actions + '), Marke und Konto in einer Zeile');
+  await phone.screenshot({ path: join(outDir, 'phone-kopf.png'), fullPage: false });
   for (const v of views) {
     await phone.goto(server.url + '#' + v);
     await phone.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
@@ -514,6 +524,88 @@ try {
   }
   check(await tablet.evaluate(() => document.querySelector('#nav a').getClientRects().length > 0 && document.querySelector('#nav-select').getClientRects().length === 0 && document.querySelector('#filterbar details.filter-drawer').open && document.querySelector('#filterbar .filter-summary').getClientRects().length === 0), 'Tablet: Navigation mit Gruppen, Filter offen ohne Drawer-Kopfzeile');
   await tablet.close();
+
+  // Desktop-Breiten (PROMPT-2 F.1, Option b): Navigation ab 1100 px in einer Zeile ohne horizontalen Scroll; Daten-Links als
+  // Sekundärnavigation im Kopf, der Kopf bleibt ohne Überlauf; der aktive Link liegt je nach Ansicht in #nav oder #nav-secondary
+  for (const [w, h] of [[1100, 900], [1280, 900], [1400, 1000]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(server.url + '#uebersicht');
+    await page.waitForSelector('#view h2');
+    const nav = await page.evaluate(() => {
+      const n = document.getElementById('nav'); const head = document.querySelector('.app-header');
+      const sec = [...document.querySelectorAll('#nav-secondary a')].filter((a) => a.getClientRects().length > 0);
+      return { scroll: n.scrollWidth, client: n.clientWidth, headScroll: head.scrollWidth, headClient: head.clientWidth, sec: sec.length, active: document.querySelectorAll('#nav a[aria-current="page"]').length };
+    });
+    check(nav.scroll <= nav.client && nav.headScroll <= nav.headClient && nav.sec === 3 && nav.active === 1, 'Desktop ' + w + ' px: Navigation ohne Scroll (' + nav.scroll + ' von ' + nav.client + ' px), drei Daten-Links im Kopf ohne Überlauf, Übersicht aktiv');
+    await page.screenshot({ path: join(outDir, 'desktop-' + w + '-uebersicht.png') });
+  }
+  await page.goto(server.url + '#glossar');
+  await page.waitForSelector('#view h2');
+  check((await page.locator('#nav-secondary a[aria-current="page"]').count()) === 1 && (await page.locator('#nav a[aria-current="page"], #nav a.active').count()) === 0 && (await page.locator('#nav-select').inputValue()) === 'glossar', 'Desktop: Glossar aktiv in der Sekundärnavigation, kein aktiver Link in #nav, Auswahlfeld zeigt Glossar');
+  await page.setViewportSize({ width: 1400, height: 1000 });
+
+  // Tabellenbreite (PROMPT-2 F.2, Option 1): ab 1280 px keine Tabelle mit horizontalem Überlauf in Übersicht, Schriftlich, Mündlich,
+  // Experten; Prio 3 ab 1200 px sichtbar, die breite Experten-Tabelle (.wide) zeigt Prio 3 erst ab 1500 px (1400 px reichte in der CI nicht); darunter Schalter «Alle Spalten»
+  const tableViews = ['uebersicht', 'schriftlich', 'muendlich', 'experten'];
+  const tableState = () => page.evaluate(() => {
+    const wraps = [...document.querySelectorAll('#view .table-wrap')];
+    const over = wraps.filter((x) => x.scrollWidth > x.clientWidth).map((x) => ((x.querySelector('caption') || {}).textContent || '?').trim().slice(0, 45) + ' +' + (x.scrollWidth - x.clientWidth) + ' px');
+    const p3 = (sel) => [...document.querySelectorAll(sel)];
+    const shown = (els) => els.every((td) => getComputedStyle(td).display !== 'none');
+    const hidden = (els) => els.every((td) => getComputedStyle(td).display === 'none');
+    const toggles = (sel) => [...document.querySelectorAll(sel)].filter((b) => b.getClientRects().length > 0).length;
+    const normal = p3('#view .table-wrap:not(.wide) table.data td[data-prio="3"]');
+    const wide = p3('#view .table-wrap.wide > table > tbody > tr > td[data-prio="3"]');
+    return { n: wraps.length, over, wide: document.querySelectorAll('#view .table-wrap.wide').length, p3: normal.length, p3Shown: shown(normal), p3Hidden: hidden(normal),
+      wideP3: wide.length, wideShown: shown(wide), wideHidden: hidden(wide), toggles: toggles('#view .table-wrap:not(.wide) > .all-columns'), wideToggles: toggles('#view .table-wrap.wide > .all-columns') };
+  });
+  for (const [w, h] of [[1280, 900], [1400, 1000], [1600, 1000]]) {
+    await page.setViewportSize({ width: w, height: h });
+    for (const v of tableViews) {
+      await page.goto(server.url + '#' + v);
+      await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
+      const t = await tableState();
+      const wideOk = v === 'experten' ? (t.wide === 1 && t.wideP3 > 0 && (w >= 1500 ? t.wideShown && t.wideToggles === 0 : t.wideHidden && t.wideToggles === 1)) : t.wide === 0;
+      check(t.n > 0 && t.over.length === 0 && t.p3 > 0 && t.p3Shown && t.toggles === 0 && wideOk, 'Desktop ' + w + ' px ' + v + ': ' + t.n + ' Tabellen ohne Überlauf, Prio-3-Spalten sichtbar' + (v === 'experten' ? (w >= 1500 ? ', Experten-Tabelle vollständig' : ', Experten-Tabelle ohne Prio 3 mit Schalter «Alle Spalten»') : '') + (t.over.length ? ' – Überlauf: ' + t.over.join(' | ') : ''));
+      if (w === 1280) await page.screenshot({ path: join(outDir, 'desktop-1280-' + v + '.png') });
+    }
+  }
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto(server.url + '#schriftlich');
+  await page.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'schriftlich' && !!document.querySelector('#view h2'), null, { timeout: 5000 });
+  const t1100 = await tableState();
+  check(t1100.p3 > 0 && t1100.p3Hidden && t1100.toggles === t1100.n && t1100.over.length === 0, 'Desktop 1100 px Schriftlich: Prio-3-Spalten ausgeblendet, Schalter «Alle Spalten» je Tabelle (' + t1100.toggles + ' von ' + t1100.n + '), kein Überlauf');
+  await page.screenshot({ path: join(outDir, 'desktop-1100-schriftlich.png') });
+  await page.setViewportSize({ width: 1400, height: 1000 });
+
+  // Filterleiste (PROMPT-2 F.3, F5): bei 1280 px eine Zeile Steuerelemente plus Zusammenfassung (≤ 110 px hoch), Reihenfolge
+  // Jahr · Von · Bis · Profil · Sprache · Bank · VSS/VSM · Versuche · Zertifikate, Bank-Auswahl höchstens 12rem mit vollem Namen als title
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+  const fb = await page.evaluate(() => {
+    const bar = document.getElementById('filterbar');
+    const labels = [...bar.querySelectorAll('.filter-controls > label')].map((l) => l.firstChild.textContent.trim() || l.textContent.trim());
+    const bank = bar.querySelector('label:has(select.bank) select');
+    const controls = [...bar.querySelectorAll('.filter-controls > label')];
+    const bottoms = controls.map((l) => l.getBoundingClientRect().bottom); // align-items: flex-end → Unterkanten liegen in einer Zeile gleich
+    return { height: Math.round(bar.getBoundingClientRect().height), labels, rows: Math.max(...bottoms) - Math.min(...bottoms) < 15 ? 1 : 2, bankMax: bank ? getComputedStyle(bank).maxWidth : null, bankTitle: bank ? bank.title : null };
+  });
+  check(fb.height <= 110 && fb.rows === 1 && fb.labels.join(',') === 'Jahr,Von,Bis,Profil,Sprache,Bank,VSS/VSM,Versuche,Nur ausgestellte Zertifikate' && fb.bankMax === '192px', 'Desktop 1280 px: Filterleiste ' + fb.height + ' px hoch, Steuerelemente in einer Zeile (' + fb.labels.join(' · ') + '), Bank höchstens 12rem');
+  await page.selectOption('#filterbar select.bank', 'Testbank AG');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  check((await page.getAttribute('#filterbar select.bank', 'title')) === 'Testbank AG' && (await page.evaluate(() => Math.round(document.getElementById('filterbar').getBoundingClientRect().height))) <= 110, 'Desktop 1280 px: Bank gewählt → voller Name als title, Filterleiste mit Chip weiterhin ≤ 110 px');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+  await page.screenshot({ path: join(outDir, 'desktop-1280-filterleiste.png'), fullPage: false });
+  // KPI-Labels (F6): keine dauerhafte Unterstreichung, nur bei Hover/Fokus
+  await page.setViewportSize({ width: 1400, height: 1000 });
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi-label a');
+  const kpiLink = await page.evaluate(() => { const a = document.querySelector('#view .kpi-label a'); const s = getComputedStyle(a); return { border: s.borderBottomStyle, deco: s.textDecorationLine }; });
+  await page.locator('#view .kpi-label a').first().hover();
+  const kpiHover = await page.evaluate(() => getComputedStyle(document.querySelector('#view .kpi-label a')).textDecorationLine);
+  check(kpiLink.border === 'none' && kpiLink.deco === 'none' && kpiHover === 'underline', 'KPI-Labels ohne Dauerunterstreichung (Rand ' + kpiLink.border + ', Dekoration ' + kpiLink.deco + '), unterstrichen bei Hover (' + kpiHover + ')');
 
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL
   const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
