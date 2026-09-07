@@ -12,6 +12,7 @@ import {
   profileParts, partsOutsideProfile, personIndex, passerelleFrom,
   normalizeNamePart, personSearchIndex, searchPersons, personPath, runTimeline, examGrid,
   expertRuns, expertStats, expertBenchmark, expertPairs,
+  dispersion, writtenDispersion, oralDispersion, wilsonInterval, effectSize,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -777,6 +778,77 @@ test('durationDays / certificateDays / quantiles / throughputStats: Tage bis bes
   assertEqual(quantiles([4, 2]).median, 3);
   const st = throughputStats([done, open, simple()]);
   assertEqual([st.pruefung.n, st.pruefung.median, st.zertifikat.n, st.zertifikat.median], [2, (100 + 92) / 2, 1, 112]);
+});
+
+// ---------------------------------------------------------------------------
+// Streuung und Einordnung (PROMPT-2 Paket G, E14)
+// ---------------------------------------------------------------------------
+
+test('metrics.dispersion: Stichproben-SD (n−1), Median und Quartile (lineare Interpolation); n < 5 als small markiert', () => {
+  const d3 = dispersion([0.7, 0.8, 0.9]);
+  assertClose(d3.sd, 0.1);
+  assertClose(d3.median, 0.8);
+  assertClose(d3.p25, 0.75);
+  assertClose(d3.p75, 0.85);
+  assertClose(d3.mean, 0.8);
+  assertEqual([d3.n, d3.small], [3, true]);
+  assertEqual(dispersion([]), { n: 0, mean: null, sd: null, median: null, p25: null, p75: null, small: true });
+  assertEqual(dispersion([0.5]).sd, null, 'ein Wert: keine Stichproben-SD');
+  const d5 = dispersion([0.6, 0.7, 0.8, 0.9, 1.0, null, undefined]);
+  assertClose(d5.sd, Math.sqrt(0.025));
+  assertEqual([d5.n, d5.small], [5, false], 'nur Zahlen zählen');
+});
+
+test('metrics.writtenDispersion / oralDispersion: Streuung der Scores je Wertung; unter 5 Vorgängen mit Wert nur n und Mittel', () => {
+  const persons = [0.6, 0.7, 0.8, 0.9, 1.0].map((r) => simple({
+    we: { 1: [{ passed: true, date: '2024-03-01', result: r }], 2: [{ passed: true, date: '2024-03-01', result: r }] },
+    oe: { 1: [{ passed: true, date: '2024-06-01', result: r }] },
+  }));
+  const w = writtenDispersion(persons, MODE.ERSTVERSUCH);
+  assertEqual([w.n, w.small], [5, false]);
+  assertClose(w.mean, 0.8);
+  assertClose(w.sd, Math.sqrt(0.025));
+  assertClose(w.median, 0.8);
+  assertClose(w.p25, 0.7);
+  assertClose(w.p75, 0.9);
+  assertClose(oralDispersion(persons, MODE.BESTANDEN).sd, Math.sqrt(0.025));
+  const few = writtenDispersion(persons.slice(0, 3), MODE.ERSTVERSUCH);
+  assertEqual([few.n, few.small, few.sd, few.median, few.p25, few.p75], [3, true, null, null, null, null], 'n < 5: keine Streuung ausweisen');
+  assertClose(few.mean, 0.7, 1e-9, 'Mittel bleibt (wie Ø Resultat)');
+  const open = simple({ weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: null, date: null, result: null }] }, oe: {} });
+  assertEqual(writtenDispersion(persons.concat([open]), MODE.ERSTVERSUCH).n, 5, 'Vorgänge ohne Wert zählen nicht');
+  assertEqual(writtenDispersion([], MODE.ERSTVERSUCH), { n: 0, mean: null, sd: null, median: null, p25: null, p75: null, small: true });
+});
+
+test('metrics.wilsonInterval: 95-%-Intervall eines Anteils (z = 1.96), Grenzen 0..1; n = 0 → null', () => {
+  const w = wilsonInterval(5, 10);
+  assertClose(w.low, 0.2366, 1e-3);
+  assertClose(w.high, 0.7634, 1e-3);
+  assertClose(w.half, 0.2634, 1e-3);
+  assertEqual(wilsonInterval(0, 0), { low: null, high: null, half: null });
+  const all = wilsonInterval(10, 10);
+  assertClose(all.high, 1, 1e-9, 'Obergrenze auf 1 begrenzt');
+  assertClose(all.low, 0.7225, 1e-3);
+  const none = wilsonInterval(0, 10);
+  assertClose(none.low, 0, 1e-9, 'Untergrenze auf 0 begrenzt');
+  assertClose(none.high, 0.2775, 1e-3);
+  assert(wilsonInterval(50, 100).half < wilsonInterval(5, 10).half, 'grösseres n → engeres Intervall');
+});
+
+test('metrics.effectSize: d = (Ø Auswahl − Ø Benchmark) / σ(Benchmark) mit Skala gering · mittel · deutlich · gross', () => {
+  const e = effectSize(0.75, 0.70, 0.10);
+  assertClose(e.d, 0.5, 1e-9);
+  assertEqual(e.label, 'mittel');
+  assertEqual(effectSize(0.70, 0.75, 0.10).label, 'mittel', 'Betrag zählt, Vorzeichen wie Δ');
+  assertClose(effectSize(0.70, 0.75, 0.10).d, -0.5, 1e-9);
+  assertEqual(effectSize(0.71, 0.70, 0.10).label, 'gering');
+  assertEqual(effectSize(0.77, 0.70, 0.10).label, 'deutlich');
+  assertEqual(effectSize(0.80, 0.70, 0.10).label, 'gross');
+  assertEqual(effectSize(0.72, 0.70, 0.10).label, 'mittel', 'Grenze 0.2 gehört zu mittel');
+  assertEqual(effectSize(0.78, 0.70, 0.10).label, 'gross', 'Grenze 0.8 gehört zu gross');
+  assertEqual(effectSize(0.75, 0.70, 0), { d: null, label: null }, 'σ(Benchmark) = 0');
+  assertEqual(effectSize(0.75, 0.70, null), { d: null, label: null });
+  assertEqual(effectSize(null, 0.70, 0.10), { d: null, label: null });
 });
 
 test('passiveCases: offene Vorgänge mit Kennzeichen passiv (store setzt es beim Laden); Tage aus today', () => {

@@ -495,6 +495,55 @@ export function oralPerformance(persons, mode) {
 }
 
 // ---------------------------------------------------------------------------
+// Streuung und Einordnung (PROMPT-2 Paket G, E14 – additiv, nicht im Snapshot)
+// ---------------------------------------------------------------------------
+
+// Streuung einer Zahlenliste (Werte als Anteile 0..1): Stichproben-SD (n−1, wie Excel STABW.S), Median, P25, P75 (lineare Interpolation
+// wie quantiles()), Mittel. sd = null bei weniger als zwei Werten; small = n < SMALL_N (die Ansicht zeigt dann «–» statt Streuung).
+export function dispersion(values) {
+  const q = quantiles(values);
+  const nums = values.filter(isNum);
+  const sd = nums.length >= 2 ? Math.sqrt(nums.reduce((acc, v) => acc + (v - q.mean) ** 2, 0) / (nums.length - 1)) : null;
+  return { n: q.n, mean: q.mean, sd, median: q.median, p25: q.p25, p75: q.p75, small: q.n < SMALL_N };
+}
+
+// Streuung erst ab SMALL_N Vorgängen mit Wert ausweisen (Entscheid vor Start G, Frage 2); n und Mittel bleiben wie bei «Ø Resultat»
+function reportedDispersion(scores) {
+  const d = dispersion(scores);
+  return d.small ? { ...d, sd: null, median: null, p25: null, p75: null } : d;
+}
+
+export function writtenDispersion(persons, mode) {
+  return reportedDispersion(persons.map((p) => writtenScore(p, mode)));
+}
+
+export function oralDispersion(persons, mode) {
+  return reportedDispersion(persons.map((p) => oralScore(p, mode)));
+}
+
+// 95-%-Wilson-Intervall eines Anteils count/n (z = 1.96): { low, high, half } mit Grenzen in 0..1, half = halbe Breite; n = 0 → null.
+// Für Bestehensquoten statt einer Standardabweichung (die wäre nur eine Funktion des Anteils).
+export function wilsonInterval(count, n, z = 1.96) {
+  if (!isNum(count) || !isNum(n) || n <= 0) return { low: null, high: null, half: null };
+  const p = count / n;
+  const z2 = z * z;
+  const denom = 1 + z2 / n;
+  const center = (p + z2 / (2 * n)) / denom;
+  const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
+  return { low: Math.max(0, center - half), high: Math.min(1, center + half), half };
+}
+
+// Effektstärke d = (Ø Auswahl − Ø Benchmark) / σ(Benchmark), Skala nach Cohen: |d| < 0.2 gering, ≤ 0.5 mittel, < 0.8 deutlich, ≥ 0.8 gross.
+// Grössenordnung, kein Signifikanztest. Ohne Mittelwerte oder mit σ ≤ 0 → null (die Ansicht prüft zusätzlich beide n ≥ SMALL_N).
+export function effectSize(meanA, meanB, sdB) {
+  if (!isNum(meanA) || !isNum(meanB) || !isNum(sdB) || sdB <= 0) return { d: null, label: null };
+  const d = (meanA - meanB) / sdB;
+  const a = Math.round(Math.abs(d) * 1e6) / 1e6; // Gleitkomma-Rest (0.05 / 0.1 = 0.5000…04) darf die Klasse an der Grenze nicht kippen
+  const label = a < 0.2 ? 'gering' : a <= 0.5 ? 'mittel' : a < 0.8 ? 'deutlich' : 'gross';
+  return { d, label };
+}
+
+// ---------------------------------------------------------------------------
 // Gruppierung
 // ---------------------------------------------------------------------------
 
