@@ -381,6 +381,16 @@ try {
   await phone.goto(server.url, { waitUntil: 'networkidle' });
   await phone.setInputFiles('#file-input', xlsx);
   await phone.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
+  // Phone-Kopf (PROMPT-2 F.3, F4): nach dem Laden Kopf bis zum Inhalt ≤ 260 px; Lade-Aktionen nicht in der Datenleiste, sondern
+  // als Zeile «Neu laden · Lokale Datei» im Datenstand-details; Marke und Konto in einer Zeile
+  const phoneHead = await phone.evaluate(() => {
+    const top = Math.round(document.getElementById('view').getBoundingClientRect().top);
+    const hidden = (sel) => document.querySelector(sel).getClientRects().length === 0;
+    const brand = document.querySelector('.app-header .brand').getBoundingClientRect(); const session = document.querySelector('.app-header .session').getBoundingClientRect();
+    return { top, loadHidden: hidden('#btn-load') && hidden('.file-label'), actions: document.querySelectorAll('#datastand .datastand-actions button').length, sameRow: brand.bottom > session.top && session.bottom > brand.top };
+  });
+  check(phoneHead.top <= 260 && phoneHead.loadHidden && phoneHead.actions === 2 && phoneHead.sameRow, 'Phone: Kopf bis zum Inhalt ' + phoneHead.top + ' px (≤ 260), Lade-Aktionen im Datenstand (' + phoneHead.actions + '), Marke und Konto in einer Zeile');
+  await phone.screenshot({ path: join(outDir, 'phone-kopf.png'), fullPage: false });
   for (const v of views) {
     await phone.goto(server.url + '#' + v);
     await phone.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
@@ -567,6 +577,35 @@ try {
   check(t1100.p3 > 0 && t1100.p3Hidden && t1100.toggles === t1100.n && t1100.over.length === 0, 'Desktop 1100 px Schriftlich: Prio-3-Spalten ausgeblendet, Schalter «Alle Spalten» je Tabelle (' + t1100.toggles + ' von ' + t1100.n + '), kein Überlauf');
   await page.screenshot({ path: join(outDir, 'desktop-1100-schriftlich.png') });
   await page.setViewportSize({ width: 1400, height: 1000 });
+
+  // Filterleiste (PROMPT-2 F.3, F5): bei 1280 px eine Zeile Steuerelemente plus Zusammenfassung (≤ 110 px hoch), Reihenfolge
+  // Jahr · Von · Bis · Profil · Sprache · Bank · VSS/VSM · Versuche · Zertifikate, Bank-Auswahl höchstens 12rem mit vollem Namen als title
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+  const fb = await page.evaluate(() => {
+    const bar = document.getElementById('filterbar');
+    const labels = [...bar.querySelectorAll('.filter-controls > label')].map((l) => l.firstChild.textContent.trim() || l.textContent.trim());
+    const bank = bar.querySelector('label:has(select.bank) select');
+    const controls = [...bar.querySelectorAll('.filter-controls > label')];
+    const bottoms = controls.map((l) => l.getBoundingClientRect().bottom); // align-items: flex-end → Unterkanten liegen in einer Zeile gleich
+    return { height: Math.round(bar.getBoundingClientRect().height), labels, rows: Math.max(...bottoms) - Math.min(...bottoms) < 15 ? 1 : 2, bankMax: bank ? getComputedStyle(bank).maxWidth : null, bankTitle: bank ? bank.title : null };
+  });
+  check(fb.height <= 110 && fb.rows === 1 && fb.labels.join(',') === 'Jahr,Von,Bis,Profil,Sprache,Bank,VSS/VSM,Versuche,Nur ausgestellte Zertifikate' && fb.bankMax === '192px', 'Desktop 1280 px: Filterleiste ' + fb.height + ' px hoch, Steuerelemente in einer Zeile (' + fb.labels.join(' · ') + '), Bank höchstens 12rem');
+  await page.selectOption('#filterbar select.bank', 'Testbank AG');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  check((await page.getAttribute('#filterbar select.bank', 'title')) === 'Testbank AG' && (await page.evaluate(() => Math.round(document.getElementById('filterbar').getBoundingClientRect().height))) <= 110, 'Desktop 1280 px: Bank gewählt → voller Name als title, Filterleiste mit Chip weiterhin ≤ 110 px');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+  await page.screenshot({ path: join(outDir, 'desktop-1280-filterleiste.png'), fullPage: false });
+  // KPI-Labels (F6): keine dauerhafte Unterstreichung, nur bei Hover/Fokus
+  await page.setViewportSize({ width: 1400, height: 1000 });
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi-label a');
+  const kpiLink = await page.evaluate(() => { const a = document.querySelector('#view .kpi-label a'); const s = getComputedStyle(a); return { border: s.borderBottomStyle, deco: s.textDecorationLine }; });
+  await page.locator('#view .kpi-label a').first().hover();
+  const kpiHover = await page.evaluate(() => getComputedStyle(document.querySelector('#view .kpi-label a')).textDecorationLine);
+  check(kpiLink.border === 'none' && kpiLink.deco === 'none' && kpiHover === 'underline', 'KPI-Labels ohne Dauerunterstreichung (Rand ' + kpiLink.border + ', Dekoration ' + kpiLink.deco + '), unterstrichen bei Hover (' + kpiHover + ')');
 
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL
   const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));

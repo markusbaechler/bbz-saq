@@ -61,7 +61,9 @@ erst ab 1500 px. Kopfzellen brechen um, Zahlen nicht (Paket F).
 **Mobile:** Phone bis 600 px, Tablet 601–900 px, darüber Desktop; der Druck behält immer das Desktop-Layout. Auf dem
 Phone gilt: Grundschrift 16 px, Touch-Ziele mindestens 44 px, nie horizontaler Seitenscroll (nur Tabellen scrollen in
 ihrem Rahmen). Die Navigation ist ein Auswahlfeld mit den vier Gruppen, die Filter liegen in einem Drawer «Filter
-(n aktiv)» mit Chips darunter, der Datenstand ist ein Einzeiler, das Konto ein Initialen-Button mit «Abmelden». Tabellen
+(n aktiv) · n Vorgänge · n Personen» mit Chips darunter, der Datenstand ist ein Einzeiler mit den Lade-Aktionen «Neu laden · Lokale Datei» im aufgeklappten Zustand (die
+Datenleiste zeigt auf dem Phone keine Knöpfe, vor dem Laden ist die Leerzustand-Karte der einzige Aufruf), das Konto ein
+Initialen-Button mit «Abmelden». Tabellen
 zeigen nur Spalten der Priorität 1 (Tablet und Desktop bis 1200 px: 1 und 2); «Alle Spalten» blendet die übrigen ein und scrollt die Tabelle
 horizontal. Die Kacheln der Übersicht stehen in aufklappbaren Blöcken (Schriftlich und Mündlich offen, Mengen zu) mit
 nur Label, Wert, n und Delta-Symbol; Diagramme sind kompakt (360 × 200, Tooltip darunter). Vollständig für das Phone
@@ -71,11 +73,12 @@ manuelle Gerätetest liegt beim Auftraggeber. Der Smoke-Test prüft die Viewport
 
 ## Globale Filter
 
-Zeitraum (Von–Bis, Jahr als Auswahlfeld mit «Alle» und den Jahren; wirkt auf das Referenzdatum), Profil, Sprache, Bank,
-VSS/VSM, Versuche (alle | nur 1. Versuch | mehrere Versuche), «nur ausgestellte Zertifikate» (Sheet 2 oder damit
-zusammengeführt). Die Filterleiste haftet beim Scrollen oben. Unter den Steuerelementen stehen «n Vorgänge · n Personen»
+Jahr (Auswahlfeld mit «Alle» und den Jahren; setzt Von–Bis), Von–Bis (wirkt auf das Referenzdatum), Profil, Sprache, Bank
+(Auswahlfeld höchstens 12rem breit, langer Name abgeschnitten, voll als Tooltip), VSS/VSM, Versuche (alle | nur 1. Versuch |
+mehrere Versuche), «nur ausgestellte Zertifikate» (Sheet 2 oder damit zusammengeführt). Die Filterleiste haftet beim Scrollen
+oben und bleibt ab 1280 px einzeilig (Paket F). Unter den Steuerelementen stehen «n Vorgänge · n Personen»
 und je aktive Einschränkung ein Chip (z. B. «2026 ✕», «Profil PK ✕»); ✕ entfernt genau diesen Filter. «Filter
-zurücksetzen» erscheint nur, wenn ein Filter vom Standard abweicht.
+zurücksetzen» steht rechts in dieser Zeile und erscheint nur, wenn ein Filter vom Standard abweicht.
 
 **Filterzustand in der URL:** Ansicht, Filter, Wertung und Benchmark stehen im Hash der Adresse
 (`#schriftlich?von=2025-01-01&bis=2025-12-31&profil=PK&bank=…&wertung=bestanden&benchmark=profil`) und lassen sich als

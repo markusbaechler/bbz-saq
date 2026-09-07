@@ -131,6 +131,8 @@ function renderSession() {
   ui.accountMenuName.textContent = name;
   ui.load.disabled = busy || !account;
   ui.load.title = account ? '' : (authReady ? 'Zuerst anmelden' : 'Azure-Konfiguration fehlt (config.js)');
+  const reload = ui.datastand.querySelector('button.reload'); // Phone-Aktion im Datenstand spiegelt den Ladeknopf (F4)
+  if (reload) { reload.disabled = ui.load.disabled; reload.title = ui.load.title; }
 }
 
 function renderStatus(text) {
@@ -186,8 +188,14 @@ function renderDatastand(visible) {
     ['Data-Quality-Log', fehler + ' Fehler · ' + (c.hinweise || 0) + ' Hinweise · ' + (c.nichtAusgewertet || 0) + ' nicht ausgewertet'],
     ['Schlüssel ohne Geburtsdatum', String(c.schluesselOhneGeburtsdatum || 0)],
   ];
+  // Phone (PROMPT-2 F.3, F4): Lade-Aktionen als Zeile «Neu laden · Lokale Datei» im Datenstand; auf Desktop per CSS ausgeblendet
+  const actions = el('div', { class: 'datastand-actions' }, [
+    el('button', { type: 'button', class: 'link reload', text: 'Neu laden', disabled: ui.load.disabled, title: ui.load.title || null, onclick: () => run(loadGraph) }),
+    el('span', { text: '·' }),
+    el('button', { type: 'button', class: 'link', text: 'Lokale Datei', onclick: () => ui.file.click() }),
+  ]);
   const open = box.open; // Auf-/Zuklappzustand beim Neurendern behalten
-  box.replaceChildren(summary, el('dl', { class: 'datastand-list' }, rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })])));
+  box.replaceChildren(summary, el('dl', { class: 'datastand-list' }, rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })])), actions);
   box.open = open;
   box.hidden = false;
   ui.status.classList.add('visually-hidden');
@@ -233,6 +241,7 @@ function buildFilterBar() {
   const profil = selectControl('Profil', listOptions(opts.profil), (v) => set({ profil: v ? [v] : [] }));
   const sprache = selectControl('Sprache', listOptions(opts.sprache), (v) => set({ sprache: v ? [v] : [] }));
   const bank = selectControl('Bank', listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] }));
+  bank.select.className = 'bank'; // F.3 (F5): höchstens 12rem breit, voller Name als title (updateFilterBar)
   const vssVsm = selectControl('VSS/VSM', [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v }));
   const versuche = selectControl('Versuche', [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v }));
   Object.assign(c, { jahr: jahr.select, profil: profil.select, sprache: sprache.select, bank: bank.select, vssVsm: vssVsm.select, versuche: versuche.select });
@@ -241,18 +250,20 @@ function buildFilterBar() {
   c.reset = el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() });
   c.count = el('span', { class: 'summary-count' });
   c.chips = el('span', { class: 'chips' });
-  c.summary = el('div', { class: 'summary' }, [c.count, c.chips]);
+  // Reset rechts in der Zusammenfassungszeile (Wireframe A.9; F.3: die Steuerelementzeile bleibt bei 1280 px auch mit aktivem Filter einzeilig)
+  c.summary = el('div', { class: 'summary' }, [c.count, c.chips, c.reset]);
   // Phone (B.2): Steuerelemente in einem Drawer (details), auf Phone zu; auf Desktop/Tablet offen mit unsichtbarer Kopfzeile
   c.drawerLabel = el('span', { text: 'Filter' });
+  c.countPhone = el('span', { class: 'count-phone' }); // Phone (F.3, F4): Zähler in der Drawer-Kopfzeile statt als eigene Zeile
   c.drawer = el('details', { class: 'filter-drawer', open: isPhone() ? null : '' }, [
-    el('summary', { class: 'filter-summary' }, [c.drawerLabel]),
+    el('summary', { class: 'filter-summary' }, [c.drawerLabel, c.countPhone]),
+    // Reihenfolge (PROMPT-2 F.3, F5): Jahr · Von · Bis · Profil · Sprache · Bank · VSS/VSM · Versuche · Zertifikate · Reset
     el('div', { class: 'filter-controls' }, [
+      jahr.node,
       el('label', {}, ['Von', c.from]),
       el('label', {}, ['Bis', c.to]),
-      jahr.node,
       profil.node, sprache.node, bank.node, vssVsm.node, versuche.node,
       el('label', { class: 'check' }, [c.onlyIssued, 'Nur ausgestellte Zertifikate']),
-      c.reset,
     ]),
   ]);
   bar.append(c.drawer, c.summary);
@@ -289,12 +300,14 @@ function updateFilterBar() {
   setSelect(c.profil, single(filter.profil));
   setSelect(c.sprache, single(filter.sprache));
   setSelect(c.bank, single(filter.bank));
+  c.bank.title = c.bank.value; // abgeschnittener Bankname bleibt als Tooltip lesbar (F5)
   c.vssVsm.value = filter.vssVsm;
   c.versuche.value = filter.versuche;
   c.onlyIssued.checked = !!filter.onlyIssued;
   const filtered = store.getFilteredPersons();
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
   c.count.textContent = plural(filtered.length, 'Vorgang', 'Vorgänge') + ' · ' + plural(personCount(filtered), 'Person', 'Personen');
+  c.countPhone.textContent = ' · ' + c.count.textContent;
   // Chips werden in ihrem eigenen Container ersetzt; die Steuerelemente bleiben stehen (Fokusregel)
   const chips = filterChips(filter);
   c.chips.replaceChildren(...chips.map((ch) => el('button', { type: 'button', class: 'chip', 'aria-label': ch.ariaLabel, onclick: () => store.setFilter(ch.reset) }, [
