@@ -165,13 +165,13 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--bo
 /* Navigation (PROMPT-2 A.2, F.1): drei Gruppen nebeneinander mit Beschriftung über den Links, ab 1100 px in einer Zeile;
    darunter horizontal scrollbar, nie umbrechend. Die Gruppe «Daten» steht als Sekundärnavigation im Kopf (.nav-secondary). */
 .views {
-  display: flex; gap: var(--space-4); flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity;
+  display: flex; gap: var(--space-3); flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity;
   padding: var(--space-2) var(--space-3) 0; background: var(--panel); border-bottom: 1px solid var(--border);
 }
 .nav-group { display: flex; flex-direction: column; gap: var(--space-1); flex: 0 0 auto; scroll-snap-align: start; }
-.nav-group-label { font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding-left: var(--space-2); }
-.nav-links { display: flex; }
-.views a { padding: var(--space-2); font-size: var(--fs-sm); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
+.nav-group-label { font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding-left: var(--space-1); }
+.nav-links { display: flex; gap: var(--space-1); }
+.views a { padding: var(--space-2) var(--space-1); font-size: var(--fs-sm); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
 .views a:hover { background: var(--hover); }
 .views a.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
 /* Sekundärnavigation «Daten» im Kopf (F.1): Optik der Hauptnavigation, kompakter; auf dem Phone ausgeblendet (Auswahlfeld) */
