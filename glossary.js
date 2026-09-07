@@ -191,6 +191,37 @@ export const GLOSSARY = [
     nenner: '–', grenzfaelle: 'Score-Header: «WE{n} RUN{r} Score», «OE{n} RUN{r} Score» (24 Spalten). Entscheid E6 (05.09.2026): Score wird nicht ausgewertet, Result ist massgebend; das Parsing bleibt, damit verrutschte Zellen sichtbar sind.',
   },
 
+  // Streuung und Einordnung (PROMPT-2 Paket G, E14; Anhang A3 Abschnitt G)
+  {
+    kind: 'Begriff', term: 'Streuung σ (Resultat)',
+    definition: 'Stichproben-Standardabweichung (n−1, wie Excel STABW.S) der Resultat-Werte je Vorgang (Mittel über die Teilprüfungen gemäss Wertung, wie «Ø Resultat»), in Prozentpunkten. Zweitzeile der vier Ø-Kacheln der Übersicht und der Kachel «Ø Resultat (Experten)»; Spalten «σ (…)» in den Ø-Tabellen (Prio 3).',
+    nenner: 'Vorgänge mit Wert', grenzfaelle: 'Paket G. n < 5 → «–». Immer zusammen mit Median und Quartilen, weil Resultate linksschief sind (viele bei 70–90 %, wenige Ausreisser nach unten). Nicht im Snapshot. Auf dem Phone nur die Kurzform «σ x pp».',
+  },
+  {
+    kind: 'Begriff', term: 'Median / Quartile (Resultat)',
+    definition: 'Median, P25 und P75 derselben Resultat-Werte, lineare Interpolation wie bei der Durchlaufzeit; Spalten «Median (…)», «P25 (…)», «P75 (…)» in den Ø-Tabellen (Prio 3, ohne Datenbalken).',
+    nenner: 'Vorgänge mit Wert', grenzfaelle: 'n < 5 → «–». Robuster als σ gegen Ausreisser nach unten.',
+  },
+  {
+    kind: 'Begriff', term: 'Effektstärke (d)',
+    definition: '(Ø Auswahl − Ø Benchmark) / σ(Benchmark); Skala nach dem Betrag von d: unter 0.2 gering, bis 0.5 mittel, bis 0.8 deutlich, ab 0.8 gross (Cohen). Vorzeichen wie die Differenz.',
+    nenner: '–', grenzfaelle: 'Nur wenn beide Gruppen n ≥ 5 und σ(Benchmark) > 0, sonst «–». Grössenordnung, kein Signifikanztest (bewusst keine p-Werte).',
+  },
+  {
+    kind: 'Begriff', term: 'Wilson-Intervall (95 %)',
+    definition: 'Konfidenzintervall eines Anteils (z = 1.96), ausgewiesen als ±pp (halbe Breite) mit der Angabe «Benchmark im Intervall: ja/nein» (Benchmark-Anteil innerhalb der Grenzen).',
+    nenner: 'Nenner der Quote', grenzfaelle: 'Für Bestehensquoten statt einer Standardabweichung (die wäre nur eine Funktion des Anteils). n = 0 → «–»; bei n < 5 bleibt die Markierung «*».',
+  },
+  {
+    kind: 'Begriff', term: 'Einordnung (Differenz)',
+    definition: 'Spalte in «Auswahl im Vergleich zum Benchmark» (Übersicht, Jahresvergleich) und im Bank-Report: Ø-Kennzahlen mit Effektstärke («d +0.3 · mittel»), Quoten mit Wilson-Intervall («±4.1 pp · Benchmark im Intervall: ja»), Mengen ohne («–»).',
+    nenner: '–', grenzfaelle: 'Farbe wie die Differenz, die Bedeutung steht im Text. Verhindert, dass wenige Prozentpunkte Differenz als Rangfolge gelesen werden.',
+  },
+  {
+    kind: 'Begriff', term: 'Verteilung der Resultate (Histogramm)',
+    definition: 'Anteil der Vorgänge je Resultatklasse à 10 Prozentpunkte (0–10 … 90–100, obere Grenze ausgeschlossen, 100 % in der letzten Klasse), Wertung 1. Versuch; Balkendiagramm Auswahl gegen den Benchmark der Übersicht mit Tabellen-Zwilling in den Ansichten Schriftlich und Mündlich.',
+    nenner: 'Vorgänge mit Wert', grenzfaelle: 'Auswahl n < 5 → Hinweis statt Diagramm, die Tabelle bleibt; Benchmark n < 5 → keine zweite Reihe. Zeigt die Form der Verteilung (Ausreisser nach unten), die Ø und σ allein nicht verraten.',
+  },
   // ---------------------------------------------------------------------- Kennzahlen (Kachel-/Spaltenbeschriftung)
   { kind: 'Kennzahl', term: 'Vorgänge', definition: 'Anzahl kennzahlrelevanter Zertifizierungsvorgänge im aktiven Filter.', nenner: '–', grenzfaelle: 'Duplikate sind zusammengeführt und zählen einmal.' },
   { kind: 'Kennzahl', term: 'Personen', definition: 'Anzahl Menschen hinter den Vorgängen im Filter (Personenschlüssel).', nenner: '–', grenzfaelle: 'Kleiner oder gleich «Vorgänge»; die Differenz sind Personen mit mehreren Profilen.' },
