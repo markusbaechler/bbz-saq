@@ -491,11 +491,14 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .filterbar label { min-width: 0; }
   .filter-controls .check { grid-column: 1 / -1; }
   /* F.3 (F4): Zähler «n Vorgänge · n Personen» in der Drawer-Kopfzeile, die Zusammenfassungszeile trägt nur Chips und Reset */
-  .count-phone { display: inline; color: var(--muted); font-weight: 400; }
+  .count-phone { display: inline; color: var(--muted); font-weight: 400; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .summary-count { display: none; }
   .filterbar .summary { margin-top: 0; }
-  .app-header { gap: var(--space-2); }
-  .app-header .brand { flex-direction: row; align-items: baseline; gap: var(--space-2); }
+  /* F.3 (F4): Marke und Konto immer in einer Zeile – Marke etwas kleiner, bei breiten Schriften abgeschnitten statt umgebrochen */
+  .app-header { gap: var(--space-2); flex-wrap: nowrap; }
+  .app-header .brand { flex-direction: row; align-items: baseline; gap: var(--space-2); min-width: 0; }
+  .app-header h1 { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-header .session { flex-shrink: 0; }
   .subtitle, #account, #btn-signout, .edit-mode, .edit-mode-hint { display: none; } /* Bearbeitungsmodus auf Phone im Konto-Menü */
   .account-menu:not([hidden]) { display: block; }
   .account-menu > summary { width: 44px; height: 44px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; }
