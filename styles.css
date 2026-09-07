@@ -226,6 +226,9 @@ details.kpi-group > summary { list-style: none; }
 .kpi-delta.pos { color: var(--delta-pos); }
 .kpi-delta.neg { color: var(--delta-neg); }
 .kpi-delta.neutral { color: var(--delta-neutral); }
+/* Streuung (PROMPT-2 Paket G): Zweitzeile der Ø-Kacheln; Kurzform «σ x pp» nur auf Phone */
+.kpi-spread { font-size: var(--fs-xs); color: var(--muted); margin-top: var(--space-1); font-variant-numeric: tabular-nums; }
+.kpi-spread-short { display: none; }
 label.inline { display: inline-flex; align-items: center; gap: .4rem; }
 .kpi.small .kpi-value { color: var(--muted); }
 .block { margin: 1rem 0 1.5rem; }
@@ -345,6 +348,10 @@ td.pct { background-image: linear-gradient(to right, var(--bar) calc(var(--v) * 
 td.delta.pos { color: var(--delta-pos); }
 td.delta.neg { color: var(--delta-neg); }
 td.delta.neutral { color: var(--delta-neutral); }
+/* Einordnung (Paket G): Ton wie Δ, ohne Symbol – der Text trägt die Bedeutung */
+td.tone.pos { color: var(--delta-pos); }
+td.tone.neg { color: var(--delta-neg); }
+td.tone.neutral { color: var(--delta-neutral); }
 .delta-symbol { font-size: .8em; }
 .badge { display: inline-block; padding: .05rem var(--space-2); border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; line-height: 1.5; }
 .badge.status-bestanden { color: var(--status-bestanden); background: var(--status-bestanden-bg); }
@@ -510,6 +517,8 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .datastand-actions { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; margin-top: var(--space-1); }
   /* B.3: Kacheln nur mit Label, Wert, n und Δ-Symbol/Wert */
   .kpi-delta-vs { display: none; }
+  .kpi-spread-full { display: none; } /* Paket G, Entscheid 6: Phone nur «σ x pp» */
+  .kpi-spread-short { display: inline; }
   /* C.4: Personen – Pfad vertikal (Pfeil nach unten), Stammdaten einspaltig, Karten und Detail randnah, Suchfeld volle Breite */
   .person-path { flex-direction: column; gap: var(--space-1); }
   .person-path li + li { margin-left: 0; margin-top: 1.25rem; }

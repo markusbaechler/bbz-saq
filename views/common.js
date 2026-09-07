@@ -28,7 +28,8 @@ function cellText(v) {
 const PCT = /^\s*(\d+(?:[.,]\d+)?)\s*%/;
 
 // Zelle eines Tabellenmodells (PROMPT-2 A.5): data-prio; Differenzen mit Symbol, Vorzeichen und Farbe nach Richtung
-// (row.direction, sonst column.direction); Statuszellen als Badge; Prozentwerte mit Datenbalken (--v). Farbe nie allein.
+// (row.direction, sonst column.direction); Statuszellen als Badge; Prozentwerte mit Datenbalken (--v, ausser column.bar === false);
+// column.toneKey: Ton (pos | neg | neutral) aus einer Zeilen-Eigenschaft, z. B. «Einordnung» (Paket G). Farbe nie allein.
 function cell(c, row, numeric) {
   const text = cellText(row[c.key]);
   const attrs = { 'data-prio': String(c.prio || 2) };
@@ -54,7 +55,11 @@ function cell(c, row, numeric) {
     const tone = statusTone(text, c.label);
     if (tone) return el('td', { ...attrs, class: cls.join(' ') || null }, [el('span', { class: 'badge status-' + tone, text })]);
   }
-  const pct = !isDeltaColumn(c) && PCT.exec(text);
+  // Einordnung (Paket G): Ton wie Δ aus row[c.toneKey] (pos | neg | neutral), der Text trägt die Bedeutung; Strich ohne Ton
+  if (c.toneKey && text && text !== '–' && ['pos', 'neg', 'neutral'].includes(row[c.toneKey])) {
+    return el('td', { ...attrs, class: cls.concat(['tone', row[c.toneKey]]).join(' ') }, [text]);
+  }
+  const pct = !isDeltaColumn(c) && c.bar !== false && PCT.exec(text); // bar: false → Lagewerte (Median, Quartile) ohne Datenbalken (Paket G)
   if (pct) {
     cls.push('pct');
     attrs.style = '--v: ' + Math.min(100, Number(pct[1].replace(',', '.')));
@@ -162,6 +167,8 @@ function kpiTile(k, glossaryHref) {
     el('div', { class: 'kpi-label' }, [label, k.hint ? infoIcon(k.hint, 'Definition: ') : null]),
     el('div', { class: 'kpi-value', text: k.value }),
     el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' ' + (k.unit || 'Vorgängen') : 'n = ' + k.n) + (k.small ? ' *' : '') }),
+    // Streuung (PROMPT-2 Paket G): Zweitzeile der Ø-Kacheln «σ 9.8 pp · Median 76.0 % (P25 70.0 · P75 84.5)»; Phone nur «σ 9.8 pp» (Entscheid 6)
+    k.spread ? el('div', { class: 'kpi-spread' }, [el('span', { class: 'kpi-spread-full', text: k.spread.text }), el('span', { class: 'kpi-spread-short', text: k.spread.short })]) : null,
     d ? el('div', { class: 'kpi-delta ' + d.tone }, [
       el('span', { class: 'kpi-delta-symbol', 'aria-hidden': 'true', text: d.symbol + ' ' }),
       el('span', { class: 'kpi-delta-value', text: d.text }),

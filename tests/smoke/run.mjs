@@ -87,6 +87,7 @@ try {
   const bankTables = await page.$$eval('#view table caption', (c) => c.map((x) => x.textContent));
   check(bankTables.length >= 3 && bankTables.every((t) => /Testbank AG/.test(t)), 'Bank-Report mit Bank: ' + bankTables.length + ' Tabellen (' + bankTables.join(' | ') + ')');
   check(!(await page.textContent('#view')).includes('Muster Anna'), 'Bank-Report ohne Namen');
+  check((await page.$$eval('#view thead th', (th) => th.map((x) => x.textContent))).includes('Einordnung') && (await page.locator('#view td.tone').count()) >= 5, 'Bank-Report: Spalte «Einordnung» mit Ton je Kennzahlzeile (' + (await page.locator('#view td.tone').count()) + ')');
   await shot(page, 'bank-report-mit-bank');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
@@ -102,6 +103,13 @@ try {
   check((await page.$$eval('#view .kpi-group h3', (h) => h.map((x) => x.textContent))).join(',') === 'Mengen,Schriftlich,Mündlich', 'Übersicht: Kacheln in drei Blöcken (Mengen · Schriftlich · Mündlich)');
   check((await page.locator('#view .kpi-hint').count()) === 0 && (await page.locator('#view .kpi .info').count()) >= 10 && (await page.locator('#view .kpi-label a[href*="begriff="]').count()) >= 10, 'Kacheln ohne Definitionsabsatz, mit ⓘ und Glossar-Link');
   check((await page.locator('#view td.pct[style*="--v"]').count()) >= 4, 'Datenbalken in Prozentspalten (Kennzahlen je Profil)');
+  // Streuung (PROMPT-2 Paket G, G.3): Zweitzeile «σ … · Median … (P25 … · P75 …)» auf den vier Ø-Kacheln (Kurzform nur auf Phone);
+  // Spalte «Einordnung» der Benchmark-Tabelle: Effektstärke bei Ø, Wilson-Intervall bei Quoten, Ton wie Δ (td.tone), Mengen ohne
+  const spreads = await page.$$eval('#view .kpi .kpi-spread-full', (s) => s.map((x) => x.textContent.trim()));
+  const spreadShortHidden = await page.evaluate(() => [...document.querySelectorAll('#view .kpi .kpi-spread-short')].every((x) => x.getClientRects().length === 0));
+  check(spreads.length === 4 && spreads.every((t) => /^σ \d+\.\d pp · Median \d+\.\d % \(P25 \d+\.\d · P75 \d+\.\d\)$/.test(t)) && spreadShortHidden, 'Übersicht: Streuungszeile auf den vier Ø-Kacheln, Kurzform ausgeblendet (' + spreads.length + ', z. B. «' + (spreads[0] || '') + '»)');
+  const einordnung = await page.$$eval('#view td.tone', (t) => t.map((x) => x.textContent.trim()));
+  check(einordnung.length >= 8 && einordnung.some((t) => /^d [+−]?\d\.\d · (gering|mittel|deutlich|gross)$/.test(t)) && einordnung.some((t) => /^±\d+\.\d pp · Benchmark im Intervall: (ja|nein)$/.test(t)) && (await page.$$eval('#view thead th', (th) => th.map((x) => x.textContent))).includes('Einordnung') && (await page.locator('#view td.tone.neutral, #view td.tone.pos, #view td.tone.neg').count()) === einordnung.length, 'Übersicht: Spalte «Einordnung» mit Effektstärke und Wilson-Intervall, Ton je Zelle (' + einordnung.length + ' Zellen, z. B. «' + (einordnung[0] || '') + '»)');
   await page.locator('#filterbar label:has-text("Bank") select').selectOption({ label: 'Testbank AG' });
   await page.waitForSelector('#view .kpi-delta');
   const deltas = await page.$$eval('#view .kpi-delta', (d) => d.map((x) => x.textContent.trim()));
@@ -430,6 +438,8 @@ try {
   await phone.waitForSelector('#view .kpi-groups'); // erste Kachel liegt auf Phone im geschlossenen Block «Mengen»
   const kpiGroups = await phone.$$eval('#view details.kpi-group', (ds) => ds.map((d) => d.querySelector('summary').textContent + ':' + (d.open ? 'offen' : 'zu')));
   const kpiCols = await phone.evaluate(() => { const k = document.querySelector('#view details.kpi-group[open] .kpis'); return k ? getComputedStyle(k).gridTemplateColumns.split(' ').length : 0; });
+  const phoneSpread = await phone.evaluate(() => { const full = document.querySelector('#view details.kpi-group[open] .kpi-spread-full'); const short = document.querySelector('#view details.kpi-group[open] .kpi-spread-short'); return { full: full ? full.getClientRects().length : -1, short: short ? short.getClientRects().length : -1, text: short ? short.textContent.trim() : '' }; });
+  check(phoneSpread.full === 0 && phoneSpread.short > 0 && /^σ \d+\.\d pp$/.test(phoneSpread.text), 'Phone: Streuung nur als Kurzform «σ x pp» (' + phoneSpread.text + ')');
   check(kpiGroups.join(',') === 'Mengen:zu,Schriftlich:offen,Mündlich:offen' && kpiCols === 2, 'Phone: Kachel-Blöcke als details (' + kpiGroups.join(', ') + '), zwei Spalten');
   const deltaVs = await phone.evaluate(() => { const s = [...document.querySelectorAll('#view .kpi-delta-vs')]; return { n: s.length, hidden: s.every((x) => getComputedStyle(x).display === 'none') }; });
   check(deltaVs.n >= 5 && deltaVs.hidden, 'Phone: Delta nur mit Symbol und Wert, «vs. Benchmark» ausgeblendet (' + deltaVs.n + ')');
@@ -572,6 +582,26 @@ try {
       if (w === 1280) await page.screenshot({ path: join(outDir, 'desktop-1280-' + v + '.png') });
     }
   }
+  // Streuungsspalten (G.3): bei 1920 px sichtbar, Lagewerte in % ohne Datenbalken (bar: false), Ø behält den Balken
+  await page.goto(server.url + '#schriftlich');
+  await page.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'schriftlich' && !!document.querySelector('#view h2'), null, { timeout: 5000 });
+  const lage = await page.evaluate(() => {
+    let cells = 0, bars = 0, sigma = 0, meanBars = 0;
+    const sigmaTh = [...document.querySelectorAll('#view thead th')].find((x) => x.textContent.trim() === 'σ (1. Versuch)');
+    for (const table of document.querySelectorAll('#view table.data')) {
+      const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+      const idx = heads.map((h, i) => (/^(Median|P25|P75) \(/.test(h) ? i : -1)).filter((i) => i >= 0);
+      const meanIdx = heads.map((h, i) => (/^Ø Resultat/.test(h) ? i : -1)).filter((i) => i >= 0);
+      for (const tr of table.querySelectorAll('tbody tr')) {
+        const tds = tr.querySelectorAll('td');
+        for (const i of idx) if (tds[i]) { cells++; if (tds[i].classList.contains('pct')) bars++; }
+        for (const i of meanIdx) if (tds[i] && tds[i].classList.contains('pct')) meanBars++;
+        for (const td of tds) if (/^\d+\.\d pp$/.test(td.textContent.trim())) sigma++;
+      }
+    }
+    return { visible: !!sigmaTh && sigmaTh.getClientRects().length > 0, cells, bars, sigma, meanBars };
+  });
+  check(lage.visible && lage.cells > 0 && lage.bars === 0 && lage.sigma > 0 && lage.meanBars > 0, 'Desktop 1920 px Schriftlich: σ-Spalten sichtbar (' + lage.sigma + ' σ-Zellen), Median/P25/P75 ohne Datenbalken (' + lage.cells + ' Zellen), Balken auf Ø (' + lage.meanBars + ')');
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.goto(server.url + '#schriftlich');
   await page.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'schriftlich' && !!document.querySelector('#view h2'), null, { timeout: 5000 });
