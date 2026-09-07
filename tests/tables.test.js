@@ -8,7 +8,7 @@ import {
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
   deltaView, col, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, directionOfLabel,
   personResultsTable, personGridTable, personTimelineTable, personDqTable,
-  expertTables, expertRunExportTable, sortTableRows, auditTable, runFieldTarget, formatSpread,
+  expertTables, expertRunExportTable, sortTableRows, auditTable, runFieldTarget, formatSpread, histogramModel,
 } from '../views/tables.js';
 import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
@@ -864,4 +864,29 @@ test('tables.expertTables: Kachel «Ø Resultat (Experten)» mit Streuung, Haupt
   const bruno = t.main.rows.find((r) => r.experte === 'Beisitz Bruno');
   assertEqual([bruno.sd, bruno.median, bruno.p25, bruno.p75], ['–', '–', '–', '–'], 'vier Einsätze: keine Streuung');
   assertEqual(expertTables([]).kpis.find((k) => k.label === 'Ø Resultat (Experten)').spread, null);
+});
+
+test('tables.histogramModel: Reihen Auswahl vs. Benchmark (Anteile je Klasse), Tabellen-Zwilling, small bei n < 5, Benchmark-Reihe nur ab n ≥ 5 (G.4)', () => {
+  const selection = withResults([0.85, 0.9, 0.9, 0.95, 1.0]);
+  const others = withResults([0.6, 0.65, 0.7, 0.7, 0.75], { employerCanon: 'Musterbank' });
+  const m = histogramModel(selection, selection.concat(others), 'written', { benchmarkLabel: 'Alle Banken' });
+  assertEqual([m.n, m.small, m.benchmarkSmall], [5, false, false]);
+  assertEqual(m.series.map((s) => s.label), ['Auswahl', 'Benchmark: Alle Banken']);
+  assertEqual(m.series[0].points.map((p) => p.x).slice(-2), ['80–90', '90–100']);
+  assertEqual(m.series[0].points.map((p) => p.n), [0, 0, 0, 0, 0, 0, 0, 0, 1, 4]);
+  assertClose(m.series[0].points[9].y, 0.8);
+  assertEqual(m.series[1].points.map((p) => p.n), [0, 0, 0, 0, 0, 0, 2, 3, 1, 4]);
+  assertClose(m.series[1].points[7].y, 0.3);
+  assertEqual(m.table.title, 'Verteilung der Resultate (1. Versuch)');
+  assertEqual(m.table.columns.map((c) => [c.label, c.prio]), [['Klasse', 1], ['Auswahl (Anzahl)', 3], ['Auswahl (Anteil)', 1], ['Benchmark: Alle Banken (Anzahl)', 3], ['Benchmark: Alle Banken (Anteil)', 2]]);
+  assertEqual(m.table.rows[9], { klasse: '90–100 %', n1: 4, anteil1: '80.0 %', n2: 4, anteil2: '40.0 %' });
+  assertEqual(m.table.rows[0], { klasse: '0–10 %', n1: 0, anteil1: '0.0 %', n2: 0, anteil2: '0.0 %' });
+  assert(/Klasse/.test(m.table.note) && /1\. Versuch/.test(m.table.note));
+  const few = histogramModel(selection.slice(0, 3), selection.concat(others), 'written', { benchmarkLabel: 'Alle Banken' });
+  assertEqual([few.n, few.small, few.table.rows[9].n1], [3, true, 2], 'Tabelle bleibt, das Diagramm ersetzt die Ansicht durch einen Hinweis');
+  const noBench = histogramModel(selection, null, 'written');
+  assertEqual([noBench.series.length, noBench.table.columns.length], [1, 3]);
+  const benchSmall = histogramModel(selection, selection.slice(0, 2), 'oral', { benchmarkLabel: 'Alle Banken' });
+  assertEqual([benchSmall.benchmarkSmall, benchSmall.series.length, benchSmall.table.columns.length], [true, 1, 5], 'Benchmark n < 5: keine zweite Reihe, Tabelle vollständig');
+  assertEqual(histogramModel([], null, 'written').series[0].points.map((p) => p.y), Array(10).fill(null));
 });

@@ -546,6 +546,24 @@ export function effectSize(meanA, meanB, sdB) {
   return { d, label };
 }
 
+// Histogramm der Resultate (Paket G, Stufe 4): 10 Klassen à 10 Prozentpunkte über 0–100, Werte als Anteile 0..1; obere
+// Klassengrenze ausgeschlossen, 100 % fällt in die letzte Klasse. { n, small, bins: [{ from, to, label, count, share }] }; share null bei n = 0.
+export function resultHistogram(values) {
+  const nums = values.filter(isNum);
+  const bins = Array.from({ length: 10 }, (_, i) => ({ from: i * 10, to: (i + 1) * 10, label: i * 10 + '–' + (i + 1) * 10, count: 0, share: null }));
+  for (const v of nums) bins[Math.min(9, Math.max(0, Math.floor(v * 10 + 1e-9)))].count += 1;
+  for (const b of bins) b.share = nums.length ? b.count / nums.length : null;
+  return { n: nums.length, small: nums.length < SMALL_N, bins };
+}
+
+export function writtenHistogram(persons, mode) {
+  return resultHistogram(persons.map((p) => writtenScore(p, mode)));
+}
+
+export function oralHistogram(persons, mode) {
+  return resultHistogram(persons.map((p) => oralScore(p, mode)));
+}
+
 // ---------------------------------------------------------------------------
 // Gruppierung
 // ---------------------------------------------------------------------------

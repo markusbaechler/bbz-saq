@@ -120,6 +120,30 @@ try {
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
+  // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
+  // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
+  for (const v of ['schriftlich', 'muendlich']) {
+    await page.goto(server.url + '#' + v);
+    await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
+    const bars = await page.evaluate(() => ({
+      svg: document.querySelectorAll('#view svg.viz-bars').length, rects: document.querySelectorAll('#view svg.viz-bars rect.viz-bar').length,
+      legend: document.querySelectorAll('#view .viz-legend-item').length, twin: [...document.querySelectorAll('#view table caption')].some((c) => /Verteilung der Resultate/.test(c.textContent)),
+      ticks: [...document.querySelectorAll('#view svg.viz-bars text.viz-tick')].map((t) => t.textContent),
+    }));
+    check(bars.svg === 1 && bars.rects >= 10 && bars.legend === 2 && bars.twin && bars.ticks.includes('90–100') && bars.ticks.some((t) => /%$/.test(t)), 'Ansicht ' + v + ': Histogramm der Resultate (' + bars.rects + ' Balken, 2 Reihen, Tabellen-Zwilling, Klassen bis 90–100)');
+  }
+  await page.focus('#view svg.viz-bars');
+  await page.keyboard.press('ArrowLeft');
+  const barTip = await page.evaluate(() => { const t = document.querySelector('#view .viz-tip'); return { hidden: !t || t.hidden, text: t ? t.textContent : '' }; });
+  check(!barTip.hidden && /Auswahl/.test(barTip.text) && /%/.test(barTip.text), 'Histogramm: Tooltip per Tastatur (' + barTip.text.slice(0, 70) + ')');
+  await page.selectOption('#filterbar label:has-text("Profil") select', 'IK');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  check((await page.locator('#view svg.viz-bars').count()) === 0 && /Verteilung erst ab 5/.test(await page.textContent('#view')) && (await page.locator('#view table caption:has-text("Verteilung der Resultate")').count()) === 1, 'Histogramm: Profil IK (n < 5) → Hinweis statt Diagramm, Tabelle bleibt');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+
   // Tastatur (A.8): mit Tab von oben durch Navigation und Filterleiste bis zum Export-Menü
   // Startpunkt der Tab-Reihenfolge an den Seitenanfang setzen (nach einem ausgeblendeten Button läge er sonst dahinter)
   await page.evaluate(() => { const b = document.body; b.tabIndex = -1; b.focus(); b.removeAttribute('tabindex'); window.scrollTo(0, 0); });
@@ -369,6 +393,10 @@ try {
   const darkBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   check(darkBg === 'rgb(20, 22, 26)', 'Dark Mode: Übersicht mit dunklem Hintergrund (' + darkBg + ')');
   await shot(page, 'dark-uebersicht');
+  await page.goto(server.url + '#schriftlich');
+  await page.waitForSelector('#view svg.viz-bars');
+  check((await page.locator('#view svg.viz-bars rect.viz-bar').count()) >= 10, 'Dark Mode: Schriftlich mit Histogramm gerendert');
+  await shot(page, 'dark-schriftlich');
   await page.emulateMedia({ colorScheme: 'light' });
 
   // Druck (A.8): Legende geöffnet, Datenbalken hell und grau, Kopf-Aktionen ausgeblendet
@@ -448,6 +476,10 @@ try {
   await phone.waitForSelector('#view svg');
   const compactSvg = await phone.evaluate(() => ({ viewBox: document.querySelector('#view svg').getAttribute('viewBox'), labels: document.querySelectorAll('#view .viz-label').length, tip: (() => { const t = document.querySelector('#view .viz.compact .viz-tip'); return t ? getComputedStyle(t).position : 'fehlt'; })() }));
   check(compactSvg.viewBox === '0 0 360 200' && compactSvg.labels === 0 && compactSvg.tip === 'static', 'Phone: kompaktes Diagramm 360 × 200 ohne Endbeschriftung, Tooltip unter dem Diagramm (' + JSON.stringify(compactSvg) + ')');
+  await phone.goto(server.url + '#schriftlich');
+  await phone.waitForSelector('#view svg.viz-bars', { state: 'attached' });
+  const phoneBars = await phone.evaluate(() => { const s = document.querySelector('#view svg.viz-bars'); const d = s.closest('details'); return { viewBox: s.getAttribute('viewBox'), folded: !!d && !d.open, ticks: [...s.querySelectorAll('text.viz-tick')].filter((t) => /–/.test(t.textContent)).length }; });
+  check(phoneBars.viewBox === '0 0 360 200' && phoneBars.folded && phoneBars.ticks === 5, 'Phone Schriftlich: kompaktes Histogramm 360 × 200 im eingeklappten Abschnitt, jede zweite Klasse beschriftet (' + JSON.stringify(phoneBars) + ')');
   await phone.screenshot({ path: join(outDir, 'phone-zeitverlauf-kompakt.png'), fullPage: true });
 
   // Phone (B.4): priorisierte Ansichten – Nebenabschnitte eingeklappt, Kernspalten sichtbar

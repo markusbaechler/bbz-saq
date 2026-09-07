@@ -10,7 +10,7 @@ import {
   timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
   earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS, profileParts, personIndex, passerelleFrom,
   runTimeline, examGrid, expertStats, expertBenchmark, expertPairs, mean,
-  writtenDispersion, oralDispersion, wilsonInterval, effectSize } from '../metrics.js';
+  writtenDispersion, oralDispersion, wilsonInterval, effectSize, writtenHistogram, oralHistogram } from '../metrics.js';
 import { compareKennzahlen, compareZaehler, compareByGroup } from '../snapshot.js';
 import { fmtDate, fmtTime, MODE_LABELS } from '../export.js';
 
@@ -785,6 +785,32 @@ export function difficultyTables(persons) {
     note: '* Zelle mit n < ' + SMALL_N + ' Vorgängen; leer = keine Erstversuche im Jahr',
   };
   return { long, pivot };
+}
+
+// Histogramm der Resultate (PROMPT-2 Paket G, Stufe 4): Reihen für renderBarChart() (Anteil der Vorgänge je Klasse à 10 pp, Wertung
+// 1. Versuch), Auswahl gegen Benchmark (zweite Reihe nur, wenn der Benchmark n ≥ 5 hat), und Tabellen-Zwilling mit Anzahl und Anteil.
+// small = Auswahl mit n < 5: die Ansicht zeigt statt des Diagramms einen Hinweis; die Tabelle bleibt (Export vollständig).
+export function histogramModel(persons, benchmarkPersons, kind = 'written', { benchmarkLabel = 'Benchmark' } = {}) {
+  const fn = kind === 'oral' ? oralHistogram : writtenHistogram;
+  const sel = fn(persons, MODE.ERSTVERSUCH);
+  const bench = benchmarkPersons ? fn(benchmarkPersons, MODE.ERSTVERSUCH) : null;
+  const points = (h) => h.bins.map((b) => ({ x: b.label, y: b.share, n: b.count, small: false }));
+  const series = [{ label: 'Auswahl', points: points(sel) }];
+  if (bench && !bench.small) series.push({ label: 'Benchmark: ' + benchmarkLabel, points: points(bench) });
+  const columns = [col('klasse', 'Klasse', 1), col('n1', 'Auswahl (Anzahl)', 3), col('anteil1', 'Auswahl (Anteil)', 1)];
+  if (bench) columns.push(col('n2', 'Benchmark: ' + benchmarkLabel + ' (Anzahl)', 3), col('anteil2', 'Benchmark: ' + benchmarkLabel + ' (Anteil)', 2));
+  const rows = sel.bins.map((b, i) => {
+    const row = { klasse: b.label + ' %', n1: b.count, anteil1: formatPct(b.share) };
+    if (bench) { row.n2 = bench.bins[i].count; row.anteil2 = formatPct(bench.bins[i].share); }
+    return row;
+  });
+  return {
+    n: sel.n, small: sel.small, benchmarkSmall: !!bench && bench.small, series,
+    table: {
+      title: 'Verteilung der Resultate (1. Versuch)', columns, rows,
+      note: 'Klassen à 10 Prozentpunkte des Resultats je Vorgang (Mittel der Teilprüfungen, Wertung 1. Versuch); obere Klassengrenze ausgeschlossen, 100 % in der letzten Klasse; Anteil = Vorgänge der Klasse an allen Vorgängen mit Wert (Auswahl n = ' + sel.n + (bench ? ', Benchmark n = ' + bench.n : '') + '); Diagramm erst ab n ≥ ' + SMALL_N,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------

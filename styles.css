@@ -420,6 +420,8 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .viz-leader { stroke: var(--viz-grid); stroke-width: 1; }
 .viz-key { stroke-width: 2; stroke-linecap: round; }
 .viz-cross { stroke: var(--viz-tick); stroke-width: 1; pointer-events: none; }
+.viz-bar { stroke: none; } /* Balkendiagramm (Paket G): Farbe über --series-n inline */
+.viz-bar:hover { opacity: .85; }
 .viz-tip { position: absolute; top: .5rem; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: .4rem .6rem; font-size: .8rem; box-shadow: 0 2px 8px var(--shadow); pointer-events: none; min-width: 12rem; }
 .viz-tip-x { font-weight: 600; margin-bottom: .2rem; }
 .viz-tip-row { display: flex; align-items: center; gap: .4rem; }

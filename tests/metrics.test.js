@@ -12,7 +12,7 @@ import {
   profileParts, partsOutsideProfile, personIndex, passerelleFrom,
   normalizeNamePart, personSearchIndex, searchPersons, personPath, runTimeline, examGrid,
   expertRuns, expertStats, expertBenchmark, expertPairs,
-  dispersion, writtenDispersion, oralDispersion, wilsonInterval, effectSize, reportedDispersion,
+  dispersion, writtenDispersion, oralDispersion, wilsonInterval, effectSize, reportedDispersion, resultHistogram, writtenHistogram, oralHistogram,
 } from '../metrics.js';
 import { makePerson, d } from './fixtures.js';
 
@@ -870,6 +870,24 @@ test('metrics.reportedDispersion / partFirstAttempt / partDifficultyByYear / exp
   assert(stats.length > 0 && stats.every((s) => s.spread && s.spread.n <= s.einsaetze && (s.spread.n < 5 ? s.spread.sd === null : typeof s.spread.sd === 'number')), 'je Experte: Streuung über die Einsätze mit Wert, null unter 5');
   const bench = expertBenchmark(runs);
   assertEqual(bench.spread.n, runs.filter((r) => typeof r.result === 'number').length, 'Benchmark: Streuung aller Einsätze mit Wert');
+});
+
+test('metrics.resultHistogram / writtenHistogram / oralHistogram: 10 Klassen à 10 pp, obere Grenze ausgeschlossen, 100 % in der letzten Klasse; n < 5 small (G.4)', () => {
+  const h = resultHistogram([0.05, 0.15, 0.95, 1.0, 0.5, 0.1, null]);
+  assertEqual([h.n, h.small], [6, false]);
+  assertEqual(h.bins.map((b) => b.count), [1, 2, 0, 0, 0, 1, 0, 0, 0, 2]);
+  assertEqual([h.bins[0].label, h.bins[1].label, h.bins[9].label], ['0–10', '10–20', '90–100']);
+  assertEqual([h.bins[0].from, h.bins[0].to, h.bins[9].from, h.bins[9].to], [0, 10, 90, 100]);
+  assertClose(h.bins[1].share, 2 / 6);
+  const none = resultHistogram([]);
+  assertEqual([none.n, none.small, none.bins.length, none.bins[0].count, none.bins[0].share], [0, true, 10, 0, null]);
+  assertEqual(resultHistogram([0.3, 0.7, 0.9]).small, true);
+  const persons = [0.6, 0.7, 0.8, 0.9, 1.0].map((r) => simple({
+    we: { 1: [{ passed: true, date: '2024-03-01', result: r }], 2: [{ passed: true, date: '2024-03-01', result: r }] },
+    oe: { 1: [{ passed: true, date: '2024-06-01', result: r }] },
+  }));
+  assertEqual(writtenHistogram(persons, MODE.ERSTVERSUCH).bins.map((b) => b.count), [0, 0, 0, 0, 0, 0, 1, 1, 1, 2], '0.6 → 60–70 … 0.9 und 1.0 → 90–100');
+  assertEqual(oralHistogram(persons, MODE.BESTANDEN).n, 5);
 });
 
 test('passiveCases: offene Vorgänge mit Kennzeichen passiv (store setzt es beim Laden); Tage aus today', () => {
