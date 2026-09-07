@@ -56,7 +56,7 @@ ist besser bei Durchfallquoten und passiven Vorgängen; unter 0.5 pp neutral ●
 Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die erste Spalte bleibt beim horizontalen
 Scrollen stehen. Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
 1200 px) für schmale Bildschirme; unter 1200 px blendet «Alle Spalten» die Prio-3-Spalten ein; die Experten-Tabelle mit 13 Spalten zeigt Prio 3
-erst ab 1400 px. Kopfzellen brechen um, Zahlen nicht (Paket F).
+erst ab 1500 px. Kopfzellen brechen um, Zahlen nicht (Paket F).
 
 **Mobile:** Phone bis 600 px, Tablet 601–900 px, darüber Desktop; der Druck behält immer das Desktop-Layout. Auf dem
 Phone gilt: Grundschrift 16 px, Touch-Ziele mindestens 44 px, nie horizontaler Seitenscroll (nur Tabellen scrollen in
