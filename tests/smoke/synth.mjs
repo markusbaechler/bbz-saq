@@ -37,6 +37,8 @@ export function buildSynthWorkbook() {
   };
   add('first', [
     base({}),
+    // Zeile ohne Namen (Fehler «Name fehlt»): kein Vorgang, keine Person – Data-Quality-Eintrag mit Zeile, aber ohne Sprungziel (Hotfix 07.09.2026)
+    base({ lastName: '', firstName: '', birthDate: '' }),
     // IK offen, OE1 nicht bestanden 2024, kein Termin → passiv
     base({ lastName: 'Beispiel', firstName: 'Ben', profil: 'IK', birthDate: '01.01.1990', weAllPassed: '', oeAllPassed: '', ...runValues('oe', { 1: [{ passed: 'no', date: d(2024, 6, 1), score: 2, result: 0.4, expert1: 'Experte Emil', expert2: 'Beisitz Bruno' }] }) }),
     // dieselbe Person, zweites Profil (CWMA) bestanden 2026, Score-Anomalie «x» → nicht ausgewertet (E6)
