@@ -148,7 +148,10 @@ function el(tag, attrs = {}, children = []) {
     else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
     else node.setAttribute(k, v);
   }
-  for (const c of children) node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  for (const c of children) {
+    if (c === null || c === undefined) continue; // wie el() in common.js: fehlende Kinder überspringen statt appendChild(null)
+    node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  }
   return node;
 }
 
@@ -265,7 +268,7 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
     if (onJump) {
       // Sprung zur Person (Bereinigung): nur für Einträge, deren Zeile eine Person ergab
       const p = byRow.get(e.sheet + '|' + e.row);
-      cells.push(el('td', { class: 'col-person', 'data-prio': '1' }, [p ? el('button', { type: 'button', class: 'secondary small-button dq-jump', text: 'Zur Person', 'aria-label': 'Zur Person (' + e.sheet + ', Zeile ' + e.row + ')', onclick: () => onJump({ sheet: e.sheet, row: e.row, field: e.field }) }) : null]));
+      cells.push(el('td', { class: 'col-person', 'data-prio': '1' }, [p ? el('button', { type: 'button', class: 'secondary small-button dq-jump', text: 'Zur Person', 'aria-label': 'Zur Person (' + e.sheet + ', Zeile ' + e.row + ')', onclick: () => onJump({ sheet: e.sheet, row: e.row, field: e.field }) }) : '–'])); // ohne Person (z. B. Zeile ohne Namen): Strich
     }
     return el('tr', { class: 'level-' + levelOf(e) + ' impact-' + impactOf(e) }, cells);
   }));
