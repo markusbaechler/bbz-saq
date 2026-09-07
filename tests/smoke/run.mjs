@@ -225,6 +225,8 @@ try {
   // Datenqualität: Suche filtert und behält den Fokus (Debounce 150 ms)
   await page.goto(server.url + '#datenqualitaet');
   await page.waitForSelector('#view .dq-text');
+  // Eintrag ohne Person (Zeile ohne Namen, Hotfix 07.09.2026): Strich statt Sprung, die Ansicht rendert trotzdem
+  check((await page.locator('#view td.col-person').count()) >= 2 && (await page.locator('#view td.col-person:not(:has(button))').count()) >= 1 && (await page.locator('#view td.col-person', { hasText: '–' }).count()) >= 1, 'Datenqualität: Eintrag ohne Person (Zeile ohne Namen) → Strich statt «Zur Person», Tabelle rendert');
   const allRows = await page.locator('#view table.dq-table tbody tr').count();
   await page.fill('#view .dq-text', 'Score');
   await page.waitForTimeout(500);
