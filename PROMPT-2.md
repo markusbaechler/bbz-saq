@@ -1,10 +1,10 @@
 # PROMPT-2.md – Auftrag: bbz Zertifizierungs-Cockpit «Reporting KUBA», Ausbau
 
-Stand: 06.09.2026, Fassung 2 (optimiert; Änderungen gegenüber Fassung 1 in Anhang A6) · Auftraggeber: Markus Baechler ·
+Stand: 07.09.2026, Fassung 3 (Fassung 2 vom 06.09.2026 plus Pakete F und G; Änderungen in Anhang A6 und A7) · Auftraggeber: Markus Baechler ·
 Ausführung: Claude Code (CC) im Repo `markusbaechler/bbz-saq`, lokaler Klon `C:\Users\markus.baechler\Documents\bbz_vc\bbz-saq`.
 Ausgangsstand des Codes: `origin/main` = `7bb9966` (06.09.2026) oder neuer. Diese Datei liegt nach Schritt 0 als `PROMPT-2.md` im Repo-Wurzelverzeichnis.
 
-Dieses Dokument setzt auf `PROMPT.md` (Phase 1, umgesetzt) auf und beschreibt fünf Arbeitspakete:
+Dieses Dokument setzt auf `PROMPT.md` (Phase 1, umgesetzt) auf und beschreibt sieben Arbeitspakete (A–E umgesetzt und gemerged, F–G offen):
 
 | Paket | Inhalt | Art |
 |---|---|---|
@@ -13,6 +13,8 @@ Dieses Dokument setzt auf `PROMPT.md` (Phase 1, umgesetzt) auf und beschreibt f�
 | **C** | Personen-Layer: Suche und Pfad einer Person | Neue Ansicht |
 | **D** | Experten-Layer: Statistik je Experte der mündlichen Prüfung | Neue Datenfelder, Kennzahlen, Ansicht |
 | **E** | Mutation: minimaler Schreibpfad in die Excel (Phase 2) | Spike mit Go/No-Go, dann Umsetzung |
+| **F** | Nacharbeiten aus dem Prüfbericht vom 06.09.2026 (Navigation, Tabellenbreite, Filterleiste, Phone-Kopf, Doku) | Umbau ohne fachliche Änderung |
+| **G** | Streuung der Resultate: σ, Median/Quartile, Einordnung von Differenzen (Effektstärke, Wilson-Intervall) | Neue Kennzahlen, additiv |
 
 ## Lesehinweise für CC
 
@@ -127,6 +129,9 @@ Log-Einträge. In Schritt A.8 das Log als Liste **E1–E10** vervollständigen (
 Spike; die Umsetzung E2 nur nach Go. Innerhalb eines Pakets die Schritte in der angegebenen Reihenfolge; Tests vor Views (CLAUDE.md).
 Paket n + 1 beginnt erst, wenn Paket n auf `main` gemerged ist (0.7); der Block «Entscheide vor Start» des nächsten Pakets wird mit dem
 Abnahme-Bericht des vorherigen Pakets gestellt, damit keine Leerlaufrunde entsteht.
+
+**Fassung 3 (07.09.2026):** A–E sind gemerged. Fortsetzung `F → G`: F (Nacharbeiten, keine fachliche Änderung) vor G (Streuung), weil G neue
+Tabellenspalten anlegt, die den Tabellenumbruch und den Prio-3-Breakpoint aus F2 voraussetzen.
 
 ### 0.6 Arbeitsumgebung und Schritt 0 (Vorbereitung)
 
@@ -790,6 +795,123 @@ CC protokolliert nur Ergebnisse ohne Personendaten.
 
 ---
 
+## Paket F – Nacharbeiten aus dem Prüfbericht (06.09.2026)
+
+Grundlage: unabhängige Prüfung von HEAD `3616d32` (Prüfbericht «PRUEFBERICHT-PROMPT-2.md» beim Auftraggeber). Automatik grün: 64 Module
+Syntax, 340 Unit-Tests, 135 Kontrastpaare, Glossar-Abgleich ohne Diff, Smoke 179 ok auf 1400 × 1000 / 820 × 1180 / 390 × 844 in einer
+unabhängigen Umgebung. Offen sind Layoutmängel gegenüber A.11 und ein Doku-Eintrag. **Keine fachlichen Änderungen; Snapshot vor/nach identisch (0.4).**
+
+> **⛔ Entscheide vor Start** (eine Nachricht vor Schritt F.1):
+> 1. F1 Navigation: (a) Gruppenbeschriftung inline vor den Links, engere Abstände, `--fs-sm`; (b) Gruppe «Daten» rechtsbündig als Sekundärnavigation;
+>    (c) zwei Zeilen zulassen. Empfehlung: (a) mit Zielmass `#nav.scrollWidth ≤ clientWidth` ab 1100 px; (b) nur, wenn (a) bei 1100 px nicht reicht.
+> 2. F2 Tabellen: Prio-3-Spalten bereits unter 1200 px ausblenden (heute 900 px). Empfehlung: ja.
+> 3. F7 `spike/`: (a) löschen; (b) nach `tools/spike/` verschieben und aus Pages ausnehmen. Empfehlung: (a) – der Spike ist abgeschlossen, Adapter und Tests decken den Ablauf ab.
+
+### F.0 Befunde (Kurzfassung)
+
+| Nr. | Schwere | Befund | Fundstelle |
+|---|---|---|---|
+| F1 | mittel | `#nav` braucht 1597 px; unter 1600 px horizontaler Scroll, Gruppe «Daten» unsichtbar – A.2/A.11 verlangen eine sichtbare Zeile ab 1100 px (gemessen bei 1100/1280/1400) | `styles.css` `.views`, `.nav-group`, `.nav-group-label`, `.views a` (nowrap, Padding `--space-3`) |
+| F2 | mittel | Tabellen mit langen Titeln scrollen auch bei 1100–1600 px horizontal, weil `th.num` `white-space: nowrap` trägt; die erste Spalte bricht dafür um («CWMA *», «Testbank AG») | `styles.css` `table.data th.num`; Übersicht «Kennzahlen je Profil», Schriftlich alle Quotentabellen |
+| F5 | niedrig | Filterleiste bei ≤ 1280 px zweizeilig (127 px statt 99 px); A.11 «einzeilig» nicht erfüllt | `app.js` `buildFilterBar()`, `.filterbar` |
+| F4 | niedrig | Phone: Kopf (Marke, Anmelden, zwei Lade-Aktionen, Datenstand, Ansicht-Select, Filter) belegt rund die Hälfte des ersten Bildschirms | `index.html` `.databar`, `styles.css` Phone-Block |
+| F6 | niedrig | KPI-Labels dauerhaft unterstrichen plus ⓘ – unruhig, auf Phone besonders | `styles.css` `.kpi-label a` |
+| F7 | niedrig | `spike/mutation.html` im Repo und unter `/bbz-saq/spike/` auf Pages erreichbar (Scope ReadWrite, wirkt nur auf die Testkopie) | `spike/` |
+| F3 | Doku | `features.write = true` auf Anweisung des Auftraggebers nach dessen App-Test auf der Testkopie; der formale Lauf der Spike-Testseite ist nicht protokolliert, Spike-Abschnitt 4 (Datei in Excel Desktop geöffnet) bleibt `[unklar]` – kein Mangel, nur Entscheid-Log | `docs/SPIKE-mutation.md` Abschnitt 8 |
+
+### F.1 Vorgaben
+
+- **F1:** `.nav-group` als Zeile (`flex-direction: row; align-items: baseline`), `.nav-group-label` inline vor dem ersten Link (`--fs-xs`, uppercase),
+  Link-Padding `--space-2`, `gap` zwischen Gruppen `--space-4`, Schriftgrad `--fs-sm`. Zielmass: bei 1100 px `scrollWidth ≤ clientWidth`. Tablet/Phone unverändert.
+- **F2:** `table.data th.num { white-space: normal; min-width: 6rem }`; erste Spalte `min-width: 9rem`; `nowrap` nur noch für Badge-/Datumszellen.
+  Prio-3-Breakpoint 1200 px (Schalter «Alle Spalten» bleibt). Zielmass: keine `.table-wrap` mit `scrollWidth > clientWidth` bei ≥ 1280 px
+  in Übersicht, Schriftlich, Mündlich, Experten.
+- **F5:** Reihenfolge Jahr · Von · Bis · Profil · Sprache · Bank · VSS/VSM · Versuche · Zertifikate; Selects mit `min-width` statt Inhaltsbreite
+  (Bank höchstens 14rem, Text abgeschnitten, voller Name als `title`). Zielmass: bei 1280 px eine Zeile plus Zusammenfassung/Chips.
+- **F4:** Phone: nach dem Laden wandern «Daten von SharePoint laden» und «Lokale Excel-Datei prüfen» ins Datenstand-`details` (Zeile «Neu laden · Lokale Datei»);
+  Marke und Konto-Initialen in einer Zeile. Vor dem Laden bleibt die Leerzustand-Karte der einzige Aufruf. Zielmass: Kopf bis zum Inhalt ≤ 260 px bei 390 px Breite.
+- **F6:** `.kpi-label a { text-decoration: none }`, Unterstreichung nur bei `:hover`/`:focus-visible`; ⓘ bleibt Klickziel mit `title`.
+- **F7:** gemäss Entscheid 3.
+- **F3:** Entscheid E13 (Anhang A4) in README «Modell» und in `docs/SPIKE-mutation.md` Abschnitt 8 eintragen.
+
+### F.2 Schritte
+
+- [ ] **F.1** Entscheide vor Start einholen (eine Nachricht). Branch `paket-f-nacharbeiten`, Draft-PR. F1 umsetzen; Smoke-Prüfung «Navigation ohne Scroll» bei 1100, 1280, 1400. Vorlegen.
+- [ ] **F.2** F2 umsetzen; Smoke-Prüfung «keine Tabelle mit Überlauf ≥ 1280 px» (Übersicht, Schriftlich, Mündlich, Experten). Vorlegen.
+- [ ] **F.3** F5, F4, F6; Smoke: Filterleiste bei 1280 px ≤ 110 px hoch, Phone-Kopf ≤ 260 px nach dem Laden. Vorlegen.
+- [ ] **F.4** F7 und F3 (Doku); README «Ansichten»/«Mobile» prüfen; Snapshot-Vergleich; PR «Ready for review». ⛔ Abnahme Paket F (inkl. «Entscheide vor Start» Paket G).
+
+### F.3 Akzeptanzkriterien
+
+- Smoke grün auf 1100 × 900, 1280 × 900, 1400 × 1000, 820 × 1180, 390 × 844; `#nav` und `.table-wrap` ohne Überlauf gemäss Zielmassen.
+- Snapshot vor/nach identisch; `tools/contrast.js` grün; keine neuen Personendaten.
+- README-Entscheid-Log enthält E13; `spike/` gemäss Entscheid 3 behandelt.
+
+---
+
+## Paket G – Streuung der Resultate (σ, Median/Quartile, Einordnung von Differenzen)
+
+Frage des Auftraggebers (07.09.2026): Standardabweichung in der Übersicht? Antwort und Rahmen:
+
+- **Bestehensquoten: keine SD.** [Fakt] Die SD eines Anteils ist `√(p·(1−p))` – eine Funktion von p, ohne Zusatzinformation. Was fehlt, ist die
+  **Unsicherheit** bei kleinem n → 95-%-Wilson-Intervall.
+- **Ø Resultate: SD sinnvoll**, aber Resultate liegen in 0–100 % und sind linksschief (viele bei 70–90 %, wenige Ausreisser nach unten) →
+  **σ immer zusammen mit Median und Quartilen** (wie bei der Durchlaufzeit), nie σ allein.
+- **Übersicht: keine neue Kachel** (19 Kacheln sind das Limit, Befund «unaufgeräumt»); Streuung als Zweitzeile in den vier Ø-Kacheln, Detail in den
+  Tabellen. Der grösste Nutzen liegt in der **Einordnung von Differenzen** (Benchmark, Bank-Report): heute kann eine Bank wegen 2 pp als «schlechter» gelten.
+- **Additiv:** bestehende Zahlen bleiben unverändert; Snapshot-Format unverändert (Entscheid 5).
+
+> **⛔ Entscheide vor Start** (eine Nachricht vor Schritt G.1):
+> 1. σ als Stichproben-SD (n−1) über die Vorgänge mit Wert. Empfehlung: ja (Stichprobe eines laufenden Prozesses; entspricht Excel `STABW.S`).
+> 2. Streuung erst ab n ≥ 5 ausweisen (bestehende `SMALL_N`), darunter «–». Empfehlung: ja.
+> 3. Einordnung von Differenzen: Ø-Kennzahlen über die Effektstärke d = Δ / σ(Benchmark) mit Skala |d| < 0.2 «gering», 0.2–0.5 «mittel», 0.5–0.8 «deutlich»,
+>    ≥ 0.8 «gross» (Cohen); Quoten über das 95-%-Wilson-Intervall der Auswahl («Benchmark im Intervall: ja/nein»). Empfehlung: ja.
+> 4. Stufe 4 Histogramm der Resultate in Schriftlich/Mündlich `[optional]`: umsetzen, wenn G.1–G.3 im Plan liegen. Empfehlung: ja.
+> 5. Snapshot-Format unverändert (σ/Median nicht historisiert). Empfehlung: ja; Historisierung der Streuung nach einem Jahr Nutzung prüfen.
+> 6. Phone: in Kacheln nur «σ x pp», Tabellenspalten als Prio 3. Empfehlung: ja.
+
+### G.1 Kennzahlen (`metrics.js`, reine Funktionen)
+
+| Kennzahl | Definition | Nenner | Grenzfälle / Hinweise |
+|---|---|---|---|
+| **Streuung σ (Resultat)** | Stichproben-SD (n−1) der Resultat-Werte je Vorgang – je Vorgang das Mittel über die Teilprüfungen gemäss Wertung, genau wie bei «Ø Resultat» – in Prozentpunkten. | Vorgänge mit Wert | n < 5 → «–». Getrennt je Wertung (1. Versuch, bestandener Run), schriftlich und mündlich. Ausreisser nach unten treiben σ; darum immer mit Median/Quartilen. |
+| **Median, P25, P75 (Resultat)** | Quantile derselben Werte (`quantiles()`, lineare Interpolation wie bei der Durchlaufzeit). | Vorgänge mit Wert | n < 5 → «–». |
+| **Effektstärke d** | (Ø Auswahl − Ø Benchmark) / σ(Benchmark). | – | Nur wenn beide n ≥ 5 und σ(Benchmark) > 0; Skala gemäss Entscheid 3; Vorzeichen wie Δ. Kein Signifikanztest – bewusst eine Grössenordnung, keine p-Werte. |
+| **Wilson-Intervall (Quote)** | 95-%-Konfidenzintervall des Anteils der Auswahl (z = 1.96) als «±x pp» (halbe Breite) und Grenzen. | Nenner der Quote | n = 0 → «–». Einordnung «Benchmark im Intervall» = Benchmark-Anteil liegt innerhalb der Grenzen. Das «*» für n < 5 bleibt. |
+
+Funktionen: `dispersion(values)` → `{ n, sd, median, p25, p75, mean }` (erweitert `quantiles()` um `sd`; Werte als Anteile 0..1, Umrechnung in pp erst in
+`views/tables.js`); `writtenDispersion(persons, mode)`, `oralDispersion(persons, mode)` auf Basis von `writtenScore()`/`oralScore()`;
+`wilsonInterval(count, n, z = 1.96)` → `{ low, high, half }`; `effectSize(meanA, meanB, sdB)` → `{ d, label }`.
+Tests mit bekannten Werten: `[0.7, 0.8, 0.9]` → sd 0.1, median 0.8, p25 0.75, p75 0.85; `wilsonInterval(5, 10)` → 0.237…0.763;
+`effectSize(0.75, 0.70, 0.10)` → d 0.5 «mittel»; n < 5 → `sd: null`; `sdB = 0` → `d: null`.
+
+### G.2 Darstellung
+
+| Stufe | Wo | Was |
+|---|---|---|
+| 1 | Übersicht, die vier Ø-Kacheln (`overviewModel()` → `avg()`, `renderKpis()`) und die Kachel «Ø Resultat (Experten)» | Zweitzeile `.kpi-spread`: «σ 9.8 pp · Median 76.0 % (P25 70.0 · P75 84.5)»; Phone nur «σ 9.8 pp»; n < 5 keine Zeile. Keine neue Kachel. |
+| 2 | `performanceTable()` (Schriftlich/Mündlich nach Profil, Sprache, Bank), `partTable()`, `difficultyTables()` (Ø-Spalten), `expertTables()` (Ø Resultat) | je Wertung Spalten «σ», «Median», «P25», «P75» als Prio 3; Datenbalken nur auf Ø, nicht auf σ; Exporte immer vollständig. |
+| 3 | `comparisonTable()` (Übersicht) und `bankReportTables()` | Spalte «Einordnung» (Prio 1): Ø-Kennzahlen «d 0.3 · mittel», Quoten «±4.1 pp · Benchmark im Intervall: ja»; Mengen «–». Tonwert wie Δ, der Text trägt die Bedeutung (nie nur Farbe). Legende erklärt beide Regeln in je einem Satz. Der Bank-Report-Druck enthält die Spalte. |
+| 4 `[optional]` | Schriftlich und Mündlich, nach den Ø-Tabellen | Histogramm der Resultate (Wertung 1. Versuch) in 10-pp-Klassen 0–100, zwei Reihen Auswahl vs. Benchmark (Anteile in %), `renderBarChart()` in `views/chart.js` mit denselben Konventionen wie `renderLineChart` (Tokens, Legende, Tabellen-Zwilling, `compact` auf Phone, Tastatur-Tooltip). n < 5 → Hinweis statt Diagramm. |
+
+### G.3 Schritte
+
+- [ ] **G.1** Entscheide vor Start einholen (eine Nachricht). Branch `paket-g-streuung`, Draft-PR. `metrics.js` (`dispersion`, `writtenDispersion`, `oralDispersion`, `wilsonInterval`, `effectSize`) mit Tests. Vorlegen.
+- [ ] **G.2** `views/tables.js`: Kachel-Feld `spread`, Spalten Stufe 2, Spalte «Einordnung» Stufe 3; Tests (Prioritäten, Formatierung «σ 9.8 pp», Einordnungstexte, «–» bei n < 5). Vorlegen.
+- [ ] **G.3** `views/common.js` (`.kpi-spread`), `styles.css`, Legendentexte; Smoke: Ø-Kacheln zeigen «σ», Prio-3-Spalten auf Desktop sichtbar, Bank-Report mit «Einordnung», Phone nur «σ». Vorlegen.
+- [ ] **G.4** `[optional]` Histogramm (`renderBarChart`, Tabellen-Zwilling, Smoke Dark/Phone). Vorlegen.
+- [ ] **G.5** Glossar (Anhang A3, Abschnitt G), README «Kennzahl-Definitionen» via `tools/glossar-readme.js`, Entscheid-Log E14; Snapshot-Vergleich (unverändert); PR «Ready for review». ⛔ Abnahme Paket G.
+
+### G.4 Akzeptanzkriterien
+
+- Bekannte-Werte-Tests für σ, Median/Quartile, Wilson und Effektstärke grün; n < 5 liefert überall «–».
+- Übersicht: vier Ø-Kacheln mit Streuungszeile, Kachelzahl unverändert 19.
+- Bank-Report: jede Kennzahlzeile trägt eine Einordnung; eine Differenz von 2 pp bei d < 0.2 erscheint als «gering».
+- Bestehende Zahlen unverändert (Snapshot identisch); Exporte enthalten die neuen Spalten mit denselben Werten wie die Ansicht.
+- Smoke grün auf allen Viewports; kein Überlauf durch die neuen Spalten (Prio 3, Voraussetzung F2).
+
+---
+
 ## 6 Kick-off und Konventionen
 
 **Erste Nachricht an CC** (kopieren):
@@ -799,6 +921,15 @@ Lies zuerst CLAUDE.md (Stand origin/main), dann PROMPT-2.md vollständig. Fasse 
 A → B → C → D → E, den Git-Workflow (Branch je Paket, Draft-PR, Merge nach Freigabe) und den Freigabe-Takt (Bericht nach jedem Schritt)
 in fünf Sätzen zusammen und bestätige, dass du die ⛔-Punkte einhältst. Führe dann Schritt 0 (Abschnitt 0.6) aus und lege den Bericht
 nach Vorlage 0.8 vor. Nach Freigabe: Paket A, Schritt A.1. Keine Annahmen über die Excel-Struktur.
+```
+
+**Fortsetzung nach Paket E (Fassung 3, 07.09.2026 – kopieren):**
+
+```
+Lies PROMPT-2.md (Fassung 3): Abschnitt 0.5, Paket F, Paket G, Anhang A3 (Abschnitt G), A4 (E13, E14) und A7. Bestätige in drei Sätzen:
+Reihenfolge F → G, keine fachlichen Änderungen in F (Snapshot identisch), additive Kennzahlen in G (Snapshot-Format unverändert).
+Stelle dann die «Entscheide vor Start» zu Paket F in einer Nachricht (Vorlage 0.8). Nach der Antwort: Branch paket-f-nacharbeiten, Schritt F.1.
+Bericht nach jedem Schritt, dann warten. Keine Annahmen über die Excel-Struktur.
 ```
 
 **Commits:** klein, thematisch, deutsch, Imperativ (0.7). Ein Schritt darf mehrere Commits haben; nie mehrere Schritte in einem Commit.
@@ -871,10 +1002,15 @@ Dark-Werte analog aus den bestehenden Dark-Tokens ableiten (`--ok #5ad07a`, `--d
 | Kennzahl | Ø Resultat (Experte) | Mittel der Resultate der Einsätze mit Wert. | Einsätze mit Wert | Result massgebend (E6). |
 | Kennzahl | Benchmark (Experten) | Durchfallquote und Ø Resultat über alle Einsätze im Filter, je Versuchsart. | Einsätze | Basis der Δ-Werte. |
 | Begriff | Schreibpfad (Phase 2) | Änderung einzelner Run-Zellen in bestehenden Spalten über die Graph-Workbook-API mit Validierung, Konfliktprüfung und Audit-Protokoll. | – | E10; nur mit Feature-Flag; Struktur der Datei bleibt unverändert. |
+| Begriff | Streuung σ (Resultat) | Stichproben-Standardabweichung (n−1) der Resultat-Werte je Vorgang (Mittel über die Teilprüfungen gemäss Wertung, wie «Ø Resultat»), in Prozentpunkten. | Vorgänge mit Wert | Paket G. n < 5 → «–». Immer zusammen mit Median und Quartilen, weil Resultate linksschief sind. Nicht im Snapshot. |
+| Begriff | Median / Quartile (Resultat) | Median, P25 und P75 derselben Werte, lineare Interpolation wie bei der Durchlaufzeit. | Vorgänge mit Wert | n < 5 → «–». Robuster als σ gegen Ausreisser nach unten. |
+| Begriff | Effektstärke (d) | (Ø Auswahl − Ø Benchmark) / σ(Benchmark); Skala Betrag von d: < 0.2 gering, 0.2–0.5 mittel, 0.5–0.8 deutlich, ≥ 0.8 gross. | – | Nur wenn beide Gruppen n ≥ 5 und σ(Benchmark) > 0. Grössenordnung, kein Signifikanztest. |
+| Begriff | Wilson-Intervall (95 %) | Konfidenzintervall eines Anteils (z = 1.96), ausgewiesen als ±pp (halbe Breite). | Nenner der Quote | Für Bestehensquoten statt einer Standardabweichung (die wäre eine Funktion des Anteils). «Benchmark im Intervall» = Benchmark-Anteil innerhalb der Grenzen. |
+| Begriff | Einordnung (Differenz) | Spalte in «Auswahl im Vergleich zum Benchmark» und im Bank-Report: Ø-Kennzahlen mit Effektstärke, Quoten mit Wilson-Intervall, Mengen ohne. | – | Farbe wie Δ, Bedeutung im Text. Verhindert, dass wenige pp Differenz als Rangfolge gelesen werden. |
 
 Kennzahl-Einträge tragen exakt die Beschriftung der Kachel bzw. Spalte (`tests/glossary.test.js`).
 
-### A4 Entscheid-Log (Text für README «Modell», Liste E1–E10)
+### A4 Entscheid-Log (Text für README «Modell», Liste E1–E14)
 
 E1–E6 aus README «Modell», Glossar und Normalisierungstabelle in dieselbe Listenform überführen (je ein Satz, Datum 05.09.2026); dann:
 
@@ -882,6 +1018,8 @@ E1–E6 aus README «Modell», Glossar und Normalisierungstabelle in dieselbe Li
 - **E8 (06.09.2026)** Expertennamen in der Ansicht «Experten».
 - **E9 (06.09.2026)** Mündliche Prüfung prüft Methodik → profilübergreifend vergleichbar; Benchmark je Experte über alle Experten im Filter, getrennt nach Erstversuch und Wiederholung.
 - **E10 (06.09.2026)** Regel 1 präzisiert: Struktur nie ändern; Zellwerte nur über den Schreibpfad (Paket E) mit Flag, Validierung, Konfliktprüfung, Audit. Scope `Files.ReadWrite.All` gesetzt.
+- **E13 (06.09.2026)** Schreibpfad produktiv freigeschaltet (`features.write = true`) auf Anweisung des Auftraggebers nach dessen Test über die App auf der Testkopie (Bearbeitungsmodus, Dialog, Schreiben, Neuladen, Audit, Historie). Der formale Lauf der Spike-Testseite ist nicht protokolliert; das Restrisiko «Datei gleichzeitig in Excel Desktop geöffnet» (423/409 → Konfliktmeldung, kein Datenverlust) ist akzeptiert.
+- **E14 (07.09.2026, nach «Entscheide vor Start» Paket G ausfüllen)** Streuung: σ als Stichproben-SD (n−1) über Vorgänge mit Wert, immer mit Median/Quartilen; keine SD für Quoten, stattdessen Wilson-Intervall; Einordnung von Differenzen über Effektstärke (Ø) bzw. Intervall (Quoten); ab n ≥ 5; nicht im Snapshot.
 
 ### A5 Synthetische Testdaten (Erweiterung `tests/fixtures.js` und `tests/smoke/synth.mjs`)
 
@@ -911,3 +1049,10 @@ Nur erfundene Namen und Banken; keine realen Kürzel von Instituten aus `EMPLOYE
 8. **D.2:** CC führt `tools/headers.js` selbst auf der lokalen Kopie aus (nur Header); Header-abhängige Entscheide in einer Nachricht gebündelt.
 9. **A5:** vorhandene synthetische Fälle aufgeführt, nur die fehlenden werden ergänzt; Hinweis auf betroffene Smoke-Prüfungen.
 10. Kleinere Präzisierungen: Untertitel-Ist «Reporting KUBA · Phase 1 (nur lesen)», Nav-Links behalten den Hash-Filterzustand, leere Gruppe Experten nicht rendern, `caption`-Prüfung im Smoke-Test, Smoke-Prüfung «Bank: alle», B.4 mit Testfall, Node 22 in der CI.
+
+### A7 Änderungen Fassung 3 gegenüber Fassung 2 (07.09.2026)
+
+1. **Stand festgehalten:** Pakete A–E gemerged (PR #9–#17, HEAD `3616d32`), unabhängig geprüft (Prüfbericht beim Auftraggeber): Syntax 64 Module, 340 Unit-Tests, 135 Kontrastpaare, Glossar-Abgleich, Smoke 179 ok auf drei Viewports.
+2. **Paket F – Nacharbeiten** aus dem Prüfbericht: F1 Navigation (1597 px Breite), F2 Tabellenüberlauf (`th.num` nowrap), F5 Filterleiste bei 1280 px, F4 Phone-Kopf, F6 KPI-Labels, F7 `spike/`, F3 nur Doku (E13). Reihenfolge F1 → F2 → F5/F4/F6 → F7/F3.
+3. **Paket G – Streuung** nach Frage des Auftraggebers: σ + Median/Quartile für Ø-Resultate (Kacheln Zweitzeile, Tabellen Prio 3), Wilson-Intervall für Quoten, Einordnung von Differenzen (Effektstärke bzw. Intervall) in Benchmark-Vergleich und Bank-Report, Histogramm optional. Keine neue Kachel, keine SD für Quoten, Snapshot unverändert.
+4. **Reihenfolge** `A → B → C → D → E → F → G` (0.5); Kick-off-Nachricht für die Fortsetzung (Abschnitt 6); Anhang A3 um Abschnitt G, A4 um E13/E14 ergänzt.
