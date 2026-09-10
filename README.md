@@ -31,7 +31,8 @@ Zeitverlauf · **Vorgänge** · Personen · Bestenlisten · Experten · Bank-Rep
 Geschwister zusammen, die dieselbe Frage in Teilen beantworten – Prüfungen (Schriftlich, Mündlich, VSS/VSM),
 Vorgänge (Offene Vorgänge, Geplante Prüfungen) und Daten (Historie, Datenqualität, Glossar). Die Geschwister stehen
 als **Reiter neben dem Titel** der Ansicht, nicht in einer zweiten Leiste; sie kosten keine Höhe (der View-Kopf bleibt
-57 px). **Alle vierzehn Routen bleiben unverändert** – `#schriftlich` bleibt `#schriftlich`, Lesezeichen und die Wege
+57 px, auf dem Phone 12–14 px mehr für das 44-px-Tap-Ziel). Im Druck erscheinen weder Band noch Reiter – gedruckt
+wird der Inhalt, nicht der Weg dorthin. **Alle vierzehn Routen bleiben unverändert** – `#schriftlich` bleibt `#schriftlich`, Lesezeichen und die Wege
 der Signale gelten weiter; das Band markiert das Primärziel, der Reiter die offene Ansicht (beide `aria-current`).
 
 Warum: Vierzehn gleichrangige Links brauchten 1165 px und scrollten unter 1200 px. Gruppieren änderte daran nichts –
@@ -124,7 +125,9 @@ erst ab 1900 px (Full HD). Kopfzellen brechen um, Zahlen nicht (Paket F).
 
 **Mobile:** Phone bis 600 px, Tablet 601–900 px, darüber Desktop; der Druck behält immer das Desktop-Layout. Auf dem
 Phone gilt: Grundschrift 16 px, Touch-Ziele mindestens 44 px, nie horizontaler Seitenscroll (nur Tabellen scrollen in
-ihrem Rahmen). Die Navigation ist ein Auswahlfeld mit allen vierzehn Ansichten (gefasste Ziele als Gruppe), die Filter liegen in einem Drawer «Filter
+ihrem Rahmen). Die Navigation ist ein Auswahlfeld mit allen vierzehn Ansichten (gefasste Ziele als Gruppe); die Reiter der
+Geschwister bleiben als Abkürzung stehen, mit 44-px-Tap-Ziel und in einer Zeile (gemessen 229–262 von 390 px).
+Die Filter liegen in einem Drawer «Filter
 (n aktiv) · n Vorgänge · n Personen» mit Chips darunter, der Datenstand ist ein Einzeiler mit den Lade-Aktionen «Neu laden · Lokale Datei» im aufgeklappten Zustand (die
 Datenleiste zeigt auf dem Phone keine Knöpfe, vor dem Laden ist die Leerzustand-Karte der einzige Aufruf), das Konto ein
 Initialen-Button mit «Abmelden». Tabellen zeigen nur Spalten der Priorität 1 (Tablet und Desktop bis 1200 px: 1 und 2);

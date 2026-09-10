@@ -837,6 +837,16 @@ try {
   check((await page.locator('#view details.fold:not([open])').count()) === 0, 'Druck: alle eingeklappten Blöcke geöffnet');
   await page.emulateMedia({ media: 'print' });
   await shot(page, 'print-geplante-pruefungen');
+  // Paket E: Im Druck erscheint weder das Band noch der Reiterstreifen – gedruckt wird der Inhalt, nicht der Weg
+  // dorthin. Der Titel nennt weiterhin die Ansicht, nicht das Primärziel.
+  const druckNav = await page.evaluate(() => ({
+    band: [...document.querySelectorAll('#nav')].filter((n) => n.getClientRects().length).length,
+    reiter: [...document.querySelectorAll('#view .view-tabs')].filter((e) => e.getClientRects().length).length,
+    imDom: document.querySelectorAll('#view .view-tabs a').length,
+    titel: document.querySelector('#view h2').textContent.trim(),
+  }));
+  check(druckNav.band === 0 && druckNav.reiter === 0 && druckNav.imDom === 2 && druckNav.titel === 'Geplante Prüfungen',
+    'E Druck: Band und Reiter (' + druckNav.imDom + ' im DOM) ausgeblendet, Titel «' + druckNav.titel + '»');
   await page.emulateMedia({ media: null });
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
   check((await page.locator('#view details.fold[open]').count()) === 1, 'Nach dem Druck: nur der zuvor geöffnete Block bleibt offen');
@@ -1099,6 +1109,30 @@ try {
     check(overflow <= 0 && hiddenPrio, 'Phone ' + v + ': kein Seitenscroll (' + overflow + ' px' + (ueberRand.length ? ': ' + ueberRand.join(', ') : '') + '), nur Prio-1-Spalten');
     await phone.screenshot({ path: join(outDir, 'phone-' + v + '.png'), fullPage: true });
   }
+  // Paket E auf dem Phone: Das Band ist ausgeblendet, das Auswahlfeld führt zu allen vierzehn Ansichten. Die Reiter
+  // bleiben als Abkürzung zwischen den Geschwistern – mit 44-px-Tap-Ziel wie jedes andere Bedienelement, in einer Zeile.
+  await phone.goto(server.url + '#schriftlich');
+  await phone.waitForSelector('#view .view-tabs a');
+  const phoneReiter = await phone.evaluate(() => {
+    const reiter = [...document.querySelectorAll('#view .view-tabs a')];
+    return {
+      anzahl: reiter.length,
+      hoehen: [...new Set(reiter.map((a) => Math.round(a.getBoundingClientRect().height)))],
+      zeilen: new Set(reiter.map((a) => Math.round(a.getBoundingClientRect().top))).size,
+      breite: Math.round(document.querySelector('#view .view-tabs').scrollWidth),
+      platz: document.querySelector('#view').clientWidth,
+      bandSichtbar: [...document.querySelectorAll('#nav .nav-links')].some((n) => n.getClientRects().length > 0),
+      optionen: document.querySelectorAll('#nav-select option').length,
+    };
+  });
+  check(phoneReiter.anzahl === 3 && phoneReiter.hoehen.every((h) => h >= 44) && phoneReiter.zeilen === 1
+    && phoneReiter.breite <= phoneReiter.platz && !phoneReiter.bandSichtbar && phoneReiter.optionen === 14,
+    'E Phone: Band aus, Auswahlfeld mit ' + phoneReiter.optionen + ' Ansichten, ' + phoneReiter.anzahl + ' Reiter à '
+      + phoneReiter.hoehen.join('/') + ' px in ' + phoneReiter.zeilen + ' Zeile (' + phoneReiter.breite + ' von ' + phoneReiter.platz + ' px)');
+  // Ein Tipp auf den Reiter wechselt die Ansicht; das Auswahlfeld zeigt danach dieselbe
+  await phone.locator('#view .view-tabs a', { hasText: 'Mündlich' }).first().click();
+  await phone.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'muendlich' && document.querySelector('#view h2').textContent.trim() === 'Mündlich', null, { timeout: 5000 });
+  check((await phone.locator('#nav-select').inputValue()) === 'muendlich', 'E Phone: Reiter wechselt die Ansicht, Auswahlfeld zieht nach');
   await phone.goto(server.url + '#uebersicht');
   await phone.waitForSelector('#view .kpi-groups'); // erste Kachel liegt auf Phone im geschlossenen Block «Mengen»
   const columnsToggle = phone.locator('#view .table-wrap .all-columns:visible').first(); // erster sichtbarer Schalter (eingeklappte Abschnitte überspringen)
