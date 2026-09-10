@@ -40,6 +40,21 @@ Tabellen stehen gesammelt in der Legende «Hinweise und Definitionen» am Ende j
 am jeweiligen Titel. Der Datenstand (Datei, Änderungs- und Ladezeit, Zeilen, Data-Quality-Fehler) steht als Einzeiler in
 der Kopfzeile und lässt sich zu allen Zählern aufklappen.
 
+**Spaltenpriorität und Ranglisten-Raster (Paket C):** Eine Spalte wird ausgeblendet, wenn **das Fenster oder die
+Tabelle** zu schmal ist. Prio 3 hing nur am Viewport – deshalb zeigte eine 429 px breite Rasterzelle bei 1400 px
+Fensterbreite alle Prio-3-Spalten. Dazu kommt jetzt eine Container-Abfrage auf `.table-wrap`; ihre Grenzen bilden die
+bisherigen Viewport-Grenzen ab (Viewport 1199 px entspricht Container 1117 px, 1899 px entspricht 1817 px), sodass
+sich für Tabellen über die volle Breite nichts ändert. Beide Regeln gelten nebeneinander: In verschachtelten
+Detailtabellen kommt die Containerbreite von der umgebenden Tabelle und kann auf dem Phone das Fenster übersteigen –
+dort trägt die Viewport-Regel. **Prio 2 bleibt allein am Viewport**, weil dort die Zuordnung kippt: Unter 601 px wächst
+die Grundschrift auf 16 px, der Container ist bei Viewport 600 px mit 576 px *breiter* als bei 601 px mit 559 px.
+
+Das **Ranglisten-Raster** richtet sich neu an der nötigen Inhaltsbreite aus (`minmax(min(100%, 40rem), 1fr)`) statt an
+26 rem. Vorher machte mehr Bildschirmbreite die Tabelle schmaler, weil `auto-fill` den Zugewinn an eine weitere Spalte
+gab: 1280 px → 2 Spalten à 591 px (28 % abgeschnitten), 1400 px → 3 à 429 px (48 %), 1600 px → 3 à 495 px (39 %).
+Jetzt steht lieber eine ganze Liste als zwei halb abgeschnittene; gemessen wird bei 1280–1920 px nichts mehr
+abgeschnitten.
+
 **Klebender Kopfbereich und Tabellenkopf (Paket C):** Beim Scrollen schrumpft die Filterleiste auf ihre
 Zusammenfassungszeile – **99 auf 29 px**. Zähler und Chips bleiben stehen, weil sie der Qualifier jeder Zahl auf dem
 Schirm sind; die Steuerelemente verschwinden, weil man sie beim Lesen nicht bedient. Der Weg zurück ist das Scrollen

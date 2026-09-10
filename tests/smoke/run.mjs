@@ -45,7 +45,11 @@ const summaryText = () => page.textContent('#filterbar .summary');
 // Steuerelemente sind bewusst nicht mehr erreichbar. Der Test tut, was ein Mensch tut: erst nach oben, dann bedienen.
 const filterWaehlen = async (p, label, wert) => {
   await p.evaluate(() => window.scrollTo(0, 0));
+  // Erst warten, bis die Leiste wieder ausgeklappt ist: focus() prüft keine Sichtbarkeit und liefe sonst ins Leere,
+  // solange die Steuerelemente noch «display: none» sind (der Zustand wird vom Scroll-Ereignis nachgeführt).
+  await p.waitForFunction(() => !document.body.classList.contains('scrolled'), null, { timeout: 3000 }).catch(() => {});
   const feld = p.locator(`#filterbar label:has-text("${label}") select`);
+  await feld.waitFor({ state: 'visible' });
   await feld.focus();
   await feld.selectOption(wert);
 };
@@ -292,8 +296,6 @@ try {
   // Chip ✕ entfernt nur diesen Filter; Reset nur sichtbar, wenn ein Filter aktiv ist
   check(await page.locator('#filterbar button.reset').isHidden(), 'Reset ohne aktiven Filter ausgeblendet');
   const before = await summaryText();
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.focus('#filterbar label:has-text("Profil") select');
   await filterWaehlen(page, 'Profil', 'PK');
   await page.waitForFunction((b) => document.querySelector('#filterbar .summary').textContent !== b, before, { timeout: 5000 });
   check((await page.locator('#filterbar .chip', { hasText: 'Profil PK' }).count()) === 1 && /profil=PK/.test(page.url()), 'Filter Profil = PK wirkt: Chip «Profil PK», steht in der URL');
@@ -420,6 +422,20 @@ try {
     return { hoehe: Math.round(bar.getBoundingClientRect().height), controls: bar.querySelector('.filter-controls').getClientRects().length > 0 };
   });
   check(zurueck.controls && zurueck.hoehe === ungescrollt, 'C2: nach oben gescrollt sind die Steuerelemente wieder da (' + zurueck.hoehe + ' px)');
+  // Wer den Fokus in einem Filterfeld hat und scrollt, darf ihn nicht verlieren: Das Feld dürfte sonst verschwinden
+  await page.locator('#filterbar label:has-text("Profil") select').focus();
+  await page.evaluate(() => window.scrollTo(0, 900));
+  await page.waitForTimeout(250);
+  const fokusBeimScrollen = await page.evaluate(() => ({
+    aktiv: document.activeElement ? document.activeElement.tagName : null,
+    imFilter: !!document.activeElement && !!document.activeElement.closest && !!document.activeElement.closest('#filterbar'),
+    controls: document.querySelector('#filterbar .filter-controls').getClientRects().length > 0,
+    gescrollt: document.body.classList.contains('scrolled'),
+  }));
+  check(fokusBeimScrollen.gescrollt && fokusBeimScrollen.aktiv === 'SELECT' && fokusBeimScrollen.imFilter && fokusBeimScrollen.controls,
+    'C2: Tastaturfokus im Filterfeld überlebt das Scrollen – die Leiste bleibt offen, solange er dort liegt');
+  await page.evaluate(() => { document.activeElement.blur(); window.scrollTo(0, 0); });
+  await page.waitForTimeout(250);
 
   // Paket C (C2): Der Tabellenkopf klebt jetzt – unter der geschrumpften Filterleiste. Möglich ist das nur, weil
   // .table-wrap nur noch dort ein Scroll-Container ist, wo die Tabelle wirklich horizontal überläuft (Klasse
@@ -534,6 +550,43 @@ try {
   }
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
+
+  // Paket C (C4): Das Raster richtete sich an 26rem aus, nicht an der nötigen Inhaltsbreite – je mehr Bildschirm,
+  // desto schmaler die Tabelle (1400 px → 3 Spalten à 429 px, 48 % abgeschnitten). Jetzt bestimmt der Inhalt die Spur,
+  // und Prio 3 richtet sich nach dem Platz der Tabelle statt nach dem des Fensters (Container Query).
+  for (const [w, h] of [[1280, 900], [1400, 900], [1600, 900], [1920, 900]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(server.url + '#bestenlisten');
+    await page.waitForSelector('#view .ranking-grid table', { state: 'attached' });
+    const raster = await page.evaluate(() => [...document.querySelectorAll('#view .ranking-grid .table-wrap')].map((wr) => {
+      const t = wr.querySelector('table');
+      return {
+        platz: Math.round(wr.clientWidth), inhalt: Math.round(t.scrollWidth),
+        spalten: [...t.querySelectorAll('thead th')].filter((th) => th.getClientRects().length).length,
+        alle: t.querySelectorAll('thead th').length,
+        scrollt: wr.classList.contains('scrolls-x'),
+      };
+    }));
+    const abgeschnitten = raster.filter((r) => r.inhalt > r.platz + 1);
+    check(raster.length >= 1 && abgeschnitten.length === 0,
+      'C4 Bestenlisten ' + w + ' px: ' + raster.length + ' Liste(n) à ' + raster[0].platz + ' px, Inhalt ' + raster.map((r) => r.inhalt).join('/')
+        + ' px, sichtbare Spalten ' + raster.map((r) => r.spalten + '/' + r.alle).join(' ') + ' – nichts abgeschnitten');
+  }
+  // Für Tabellen über die volle Breite ändert sich nichts: die Container-Grenze bildet die frühere Viewport-Grenze ab
+  for (const [w, prio3Erwartet] of [[1199, false], [1280, true]]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.goto(server.url + '#uebersicht');
+    await page.waitForSelector('#view table', { state: 'attached' });
+    const voll = await page.evaluate(() => {
+      const wr = [...document.querySelectorAll('#view .table-wrap')].sort((a, b) => b.clientWidth - a.clientWidth)[0];
+      const th3 = [...wr.querySelectorAll('thead th[data-prio="3"]')];
+      return { platz: Math.round(wr.clientWidth), prio3: th3.length, sichtbar: th3.filter((t) => t.getClientRects().length).length };
+    });
+    const zeigtPrio3 = voll.prio3 === 0 || voll.sichtbar > 0;
+    check(zeigtPrio3 === prio3Erwartet || voll.prio3 === 0,
+      'C4 volle Breite bei ' + w + ' px: Container ' + voll.platz + ' px, Prio-3-Spalten ' + (zeigtPrio3 ? 'sichtbar' : 'ausgeblendet') + ' (wie vor der Umstellung)');
+  }
+  await page.setViewportSize({ width: 1400, height: 1000 });
 
   // Paket B (B3): Mit einem Institut-Filter waren auf «Bestenlisten» zwölf von sechzehn Tabellen leer – über 2000 px
   // Spaltenüberschriften ohne einen einzigen Wert. Zu kleine Gruppen stehen jetzt zusammen in einer Zeile.
