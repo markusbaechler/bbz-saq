@@ -1,5 +1,5 @@
 import { test, assert, assertEqual, assertClose } from './runner.js';
-import { luminance, contrastRatio, parseThemes, resolveColor, checkContrast, darkLeftovers, PAIRS } from '../tools/contrast.js';
+import { luminance, contrastRatio, parseThemes, resolveColor, checkContrast, darkLeftovers, decorRatios, DECOR, PAIRS } from '../tools/contrast.js';
 
 const CSS = `
 :root { --panel: #ffffff; --text: #1f2933; --accent: #0b5fa5; --status-offen: var(--accent); --status-offen-bg: #e6f0fa; --bar: color-mix(in srgb, var(--accent) 18%, transparent); }
@@ -63,4 +63,24 @@ test('contrast.checkContrast: alle Paare je Theme geprüft, Unterschreitung als 
   assert(PAIRS.length >= 30);
   assert(r.results.every((x) => ['light', 'dark', 'print'].includes(x.theme)));
   assertEqual(r.results.length, PAIRS.length * 3);
+});
+
+// Paket A (A4): Ein Paar, das aus gestalterischen Gründen unter 3:1 bleibt, wird gemeldet – nicht aus der Prüfliste
+// genommen. Sonst verschwindet mit dem Paar auch die Information, dass es den Wert nicht erreicht.
+test('contrast.DECOR: dekorative Paare unter 3:1 sind dokumentiert und nie in PAIRS (A4)', () => {
+  assert(DECOR.length >= 1, 'mindestens ein dokumentiertes Deko-Paar');
+  for (const d of DECOR) {
+    assert(/^--[a-z0-9-]+$/.test(d.fg) && /^--[a-z0-9-]+$/.test(d.bg), 'Tokens: ' + d.fg + ' / ' + d.bg);
+    assert(typeof d.use === 'string' && d.use.length >= 30, d.fg + ': Fundstelle und Begründung fehlen');
+    assert(!/ß/.test(d.use), d.fg + ': ss statt ß');
+    assert(!PAIRS.some((p) => p.fg === d.fg && p.bg === d.bg), d.fg + ' auf ' + d.bg + ' steht in PAIRS und in DECOR');
+  }
+  assert(DECOR.some((d) => d.fg === '--border' && d.bg === '--panel'), '--border auf --panel bleibt gemeldet, statt zu verschwinden');
+});
+
+test('contrast.decorRatios: liefert je Theme den erreichten Wert (A4)', () => {
+  const r = decorRatios(CSS + '@media print { :root { --deko: #eeeeee; } }');
+  assert(r.every((d) => ['light', 'dark', 'print'].every((t) => t in d.ratios)), 'je Theme ein Wert');
+  const eigen = decorRatios(':root { --a: #ffffff; --b: #f0f0f0; }');
+  assert(eigen.every((d) => d.ratios.light === null || d.ratios.light > 0), 'fehlende Tokens ergeben null statt eines Fehlers');
 });

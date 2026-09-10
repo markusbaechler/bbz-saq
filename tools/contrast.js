@@ -35,6 +35,30 @@ export const PAIRS = [
   { fg: '--viz-tick', bg: '--panel', min: 3, note: 'Achsenbeschriftung im Diagramm (Datenviz-Konvention 3:1, bestehende Palette)' },
 ];
 
+// Paare, die aus gestalterischen Gründen unter 3:1 bleiben. Sie werden nicht aus der Prüfung genommen, sondern mit Wert
+// und Fundstelle gemeldet (Paket A, A4): Jeder CI-Lauf zeigt sie, eine Verschlechterung fällt auf. Sie sind erlaubt, weil
+// sie nach WCAG 2.1 SC 1.4.11 rein dekorativ sind – der Inhalt ist ohne sie vollständig erkennbar und bedienbar. Sobald
+// ein Token hier ein Bedienelement abgrenzt, gehört es in PAIRS (so entstand --field-border).
+export const DECOR = [
+  { fg: '--border', bg: '--panel', use: 'Rahmen von Tabellen, Karten, Kacheln und Kopfzeilen (styles.css: table.data, .kpi, .view, .app-header) – Struktur, keine Bedienung; Eingabefelder tragen --field-border' },
+  { fg: '--viz-grid', bg: '--panel', use: 'Gitterlinien im Diagramm (views/chart.js) – die Werte stehen zusätzlich in der Zwillingstabelle' },
+  { fg: '--viz-axis', bg: '--panel', use: 'Achsenlinie im Diagramm (views/chart.js) – Beschriftung trägt --viz-tick mit 3:1' },
+  { fg: '--danger-border', bg: '--danger-bg', use: 'Rahmen der Fehlermeldung (styles.css: .error) – Text und Titel tragen --danger mit 4.5:1' },
+];
+
+// [{ fg, bg, use, ratios: { light, dark, print } }] – reine Meldung, nie ein Fehler
+export function decorRatios(cssText) {
+  const themes = parseThemes(cssText);
+  return DECOR.map((d) => ({
+    ...d,
+    ratios: Object.fromEntries(Object.entries(themes).map(([theme, tokens]) => {
+      const fg = resolveColor(tokens, tokens[d.fg]);
+      const bg = resolveColor(tokens, tokens[d.bg]);
+      return [theme, fg && bg ? contrastRatio(fg, bg) : null];
+    })),
+  }));
+}
+
 function channel(c) {
   const v = c / 255;
   return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
@@ -140,6 +164,14 @@ if (isMain) {
   for (const r of results) {
     console.log((r.ok ? '  ok   ' : '  FAIL ') + r.theme.padEnd(5) + ' ' + r.fg + ' auf ' + r.bg + ': ' + (r.ratio ? r.ratio.toFixed(2) + ':1' : '–') + ' (min ' + r.min + ')' + (r.note ? ' – ' + r.note : ''));
   }
+  // Dokumentierte Deko-Paare unter 3:1: mit Wert und Fundstelle gemeldet, nie ein Fehler (Paket A, A4)
+  console.log('');
+  console.log('Dekorative Paare unter 3:1 (SC 1.4.11 nicht anwendbar) – mit Wert gemeldet, kein Fehler:');
+  for (const d of decorRatios(css)) {
+    const werte = ['light', 'dark', 'print'].map((t) => t + ' ' + (d.ratios[t] ? d.ratios[t].toFixed(2) : '–')).join(' · ');
+    console.log('  info  ' + d.fg + ' auf ' + d.bg + ': ' + werte + ' – ' + d.use);
+  }
+  console.log('');
   // Der Druck-Block muss jedes Token zurücksetzen, das der Dark-Block setzt – sonst druckt eine dunkle Systemeinstellung
   // dunkle Farben auf weisses Papier. Die Paare oben finden das nur, wo ein Token in einem geprüften Paar vorkommt.
   const leftovers = darkLeftovers(css);
