@@ -24,6 +24,7 @@
   --warn-bg: #fff4e0;
   --shadow: rgba(0, 0, 0, .08);
   --radius: 6px;
+  --sticky-top: 0px; /* C2: Oberkante für den Tabellenkopf – Höhe der klebenden Filterleiste, aus app.js gesetzt */
   --bar-track: 3.5rem; /* B5: feste Spur der Datenbalken – gleicher Wert, gleiche Länge in jeder Spalte und Tabelle */
   /* Abstände (4-px-Raster) und Schriftgrade (PROMPT-2 A.1) */
   --space-1: .25rem; --space-2: .5rem; --space-3: .75rem; --space-4: 1rem; --space-5: 1.5rem; --space-6: 2rem;
@@ -87,10 +88,14 @@
 }
 
 * { box-sizing: border-box; }
+/* [hidden] gewinnt gegen jede display-Regel. Ohne das überschreibt jedes «display: flex» am Element das Attribut, und
+   ein versteckter Knoten bleibt sichtbar – in Paket B beim Schalter «Sortierung zurücksetzen» passiert, in C1 bei der
+   Datenleiste. Wer ein Element trotz [hidden] zeigen will, sagt es ausdrücklich (siehe .account-menu, Druck). */
+[hidden] { display: none !important; }
 
 /* Tastaturfokus sichtbar (Befund 9); Maus-Fokus bleibt dezent */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-button:focus-visible, .views a:focus-visible, .nav-secondary a:focus-visible { outline: 3px solid var(--accent-dark); outline-offset: 2px; }
+button:focus-visible, .views a:focus-visible { outline: 3px solid var(--accent-dark); outline-offset: 2px; }
 input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
 th.sortable button:focus-visible { outline-offset: 0; }
 
@@ -126,12 +131,25 @@ button.link { background: none; border: none; color: var(--accent); padding: 0; 
 input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--field-border); border-radius: var(--radius); background: var(--panel); color: var(--text); }
 
 /* Kopfzeile */
+/* C1: Der Kopfbereich trug vier gestapelte Bänder – Kopfzeile, Datenleiste, Navigation, Filterleiste, zusammen 293 px,
+   der erste Zahlenwert lag bei y = 495 (55 % der Viewporthöhe bei 900 px, 62 % bei 800 px). Jetzt: Marke einzeilig,
+   Datenstand und Status in derselben Zeile, Datenleiste nur im Leerzustand. */
 .app-header {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-  padding: .7rem 1.25rem; background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-1) 1.25rem; background: var(--panel); border-bottom: 1px solid var(--border);
 }
-.brand { display: flex; flex-direction: column; }
-.subtitle { color: var(--muted); font-size: .85rem; }
+.brand { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.app-header h1 { font-size: 1.05rem; }
+.subtitle { color: var(--muted); font-size: .85rem; white-space: nowrap; }
+/* Datenstand und Status teilen sich die Mitte der Kopfzeile und dürfen sie nicht verbreitern */
+.app-header .datastand, .app-header .status { flex: 1 1 8rem; min-width: 0; font-size: var(--fs-sm); }
+.app-header .datastand > summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Aufgeklappt legt sich der Datenstand über den Inhalt, statt die Kopfzeile aufzublähen */
+.app-header .datastand[open] { position: relative; }
+.app-header .datastand[open] > :not(summary) {
+  position: absolute; left: 0; top: 100%; z-index: 4; min-width: 22rem; margin-top: var(--space-2);
+  padding: var(--space-3); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px var(--shadow);
+}
 .session { display: flex; align-items: center; gap: .6rem; }
 .account { color: var(--muted); font-size: .9rem; }
 
@@ -154,7 +172,9 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .datastand-list { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0 0; font-size: var(--fs-sm); }
 .datastand-list dt { color: var(--muted); }
 .datastand-list dd { margin: 0; color: var(--text); }
-.datastand-actions { display: none; } /* Phone (F.3, F4): Lade-Aktionen im Datenstand statt in der Datenleiste */
+/* C1: Die Lade-Aktionen liegen im aufgeklappten Datenstand – auf jedem Gerät, seit die Datenleiste im geladenen
+   Zustand entfällt. Im Leerzustand stehen sie zusätzlich als Zeile und in der Leerzustandskarte. */
+.datastand-actions { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
 
 /* Fehler */
 .error {
@@ -167,22 +187,26 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .error button { margin-top: .5rem; }
 
 /* Navigation (PROMPT-2 A.2, F.1): drei Gruppen nebeneinander mit Beschriftung über den Links, ab 1100 px in einer Zeile;
-   darunter horizontal scrollbar, nie umbrechend. Die Gruppe «Daten» steht als Sekundärnavigation im Kopf (.nav-secondary). */
+   darunter horizontal scrollbar, nie umbrechend. Seit Paket C (C3) stehen alle vier Gruppen hier – eine Stelle, eine
+   Deklaration; die frühere Sekundärnavigation im Kopf ist entfallen. */
 .views {
-  display: flex; gap: var(--space-3); flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity;
-  padding: var(--space-2) var(--space-3) 0; background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: var(--space-4); flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity;
+  padding: 0 var(--space-3); background: var(--panel); border-bottom: 1px solid var(--border);
 }
-.nav-group { display: flex; flex-direction: column; gap: var(--space-1); flex: 0 0 auto; scroll-snap-align: start; }
-.nav-group-label { font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding-left: var(--space-1); }
+.nav-group { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; scroll-snap-align: start; }
+/* C1: Die Gruppenbeschriftung stand über den Links und machte das Band 68 px hoch; sie steht jetzt davor. */
+.nav-group-label { font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+/* C1/C3: Die Beschriftung steht neben den Links und kostet dadurch Breite statt Höhe. Gemessen brauchen die 14 Links
+   mit Beschriftung 1437 px, ohne 1165 px – sie entfällt deshalb unter 1500 px, damit die Links in einer Reihe bleiben
+   (F.1). Sie ist rein dekorativ (aria-hidden); die Gruppe bleibt über role="group" mit aria-label angesagt, und der
+   Abstand zwischen den Gruppen trennt sie weiterhin sichtbar. Unter 1200 px reicht auch das nicht: dann scrollt das
+   Band horizontal – eine zweite Leiste kommt nicht in Frage (F.1). */
+@media (max-width: 1499px) { .nav-group-label { display: none; } }
 .nav-links { display: flex; gap: var(--space-1); }
-.views a { padding: var(--space-2) var(--space-1); font-size: var(--fs-sm); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
+.views a { padding: var(--space-1) var(--space-1); font-size: var(--fs-sm); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
 .views a:hover { background: var(--hover); }
 .views a.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
-/* Sekundärnavigation «Daten» im Kopf (F.1): Optik der Hauptnavigation, kompakter; auf dem Phone ausgeblendet (Auswahlfeld) */
-.nav-secondary { display: flex; margin-right: var(--space-2); }
-.nav-secondary a { padding: var(--space-1) var(--space-2); font-size: var(--fs-sm); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
-.nav-secondary a:hover { background: var(--hover); }
-.nav-secondary a.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
+
 .nav-select { display: none; } /* Phone: Auswahlfeld statt Links (B.2) */
 .account-menu { display: none; } /* Phone: Konto als Initialen-Button (B.2) */
 /* Filterleiste (PROMPT-2 A.2): eine Zeile auf Desktop, haftet beim Scrollen oben; Chips je aktive Einschränkung */
@@ -191,11 +215,32 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
   padding: var(--space-2) var(--space-3); background: var(--panel); border-bottom: 1px solid var(--border); box-shadow: 0 1px 0 var(--border);
 }
 .filter-drawer > summary { display: none; } /* Desktop/Tablet: Drawer immer offen, Kopfzeile «Filter» nur auf Phone (B.2) */
+/* C2: Gescrollt bleibt nur die Zusammenfassungszeile stehen – Zähler und Chips sind der Qualifier jeder Zahl auf dem
+   Schirm. Die Steuerelemente kommen zurück, sobald man nach oben scrollt oder mit der Tastatur in die Leiste geht. */
+/* Der Weg zurück ist das Scrollen nach oben – für Maus und Tastatur gleich; ein Aufklappen bei Fokus wäre keine
+   Alternative, weil sich nicht fokussieren lässt, was «display: none» ist.
+   Eine Ausnahme muss es aber geben: Liegt der Tastaturfokus in den Steuerelementen und die Nutzerin scrollt, würde das
+   fokussierte Feld verschwinden und der Fokus auf den Seitenanfang zurückfallen. Solange der Fokus dort liegt, bleibt
+   die Leiste offen. Bewusst nur «.filter-drawer :focus», nicht «:focus-within» der ganzen Leiste: Ein Mausklick auf
+   einen Chip oder auf «Filter zurücksetzen» in der Zusammenfassung würde sie sonst mitten im Klick aufklappen und das
+   Ziel unter dem Zeiger wegziehen. Auf dem Phone gilt die Regel nicht, dort klebt die Leiste ohnehin nicht. */
+@media (min-width: 601px) {
+  body.scrolled .filterbar:not(:has(.filter-drawer :focus)) { padding-top: var(--space-1); padding-bottom: var(--space-1); }
+  body.scrolled .filterbar:not(:has(.filter-drawer :focus)) .filter-drawer { display: none; }
+  body.scrolled .filterbar:not(:has(.filter-drawer :focus)) .summary { margin-top: 0; }
+}
 .filter-controls { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: flex-end; }
 .filterbar label { display: flex; flex-direction: column; gap: .15rem; font-size: var(--fs-xs); color: var(--muted); }
 .filterbar label > input, .filterbar label > select { font-size: var(--fs-sm); color: var(--text); }
 /* F.3 (F5): Auswahlfelder mit Mindestbreite statt Inhaltsbreite; Bank höchstens 12rem, langer Name abgeschnitten (voller Name als title) */
 .filterbar label > select { min-width: 5rem; max-width: 12rem; text-overflow: ellipsis; }
+/* C5: Elf Steuerelemente passen bei 1400 px nur in eine Zeile, wenn keines mehr Platz nimmt als es braucht.
+   Der Benchmark-Wert «Gesamt (nur Zeitraum)» und die Wertung würden sie sonst sprengen. */
+.filterbar label[data-field="benchmark"] > select, .filterbar label[data-field="wertung"] > select { max-width: 8.5rem; }
+.filterbar label > input[type="date"] { max-width: 7.5rem; }
+.filter-controls { gap: var(--space-1) var(--space-2); }
+/* C5: Wo der Benchmark gewählt wurde, steht jetzt nur noch, was er bewirkt */
+.benchmark-bar { color: var(--muted); font-size: var(--fs-sm); margin: 0 0 var(--space-2); }
 /* Paket A (A1): Felder, die die aktive Ansicht nicht auswertet – gestrichelter Rahmen, gedämpfte Farbe, Grund als title.
    Der gesetzte Wert bleibt erhalten und wirkt wieder, sobald eine Ansicht ihn auswertet. */
 .filterbar label.inactive { color: var(--muted); opacity: .65; border: 1px dashed var(--border); border-radius: var(--radius); padding: .1rem .3rem; margin: -1px -.3rem; }
@@ -207,7 +252,7 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .filterbar .reset { padding: .1rem .5rem; line-height: 1.4; font-size: var(--fs-sm); margin-left: auto; } /* rechts in der Zusammenfassungszeile (A.9, F.3) */
 .count-phone { display: none; } /* Phone: Zähler in der Drawer-Kopfzeile (F.3, F4) */
 .filterbar .check { flex-direction: row; align-items: center; gap: .4rem; font-size: var(--fs-sm); color: var(--text); }
-.filterbar .summary { margin-top: var(--space-2); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--fs-sm); }
+.filterbar .summary { margin-top: var(--space-1); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--fs-sm); }
 .filterbar .chips { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
 .chip {
   display: inline-flex; align-items: center; gap: .3rem; padding: .1rem var(--space-2); line-height: 1.4;
@@ -255,7 +300,12 @@ table.data td.num { white-space: nowrap; } /* Zahlen brechen nie um; Kopfzellen 
 table.data th.num { white-space: normal; }
 table.data tr.small td { color: var(--muted); font-style: italic; }
 .note { color: var(--muted); font-size: .8rem; margin: .25rem 0 .5rem; }
-.ranking-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr)); gap: 1rem; }
+/* C4: Das Raster richtete sich an 26rem aus – gemessen brauchen die Listen 730, 582 und 575 px Inhalt. Ergebnis:
+   je mehr Bildschirmbreite, desto schmaler die Tabelle, weil auto-fill den Zugewinn an eine weitere Spalte gibt
+   statt an den Inhalt (1280 px → 2 Spalten à 591 px, 28 % abgeschnitten; 1400 px → 3 à 429 px, 48 % abgeschnitten).
+   Jetzt bestimmt die nötige Inhaltsbreite die Spur; passt sie nicht zweimal nebeneinander, steht eine ganze Liste
+   statt zwei halb abgeschnittener. min(100%, …) verhindert, dass die Spur schmale Container überläuft. */
+.ranking-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 40rem), 1fr)); gap: 1rem; }
 
 /* Personen (PROMPT-2 Paket C): Suche, Pfad-Leiste, Karten je Vorgang */
 .person-search { width: 100%; max-width: 40rem; font-size: var(--fs-md); padding: .45rem .6rem; }
@@ -354,13 +404,14 @@ tr[id^="glossar-"]:focus-visible { outline: 2px solid var(--accent); outline-off
 .toolbar { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: .75rem; }
 .dq-text { min-width: 18rem; }
 .dq-count { color: var(--muted); }
-.table-wrap { overflow-x: auto; max-width: 100%; }
+.table-wrap { max-width: 100%; container-type: inline-size; container-name: tabelle; } /* C4: Prio 3 richtet sich nach dem Platz der Tabelle, nicht des Fensters */
+.table-wrap.scrolls-x { overflow-x: auto; } /* C2: nur wo die Tabelle wirklich breiter ist als ihr Platz */
 /* Tabellen (PROMPT-2 A.5): Zebra, Zeilenhöhe, Tabellenziffern, fixierte erste Spalte, Datenbalken, Delta- und Statuszellen */
 table.data { font-variant-numeric: tabular-nums; }
 table.data th, table.data td { height: 2.25rem; }
 table.data tbody tr:nth-child(even) td { background-color: var(--panel-2); }
-.table-wrap table.data th:first-child, .table-wrap table.data td:first-child { position: sticky; left: 0; z-index: 1; background-color: var(--panel); }
-.table-wrap table.data th:first-child { z-index: 2; background-color: var(--th-bg); }
+.table-wrap.scrolls-x table.data th:first-child, .table-wrap.scrolls-x table.data td:first-child { position: sticky; left: 0; z-index: 1; background-color: var(--panel); }
+.table-wrap.scrolls-x table.data th:first-child { z-index: 3; background-color: var(--th-bg); }
 table.data tbody tr:nth-child(even) td:first-child { background-color: var(--panel-2); }
 table.data caption .info { margin-left: var(--space-1); }
 /* B5: Datenbalken. Zwei Fehler waren zu beheben. (1) Der Balken füllte von links, die Zahl steht rechtsbündig – beide
@@ -393,7 +444,8 @@ td.status-cell { white-space: nowrap; } /* Raster-Zellen mit Badge und Datum (Pa
 .table-wrap .all-columns { display: none; } /* Desktop zeigt alle Spalten; Paket B blendet Prio 2/3 per Breakpoint aus und zeigt den Schalter */
 @media print {
   td.pct { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .table-wrap table.data td:first-child, .table-wrap table.data th:first-child { position: static; }
+  .table-wrap table.data td:first-child, .table-wrap table.data th:first-child { position: static !important; }
+  th { position: static !important; } /* Druck: kein klebender Kopf, jede Seite trägt ihre eigene Kopfzeile */
 }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
@@ -403,9 +455,15 @@ th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--
    Eine tote Regel liest sich wie eine Zusage; ein fixierter Kopf ergibt erst Sinn, wenn feststeht, wie viel Kopfbereich
    über ihm klebt – das entscheidet Paket C (die Filterleiste ist sticky mit z-index 3). Dort erneut prüfen. */
 th { background: var(--th-bg); }
+/* C2: Der Tabellenkopf klebt unter der geschrumpften Filterleiste. Er kann das nur, wenn kein Vorfahre ein
+   Scroll-Container ist – «overflow-x: auto» am .table-wrap macht ihn zu einem (Paket B, B6). Der Container entsteht
+   deshalb nur noch dort, wo die Tabelle wirklich horizontal überläuft (Klasse «scrolls-x», in app.js gemessen):
+   bei 1400 px 3 von 60 Tabellen, und keine der 7 Tabellen über 500 px Höhe. Dort bleibt der Kopf ungeklebt. */
+.table-wrap:not(.scrolls-x) table.data > thead > tr > th,
+.table-wrap:not(.scrolls-x) table.dq-table > thead > tr > th { position: sticky; top: var(--sticky-top); z-index: 2; }
 th.sortable button { background: none; border: none; color: inherit; padding: 0; font-weight: 600; cursor: pointer; text-align: inherit; }
 /* B4: «Sortierung zurücksetzen» – nur sichtbar, solange eine Sortierung aktiv ist; das Modell trägt die fachliche Reihenfolge */
-.table-wrap .reset-sort:not([hidden]) { display: inline-block; margin: var(--space-1) var(--space-3) var(--space-2) 0; font-size: var(--fs-sm); }
+.table-wrap .reset-sort { display: inline-block; margin: var(--space-1) var(--space-3) var(--space-2) 0; font-size: var(--fs-sm); }
 th.active button { color: var(--accent); }
 td.col-row { text-align: right; white-space: nowrap; }
 .dq-summary-box { margin: .25rem 0 1rem; }
@@ -489,11 +547,27 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   table.data th.num { min-width: 4.5rem; }
   table.data th:first-child:not(.toggle), table.data td:first-child:not(.toggle), table.data th.toggle + th, table.data td.toggle + td { min-width: 9rem; }
 }
+/* C4: Prio 3 wird ausgeblendet, wenn das Fenster ODER die Tabelle zu schmal ist – die Viewport-Regel bleibt, die
+   Container-Regel kommt dazu. Am Viewport allein hing der Fehler: Eine 429 px breite Rasterzelle zeigte bei 1400 px
+   Viewport alle Prio-3-Spalten. Umgekehrt hängt in verschachtelten Detailtabellen die Containerbreite an der
+   umgebenden Tabelle und kann auf dem Phone das Fenster übersteigen – dort trägt die Viewport-Regel. Die
+   Container-Grenzen bilden die Viewport-Grenzen ab, damit sich für Tabellen über die volle Breite nichts ändert:
+   Viewport 1199 px entspricht Container 1117 px, Viewport 1899 px entspricht 1817 px (gemessen).
+   Prio 2 bleibt allein am Viewport – dort kippt die Zuordnung, weil unter 601 px die Grundschrift auf 16 px wächst
+   (Viewport 600 px → Container 576 px, Viewport 601 px → 559 px). */
 @media screen and (max-width: 1199px) {
   .table-wrap:not(.all-columns) th[data-prio="3"], .table-wrap:not(.all-columns) td[data-prio="3"] { display: none; }
   .table-wrap .all-columns { display: inline-block; margin: var(--space-1) 0 var(--space-2); }
 }
 @media screen and (max-width: 1899px) {
+  .table-wrap.wide:not(.all-columns) > table > thead > tr > th[data-prio="3"], .table-wrap.wide:not(.all-columns) > table > tbody > tr > td[data-prio="3"] { display: none; }
+  .table-wrap.wide > .all-columns { display: inline-block; margin: var(--space-1) 0 var(--space-2); }
+}
+@container tabelle (max-width: 1117px) {
+  .table-wrap:not(.all-columns) th[data-prio="3"], .table-wrap:not(.all-columns) td[data-prio="3"] { display: none; }
+  .table-wrap .all-columns { display: inline-block; margin: var(--space-1) 0 var(--space-2); }
+}
+@container tabelle (max-width: 1817px) {
   .table-wrap.wide:not(.all-columns) > table > thead > tr > th[data-prio="3"], .table-wrap.wide:not(.all-columns) > table > tbody > tr > td[data-prio="3"] { display: none; }
   .table-wrap.wide > .all-columns { display: inline-block; margin: var(--space-1) 0 var(--space-2); }
 }
@@ -519,12 +593,10 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .filterbar .check, .datastand summary { min-height: 44px; display: flex; align-items: center; }
   input, select, .filterbar label > input, .filterbar label > select { font-size: 1rem; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
-  .ranking-grid { grid-template-columns: 1fr; }
   .view { margin: var(--space-2) 0 var(--space-4); border-left: none; border-right: none; border-radius: 0; }
   /* B.2: Navigation als Auswahlfeld, Filter als Drawer, Kopf kompakt */
   .nav-select { display: block; width: 100%; }
   .nav-group { display: none; }
-  .nav-secondary { display: none; }
   .views { overflow: visible; padding-bottom: var(--space-2); }
   .filterbar { position: static; padding: 0 var(--space-3) var(--space-2); }
   .filter-drawer > summary {
@@ -548,7 +620,7 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .app-header h1 { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .app-header .session { flex-shrink: 0; }
   .subtitle, #account, #btn-signout, .edit-mode, .edit-mode-hint { display: none; } /* Bearbeitungsmodus auf Phone im Konto-Menü */
-  .account-menu:not([hidden]) { display: block; }
+  .account-menu:not([hidden]) { display: block !important; }
   .account-menu > summary { width: 44px; height: 44px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; }
   .account-menu > summary::after { content: none; }
   .datastand summary { display: block; min-height: 0; line-height: 2.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -592,12 +664,11 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .app-header .session, .databar, .views, .filterbar, .app-footer, .error button, .toolbar { display: none !important; }
   .print-filter { display: block !important; }
   .kpis { grid-template-columns: repeat(3, 1fr); }
-  .ranking-grid { grid-template-columns: 1fr; }
   .viz-tip { display: none; }
   table.data { page-break-inside: auto; }
   tr { page-break-inside: avoid; }
   .view { border: none; margin: 0; padding: 0; }
   a { color: inherit; text-decoration: none; }
-  tr.event-detail[hidden] { display: table-row; } /* Druck: zugeteilte Personen je Ereignis immer sichtbar */
+  tr.event-detail[hidden] { display: table-row !important; } /* Druck: zugeteilte Personen je Ereignis immer sichtbar */
   tr.expandable td.toggle::before { content: ''; }
 }

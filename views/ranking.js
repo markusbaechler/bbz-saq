@@ -2,13 +2,16 @@
 
 import { rankingTables, awardDossierTable } from './tables.js';
 import { renderTable, section, hinted, el } from './common.js';
-import { MODE, SMALL_N } from '../metrics.js';
+import { SMALL_N } from '../metrics.js';
 
 export const id = 'bestenlisten';
 export const label = 'Bestenlisten';
 export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
 export const intro = 'Top-Listen je Profil für bbz-Award, schriftliche und mündliche Prüfung mit Begründung je Rang; mit Namen, nur intern.';
 export const glossar = 'bbz-Award';
+// Wirksamkeit der Filterleiste (A1/C5): Die Wertung wirkt hier – und nur hier. Sie stand bis Paket C in einer
+// Werkzeugleiste dieser Ansicht, schrieb aber globalen, in der URL serialisierten Zustand.
+export const filters = { wertung: true };
 
 // Raster der Listen je Profil (Paket B, B3): Gruppen unter der Mindestgrösse bekommen keine eigene Tabelle mehr,
 // sondern zusammen eine Zeile. Mit einem Institut-Filter waren sonst zwölf von sechzehn Tabellen leer – über 2000 px
@@ -30,16 +33,10 @@ function grid(groups) {
 export function build(ctx) {
   const r = rankingTables(ctx.persons, ctx.mode, 5);
   const dossier = awardDossierTable(ctx.persons, ctx.mode, 5);
-  const modeSelect = el('select', { onchange: (ev) => ctx.onModeChange && ctx.onModeChange(ev.target.value) }, [
-    el('option', { value: MODE.ERSTVERSUCH, text: 'Resultat 1. Versuch' }),
-    el('option', { value: MODE.BESTANDEN, text: 'Resultat bestandener Run' }),
-  ]);
-  modeSelect.value = ctx.mode;
-  const hints = ['Wertung: gilt für alle drei Listen und bestimmt, welches Prüfungsresultat je Teilprüfung in die Wertung eingeht.'];
+  const hints = ['Wertung (Filterleiste): gilt für alle drei Listen und bestimmt, welches Prüfungsresultat je Teilprüfung in die Wertung eingeht.'];
   const sec = hinted(hints);
   return {
     nodes: [
-      el('div', { class: 'toolbar' }, [el('label', { class: 'inline' }, ['Wertung ', modeSelect])]),
       sec('bbz-Award (0.5 · schriftlich + 0.5 · mündlich)', [grid(r.award)],
         'Rangliste je Profil über Zertifizierungsvorgänge; nur Vorgänge mit bestandener mündlicher Prüfung. Eine Person mit mehreren Profilen erscheint je Profil mit dem jeweiligen Vorgang. Tie-Break 1: weniger Prüfungsversuche gesamt, Tie-Break 2: früheres Referenzdatum. Mindestgruppengrösse ' + SMALL_N + ' Vorgänge; die Liste umfasst höchstens die Hälfte der Gruppe (maximal 5), damit sie nie zur vollständigen Rangliste wird. Versuchsmodus: ' + (ctx.modeLabel || ctx.mode) + '.'),
       sec('Award-Dossier: Begründung je Rang', [renderTable(dossier, { caption: false })],

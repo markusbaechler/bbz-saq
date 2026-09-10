@@ -300,6 +300,23 @@ export function renderKpis(kpis, { glossaryHref = null, phone = isPhone() } = {}
   return el('div', { class: 'kpi-groups' }, groups.map(({ g, list }) => el('section', { class: 'kpi-group' }, [el('h3', { text: g }), el('div', { class: 'kpis' }, list.map(tile))])));
 }
 
+// ---------------------------------------------------------------------------
+// Horizontal scrollende Tabellen (Paket C, C2)
+// Ein Tabellenkopf kann nur seitenweit kleben, wenn kein Vorfahre ein Scroll-Container ist. «overflow-x: auto» am
+// .table-wrap macht ihn zu einem – gemessen: der Kopf klebt dann nie (Paket B, B6). Zugleich läuft nur ein kleiner Teil
+// der Tabellen überhaupt horizontal über: bei 1400 px 3 von 60, und keine der 7 Tabellen über 500 px Höhe. Der
+// Scroll-Container entsteht deshalb nur dort, wo er gebraucht wird – die Klasse «scrolls-x» wird gemessen gesetzt.
+// ---------------------------------------------------------------------------
+export function markScrollingTables(root = document) {
+  for (const wrap of root.querySelectorAll('.table-wrap')) {
+    const table = wrap.querySelector('table');
+    if (!table) continue;
+    // Ohne die Klasse misst der Vergleich die natürliche Breite, mit ihr die Scrollbreite – beides ergibt dasselbe Urteil
+    const braucht = table.scrollWidth > wrap.clientWidth + 1;
+    wrap.classList.toggle('scrolls-x', braucht);
+  }
+}
+
 // Geräteklasse (PROMPT-2 B.1): Phone ≤ 600 px über matchMedia (nur Bildschirm, nicht im Druck); in Node (kein matchMedia) nie Phone
 const PHONE_QUERY = 'screen and (max-width: 600px)';
 export function isPhone(mm = globalThis.matchMedia) {

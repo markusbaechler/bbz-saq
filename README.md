@@ -26,14 +26,54 @@ die Ausgangs-URL (`navigateToLoginRequestUrl: false`). Hotfix vom 07.09.2026, Fe
 
 ## Ansichten
 
-Die Navigation ist in drei Gruppen gegliedert: **Kennzahlen** (Übersicht, Schriftlich, Mündlich, VSS/VSM, Zeitverlauf,
-Bank-Report), **Personen** (Personen, Offene Vorgänge, Geplante Prüfungen, Bestenlisten) und **Experten**; die Gruppe **Daten**
-(Historie, Datenqualität, Glossar) steht als Sekundärnavigation rechts im Kopf, damit die Navigation ab 1100 px in einer
-Zeile bleibt (Paket F). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
+Die Navigation steht **an einer Stelle** und ist in vier Gruppen gegliedert: **Kennzahlen** (Übersicht, Schriftlich,
+Mündlich, VSS/VSM, Zeitverlauf, Bank-Report), **Personen** (Personen, Offene Vorgänge, Geplante Prüfungen,
+Bestenlisten), **Experten** und **Daten** (Historie, Datenqualität, Glossar). Alle drei Erscheinungsformen – Links,
+Gruppierung und das Auswahlfeld auf dem Phone – entstehen in `renderNav()` aus **einer Deklaration** (`NAV_GROUPS` in
+`app.js` und der `group`-Export je Ansicht); eine spätere Umgruppierung ist damit eine Datenänderung, keine
+Strukturänderung. Gemessen brauchen die 14 Links mit Gruppenbeschriftung 1437 px, ohne 1165 px: Die Beschriftung
+entfällt deshalb unter 1500 px, ab 1200 px passt das Band ohne Scroll. Darunter scrollt es horizontal und die aktive
+Ansicht wird eingescrollt – eine zweite Leiste gibt es nicht (F.1). Die frühere Sekundärnavigation im Kopf ist
+entfallen (Paket C). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
 Menü «Export» und der Link «Definitionen», der die passende Zeile im Glossar fokussiert. Erklärungen und Fussnoten der
 Tabellen stehen gesammelt in der Legende «Hinweise und Definitionen» am Ende jeder Ansicht (im Druck geöffnet) und als ⓘ
-am jeweiligen Titel. Der Datenstand (Datei, Änderungs- und Ladezeit, Zeilen, Data-Quality-Fehler) steht als Einzeiler über
-der Navigation und lässt sich zu allen Zählern aufklappen.
+am jeweiligen Titel. Der Datenstand (Datei, Änderungs- und Ladezeit, Zeilen, Data-Quality-Fehler) steht als Einzeiler in
+der Kopfzeile und lässt sich zu allen Zählern aufklappen.
+
+**Spaltenpriorität und Ranglisten-Raster (Paket C):** Eine Spalte wird ausgeblendet, wenn **das Fenster oder die
+Tabelle** zu schmal ist. Prio 3 hing nur am Viewport – deshalb zeigte eine 429 px breite Rasterzelle bei 1400 px
+Fensterbreite alle Prio-3-Spalten. Dazu kommt jetzt eine Container-Abfrage auf `.table-wrap`; ihre Grenzen bilden die
+bisherigen Viewport-Grenzen ab (Viewport 1199 px entspricht Container 1117 px, 1899 px entspricht 1817 px), sodass
+sich für Tabellen über die volle Breite nichts ändert. Beide Regeln gelten nebeneinander: In verschachtelten
+Detailtabellen kommt die Containerbreite von der umgebenden Tabelle und kann auf dem Phone das Fenster übersteigen –
+dort trägt die Viewport-Regel. **Prio 2 bleibt allein am Viewport**, weil dort die Zuordnung kippt: Unter 601 px wächst
+die Grundschrift auf 16 px, der Container ist bei Viewport 600 px mit 576 px *breiter* als bei 601 px mit 559 px.
+
+Das **Ranglisten-Raster** richtet sich neu an der nötigen Inhaltsbreite aus (`minmax(min(100%, 40rem), 1fr)`) statt an
+26 rem. Vorher machte mehr Bildschirmbreite die Tabelle schmaler, weil `auto-fill` den Zugewinn an eine weitere Spalte
+gab: 1280 px → 2 Spalten à 591 px (28 % abgeschnitten), 1400 px → 3 à 429 px (48 %), 1600 px → 3 à 495 px (39 %).
+Jetzt steht lieber eine ganze Liste als zwei halb abgeschnittene; gemessen wird bei 1280–1920 px nichts mehr
+abgeschnitten.
+
+**Klebender Kopfbereich und Tabellenkopf (Paket C):** Beim Scrollen schrumpft die Filterleiste auf ihre
+Zusammenfassungszeile – **99 auf 29 px**. Zähler und Chips bleiben stehen, weil sie der Qualifier jeder Zahl auf dem
+Schirm sind; die Steuerelemente verschwinden, weil man sie beim Lesen nicht bedient. Der Weg zurück ist das Scrollen
+nach oben, für Maus und Tastatur gleich. Darunter klebt der **Tabellenkopf** auf `--sticky-top`, das aus der
+tatsächlichen Leistenhöhe kommt (`ResizeObserver`), damit es in jeder Breite und in beiden Zuständen stimmt.
+
+Möglich ist das nur, weil `.table-wrap` **nur noch dort ein Scroll-Container ist, wo die Tabelle wirklich horizontal
+überläuft** (Klasse `scrolls-x`, in `app.js` gemessen). Ein Scroll-Container im Vorfahren verhindert seitenweites
+Kleben – gemessen in Paket B (B6) und dort belegt. Die Zahlen dahinter: bei 1400 px laufen 3 von 60 Tabellen
+horizontal über, und **keine** der 7 Tabellen über 500 px Höhe gehört dazu; die langen Tabellen brauchen den
+Scroll-Container also gar nicht. In den drei breiten Tabellen bleibt der Kopf ungeklebt, dafür bleibt dort die erste
+Spalte beim horizontalen Scrollen stehen. Auf dem Phone schrumpft nichts: Dort klebt die Leiste ohnehin nicht.
+
+**Kopfbereich (Paket C):** Über dem Inhalt stehen zwei Bänder plus Navigation – Kopfzeile (Marke, Datenstand, Konto) und
+Filterleiste. Die **Datenleiste erscheint nur im Leerzustand**: Sie trägt zwei Aktionen, keine Dauerinformation, und die
+Leerzustandskarte bietet dieselben zwei Aktionen ohnehin. Mit geladenen Daten fällt sie weg; «Neu laden» und «Lokale
+Datei» liegen im aufgeklappten Datenstand. Gemessen bei 1400 × 900: **293 px statisches Chrome auf 170 px**, der erste
+Zahlenwert von y = 495 auf **y = 356** (von 55 % auf 40 % der Viewporthöhe). Der Volltext des Datenstands bleibt in
+`#status` (`aria-live`) und ist bei geladenen Daten nur für Screenreader sichtbar.
 
 | Ansicht | Inhalt |
 |---|---|
@@ -98,6 +138,20 @@ Link teilen; nach dem Öffnen müssen die Daten neu geladen werden. Die URL enth
 bei Filteränderungen nur aktualisiert, nicht neu aufgebaut; der Tastaturfokus bleibt auf dem bedienten Element.
 Die Wertung (Resultat 1. Versuch | Resultat bestandener Run) wird nur in der Ansicht «Bestenlisten» gewählt; alle anderen
 Ansichten zeigen beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfungen» wirkt der Zeitraum nicht.
+
+**Wertung und Benchmark in der Filterleiste (Paket C):** Beide schrieben schon immer **globalen, in der URL
+serialisierten Zustand** – «Wertung» in `filter.mode`, «Benchmark» in `ui.benchmark` –, standen aber in
+Werkzeugleisten einzelner Ansichten. Wer die Wertung in den Bestenlisten umstellte, änderte sie damit auch für die
+Übersicht, ohne dass es dort sichtbar war. Sie stehen jetzt in der Filterleiste, mit derselben Abschaltlogik wie die
+übrigen Felder. Anders als diese sind sie **ohne ausdrückliche Angabe abgeschaltet**, weil sie nur in wenigen
+Ansichten gelten: «Wertung» auf «Bestenlisten», «Benchmark» auf «Übersicht», «Schriftlich» und «Mündlich». Die
+Ansichts-Werkzeugleisten sind entfallen; in der Übersicht bleibt stehen, was der Benchmark bewirkt (seine Grösse).
+
+Damit trägt die Leiste elf statt neun Steuerelemente. Gemessen bei 1400 px passt sie weiterhin in **eine Zeile**
+(97 px, statisches Chrome 172 px, erster Zahlenwert bei y = 343); bei 1280 px braucht sie **zwei Zeilen** (158 px).
+Die Beschriftung des Zertifikat-Filters ist dafür auf «Zertifikate» gekürzt (voller Text als Tooltip) – sie war mit
+188 von 1384 px die längste und entschied allein darüber, ob die Reihe umbricht. Jedes Steuerelement trägt ein
+`data-field`, weil sich «Bank» und «Benchmark» über den Beschriftungstext nicht unterscheiden lassen.
 
 **Wirksamkeit der Filterleiste je Ansicht (Paket A):** Nicht jede Ansicht wertet jedes Steuerelement aus. Statt das im
 Text zu erklären, schaltet die Leiste ab, was hier nichts tut: Das Feld ist `disabled`, gestrichelt umrandet und gedämpft,

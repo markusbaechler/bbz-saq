@@ -5,12 +5,12 @@ import { GraphError, AuthExpiredError } from './graph.js';
 import { load, loadFromFile, loadAudit, write } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
-import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount, isVorgang, expertRuns, DEFAULT_FILTER } from './metrics.js';
+import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, MODE, personCount, isVorgang, expertRuns, DEFAULT_FILTER } from './metrics.js';
 import { CONFIG, headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay, isAuthResponseHash } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
-import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials, setSortContext } from './views/common.js';
+import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials, setSortContext, markScrollingTables } from './views/common.js';
 import { glossarySlug } from './glossary.js';
 import { vorgangExportTables, expertRunExportTable, auditTable } from './views/tables.js';
 import { renderDataQuality, DEFAULT_DQ_STATE, DQ_SORT_ID } from './views/dataQuality.js';
@@ -46,8 +46,11 @@ const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, 
 // Navigationsgruppen (PROMPT-2 A.2, Entscheid 06.09.2026); Gruppen ohne Ansicht (Experten bis Paket D) werden nicht gerendert.
 // Die Gruppe «Daten» steht als Sekundärnavigation rechts im Kopf (PROMPT-2 F.1, Option b, Entscheid 07.09.2026): 14 Links
 // passen bei 1100 px nicht in eine Zeile; das Auswahlfeld auf dem Phone behält alle Gruppen.
+// Navigationsgruppen (Paket C, C3): die einzige Deklaration der Navigation. Reihenfolge und Zuordnung sind Daten –
+// die Gruppe einer Ansicht steht in ihrem Modul (export const group). Eine spätere Umgruppierung (Paket F) ändert
+// diese Liste und die group-Exporte, nicht die Struktur: Alle drei Erscheinungsformen (Links, Auswahlfeld auf dem
+// Phone, Gruppierung) entstehen in renderNav() aus derselben Quelle, an einer Stelle im Kopf.
 const NAV_GROUPS = ['Kennzahlen', 'Personen', 'Experten', 'Daten'];
-const NAV_SECONDARY = 'Daten';
 
 // Aller Zustand liegt im Store (Filter, Anzeigezustand, Daten); app.js hält nur DOM-Referenzen und Lauf-Flags (Befund 16).
 const store = createStore();
@@ -113,12 +116,13 @@ function renderNav() {
   const select = el('select', { id: 'nav-select', class: 'nav-select', 'aria-label': 'Ansicht', onchange: (ev) => { location.hash = buildHash(ev.target.value, filter, uiState); } },
     groups.map((g) => el('optgroup', { label: g.name }, g.views.map((v) => el('option', { value: v.id, text: v.label })))));
   select.value = current;
-  ui.nav.replaceChildren(select, ...groups.filter((g) => g.name !== NAV_SECONDARY).map((g) => el('div', { class: 'nav-group', role: 'group', 'aria-label': g.name }, [
+  ui.nav.replaceChildren(select, ...groups.map((g) => el('div', { class: 'nav-group', role: 'group', 'aria-label': g.name }, [
     el('span', { class: 'nav-group-label', 'aria-hidden': 'true', text: g.name }),
     el('div', { class: 'nav-links' }, g.views.map(link)),
   ])));
-  const secondary = groups.find((g) => g.name === NAV_SECONDARY);
-  ui.navSecondary.replaceChildren(...(secondary ? secondary.views.map(link) : []));
+  // C3: Unter 1200 px scrollt das Band horizontal (F.1). Die aktive Ansicht muss dann trotzdem sichtbar sein.
+  const aktiv = ui.nav.querySelector('a.active');
+  if (aktiv && ui.nav.scrollWidth > ui.nav.clientWidth + 1) aktiv.scrollIntoView({ inline: 'nearest', block: 'nearest' });
 }
 
 function renderSession() {
@@ -140,6 +144,9 @@ function renderSession() {
 
 function renderStatus(text) {
   ui.status.classList.toggle('busy', busy);
+  // C1: Die Datenleiste trägt nur noch die zwei Aktionen und erscheint nur im Leerzustand. Mit geladenen Daten steht
+  // der Datenstand als Einzeiler im Kopf; «Neu laden» und «Lokale Datei» liegen im aufgeklappten Datenstand.
+  ui.databar.hidden = hasData();
   if (text) {
     ui.status.textContent = text;
     renderDatastand(false);
@@ -210,18 +217,26 @@ function renderDatastand(visible) {
 // ---------------------------------------------------------------------------
 
 const filterBar = { dataKey: null, controls: null };
+let syncSticky = () => {}; // C2: aus initStickyChrome; nach jedem Rendern nachführen
 
 // Wirksamkeit der Steuerelemente je Ansicht (Paket A, A1): Eine View exportiert `filters` und sagt darin je Feld, ob sie es
 // auswertet; `grund` liefert die Begründung für ein abgeschaltetes Feld, `hinweis` einen sichtbaren Hinweis zu einem
 // Feld, das zwar wirkt, aber anders als erwartet. Fehlt `filters`, gilt alles als wirksam (Rückwärtskompatibilität).
-const FILTER_FIELDS = ['jahr', 'von', 'bis', 'profil', 'sprache', 'bank', 'vssVsm', 'versuche', 'zertifikate'];
+const FILTER_FIELDS = ['jahr', 'von', 'bis', 'profil', 'sprache', 'bank', 'vssVsm', 'versuche', 'zertifikate', 'wertung', 'benchmark'];
+// «Wertung» und «Benchmark» standen bis Paket C in Werkzeugleisten einzelner Ansichten, schrieben aber globalen, in der
+// URL serialisierten Zustand: Wer die Wertung in den Bestenlisten umstellte, änderte sie auch für die Übersicht, ohne
+// dass es dort sichtbar war. Sie stehen jetzt in der Leiste (C5). Anders als die übrigen Felder gelten sie nur in
+// wenigen Ansichten – deshalb sind sie ohne ausdrückliche Angabe abgeschaltet, statt wie die übrigen als wirksam.
+const FILTER_DEFAULT_AUS = { wertung: 'Die Wertung gilt nur für die Bestenlisten', benchmark: 'Der Benchmark gilt für die Übersicht und die Histogramme in «Schriftlich» und «Mündlich»' };
 
 function filterSpec(viewId) {
   const view = VIEWS.find((v) => v.id === viewId);
   const spec = (view && view.filters) || {};
   const active = {};
-  for (const key of FILTER_FIELDS) active[key] = spec[key] !== false;
-  return { active, grund: spec.grund || {}, hidden: spec.hidden === true, satz: spec.satz || null, hinweis: spec.hinweis || null };
+  for (const key of FILTER_FIELDS) active[key] = FILTER_DEFAULT_AUS[key] ? spec[key] === true : spec[key] !== false;
+  const grund = { ...spec.grund };
+  for (const [key, text] of Object.entries(FILTER_DEFAULT_AUS)) if (!active[key] && !grund[key]) grund[key] = text;
+  return { active, grund, hidden: spec.hidden === true, satz: spec.satz || null, hinweis: spec.hinweis || null };
 }
 
 // Filterzustand ohne die Einschränkungen, die die Ansicht nicht auswertet – Grundlage für Zähler und Chips der Leiste.
@@ -239,9 +254,11 @@ function effectiveFilter(filter, active) {
   return f;
 }
 
-function selectControl(labelText, options, onChange) {
+// feld = Schlüssel des Steuerelements (data-field): eindeutiger Zugriff für CSS und Tests – «Bank» und «Benchmark»
+// liessen sich über den Beschriftungstext sonst nicht unterscheiden (C5).
+function selectControl(feld, labelText, options, onChange) {
   const select = el('select', { onchange: (ev) => onChange(ev.target.value) }, options.map((o) => el('option', { value: o.value, text: o.label })));
-  return { node: el('label', {}, [labelText, select]), select };
+  return { node: el('label', { 'data-field': feld }, [labelText, select]), select };
 }
 
 // Wert setzen; ein Wert, der nicht in den Optionen ist (z. B. aus einer URL), wird als eigene Option gezeigt
@@ -265,17 +282,20 @@ function buildFilterBar() {
   c.to = el('input', { type: 'date', onchange: (ev) => set({ to: parseDay(ev.target.value) }) });
   // Jahr als Auswahlfeld (PROMPT-2 A.2, Entscheid 06.09.2026): «Alle» + Jahre; setzt Von/Bis wie bisher die Buttons.
   // Die temporäre Option «Von–Bis» (updateFilterBar) ist nur Anzeige eines freien Zeitraums und löst nichts aus.
-  const jahr = selectControl('Jahr', listOptions(years.map(String)), (v) => {
+  const jahr = selectControl('jahr', 'Jahr', listOptions(years.map(String)), (v) => {
     if (v === '') set({ from: null, to: null });
     else if (v !== 'range') set({ from: new Date(Number(v), 0, 1), to: new Date(Number(v), 11, 31) });
   });
-  const profil = selectControl('Profil', listOptions(opts.profil), (v) => set({ profil: v ? [v] : [] }));
-  const sprache = selectControl('Sprache', listOptions(opts.sprache), (v) => set({ sprache: v ? [v] : [] }));
-  const bank = selectControl('Bank', listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] }));
+  const profil = selectControl('profil', 'Profil', listOptions(opts.profil), (v) => set({ profil: v ? [v] : [] }));
+  const sprache = selectControl('sprache', 'Sprache', listOptions(opts.sprache), (v) => set({ sprache: v ? [v] : [] }));
+  const bank = selectControl('bank', 'Bank', listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] }));
   bank.select.className = 'bank'; // F.3 (F5): höchstens 12rem breit, voller Name als title (updateFilterBar)
-  const vssVsm = selectControl('VSS/VSM', [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v }));
-  const versuche = selectControl('Versuche', [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v }));
-  Object.assign(c, { jahr: jahr.select, profil: profil.select, sprache: sprache.select, bank: bank.select, vssVsm: vssVsm.select, versuche: versuche.select });
+  const vssVsm = selectControl('vssVsm', 'VSS/VSM', [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v }));
+  const versuche = selectControl('versuche', 'Versuche', [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v }));
+  // C5: Wertung schreibt in den Filter, Benchmark in den Anzeigezustand – beides global und in der URL
+  const wertung = selectControl('wertung', 'Wertung', [{ value: MODE.ERSTVERSUCH, label: 'Resultat 1. Versuch' }, { value: MODE.BESTANDEN, label: 'Resultat bestandener Run' }], (v) => set({ mode: v }));
+  const benchmark = selectControl('benchmark', 'Benchmark', BENCHMARKS.map((b) => ({ value: b.id, label: b.label })), (v) => store.setUi({ benchmark: v }));
+  Object.assign(c, { jahr: jahr.select, profil: profil.select, sprache: sprache.select, bank: bank.select, vssVsm: vssVsm.select, versuche: versuche.select, wertung: wertung.select, benchmark: benchmark.select });
   c.onlyIssued = el('input', { type: 'checkbox', onchange: (ev) => set({ onlyIssued: ev.target.checked }) });
   // Reset nur sichtbar, wenn ein Filter vom Standard abweicht; Zusammenfassung = Zähler + Chips je aktive Einschränkung
   c.reset = el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() });
@@ -287,21 +307,24 @@ function buildFilterBar() {
   // Phone (B.2): Steuerelemente in einem Drawer (details), auf Phone zu; auf Desktop/Tablet offen mit unsichtbarer Kopfzeile
   c.drawerLabel = el('span', { text: 'Filter' });
   c.countPhone = el('span', { class: 'count-phone' }); // Phone (F.3, F4): Zähler in der Drawer-Kopfzeile statt als eigene Zeile
-  const von = el('label', {}, ['Von', c.from]);
-  const bis = el('label', {}, ['Bis', c.to]);
-  const zertifikate = el('label', { class: 'check' }, [c.onlyIssued, 'Nur ausgestellte Zertifikate']);
+  const von = el('label', { 'data-field': 'von' }, ['Von', c.from]);
+  const bis = el('label', { 'data-field': 'bis' }, ['Bis', c.to]);
+  // C5: Kurze Beschriftung, voller Text als Tooltip – mit elf Steuerelementen entschied diese eine Beschriftung
+  // (188 von 1384 px) darüber, ob die Leiste bei 1400 px in eine Zeile passt. Chip und Exportkopf nennen sie voll.
+  const zertifikate = el('label', { class: 'check', 'data-field': 'zertifikate', title: 'Nur Vorgänge mit ausgestelltem Zertifikat' }, [c.onlyIssued, 'Zertifikate']);
   // Feld → Bedienelement und Beschriftung (A1): die Leiste schaltet Felder ab, die die aktive Ansicht nicht auswertet
   c.fields = {
     jahr: { control: c.jahr, label: jahr.node }, von: { control: c.from, label: von }, bis: { control: c.to, label: bis },
     profil: { control: c.profil, label: profil.node }, sprache: { control: c.sprache, label: sprache.node },
     bank: { control: c.bank, label: bank.node }, vssVsm: { control: c.vssVsm, label: vssVsm.node },
     versuche: { control: c.versuche, label: versuche.node }, zertifikate: { control: c.onlyIssued, label: zertifikate },
+    wertung: { control: c.wertung, label: wertung.node }, benchmark: { control: c.benchmark, label: benchmark.node },
   };
   c.hinweis = el('p', { class: 'filter-hinweis' }); // sichtbarer Hinweis zu einem Feld, das anders wirkt als erwartet (Experten)
   c.drawer = el('details', { class: 'filter-drawer', open: isPhone() ? null : '' }, [
     el('summary', { class: 'filter-summary' }, [c.drawerLabel, c.countPhone]),
     // Reihenfolge (PROMPT-2 F.3, F5): Jahr · Von · Bis · Profil · Sprache · Bank · VSS/VSM · Versuche · Zertifikate · Reset
-    el('div', { class: 'filter-controls' }, [jahr.node, von, bis, profil.node, sprache.node, bank.node, vssVsm.node, versuche.node, zertifikate]),
+    el('div', { class: 'filter-controls' }, [jahr.node, von, bis, profil.node, sprache.node, bank.node, vssVsm.node, versuche.node, zertifikate, wertung.node, benchmark.node]),
     c.hinweis,
   ]);
   bar.append(c.drawer, c.summary);
@@ -353,6 +376,8 @@ function updateFilterBar() {
   c.bank.title = c.bank.value; // abgeschnittener Bankname bleibt als Tooltip lesbar (F5)
   c.vssVsm.value = filter.vssVsm;
   c.versuche.value = filter.versuche;
+  c.wertung.value = filter.mode;
+  c.benchmark.value = store.getState().ui.benchmark;
   c.onlyIssued.checked = !!filter.onlyIssued;
   // Felder, die die aktive Ansicht nicht auswertet, werden deaktiviert und mit dem Grund als title abgesetzt (A1);
   // der gesetzte Wert bleibt im Store und wirkt wieder, sobald eine Ansicht ihn auswertet
@@ -595,11 +620,49 @@ function renderEditMode() {
   ui.editModePhone.textContent = on ? 'Bearbeiten ausschalten' : 'Bearbeiten einschalten';
 }
 
+// ---------------------------------------------------------------------------
+// Klebender Kopfbereich (Paket C, C2)
+// Die Filterleiste war das einzige klebende Element: 95 px, 11 % der Viewporthöhe, dauerhaft – für Bedienelemente, die
+// beim Lesen niemand anfasst. Im gescrollten Zustand bleibt nur die Zusammenfassungszeile stehen (Zähler und Chips):
+// Sie ist der Qualifier jeder Zahl auf dem Schirm, ohne sie liest man Prozente ohne zu wissen, wofür sie gelten.
+// Der frei gewordene Platz geht an den Tabellenkopf, der jetzt unter der geschrumpften Leiste klebt (--sticky-top).
+// ---------------------------------------------------------------------------
+function initStickyChrome() {
+  // Zustand aus der Scrollposition, nicht aus einem beobachteten Element: Ein Wächter über der Leiste wird beim
+  // Schrumpfen wieder sichtbar und schaukelt sich auf. Zwei Schwellen (Hysterese) verhindern das Flattern am Rand.
+  const AN = 140;
+  const AUS = 80;
+  const setzeZustand = () => {
+    const y = window.scrollY || document.documentElement.scrollTop || 0;
+    const jetzt = document.body.classList.contains('scrolled');
+    if (!jetzt && y > AN) document.body.classList.add('scrolled');
+    else if (jetzt && y < AUS) document.body.classList.remove('scrolled');
+  };
+  window.addEventListener('scroll', setzeZustand, { passive: true });
+  syncSticky = setzeZustand;
+  setzeZustand();
+  // Oberkante für den Tabellenkopf = tatsächliche Höhe der klebenden Leiste. Nur bei echter Änderung schreiben:
+  // Ein Schreibvorgang löst eine Stilneuberechnung aus, die den Beobachter sonst erneut weckt (Rückkopplung).
+  let letzteHoehe = -1;
+  const setzeOberkante = () => {
+    const h = ui.filterbar.hidden ? 0 : Math.round(ui.filterbar.getBoundingClientRect().height);
+    if (h === letzteHoehe) return;
+    letzteHoehe = h;
+    document.documentElement.style.setProperty('--sticky-top', h + 'px');
+  };
+  if (typeof ResizeObserver === 'function') new ResizeObserver(setzeOberkante).observe(ui.filterbar);
+  window.addEventListener('scroll', setzeOberkante, { passive: true });
+  setzeOberkante();
+}
+
 function renderAll() {
   renderStatus();
   renderEditMode();
   updateFilterBar();
   renderView();
+  // C2: Erst nach dem Rendern steht fest, welche Tabelle horizontal überläuft und deshalb einen Scroll-Container braucht
+  markScrollingTables(ui.view);
+  syncSticky(); // eine kurze Ansicht ist womöglich gar nicht scrollbar – dann darf die Leiste nicht geschrumpft bleiben
   syncHash();
 }
 
@@ -734,9 +797,9 @@ async function init() {
   ui.file = $('file-input');
   ui.status = $('status');
   ui.datastand = $('datastand');
+  ui.databar = $('databar');
   ui.error = $('error');
   ui.nav = $('nav');
-  ui.navSecondary = $('nav-secondary');
   ui.filterbar = $('filterbar');
   ui.view = $('view');
   ui.accountMenu = $('account-menu');
@@ -753,6 +816,10 @@ async function init() {
   ui.signout.addEventListener('click', () => run(signOut));
   ui.signoutPhone.addEventListener('click', () => { ui.accountMenu.open = false; run(signOut); });
   // Wechsel Phone ↔ grösser (Drehen, Fenstergrösse): Drawer-Zustand setzen und neu rendern (B.2)
+  initStickyChrome();
+  // Breitenwechsel ändert, welche Tabelle überläuft; entprellt wie der Geräteklassen-Wechsel
+  let messTimer = null;
+  window.addEventListener('resize', () => { clearTimeout(messTimer); messTimer = setTimeout(() => markScrollingTables(ui.view), 150); });
   onViewportChange((phone) => {
     if (window.matchMedia('print').matches) return; // Druck: kein Neurendern, die geöffneten Blöcke bleiben
     if (filterBar.controls) filterBar.controls.drawer.open = !phone;

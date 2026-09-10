@@ -13,8 +13,12 @@
       <h1>bbz Zertifizierungs-Cockpit</h1>
       <span class="subtitle">Reporting KUBA</span>
     </div>
+    <!-- C1: Datenstand und Statuszeile stehen im Kopf, nicht in einem eigenen Band. Der Volltext in #status bleibt für
+         Screenreader (aria-live) und ist bei geladenen Daten nur dort sichtbar; die Datenleiste darunter trägt nur noch
+         die zwei Aktionen und erscheint nur im Leerzustand. -->
+    <details id="datastand" class="datastand" hidden></details>
+    <span id="status" class="status" aria-live="polite">Keine Daten geladen.</span>
     <div class="session">
-      <nav id="nav-secondary" class="nav-secondary" aria-label="Daten"></nav>
       <span id="edit-mode-hint" class="edit-mode-hint" hidden>Bearbeitungsmodus: Änderungen schreiben in die Datei</span>
       <button id="btn-edit-mode" type="button" class="secondary edit-mode" aria-pressed="false" hidden>Bearbeiten</button>
       <span id="account" class="account"></span>
@@ -31,14 +35,12 @@
     </div>
   </header>
 
-  <section class="databar" aria-label="Datenquelle">
+  <section id="databar" class="databar" aria-label="Datenquelle">
     <button id="btn-load" type="button" disabled>Daten von SharePoint laden</button>
     <label class="file-label" title="Excel-Datei lokal prüfen – bleibt im Browser, wird nirgends hochgeladen">
       <span>Lokale Excel-Datei prüfen</span>
       <input id="file-input" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
     </label>
-    <span id="status" class="status" aria-live="polite">Keine Daten geladen.</span>
-    <details id="datastand" class="datastand" hidden></details>
   </section>
 
   <div id="error" class="error" role="alert" hidden></div>

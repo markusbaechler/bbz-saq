@@ -810,6 +810,9 @@ unabhängigen Umgebung. Offen sind Layoutmängel gegenüber A.11 und ein Doku-Ei
 > **⛔ Entscheide vor Start** (eine Nachricht vor Schritt F.1):
 > 1. F1 Navigation: (a) Gruppenbeschriftung inline vor den Links, engere Abstände, `--fs-sm`; (b) Gruppe «Daten» rechtsbündig als Sekundärnavigation;
 >    (c) zwei Zeilen zulassen. Empfehlung: (a) mit Zielmass `#nav.scrollWidth ≤ clientWidth` ab 1100 px; (b) nur, wenn (a) bei 1100 px nicht reicht.
+>    *(Erledigt in Paket C, C1/C3: (a) umgesetzt, (b) rückgängig – alle 14 Ziele stehen an einer Stelle. Das Zielmass wird
+>    ab 1200 px erreicht (1165 von 1200 px ohne Gruppenbeschriftung); bei 1100 px scrollt das Band horizontal, statt eine
+>    zweite Leiste zu öffnen. Die Umgruppierung selbst bleibt für Paket F offen und ist jetzt eine Datenänderung.)*
 > 2. F2 Tabellen: Prio-3-Spalten bereits unter 1200 px ausblenden (heute 900 px). Empfehlung: ja.
 > 3. F7 `spike/`: (a) löschen; (b) nach `tools/spike/` verschieben und aus Pages ausnehmen. Empfehlung: (a) – der Spike ist abgeschlossen, Adapter und Tests decken den Ablauf ab.
 
