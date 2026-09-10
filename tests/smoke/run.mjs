@@ -171,6 +171,25 @@ try {
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
+  // Paket A (A5): Zwei Prozessstufen, zwei Namen. «Schriftlich offen» (Spalte je Profil) zählt Vorgänge ohne schriftliches
+  // Gesamtergebnis, «Zertifizierung offen» (Kachel) Vorgänge ohne Gesamtergebnis überhaupt. Die schriftliche Prüfung ist
+  // das Gate zur mündlichen: Die Spaltensumme ist deshalb höchstens so gross wie die Kachel.
+  const stufen = await page.evaluate(() => {
+    const tile = [...document.querySelectorAll('#view .kpi')].find((k) => k.querySelector('.kpi-label').textContent.startsWith('Zertifizierung offen'));
+    const tabelle = [...document.querySelectorAll('#view table')].find((t) => [...t.querySelectorAll('thead th')].some((th) => th.textContent.trim() === 'Schriftlich offen'));
+    if (!tile || !tabelle) return { kachel: null, spalte: null, summe: null };
+    const i = [...tabelle.querySelectorAll('thead th')].findIndex((th) => th.textContent.trim() === 'Schriftlich offen');
+    const summe = [...tabelle.querySelectorAll('tbody tr')].reduce((a, tr) => a + (Number(tr.children[i].textContent.trim()) || 0), 0);
+    return {
+      kachel: Number(tile.querySelector('.kpi-value').textContent.trim()),
+      glossar: (tile.querySelector('.kpi-label a') || {}).getAttribute ? tile.querySelector('.kpi-label a').getAttribute('href') : '',
+      spalte: 'Schriftlich offen', summe,
+      altNamen: [...document.querySelectorAll('#view .kpi-label, #view thead th')].map((x) => x.textContent.trim()).filter((t) => t === 'Offen' || t.startsWith('Vorgänge offen')),
+    };
+  });
+  check(stufen.kachel !== null && stufen.spalte === 'Schriftlich offen' && stufen.summe <= stufen.kachel && stufen.altNamen.length === 0 && /begriff=zertifizierung-offen/.test(stufen.glossar || ''),
+    'A5 Übersicht: Kachel «Zertifizierung offen» = ' + stufen.kachel + ', Spalte «Schriftlich offen» Summe ' + stufen.summe + ' (frühere Stufe, also nicht grösser), kein «Offen» mehr, Kachel verlinkt ins Glossar');
+
   // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
   // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
   for (const v of ['schriftlich', 'muendlich']) {

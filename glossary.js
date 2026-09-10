@@ -108,7 +108,7 @@ export const GLOSSARY = [
   {
     kind: 'Begriff', term: 'Offene Vorgänge (Ansicht)',
     definition: 'Alle Vorgänge mit Status offen – auch solche ohne absolvierte Prüfung – mit fehlendem Teil (schriftlich/mündlich), letzter Prüfung, Tagen seit der letzten Prüfung, nächstem geplanten Termin und Versuchen. Filter Profil, Sprache, Bank, VSS/VSM und Versuche gelten; der Zeitraum nicht.',
-    nenner: '–', grenzfaelle: 'Die Kachel «Vorgänge offen» in der Übersicht zählt nur kennzahlrelevante offene Vorgänge im Filter (inkl. Zeitraum) und kann deshalb kleiner sein.',
+    nenner: '–', grenzfaelle: 'Die Kachel «Zertifizierung offen» in der Übersicht zählt nur kennzahlrelevante offene Vorgänge im Filter (inkl. Zeitraum) und kann deshalb kleiner sein.',
   },
   {
     kind: 'Begriff', term: 'Zeitverlauf (Ansicht)',
@@ -225,8 +225,11 @@ export const GLOSSARY = [
   // ---------------------------------------------------------------------- Kennzahlen (Kachel-/Spaltenbeschriftung)
   { kind: 'Kennzahl', term: 'Vorgänge', definition: 'Anzahl kennzahlrelevanter Zertifizierungsvorgänge im aktiven Filter.', nenner: '–', grenzfaelle: 'Duplikate sind zusammengeführt und zählen einmal.' },
   { kind: 'Kennzahl', term: 'Personen', definition: 'Anzahl Menschen hinter den Vorgängen im Filter (Personenschlüssel).', nenner: '–', grenzfaelle: 'Kleiner oder gleich «Vorgänge»; die Differenz sind Personen mit mehreren Profilen.' },
-  { kind: 'Kennzahl', term: 'Vorgänge offen', definition: 'Vorgänge im Filter ohne Gesamtergebnis (schriftlich oder mündlich leer): der Prozess läuft noch.', nenner: '–', grenzfaelle: 'Nicht im Nenner der Bestehensquoten (E4). Eigene Ansicht «Offene Vorgänge».' },
-  { kind: 'Kennzahl', term: 'Vorgänge passiv (> 365 Tage)', definition: 'Offene Vorgänge im Filter, deren letzte Prüfung mehr als 365 Tage zurückliegt und die keinen geplanten Termin haben.', nenner: '–', grenzfaelle: 'Teilmenge von «Vorgänge offen»; nicht im Nenner. Bestehensquoten sind ohne diese Kategorie eine Obergrenze.' },
+  // A5: Zwei Prozessstufen, zwei Namen. Die schriftliche Prüfung ist das Gate zur mündlichen – «Schriftlich offen» ist die
+  // frühere und grössere Stufe, «Zertifizierung offen» die spätere. Beide Zahlen sind richtig, nur hiessen sie beide «Offen».
+  { kind: 'Kennzahl', term: 'Zertifizierung offen', definition: 'Vorgänge im Filter ohne Gesamtergebnis – weder schriftlich noch mündlich abgeschlossen; die Zertifizierung läuft noch. Kachel im Block «Mengen» der Übersicht (früher «Vorgänge offen»).', nenner: 'Alle kennzahlrelevanten Vorgänge im Filter (n der Kachel).', grenzfaelle: 'Nicht im Nenner der Bestehensquoten (E4). Spätere Prozessstufe als «Schriftlich offen» und deshalb die kleinere Zahl. Eigene Ansicht «Offene Vorgänge» (die ohne Zeitraumfilter rechnet und weitere Vorgänge zeigt).' },
+  { kind: 'Kennzahl', term: 'Schriftlich offen', definition: 'Vorgänge im Filter ohne schriftliches Gesamtergebnis: die schriftliche Prüfung ist noch nicht abgeschlossen. Spalte in «Kennzahlen je Profil» (Übersicht), früher «Offen».', nenner: 'Vorgänge des Profils im Filter (Spalte «n (Vorgänge)»).', grenzfaelle: 'Die schriftliche Prüfung ist das Gate zur mündlichen: Wer hier offen ist, ist auch in «Zertifizierung offen» enthalten – umgekehrt nicht. Frühere Prozessstufe und deshalb die grössere Zahl.' },
+  { kind: 'Kennzahl', term: 'Vorgänge passiv (> 365 Tage)', definition: 'Offene Vorgänge im Filter, deren letzte Prüfung mehr als 365 Tage zurückliegt und die keinen geplanten Termin haben.', nenner: '–', grenzfaelle: 'Teilmenge von «Zertifizierung offen»; nicht im Nenner. Bestehensquoten sind ohne diese Kategorie eine Obergrenze.' },
   { kind: 'Kennzahl', term: 'Vorgänge nicht erfasst', definition: 'Vorgänge im Filter, deren Gesamtergebnis gefüllt, aber unlesbar ist (Fehler im Data-Quality-Log).', nenner: '–', grenzfaelle: 'Nicht im Nenner der Bestehensquoten; zählt nicht als offen (E4).' },
   { kind: 'Kennzahl', term: 'Schriftlich: im 1. Versuch bestanden', definition: 'Anteil Vorgänge, bei denen alle absolvierten WE RUN1 bestanden sind.', nenner: 'Vorgänge mit mindestens einem absolvierten WE RUN1.', grenzfaelle: 'Komplement zu «im 1. Versuch durchgefallen».' },
   { kind: 'Kennzahl', term: 'Schriftlich: im 1. Versuch durchgefallen', definition: 'Anteil Vorgänge mit mindestens einem WE RUN1 = no.', nenner: 'Vorgänge mit mindestens einem absolvierten WE RUN1.', grenzfaelle: '–' },

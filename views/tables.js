@@ -457,7 +457,9 @@ export function overviewModel(persons, allPersons = persons) {
   const kpis = [
     kpi('Vorgänge', String(o.n), o.n, 'Zertifizierungsvorgänge (Zeilen ohne Duplikate) im Filter mit mindestens einem absolvierten, datierten schriftlichen Run', { raw: o.n }),
     kpi('Personen', String(o.personen), o.n, 'Menschen hinter den Vorgängen im Filter (Personenschlüssel aus Name und Geburtsdatum); eine Person kann mehrere Vorgänge haben', { raw: o.personen }),
-    kpi('Vorgänge offen', String(o.status.offen), o.n, 'Vorgänge ohne Gesamtergebnis (Prozess läuft noch); nicht im Nenner der Bestehensquoten', { raw: o.status.offen }),
+    // A5: «Zertifizierung offen» – die ganze Zertifizierung läuft noch. Die Spalte «Schriftlich offen» in «Kennzahlen je Profil»
+    // zählt die frühere Prozessstufe (nur das schriftliche Gesamtergebnis fehlt) und ist deshalb die kleinere Zahl.
+    kpi('Zertifizierung offen', String(o.status.offen), o.n, 'Vorgänge ohne Gesamtergebnis – weder schriftlich noch mündlich abgeschlossen, die Zertifizierung läuft noch; nicht im Nenner der Bestehensquoten', { raw: o.status.offen }),
     kpi('Vorgänge passiv (> ' + PASSIVE_DAYS + ' Tage)', String(o.status.passiv), o.n, 'Offene Vorgänge, deren letzte Prüfung mehr als ' + PASSIVE_DAYS + ' Tage zurückliegt und die keinen geplanten Termin haben; Teilmenge von «offen», nicht im Nenner', { raw: o.status.passiv, direction: 'down' }),
     kpi('Vorgänge nicht erfasst', String(o.status.nichtErfasst), o.n, 'Vorgänge mit unlesbarem Gesamtergebnis (Fehler im Data-Quality-Log); nicht im Nenner der Bestehensquoten', { raw: o.status.nichtErfasst, direction: 'down' }),
     rate('Schriftlich: im 1. Versuch bestanden', o.written.erstversuch, 'Anteil Vorgänge, bei denen alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden sind; n = Vorgänge mit absolviertem WE RUN1', 'Schriftlich', 'up'),
@@ -478,14 +480,15 @@ export function overviewModel(persons, allPersons = persons) {
     title: 'Kennzahlen je Profil',
     columns: [
       col('gruppe', 'Profil', 1), col('n', 'n (Vorgänge)', 1), col('personen', 'Personen', 2), col('erstversuch', 'Schriftlich im 1. Versuch bestanden', 1), col('durchgefallen', 'Schriftlich im 1. Versuch durchgefallen', 3),
-      col('gesamt', 'Schriftlich insgesamt bestanden', 2), col('muendlich', 'Mündlich bestanden', 1), col('offen', 'Offen', 2), col('passiv', 'davon passiv', 3),
+      col('gesamt', 'Schriftlich insgesamt bestanden', 2), col('muendlich', 'Mündlich bestanden', 1), col('offen', 'Schriftlich offen', 2), col('passiv', 'davon passiv', 3),
     ],
     rows: o.byProfil.map((g) => ({
       gruppe: mark(groupLabel(g.key), g.small), n: g.n, small: g.small, personen: personCount(persons.filter((p) => (p.profil === undefined ? null : p.profil) === g.key)),
       erstversuch: formatPct(g.value.written.erstversuch.pct), durchgefallen: formatPct(g.value.written.erstversuchFailed.pct),
       gesamt: formatPct(g.value.written.gesamt.pct), muendlich: formatPct(g.value.oral.bestanden.pct), offen: g.value.written.offen, passiv: g.value.written.passiv,
     })),
-    note: SMALL_NOTE + '; offen = Vorgänge ohne schriftliches Gesamtergebnis, passiv = davon ohne Prüfung seit mehr als ' + PASSIVE_DAYS + ' Tagen und ohne Termin; Nenner der Quoten wie in den Kacheln',
+    // A5: Zwei Prozessstufen, zwei Namen – die schriftliche Prüfung ist das Gate zur mündlichen
+    note: SMALL_NOTE + '; schriftlich offen = Vorgänge ohne schriftliches Gesamtergebnis (frühere Stufe als die Kachel «Zertifizierung offen», die das Gesamtergebnis überhaupt meint), passiv = davon ohne Prüfung seit mehr als ' + PASSIVE_DAYS + ' Tagen und ohne Termin; Nenner der Quoten wie in den Kacheln',
   };
   return { kpis, byProfil, multi };
 }
@@ -970,7 +973,7 @@ export function historyTables(snapshots, current) {
     rows: compareZaehler(list, current).map((r) => fill({ zaehler: r.label, direction: 'neutral' }, r.cells, r.current, r.delta, 'zaehler')),
     note: 'Zeigt, wie sich die Datei zwischen den Stichtagen verändert hat (Zeilen, Duplikate, offene Vorgänge, Data-Quality-Einträge).',
   };
-  const jeProfil = [['weGesamt', 'Schriftlich: insgesamt bestanden'], ['oeBestanden', 'Mündlich: bestanden'], ['vorgaenge', 'Vorgänge'], ['offen', 'Vorgänge offen']].map(([key, label]) => {
+  const jeProfil = [['weGesamt', 'Schriftlich: insgesamt bestanden'], ['oeBestanden', 'Mündlich: bestanden'], ['vorgaenge', 'Vorgänge'], ['offen', 'Zertifizierung offen']].map(([key, label]) => {
     const kind = key === 'vorgaenge' || key === 'offen' ? 'count' : 'ratio';
     return {
       title: 'Je Profil: ' + label,
