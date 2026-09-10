@@ -359,6 +359,14 @@ Tick trägt die Achsenlinie und nennt den Beginn; darüber liegen runde Vielfach
 **Balkendiagramme rechnen weiter von null** – bei Balken trägt die Länge die Aussage, eine gekappte Achse verzerrt die
 Verhältnisse.
 
+**Datenbalken in Prozentspalten (Paket B):** Der Balken füllt **von rechts** – dieselbe Richtung wie die rechtsbündige
+Zahl – und liegt auf einer **festen Spur** (`--bar-track`, 3.5 rem): 100 % sind überall gleich breit, in jeder Spalte
+und in jeder Tabelle. Vorher lief er über die ganze Zellbreite; da benachbarte Prozentspalten verschieden breit sind
+(gemessen: «Auswahl» 93 px gegen «Benchmark» 221 px in derselben Tabelle, «Ø Resultat 1. Versuch» 286 px gegen
+«Ø Resultat bestandener Run» 367 px), hatte derselbe Prozentwert dort verschiedene Länge – der Balken versprach einen
+Vergleich, den er nicht einlöste. Die Spur ist schmaler als die schmalste Prozentspalte, damit kein Balken
+abgeschnitten wird.
+
 **Sortierung (Paket B):** Jede Tabelle ist sortierbar, mit einer Implementierung: Die Kopfzelle trägt einen Button mit
 `aria-label` «Sortieren nach …», das `th` ein `aria-sort`, und der erste Klick sortiert Text aufsteigend, Zahlen
 absteigend; ein weiterer Klick kehrt um. **Die fachliche Ausgangssortierung bleibt der Standard** – Teilprüfungen,
