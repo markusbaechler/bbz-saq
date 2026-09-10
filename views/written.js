@@ -11,6 +11,8 @@ export const label = 'Schriftlich';
 export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
 export const intro = 'Bestehensquoten und Ø Resultat schriftlich nach Profil, Sprache, Bank und Teilprüfung; beide Wertungen nebeneinander.';
 export const glossar = 'Schriftlich: im 1. Versuch bestanden';
+// Wirksamkeit der Filterleiste (A1/C5): Der Benchmark wirkt hier über das Histogramm (Auswahl gegen Benchmark).
+export const filters = { benchmark: true };
 
 const KEYS = ['profil', 'sprache', 'employerCanon'];
 

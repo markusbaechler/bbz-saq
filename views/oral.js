@@ -10,6 +10,8 @@ export const label = 'Mündlich';
 export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
 export const intro = 'Bestehensquote mündlich, Anteil 1× und 2× durchgefallen, Ø Resultat nach Profil, Sprache und Bank.';
 export const glossar = 'Mündlich: bestanden';
+// Wirksamkeit der Filterleiste (A1/C5): Der Benchmark wirkt hier über das Histogramm (Auswahl gegen Benchmark).
+export const filters = { benchmark: true };
 
 export function build(ctx) {
   const rates = oralRateTable(ctx.persons, 'profil');

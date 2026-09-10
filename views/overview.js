@@ -9,6 +9,9 @@ export const label = 'Übersicht';
 export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
 export const intro = 'Kennzahlen der Vorgänge mit absolviertem schriftlichem Run im Filter; Quoten auf abgeschlossene Vorgänge, Personen zählen Menschen.';
 export const glossar = 'Kennzahlrelevant (Grundgesamtheit)'; // Ziel des Links «Definitionen»
+// Wirksamkeit der Filterleiste (A1/C5): Der Benchmark wirkt hier; er stand bis Paket C in einer Werkzeugleiste dieser
+// Ansicht, schrieb aber globalen, in der URL serialisierten Anzeigezustand.
+export const filters = { benchmark: true };
 
 // Ist der Benchmark überhaupt eine andere Menge als die Auswahl? (Paket A, A2)
 // benchmarkFilter() nimmt je nach Art genau eine Einschränkung weg («Alle Banken» den Bank-Filter, «Gesamt» alle).
@@ -54,12 +57,9 @@ export function build(ctx) {
   if (bench) {
     const def = BENCHMARKS.find((b) => b.id === bench.kind) || {};
     if (def.hint) hints.push('Benchmark «' + bench.label + '»: ' + def.hint);
-    const select = el('select', { onchange: (ev) => ctx.onBenchmarkChange && ctx.onBenchmarkChange(ev.target.value) }, BENCHMARKS.map((b) => el('option', { value: b.id, text: b.label })));
-    select.value = bench.kind;
-    benchmarkBar = el('div', { class: 'toolbar benchmark-bar' }, [
-      el('label', { class: 'inline' }, ['Benchmark ', select]),
-      el('span', { class: 'meta-list', text: bench.persons.length + ' Vorgänge im Benchmark' + (bench.persons.length === ctx.persons.length ? ' (entspricht der Auswahl, kein entsprechender Filter aktiv)' : '') }),
-    ]);
+    // C5: Die Auswahl des Benchmarks steht in der Filterleiste; hier bleibt, was sie bewirkt – wie gross er ist
+    benchmarkBar = el('p', { class: 'benchmark-bar', text: 'Benchmark «' + bench.label + '»: ' + bench.persons.length + ' Vorgänge'
+      + (bench.persons.length === ctx.persons.length ? ' (entspricht der Auswahl, kein entsprechender Filter aktiv)' : '') });
   }
   // Ohne benchmarkrelevanten Filter zeigen beide Spalten dieselben Zahlen; statt sie aufzuklappen, ein Satz und der Weg dorthin
   const gleichstand = relevant ? null : el('p', { class: 'benchmark-gleichstand' }, [

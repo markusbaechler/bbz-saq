@@ -43,15 +43,15 @@ page.on('response', (r) => { if (r.url().startsWith(server.url) && r.status() >=
 const summaryText = () => page.textContent('#filterbar .summary');
 // Paket C (C2): Gescrollt schrumpft die Filterleiste auf die Zusammenfassungszeile – Zähler und Chips bleiben, die
 // Steuerelemente sind bewusst nicht mehr erreichbar. Der Test tut, was ein Mensch tut: erst nach oben, dann bedienen.
-const filterWaehlen = async (p, label, wert) => {
+const filterWaehlen = async (p, feld, wert) => {
   await p.evaluate(() => window.scrollTo(0, 0));
   // Erst warten, bis die Leiste wieder ausgeklappt ist: focus() prüft keine Sichtbarkeit und liefe sonst ins Leere,
   // solange die Steuerelemente noch «display: none» sind (der Zustand wird vom Scroll-Ereignis nachgeführt).
   await p.waitForFunction(() => !document.body.classList.contains('scrolled'), null, { timeout: 3000 }).catch(() => {});
-  const feld = p.locator(`#filterbar label:has-text("${label}") select`);
-  await feld.waitFor({ state: 'visible' });
-  await feld.focus();
-  await feld.selectOption(wert);
+  const el = p.locator(`#filterbar label[data-field="${feld}"] select`);
+  await el.waitFor({ state: 'visible' });
+  await el.focus();
+  await el.selectOption(wert);
 };
 // Query-Teil des Hashs (#ansicht?von=…): beim Ansichtswechsel per goto muss der Filterzustand mitgenommen werden
 const hashQuery = (url) => { const h = url.split('#')[1] || ''; const q = h.indexOf('?'); return q >= 0 ? h.slice(q) : ''; };
@@ -97,8 +97,8 @@ try {
     };
   });
   const chrome = kopf.header + kopf.databar + kopf.nav + kopf.filterbar;
-  check(chrome <= 170 && kopf.databar === 0 && kopf.ersterWert < 360 && kopf.statusImDom && kopf.datastandImKopf && kopf.neuLaden === 2,
-    'C1 geladen: Chrome ' + chrome + ' px (≤ 170; vorher 293) = Kopf ' + kopf.header + ' + Navigation ' + kopf.nav + ' + Filter ' + kopf.filterbar
+  check(chrome <= 175 && kopf.databar === 0 && kopf.ersterWert < 360 && kopf.statusImDom && kopf.datastandImKopf && kopf.neuLaden === 2,
+    'C1 geladen: Chrome ' + chrome + ' px (Ziel 170, seit C5 mit zwei Steuerelementen mehr; vorher 293) = Kopf ' + kopf.header + ' + Navigation ' + kopf.nav + ' + Filter ' + kopf.filterbar
       + ', keine Datenleiste, erster Zahlenwert y = ' + kopf.ersterWert + ' (< 360; vorher 495), Datenstand im Kopf, Volltext für Screenreader, '
       + kopf.neuLaden + ' Lade-Aktionen erreichbar');
 
@@ -131,7 +131,7 @@ try {
   await page.goto(server.url + '#bank-report');
   await page.waitForSelector('#view h2');
   check((await page.locator('#view p.empty').count()) === 1 && (await page.locator('#view table').count()) === 0, 'Bank-Report ohne Bank: Hinweis, keine Tabellen');
-  await filterWaehlen(page, 'Bank', { label: 'Testbank AG' });
+  await filterWaehlen(page, 'bank', { label: 'Testbank AG' });
   await page.waitForSelector('#view table');
   const bankTables = await page.$$eval('#view table caption', (c) => c.map((x) => x.textContent));
   check(bankTables.length >= 3 && bankTables.every((t) => /Testbank AG/.test(t)), 'Bank-Report mit Bank: ' + bankTables.length + ' Tabellen (' + bankTables.join(' | ') + ')');
@@ -185,7 +185,7 @@ try {
     'A2 Übersicht ohne Filter: keine Delta-Zeile, Vergleichstabelle eingeklappt mit Satz «' + zu.satz.trim().slice(0, 70) + '»');
   check((await page.locator('#view .benchmark-gleichstand button.linklike').count()) === 1, 'A2 Übersicht ohne Filter: Link «Bank wählen» im Satz');
   await shot(page, 'uebersicht-ohne-filter');
-  await filterWaehlen(page, 'Bank', { label: 'Testbank AG' });
+  await filterWaehlen(page, 'bank', { label: 'Testbank AG' });
   await page.waitForSelector('#view .kpi-delta');
   const offen = await vergleich();
   check(offen && offen.tag === 'SECTION' && !offen.satz, 'A2 Übersicht mit Bank-Filter: Vergleichstabelle offen, kein Gleichstand-Satz');
@@ -253,7 +253,7 @@ try {
   await page.keyboard.press('ArrowLeft');
   const barTip = await page.evaluate(() => { const t = document.querySelector('#view .viz-tip'); return { hidden: !t || t.hidden, text: t ? t.textContent : '' }; });
   check(!barTip.hidden && /Auswahl/.test(barTip.text) && /%/.test(barTip.text), 'Histogramm: Tooltip per Tastatur (' + barTip.text.slice(0, 70) + ')');
-  await filterWaehlen(page, 'Profil', 'IK');
+  await filterWaehlen(page, 'profil', 'IK');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   check((await page.locator('#view svg.viz-bars').count()) === 0 && /Verteilung erst ab 5/.test(await page.textContent('#view')) && (await page.locator('#view table caption:has-text("Verteilung der Resultate")').count()) === 1, 'Histogramm: Profil IK (n < 5) → Hinweis statt Diagramm, Tabelle bleibt');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
@@ -296,7 +296,7 @@ try {
   // Chip ✕ entfernt nur diesen Filter; Reset nur sichtbar, wenn ein Filter aktiv ist
   check(await page.locator('#filterbar button.reset').isHidden(), 'Reset ohne aktiven Filter ausgeblendet');
   const before = await summaryText();
-  await filterWaehlen(page, 'Profil', 'PK');
+  await filterWaehlen(page, 'profil', 'PK');
   await page.waitForFunction((b) => document.querySelector('#filterbar .summary').textContent !== b, before, { timeout: 5000 });
   check((await page.locator('#filterbar .chip', { hasText: 'Profil PK' }).count()) === 1 && /profil=PK/.test(page.url()), 'Filter Profil = PK wirkt: Chip «Profil PK», steht in der URL');
   const fokus = await page.evaluate(() => {
@@ -304,22 +304,24 @@ try {
     return { tag: a && a.tagName, label: a && a.closest && a.closest('label') ? a.closest('label').textContent.slice(0, 12) : null, id: a && a.id, klasse: a && String(a.className).slice(0, 30) };
   });
   check(fokus.tag === 'SELECT' && (fokus.label || '').startsWith('Profil'), 'Fokus bleibt nach der Filteränderung auf dem Auswahlfeld Profil (' + JSON.stringify(fokus) + ')');
-  await filterWaehlen(page, 'Jahr', '2026');
+  await filterWaehlen(page, 'jahr', '2026');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 2, null, { timeout: 5000 });
   check(/von=2026-01-01/.test(page.url()) && (await page.locator('#filterbar .chip', { hasText: '2026' }).count()) === 1 && (await page.locator('#filterbar button.reset').isVisible()), 'Jahr 2026 gewählt: Chip «2026», Von/Bis in der URL, Reset sichtbar');
   await shot(page, 'filter-chips');
   await page.locator('#filterbar .chip', { hasText: '2026' }).click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
-  check(!/von=/.test(page.url()) && /profil=PK/.test(page.url()) && (await page.locator('#filterbar label:has-text("Jahr") select').inputValue()) === '', 'Chip ✕ entfernt nur den Zeitraum; Profil bleibt, Jahr zeigt «Alle»');
+  check(!/von=/.test(page.url()) && /profil=PK/.test(page.url()) && (await page.locator('#filterbar label[data-field="jahr"] select').inputValue()) === '', 'Chip ✕ entfernt nur den Zeitraum; Profil bleibt, Jahr zeigt «Alle»');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   check(!/profil=/.test(page.url()) && (await page.locator('#filterbar button.reset').isHidden()), 'Filter zurückgesetzt: URL ohne Filter, keine Chips, Reset ausgeblendet');
 
   // Paket A (A1): Felder, die eine Ansicht nicht auswertet, sind deaktiviert und abgesetzt statt in der Kurzbeschreibung erklärt.
   // Erwartete Zahl abgeschalteter Felder je Ansicht; auf «Datenqualität» verschwindet die Leiste ganz.
+  // Seit C5 stehen «Wertung» und «Benchmark» ebenfalls in der Leiste. Sie gelten nur, wo sie ausdrücklich erklärt sind:
+  // Wertung auf «Bestenlisten», Benchmark auf «Übersicht», «Schriftlich» und «Mündlich». Überall sonst abgeschaltet.
   const OFF = {
-    uebersicht: 0, schriftlich: 0, muendlich: 0, 'vss-vsm': 0, bestenlisten: 0, 'bank-report': 0,
-    zeitverlauf: 3, 'offene-vorgaenge': 3, 'geplante-pruefungen': 3, personen: 4, experten: 1,
+    uebersicht: 1, schriftlich: 1, muendlich: 1, bestenlisten: 1, 'vss-vsm': 2, 'bank-report': 2,
+    zeitverlauf: 5, 'offene-vorgaenge': 5, 'geplante-pruefungen': 5, personen: 6, experten: 3,
   };
   // Ganz ohne Leiste: Datenqualität (voller Bestand), Historie (Snapshot der ganzen Datei), Glossar (statisch)
   const OHNE_LEISTE = ['datenqualitaet', 'historie', 'glossar'];
@@ -338,7 +340,7 @@ try {
     });
     check(off.n === expected && off.disabled && off.grund, 'A1 ' + view + ': ' + off.n + ' von ' + expected + ' Feldern abgeschaltet (' + (off.namen.join(' · ') || 'keine') + '), disabled und Grund als title');
   }
-  check((await page.locator('#filterbar label:has-text("Versuche")').getAttribute('title')) !== null, 'A1 Experten: Grund am abgeschalteten Feld «Versuche»');
+  check((await page.locator('#filterbar label[data-field="versuche"]').getAttribute('title')) !== null, 'A1 Experten: Grund am abgeschalteten Feld «Versuche»');
   check((await page.locator('#filterbar .filter-hinweis').isVisible()) && /Run-Datum/.test(await page.textContent('#filterbar .filter-hinweis')), 'A1 Experten: Zeitraum bleibt aktiv, mit sichtbarem Hinweis auf das Run-Datum');
   await shot(page, 'filter-abgeschaltet');
   for (const view of OHNE_LEISTE) {
@@ -351,7 +353,7 @@ try {
   // Gesetzter Filter bleibt erhalten, auch wo keine Leiste steht: der Satz nennt ihn und bietet «Filter zurücksetzen» an
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
-  await filterWaehlen(page, 'Profil', 'PK');
+  await filterWaehlen(page, 'profil', 'PK');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   for (const view of OHNE_LEISTE) {
     await page.goto(server.url + '#' + view + hashQuery(page.url()));
@@ -365,7 +367,7 @@ try {
   // Der gesetzte Wert bleibt erhalten: Jahr auf der Übersicht setzen, auf dem Zeitverlauf ist er stumm, danach wirkt er wieder
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
-  await filterWaehlen(page, 'Jahr', '2026');
+  await filterWaehlen(page, 'jahr', '2026');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   await page.goto(server.url + '#zeitverlauf' + hashQuery(page.url()));
   await page.waitForFunction(() => !!document.querySelector('#view h2') && location.hash.startsWith('#zeitverlauf'), null, { timeout: 5000 });
@@ -423,7 +425,7 @@ try {
   });
   check(zurueck.controls && zurueck.hoehe === ungescrollt, 'C2: nach oben gescrollt sind die Steuerelemente wieder da (' + zurueck.hoehe + ' px)');
   // Wer den Fokus in einem Filterfeld hat und scrollt, darf ihn nicht verlieren: Das Feld dürfte sonst verschwinden
-  await page.locator('#filterbar label:has-text("Profil") select').focus();
+  await page.locator('#filterbar label[data-field="profil"] select').focus();
   await page.evaluate(() => window.scrollTo(0, 900));
   await page.waitForTimeout(250);
   const fokusBeimScrollen = await page.evaluate(() => ({
@@ -548,6 +550,47 @@ try {
     await page.waitForTimeout(300);
     check((await spalten()).join('|') === vorher.join('|'), 'B4 ' + probe.view + ': «Sortierung zurücksetzen» stellt die Ausgangsreihenfolge her');
   }
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+
+  // Paket C (C5): «Wertung» und «Benchmark» schrieben globalen, in der URL serialisierten Zustand, standen aber in
+  // Werkzeugleisten einzelner Ansichten – wer die Wertung in den Bestenlisten umstellte, änderte sie auch für die
+  // Übersicht, ohne dass es dort sichtbar war. Jetzt stehen sie in der Filterleiste, mit der Abschaltlogik aus A1.
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto(server.url + '#bestenlisten');
+  await page.waitForSelector('#view table', { state: 'attached' });
+  const c5Listen = await page.evaluate(() => ({
+    wertungAus: document.querySelector('#filterbar label[data-field="wertung"] select').disabled,
+    benchmarkAus: document.querySelector('#filterbar label[data-field="benchmark"] select').disabled,
+    werkzeugleiste: document.querySelectorAll('#view .toolbar').length,
+    grund: document.querySelector('#filterbar label[data-field="benchmark"]').getAttribute('title') || '',
+  }));
+  check(!c5Listen.wertungAus && c5Listen.benchmarkAus && c5Listen.werkzeugleiste === 0 && c5Listen.grund.length > 10,
+    'C5 Bestenlisten: Wertung wirksam, Benchmark abgeschaltet mit Grund («' + c5Listen.grund.slice(0, 50) + '»), keine Werkzeugleiste mehr in der Ansicht');
+  // Die synthetischen Listen sind unter beiden Wertungen gleich besetzt; nachweisbar ist die Wirkung an der Angabe,
+  // welche Wertung gerechnet wurde (Legende der Ansicht) – plus der URL.
+  const wertungText = () => page.textContent('#view details.legend');
+  const vorWertung = await wertungText();
+  await filterWaehlen(page, 'wertung', 'bestanden');
+  await page.waitForTimeout(300);
+  const nachWertung = await wertungText();
+  check(/wertung=bestanden/.test(page.url()) && nachWertung !== vorWertung && /bestandene Run/.test(nachWertung),
+    'C5: Wertung aus der Leiste wirkt auf die Listen und steht in der URL (' + (page.url().split('?')[1] || '') + ')');
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+  const c5Uebersicht = await page.evaluate(() => ({
+    wertungAus: document.querySelector('#filterbar label[data-field="wertung"] select').disabled,
+    benchmarkAus: document.querySelector('#filterbar label[data-field="benchmark"] select').disabled,
+    werkzeugleiste: document.querySelectorAll('#view .toolbar').length,
+    wertungWert: document.querySelector('#filterbar label[data-field="wertung"] select').value,
+  }));
+  check(c5Uebersicht.wertungAus && !c5Uebersicht.benchmarkAus && c5Uebersicht.werkzeugleiste === 0 && c5Uebersicht.wertungWert === 'bestanden',
+    'C5 Übersicht: Benchmark wirksam, Wertung abgeschaltet – ihr Wert bleibt sichtbar erhalten («' + c5Uebersicht.wertungWert + '»), keine Werkzeugleiste');
+  await filterWaehlen(page, 'benchmark', 'profil');
+  await page.waitForTimeout(300);
+  check(/benchmark=profil/.test(page.url()) && /Alle Profile/.test(await page.textContent('#view .benchmark-bar')),
+    'C5: Benchmark aus der Leiste wirkt auf die Übersicht und steht in der URL');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click().catch(() => {});
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
 
@@ -754,10 +797,10 @@ try {
   check((await page.$$eval('#view .person-results thead th', (th) => th.map((x) => x.textContent))).includes('Jahrgang'), 'Personen: Namensgleiche → Spalte Jahrgang');
   await page.fill('#view .person-search', '');
   await page.waitForSelector('#view .person-results p.empty', { timeout: 5000 }); // Debounce abwarten: Liste leer, bevor der Bank-Filter wirkt
-  await filterWaehlen(page, 'Bank', { label: 'Musterbank' });
+  await filterWaehlen(page, 'bank', { label: 'Musterbank' });
   await page.waitForSelector('#view .person-results tr.expandable', { timeout: 5000 });
   check((await page.locator('#view .person-results tr.expandable').count()) === 5 && (await page.locator('#view .person-search').inputValue()) === '', 'Personen: ohne Suchtext mit Bank-Filter alle Personen der Bank (5)');
-  await filterWaehlen(page, 'Profil', 'IK');
+  await filterWaehlen(page, 'profil', 'IK');
   await page.waitForFunction(() => document.querySelectorAll('#view .person-results tr.expandable').length === 2, null, { timeout: 5000 });
   await page.locator('#view .person-results tr.expandable', { hasText: 'Wechsel' }).click();
   await page.waitForSelector('#view tr.event-detail:not([hidden]) .person-detail');
@@ -788,7 +831,7 @@ try {
   await page.click('#view details.menu > summary');
   check((await page.locator('#view details.menu[open] .menu-item', { hasText: 'CSV (Einsatzebene)' }).count()) === 1, 'Experten: Export-Menü mit «CSV (Einsatzebene)»');
   await page.click('#view details.menu > summary');
-  await filterWaehlen(page, 'Jahr', '2024');
+  await filterWaehlen(page, 'jahr', '2024');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   await page.waitForSelector('#view .expert-table table');
   check((await einsaetzeKpi()) === '4', 'Experten: Zeitraum 2024 → Einsätze = 4 (Run-Datum, nicht Referenzdatum)');
@@ -957,8 +1000,8 @@ try {
   check((await phone.locator('#nav-select').inputValue()) === 'offene-vorgaenge', 'Phone: Ansicht über das Auswahlfeld gewechselt (Offene Vorgänge)');
   check(!(await phone.locator('#filterbar details.filter-drawer').evaluate((d) => d.open)) && (await phone.locator('#filterbar .filter-summary').isVisible()), 'Phone: Filter-Drawer geschlossen, Kopfzeile «Filter» sichtbar');
   await phone.locator('#filterbar .filter-summary').click();
-  await phone.waitForSelector('#filterbar label:has-text("Profil") select', { state: 'visible' });
-  await filterWaehlen(phone, 'Profil', 'PK');
+  await phone.waitForSelector('#filterbar label[data-field="profil"] select', { state: 'visible' });
+  await filterWaehlen(phone, 'profil', 'PK');
   await phone.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   check(/Filter \(1 aktiv\)/.test(await phone.textContent('#filterbar .filter-summary')) && /profil=PK/.test(phone.url()), 'Phone: Filter über Drawer gesetzt, Zähler «Filter (1 aktiv)», Chip, Hash wie Desktop');
   await phone.screenshot({ path: join(outDir, 'phone-filter-drawer.png'), fullPage: false });
@@ -1174,9 +1217,12 @@ try {
   await page.screenshot({ path: join(outDir, 'desktop-1100-schriftlich.png') });
   await page.setViewportSize({ width: 1400, height: 1000 });
 
-  // Filterleiste (PROMPT-2 F.3, F5): bei 1280 px eine Zeile Steuerelemente plus Zusammenfassung (≤ 110 px hoch), Reihenfolge
-  // Jahr · Von · Bis · Profil · Sprache · Bank · VSS/VSM · Versuche · Zertifikate, Bank-Auswahl höchstens 12rem mit vollem Namen als title
-  await page.setViewportSize({ width: 1280, height: 900 });
+  // Filterleiste (PROMPT-2 F.3, F5): eine Zeile Steuerelemente plus Zusammenfassung (≤ 110 px hoch), Reihenfolge
+  // Jahr · Von · Bis · Profil · Sprache · Bank · VSS/VSM · Versuche · Zertifikate · Wertung · Benchmark,
+  // Bank-Auswahl höchstens 12rem mit vollem Namen als title.
+  // Seit C5 trägt die Leiste elf statt neun Steuerelemente: Das Zielmass gilt ab 1400 px; bei 1280 px braucht sie
+  // eine zweite Zeile (gemessen 154 px). Beides wird geprüft, damit die Grenze dokumentiert bleibt.
+  await page.setViewportSize({ width: 1400, height: 900 });
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
   const fb = await page.evaluate(() => {
@@ -1187,10 +1233,20 @@ try {
     const bottoms = controls.map((l) => l.getBoundingClientRect().bottom); // align-items: flex-end → Unterkanten liegen in einer Zeile gleich
     return { height: Math.round(bar.getBoundingClientRect().height), labels, rows: Math.max(...bottoms) - Math.min(...bottoms) < 15 ? 1 : 2, bankMax: bank ? getComputedStyle(bank).maxWidth : null, bankTitle: bank ? bank.title : null };
   });
-  check(fb.height <= 110 && fb.rows === 1 && fb.labels.join(',') === 'Jahr,Von,Bis,Profil,Sprache,Bank,VSS/VSM,Versuche,Nur ausgestellte Zertifikate' && fb.bankMax === '192px', 'Desktop 1280 px: Filterleiste ' + fb.height + ' px hoch, Steuerelemente in einer Zeile (' + fb.labels.join(' · ') + '), Bank höchstens 12rem');
+  check(fb.height <= 110 && fb.rows === 1 && fb.labels.join(',') === 'Jahr,Von,Bis,Profil,Sprache,Bank,VSS/VSM,Versuche,Zertifikate,Wertung,Benchmark' && fb.bankMax === '192px', 'Desktop 1400 px: Filterleiste ' + fb.height + ' px hoch, elf Steuerelemente in einer Zeile (' + fb.labels.join(' · ') + '), Bank höchstens 12rem');
   await page.selectOption('#filterbar select.bank', 'Testbank AG');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
-  check((await page.getAttribute('#filterbar select.bank', 'title')) === 'Testbank AG' && (await page.evaluate(() => Math.round(document.getElementById('filterbar').getBoundingClientRect().height))) <= 110, 'Desktop 1280 px: Bank gewählt → voller Name als title, Filterleiste mit Chip weiterhin ≤ 110 px');
+  check((await page.getAttribute('#filterbar select.bank', 'title')) === 'Testbank AG' && (await page.evaluate(() => Math.round(document.getElementById('filterbar').getBoundingClientRect().height))) <= 110, 'Desktop 1400 px: Bank gewählt → voller Name als title, Filterleiste mit Chip weiterhin ≤ 110 px');
+  // Dokumentierte Grenze: Bei 1280 px passen elf Steuerelemente nicht mehr in eine Zeile
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+  const fb1280 = await page.evaluate(() => {
+    const bar = document.getElementById('filterbar');
+    const bottoms = [...bar.querySelectorAll('.filter-controls > label')].map((l) => l.getBoundingClientRect().bottom);
+    return { hoehe: Math.round(bar.getBoundingClientRect().height), reihen: new Set(bottoms.map((b) => Math.round(b / 10))).size };
+  });
+  check(fb1280.reihen === 2 && fb1280.hoehe <= 165, 'C5 Desktop 1280 px: elf Steuerelemente brauchen zwei Zeilen (' + fb1280.hoehe + ' px) – dokumentierte Grenze, ab 1400 px eine Zeile');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   await page.screenshot({ path: join(outDir, 'desktop-1280-filterleiste.png'), fullPage: false });

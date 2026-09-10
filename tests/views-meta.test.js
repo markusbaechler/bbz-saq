@@ -18,8 +18,10 @@ import * as glossar from '../views/glossar.js';
 
 export const VIEW_MODULES = { overview, written, oral, vssVsm, zeitverlauf, historie, ranking, bankReport, offen, planned, personen, experten, glossar };
 const GROUPS = ['Kennzahlen', 'Personen', 'Experten', 'Daten'];
-// Felder der globalen Filterleiste plus «wertung» (Bedienelement der Bestenlisten, nicht in der Leiste)
-const FILTER_KEYS = ['jahr', 'von', 'bis', 'profil', 'sprache', 'bank', 'vssVsm', 'versuche', 'zertifikate', 'wertung'];
+// Felder der globalen Filterleiste. «wertung» und «benchmark» stehen seit Paket C (C5) ebenfalls darin; sie gelten
+// nur in wenigen Ansichten und sind deshalb ohne ausdrückliche Angabe abgeschaltet (app.js, FILTER_DEFAULT_AUS).
+const FILTER_KEYS = ['jahr', 'von', 'bis', 'profil', 'sprache', 'bank', 'vssVsm', 'versuche', 'zertifikate', 'wertung', 'benchmark'];
+const FILTER_STANDARD_AUS = ['wertung', 'benchmark'];
 
 test('views: jede View hat id, label und eine der vier Navigationsgruppen (A.2)', () => {
   for (const [name, v] of Object.entries(VIEW_MODULES)) {
@@ -57,7 +59,7 @@ test('views: filters nennt je Steuerelement die Wirksamkeit, jedes abgeschaltete
       assertEqual(typeof f[key], 'boolean', name + ': ' + key + ' muss true oder false sein');
     }
     for (const key of FILTER_KEYS) {
-      if (f[key] !== false) continue;
+      if (f[key] !== false || FILTER_STANDARD_AUS.includes(key)) continue; // für die beiden liefert app.js den Standardgrund
       const grund = (f.grund || {})[key];
       assert(typeof grund === 'string' && grund.length >= 10, name + ': Begründung für «' + key + '» fehlt');
       assert(!/ß/.test(grund), name + ': ss statt ß in der Begründung für «' + key + '»');
@@ -74,10 +76,18 @@ test('views: die abgeschalteten Felder je Ansicht (A1, Abnahme)', () => {
   assertEqual(off(zeitverlauf).join(','), 'jahr,von,bis', 'Zeitverlauf: Zeitraum ohne Wirkung');
   assertEqual(off(offen).join(','), 'jahr,von,bis', 'Offene Vorgänge: Zeitraum ohne Wirkung');
   assertEqual(off(planned).join(','), 'jahr,von,bis', 'Geplante Prüfungen: Zeitraum ohne Wirkung');
-  assertEqual(off(personen).join(','), 'jahr,von,bis,versuche,wertung', 'Personen: Zeitraum, Versuche, Wertung ohne Wirkung');
-  assertEqual(off(experten).join(','), 'versuche,wertung', 'Experten: Versuche und Wertung ohne Wirkung, Zeitraum bleibt aktiv');
+  assertEqual(off(personen).join(','), 'jahr,von,bis,versuche', 'Personen: Zeitraum und Versuche ohne Wirkung');
+  assertEqual(off(experten).join(','), 'versuche', 'Experten: Versuche ohne Wirkung, Zeitraum bleibt aktiv');
   assert(experten.filters.hinweis.includes('Run-Datum'), 'Experten: sichtbarer Hinweis zum Zeitraum');
-  for (const v of [overview, written, oral, vssVsm, ranking, bankReport]) assertEqual(off(v).length, 0, v.id + ': alle Felder wirksam');
+  for (const v of [overview, written, oral, vssVsm, ranking, bankReport]) assertEqual(off(v).length, 0, v.id + ': kein Feld ausdrücklich abgeschaltet');
+  // C5: Wertung und Benchmark gelten nur, wo sie ausdrücklich als wirksam erklärt sind
+  assertEqual(ranking.filters.wertung, true, 'Bestenlisten: die Wertung wirkt');
+  assertEqual(overview.filters.benchmark, true, 'Übersicht: der Benchmark wirkt');
+  for (const v of [written, oral]) assertEqual(v.filters.benchmark, true, v.id + ': der Benchmark wirkt (Histogramm)');
+  for (const v of [zeitverlauf, offen, planned, personen, experten, bankReport, vssVsm]) {
+    assert(!v.filters || v.filters.wertung !== true, v.id + ': die Wertung wirkt hier nicht');
+    assert(!v.filters || v.filters.benchmark !== true, v.id + ': der Benchmark wirkt hier nicht');
+  }
   // Ganz ohne Leiste: Historie rechnet auf allen Vorgängen ohne Filter, das Glossar braucht gar keine Daten
   for (const v of [historie, glossar]) assert(v.filters.hidden === true && /Ohne Filterleiste/.test(v.filters.satz), v.id + ': Leiste entfällt, Satz vorhanden');
 });

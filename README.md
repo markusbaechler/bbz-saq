@@ -139,6 +139,20 @@ bei Filteränderungen nur aktualisiert, nicht neu aufgebaut; der Tastaturfokus b
 Die Wertung (Resultat 1. Versuch | Resultat bestandener Run) wird nur in der Ansicht «Bestenlisten» gewählt; alle anderen
 Ansichten zeigen beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfungen» wirkt der Zeitraum nicht.
 
+**Wertung und Benchmark in der Filterleiste (Paket C):** Beide schrieben schon immer **globalen, in der URL
+serialisierten Zustand** – «Wertung» in `filter.mode`, «Benchmark» in `ui.benchmark` –, standen aber in
+Werkzeugleisten einzelner Ansichten. Wer die Wertung in den Bestenlisten umstellte, änderte sie damit auch für die
+Übersicht, ohne dass es dort sichtbar war. Sie stehen jetzt in der Filterleiste, mit derselben Abschaltlogik wie die
+übrigen Felder. Anders als diese sind sie **ohne ausdrückliche Angabe abgeschaltet**, weil sie nur in wenigen
+Ansichten gelten: «Wertung» auf «Bestenlisten», «Benchmark» auf «Übersicht», «Schriftlich» und «Mündlich». Die
+Ansichts-Werkzeugleisten sind entfallen; in der Übersicht bleibt stehen, was der Benchmark bewirkt (seine Grösse).
+
+Damit trägt die Leiste elf statt neun Steuerelemente. Gemessen bei 1400 px passt sie weiterhin in **eine Zeile**
+(97 px, statisches Chrome 172 px, erster Zahlenwert bei y = 343); bei 1280 px braucht sie **zwei Zeilen** (158 px).
+Die Beschriftung des Zertifikat-Filters ist dafür auf «Zertifikate» gekürzt (voller Text als Tooltip) – sie war mit
+188 von 1384 px die längste und entschied allein darüber, ob die Reihe umbricht. Jedes Steuerelement trägt ein
+`data-field`, weil sich «Bank» und «Benchmark» über den Beschriftungstext nicht unterscheiden lassen.
+
 **Wirksamkeit der Filterleiste je Ansicht (Paket A):** Nicht jede Ansicht wertet jedes Steuerelement aus. Statt das im
 Text zu erklären, schaltet die Leiste ab, was hier nichts tut: Das Feld ist `disabled`, gestrichelt umrandet und gedämpft,
 der Grund steht als Tooltip darauf. Jede Ansicht sagt das selbst über den Export `filters` (`views/<ansicht>.js`); fehlt er,

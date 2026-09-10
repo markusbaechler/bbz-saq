@@ -19,10 +19,9 @@ export const noPersonExport = true; // eigener Export «Einsatzebene» (app.js)
 // der Versuchsmodus nicht (er wird auf 'alle' gesetzt). Der Zeitraum bleibt aktiv, wirkt aber auf das Run-Datum des Einsatzes;
 // darum der sichtbare Hinweis in der Leiste statt einer Erklärung im Text.
 export const filters = {
-  versuche: false, wertung: false,
+  versuche: false,
   grund: {
     versuche: 'Ein Einsatz zählt unabhängig davon, der wievielte Versuch der Kandidatin oder des Kandidaten er ist',
-    wertung: 'Die Wertung gilt nur für die Bestenlisten',
   },
   hinweis: 'Der Zeitraum wirkt hier auf das Run-Datum des Einsatzes, nicht auf das Referenzdatum des Vorgangs.',
 };

@@ -21,13 +21,12 @@ export const RESULT_LIMIT = 50;
 // Wirksamkeit der globalen Filterleiste (Paket A, A1): die Trefferliste arbeitet auf ctx.personVorgaenge
 // (period: false, versuche: 'alle'); Zeitraum, Versuche und Wertung bleiben ohne Wirkung.
 export const filters = {
-  jahr: false, von: false, bis: false, versuche: false, wertung: false,
+  jahr: false, von: false, bis: false, versuche: false,
   grund: {
     jahr: 'Die Suche findet Personen unabhängig vom Zeitraum; das Detail zeigt immer alle Vorgänge',
     von: 'Die Suche findet Personen unabhängig vom Zeitraum; das Detail zeigt immer alle Vorgänge',
     bis: 'Die Suche findet Personen unabhängig vom Zeitraum; das Detail zeigt immer alle Vorgänge',
     versuche: 'Die Trefferliste zeigt jede Person mit allen ihren Versuchen',
-    wertung: 'Die Wertung gilt nur für die Bestenlisten',
   },
 };
 
