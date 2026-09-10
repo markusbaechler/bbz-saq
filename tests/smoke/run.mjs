@@ -335,6 +335,51 @@ try {
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
+  // Paket B (B4): Sortierung auf allen Tabellen – eine Implementierung, aria-sort auf jeder Kopfzelle, die fachliche
+  // Ausgangssortierung als Standard und ein Schalter, der sie wiederherstellt. Der Zustand steht in der URL.
+  const SORTIERPROBEN = [
+    { view: 'uebersicht', tabelle: 'Kennzahlen je Profil', spalte: 'Profil', slug: 'kennzahlen-je-profil' },
+    { view: 'zeitverlauf', tabelle: 'Kennzahlen je Jahr', spalte: 'Jahr', slug: 'kennzahlen-je-jahr' },
+    { view: 'datenqualitaet', tabelle: null, spalte: 'Header', slug: 'einzelne-eintraege' },
+  ];
+  for (const probe of SORTIERPROBEN) {
+    await page.goto(server.url + '#' + probe.view);
+    await page.waitForSelector('#view h2');
+    const auswahl = probe.tabelle
+      ? '#view table.data:has(.caption-text:text-is("' + probe.tabelle + '"))'
+      : '#view table.dq-table';
+    await page.waitForSelector(auswahl, { state: 'attached', timeout: 5000 });
+    // Werte der sortierten Spalte lesen (nicht der ersten): sonst sieht man die Wirkung der Sortierung nicht
+    const spalten = () => page.$$eval(auswahl, (ts, label) => {
+      const t = ts[0];
+      const i = [...t.querySelectorAll('thead th')].findIndex((th) => th.textContent.replace(/[▲▼]/g, '').trim() === label);
+      return [...t.querySelectorAll('tbody tr')].map((tr) => (tr.children[i] || {}).textContent || '').map((x) => x.trim());
+    }, probe.spalte);
+    const kopfInfo = await page.$$eval(auswahl + ' thead th', (ths) => {
+      const sortierbar = ths.filter((th) => th.querySelector('button[aria-label^="Sortieren nach"]'));
+      return { alle: ths.length, sortierbar: sortierbar.length, mitAria: sortierbar.filter((th) => th.hasAttribute('aria-sort')).length };
+    });
+    check(kopfInfo.sortierbar >= kopfInfo.alle - 1 && kopfInfo.mitAria === kopfInfo.sortierbar,
+      'B4 ' + probe.view + ': ' + kopfInfo.sortierbar + ' von ' + kopfInfo.alle + ' Kopfzellen sortierbar, alle mit aria-sort und aria-label');
+    const vorher = await spalten();
+    await page.click(auswahl + ' thead th button[aria-label="Sortieren nach ' + probe.spalte + '"]');
+    await page.waitForTimeout(300);
+    const sortiert = await spalten();
+    const aktiv = await page.getAttribute(auswahl + ' thead th.sortable.active', 'aria-sort');
+    const inUrl = probe.slug ? new RegExp('sort=' + probe.slug + '\.').test(page.url()) : /sort=/.test(page.url());
+    check(sortiert.join('|') !== vorher.join('|') && ['ascending', 'descending'].includes(aktiv) && inUrl,
+      'B4 ' + probe.view + ': «' + probe.spalte + '» sortiert (' + vorher.slice(0, 3).join(',') + ' → ' + sortiert.slice(0, 3).join(',') + '), aria-sort ' + aktiv + ', in der URL');
+    // Zurücksetzen stellt die fachliche Ausgangsreihenfolge wieder her
+    const reset = page.locator((probe.tabelle
+      ? '#view .table-wrap:has(.caption-text:text-is("' + probe.tabelle + '"))'
+      : '#view .table-wrap:has(table.dq-table)') + ' button.reset-sort');
+    await reset.click();
+    await page.waitForTimeout(300);
+    check((await spalten()).join('|') === vorher.join('|'), 'B4 ' + probe.view + ': «Sortierung zurücksetzen» stellt die Ausgangsreihenfolge her');
+  }
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+
   // Paket B (B3): Mit einem Institut-Filter waren auf «Bestenlisten» zwölf von sechzehn Tabellen leer – über 2000 px
   // Spaltenüberschriften ohne einen einzigen Wert. Zu kleine Gruppen stehen jetzt zusammen in einer Zeile.
   await page.goto(server.url + '#bestenlisten?bank=' + encodeURIComponent('Testbank AG'));
@@ -523,7 +568,7 @@ try {
   check((await einsaetzeKpi()) === '7', 'Experten: Kachel Einsätze = 7 (synthetische Datei)');
   await page.click('#view .expert-table th.sortable button[aria-label="Sortieren nach Experte"]');
   await page.waitForFunction(() => { const td = document.querySelector('#view .expert-table tbody tr.expandable td:nth-child(2)'); return td && td.textContent.trim() === 'Beisitz Bruno'; }, null, { timeout: 5000 });
-  check((await page.getAttribute('#view .expert-table th.sortable.active', 'aria-sort')) === 'ascending' && !/sort/i.test(page.url()), 'Experten: Sortierung nach Name (aria-sort ascending), nicht in der URL');
+  check((await page.getAttribute('#view .expert-table th.sortable.active', 'aria-sort')) === 'ascending' && /sort=experten\.experte\.asc/.test(page.url()), 'Experten: Sortierung nach Name (aria-sort ascending), steht in der URL (B4: ' + page.url().split('?')[1] + ')');
   await page.click('#view .expert-table th.sortable button[aria-label="Sortieren nach Durchfallquote 1. Versuch"]');
   await page.waitForFunction(() => { const td = document.querySelector('#view .expert-table tbody tr.expandable td:nth-child(2)'); return td && td.textContent.trim() === 'Experte Emil'; }, null, { timeout: 5000 });
   check((await page.getAttribute('#view .expert-table th.sortable.active', 'aria-sort')) === 'descending', 'Experten: Sortierung nach Durchfallquote 1. Versuch absteigend (Emil 40.0 % zuerst)');

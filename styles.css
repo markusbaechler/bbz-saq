@@ -304,7 +304,8 @@ dialog.edit-dialog select, dialog.edit-dialog input { width: 100%; box-sizing: b
 /* Experten (PROMPT-2 Paket D): Zeilen-Detail mit vier kleinen Tabellen, sortierbare Kopfzellen wie im Data-Quality-Log */
 .expert-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-3); }
 .expert-detail .table-wrap { margin: 0; }
-.expert-table th.sortable.active button { color: var(--accent); }
+/* B4: aktive Sortierspalte in jeder Tabelle erkennbar (Pfeil im Text, dazu die Akzentfarbe) */
+th.sortable.active button { color: var(--accent); }
 
 /* Inhalt */
 .view { flex: 1; padding: 1rem 1.25rem 2rem; background: var(--panel); margin: var(--space-4) 1.25rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); }
@@ -385,7 +386,9 @@ td.status-cell { white-space: nowrap; } /* Raster-Zellen mit Badge und Datum (Pa
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { background: var(--th-bg); position: sticky; top: 0; }
-th.sortable button { background: none; border: none; color: inherit; padding: 0; font-weight: 600; cursor: pointer; }
+th.sortable button { background: none; border: none; color: inherit; padding: 0; font-weight: 600; cursor: pointer; text-align: inherit; }
+/* B4: «Sortierung zurücksetzen» – nur sichtbar, solange eine Sortierung aktiv ist; das Modell trägt die fachliche Reihenfolge */
+.table-wrap .reset-sort { display: inline-block; margin: var(--space-1) var(--space-3) var(--space-2) 0; font-size: var(--fs-sm); }
 th.active button { color: var(--accent); }
 td.col-row { text-align: right; white-space: nowrap; }
 .dq-summary-box { margin: .25rem 0 1rem; }

@@ -711,6 +711,8 @@ Referenzdatum des Vorgangs), damit «2025» die Einsätze des Jahres 2025 zeigt.
 *(Überholt durch Paket A, A1: «Versuche» ist in der Filterleiste deaktiviert und trägt den Grund als Tooltip; der Zeitraum bleibt aktiv und
 trägt einen sichtbaren Hinweis auf das Run-Datum. Die Aussage selbst bleibt richtig.)*
 Umsetzung: `filterPersons(state.persons, filter, { period: false })` → `expertRuns(persons, { from: filter.from, to: filter.to })`.
+*(Überholt durch Paket B, B4: Die Haupttabelle wird über renderExpandableTable sortiert wie jede andere Tabelle; der
+Sortierzustand steht in der URL statt nur im Memory – ein geteilter Link zeigt sonst eine andere Reihenfolge.)*
 
 ### D.7 Schritte
 

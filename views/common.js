@@ -2,8 +2,8 @@
 // Nur Rendering; Zahlen und Texte kommen aus views/tables.js.
 
 import { downloadCsv, downloadXlsx, exportFileName, printPage, tablesToCsv } from '../export.js';
-import { numericColumns, deltaView, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS } from './tables.js';
-import { glossaryEntry } from '../glossary.js';
+import { numericColumns, deltaView, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, sortTableRows } from './tables.js';
+import { glossaryEntry, glossarySlug } from '../glossary.js';
 
 export function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -67,8 +67,68 @@ function cell(c, row, numeric) {
   return el('td', { ...attrs, class: cls.join(' ') || null, text });
 }
 
-function headerCell(c, numeric) {
-  return el('th', { scope: 'col', 'data-prio': String(c.prio || 2), class: numeric.has(c.key) ? 'num' : null, text: c.label });
+// ---------------------------------------------------------------------------
+// Sortierung (Paket B, B4): eine Implementierung für alle Tabellen
+// Vorher waren von 43 Tabellenmodellen zwei sortierbar, mit zwei getrennten Implementierungen und verschiedenem
+// Verhalten (Experten: Button, Text aufsteigend / Zahlen absteigend, aria-label; Data-Quality: Handler am th, immer
+// aufsteigend zuerst, ohne aria-label). Jetzt trägt jede Kopfzelle denselben Button, dasselbe aria-sort und dieselbe
+// Erstrichtung. Die fachliche Ausgangssortierung bleibt der Standard – Teilprüfungen, Profile und Jahre haben eine
+// Reihenfolge, die Bedeutung trägt; «Sortierung zurücksetzen» stellt sie wieder her.
+// ---------------------------------------------------------------------------
+
+// Erste Richtung beim Klick auf eine noch nicht sortierte Spalte: Text aufsteigend, Zahlen absteigend (grösstes zuerst),
+// wie in der Experten-Tabelle. Ist die Spalte bereits aktiv, kehrt der Klick die Richtung um.
+export function nextSortDir(column, numeric, current) {
+  if (current && current.key === column.key) return current.dir === 'asc' ? 'desc' : 'asc';
+  return numeric.has(column.key) ? 'desc' : 'asc';
+}
+
+// Kennung einer Tabelle für den Sortierzustand in der URL: aus dem Titel. Tabellen ohne Titel sortieren nur lokal.
+export function tableSortId(table) {
+  if (table.sortId) return String(table.sortId);
+  if (!table.title) return null;
+  return glossarySlug(table.title);
+}
+
+// Sortierzustand der aktiven Ansicht. app.js setzt ihn vor jedem Aufbau (Zustand aus der URL) und nimmt Änderungen
+// entgegen; ohne Kontext sortiert eine Tabelle nur im DOM und meldet nichts.
+let sortContext = { state: null, onChange: null };
+export function setSortContext(state, onChange) {
+  sortContext = { state: state || null, onChange: onChange || null };
+}
+function sortFor(id) {
+  const s = sortContext.state;
+  return id && s && s.table === id && s.key ? { key: s.key, dir: s.dir === 'desc' ? 'desc' : 'asc' } : null;
+}
+function reportSort(id, sort) {
+  if (id && sortContext.onChange) sortContext.onChange(sort ? { table: id, key: sort.key, dir: sort.dir } : null);
+}
+
+function headerCell(c, numeric, sortOpts = null) {
+  const attrs = { scope: 'col', 'data-prio': String(c.prio || 2), class: numeric.has(c.key) ? 'num' : null, 'data-key': c.key };
+  if (!sortOpts) return el('th', { ...attrs, text: c.label });
+  const active = sortOpts.sort && sortOpts.sort.key === c.key;
+  const pfeil = active ? (sortOpts.sort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+  return el('th', {
+    ...attrs,
+    class: [attrs.class, 'sortable', active ? 'active' : null].filter(Boolean).join(' '),
+    'aria-sort': active ? (sortOpts.sort.dir === 'asc' ? 'ascending' : 'descending') : 'none',
+  }, [el('button', {
+    type: 'button', text: c.label + pfeil, 'aria-label': 'Sortieren nach ' + c.label,
+    onclick: () => sortOpts.onSort(c),
+  })]);
+}
+
+// Sortierbare Kopfzelle für Tabellen ausserhalb des Modell-Renderings (Data-Quality-Log): dieselbe Bedienung,
+// dasselbe aria-sort, dieselbe Erstrichtung. Die Vergleichsfunktion bleibt dort eigen – «Wirkung» und «Stufe» haben
+// eine fachliche Reihenfolge, die eine alphabetische Sortierung zerstören würde.
+export function sortableHeadCell(column, { sort, onSort, numeric = new Set() }) {
+  return headerCell(column, numeric, { sort, onSort });
+}
+
+// Schalter «Sortierung zurücksetzen»: nur sichtbar, solange eine Sortierung aktiv ist
+function resetSortButton(onReset) {
+  return el('button', { type: 'button', class: 'link reset-sort', text: 'Sortierung zurücksetzen', hidden: true, onclick: onReset });
 }
 
 // Tabellentitel mit ⓘ (Fussnote als Tooltip; der Text steht zusätzlich in der Legende der View, Befund B9)
@@ -104,17 +164,34 @@ function emptyTable(table) {
   });
 }
 
-export function renderTable(table, { caption = true } = {}) {
+export function renderTable(table, { caption = true, sortable = true } = {}) {
   if (!table.rows.length) return emptyTable(table);
   const numeric = numericColumns(table); // Befund 13: Zahlen- und Prozentspalten rechtsbündig
-  const thead = el('thead', {}, [el('tr', {}, table.columns.map((c) => headerCell(c, numeric)))]);
-  const tbody = el('tbody', {}, table.rows.map((row) => el('tr', { class: row.small ? 'small' : null }, table.columns.map((c) => cell(c, row, numeric)))));
-  const children = [];
-  if (caption && table.title) children.push(captionNode(table.title, table.note));
-  children.push(thead, tbody);
-  const wrap = el('div', { class: 'table-wrap' + (table.wide ? ' wide' : '') }, [el('table', { class: 'data' }, children)]);
+  const id = sortable ? tableSortId(table) : null;
+  const node = el('table', { class: 'data' });
+  const wrap = el('div', { class: 'table-wrap' + (table.wide ? ' wide' : '') }, [node]);
   const toggle = allColumnsToggle(wrap, table.columns);
   if (toggle) wrap.appendChild(toggle);
+  const reset = sortable ? resetSortButton(() => draw(null, null, true)) : null;
+  if (reset) wrap.appendChild(reset);
+  // sort = { key, dir } | null (null = fachliche Ausgangssortierung des Modells); focusKey hält den Tastaturfokus
+  // auf der bedienten Kopfzelle, melden = Zustand an die Ansicht weitergeben (URL)
+  function draw(sort, focusKey, melden) {
+    const rows = sort ? sortTableRows(table.rows, sort.key, sort.dir) : table.rows;
+    const sortOpts = sortable ? { sort, onSort: (c) => draw({ key: c.key, dir: nextSortDir(c, numeric, sort) }, c.key, true) } : null;
+    const children = [];
+    if (caption && table.title) children.push(captionNode(table.title, table.note));
+    children.push(el('thead', {}, [el('tr', {}, table.columns.map((c) => headerCell(c, numeric, sortOpts)))]));
+    children.push(el('tbody', {}, rows.map((row) => el('tr', { class: row.small ? 'small' : null }, table.columns.map((c) => cell(c, row, numeric))))));
+    node.replaceChildren(...children);
+    if (reset) reset.hidden = !sort;
+    if (melden) reportSort(id, sort);
+    if (focusKey) {
+      const btn = node.querySelector('th[data-key="' + focusKey + '"] button');
+      if (btn) btn.focus();
+    }
+  }
+  draw(sortFor(id), null, false);
   return wrap;
 }
 
@@ -123,43 +200,60 @@ export function renderTable(table, { caption = true } = {}) {
 // hint: Bedienhinweis, erscheint mit der Fussnote als ⓘ am Titel.
 let expandableSeq = 0;
 // isOpen(row) → Zeile initial aufgeklappt (z. B. gewählte Person); onToggle(row, open) nach jedem Umschalten (Paket C)
-export function renderExpandableTable(table, { detail, hint = null, isOpen = null, onToggle = null } = {}) {
+export function renderExpandableTable(table, { detail, hint = null, isOpen = null, onToggle = null, sortable = true } = {}) {
   if (!table.rows.length) return emptyTable(table); // B3: keine Kopfzeile ohne Zeilen
   const numeric = numericColumns(table);
   const cols = table.columns;
-  const thead = el('thead', {}, [el('tr', {}, [el('th', { scope: 'col', class: 'toggle', 'data-prio': '1', 'aria-label': 'Aufklappen' })].concat(cols.map((c) => headerCell(c, numeric))))]);
-  const tbody = el('tbody');
-  table.rows.forEach((row, i) => {
-    const content = detail ? detail(row, i) : null;
-    const id = 'xp-' + (++expandableSeq);
-    const tr = el('tr', {
-      class: 'expandable' + (row.small ? ' small' : ''),
-      role: content ? 'button' : null, tabindex: content ? '0' : null, 'aria-expanded': content ? 'false' : null, 'aria-controls': content ? id : null,
-    }, [el('td', { class: 'toggle', 'data-prio': '1' })].concat(cols.map((c) => cell(c, row, numeric))));
-    tbody.appendChild(tr);
-    if (!content) return;
-    const detailRow = el('tr', { class: 'event-detail', id, hidden: true }, [el('td', { colspan: String(cols.length + 1) }, [content])]);
-    tbody.appendChild(detailRow);
-    if (isOpen && isOpen(row)) {
-      detailRow.hidden = false;
-      tr.setAttribute('aria-expanded', 'true');
-    }
-    const toggle = () => {
-      const open = detailRow.hidden;
-      detailRow.hidden = !open;
-      tr.setAttribute('aria-expanded', String(open));
-      if (onToggle) onToggle(row, open);
-    };
-    tr.addEventListener('click', toggle);
-    tr.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
-  });
-  const children = [];
-  const info = [table.rows.length && hint ? hint : null, table.note].filter(Boolean).join(' ');
-  if (table.title) children.push(captionNode(table.title, info || null));
-  children.push(thead, tbody);
-  const wrap = el('div', { class: 'table-wrap' + (table.wide ? ' wide' : '') }, [el('table', { class: 'data expandable-table' }, children)]);
+  const id = sortable ? tableSortId(table) : null;
+  const node = el('table', { class: 'data expandable-table' });
+  const wrap = el('div', { class: 'table-wrap' + (table.wide ? ' wide' : '') }, [node]);
   const columnsToggle = allColumnsToggle(wrap, cols);
   if (columnsToggle) wrap.appendChild(columnsToggle);
+  const reset = sortable ? resetSortButton(() => draw(null, null, true)) : null;
+  if (reset) wrap.appendChild(reset);
+
+  function draw(sort, focusKey, melden) {
+    const rows = sort ? sortTableRows(table.rows, sort.key, sort.dir) : table.rows;
+    const sortOpts = sortable ? { sort, onSort: (c) => draw({ key: c.key, dir: nextSortDir(c, numeric, sort) }, c.key, true) } : null;
+    const thead = el('thead', {}, [el('tr', {}, [el('th', { scope: 'col', class: 'toggle', 'data-prio': '1', 'aria-label': 'Aufklappen' })].concat(cols.map((c) => headerCell(c, numeric, sortOpts))))]);
+    const tbody = el('tbody');
+    rows.forEach((row, i) => {
+      const content = detail ? detail(row, i) : null;
+      const rowId = 'xp-' + (++expandableSeq);
+      const tr = el('tr', {
+        class: 'expandable' + (row.small ? ' small' : ''),
+        role: content ? 'button' : null, tabindex: content ? '0' : null, 'aria-expanded': content ? 'false' : null, 'aria-controls': content ? rowId : null,
+      }, [el('td', { class: 'toggle', 'data-prio': '1' })].concat(cols.map((c) => cell(c, row, numeric))));
+      tbody.appendChild(tr);
+      if (!content) return;
+      const detailRow = el('tr', { class: 'event-detail', id: rowId, hidden: true }, [el('td', { colspan: String(cols.length + 1) }, [content])]);
+      tbody.appendChild(detailRow);
+      if (isOpen && isOpen(row)) {
+        detailRow.hidden = false;
+        tr.setAttribute('aria-expanded', 'true');
+      }
+      const toggle = () => {
+        const open = detailRow.hidden;
+        detailRow.hidden = !open;
+        tr.setAttribute('aria-expanded', String(open));
+        if (onToggle) onToggle(row, open);
+      };
+      tr.addEventListener('click', toggle);
+      tr.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
+    });
+    const children = [];
+    const info = [hint, table.note].filter(Boolean).join(' ');
+    if (table.title) children.push(captionNode(table.title, info || null));
+    children.push(thead, tbody);
+    node.replaceChildren(...children);
+    if (reset) reset.hidden = !sort;
+    if (melden) reportSort(id, sort);
+    if (focusKey) {
+      const btn = node.querySelector('th[data-key="' + focusKey + '"] button');
+      if (btn) btn.focus();
+    }
+  }
+  draw(sortFor(id), null, false);
   return wrap;
 }
 

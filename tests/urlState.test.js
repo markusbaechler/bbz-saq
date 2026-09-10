@@ -76,10 +76,24 @@ test('urlState: DEFAULT_UI.personen = null; Suchtext und Personenschlüssel werd
   assertEqual(parseHash('#personen?bank=Testbank+AG').ui.personen, null);
 });
 
-test('urlState: DEFAULT_UI.experten = null; Sortierung der Experten-Tabelle wird nie serialisiert (Paket D)', () => {
-  assertEqual(DEFAULT_UI.experten, null);
-  assertEqual(serializeState(DEFAULT_FILTER, { ...DEFAULT_UI, experten: { sortKey: 'fail1', sortDir: 'desc' } }), '');
-  assertEqual(parseHash('#experten?profil=PK').ui.experten, null);
+// Paket B (B4): Der Sortierzustand steht in der URL – sonst zeigt ein geteilter Link etwas anderes als der Absender
+// sieht. Er gilt je Ansicht und wandert beim Wechsel nicht mit; Personendaten enthält er nie (Tabellen-Slug, Spalte).
+test('urlState: Sortierung steht in der URL, je Ansicht (B4)', () => {
+  assertEqual(DEFAULT_UI.sort, null, 'Standard: keine Sortierung, das Modell bestimmt die Reihenfolge');
+  const sort = { view: 'experten', table: 'experten', key: 'fail1', dir: 'desc' };
+  assertEqual(serializeState(DEFAULT_FILTER, { ...DEFAULT_UI, sort }, 'experten'), 'sort=experten.fail1.desc');
+  assertEqual(serializeState(DEFAULT_FILTER, { ...DEFAULT_UI, sort }, 'uebersicht'), '', 'in einer anderen Ansicht nicht serialisiert');
+  assertEqual(buildHash('experten', DEFAULT_FILTER, { ...DEFAULT_UI, sort }), '#experten?sort=experten.fail1.desc');
+  assertEqual(buildHash('uebersicht', DEFAULT_FILTER, { ...DEFAULT_UI, sort }), '#uebersicht');
+});
+
+test('urlState: Sortierung aus der URL lesen, ungültige Werte ignorieren (B4)', () => {
+  assertEqual(parseHash('#experten?sort=experten.fail1.desc').ui.sort, { view: 'experten', table: 'experten', key: 'fail1', dir: 'desc' });
+  assertEqual(parseHash('#datenqualitaet?sort=einzelne-eintraege.row.asc').ui.sort.key, 'row');
+  for (const bad of ['sort=nurEins', 'sort=a.b.seitwaerts', 'sort=Gross.b.asc', 'sort=.b.asc', 'sort=a..asc']) {
+    assertEqual(parseHash('#experten?' + bad).ui.sort, null, 'ungültig: ' + bad);
+  }
+  assertEqual(parseHash('#experten?profil=PK').ui.sort, null, 'ohne Parameter keine Sortierung');
 });
 
 test('urlState: DEFAULT_UI.editMode = false (Bearbeitungsmodus nur im Memory, nie in der URL)', () => {

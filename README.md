@@ -135,7 +135,7 @@ URL (nur im Memory) und werden beim Neuladen der Daten geleert.
 
 In der Ansicht «Experten» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» über die Vorgänge; der Zeitraum wirkt auf
 das Run-Datum des Einsatzes, nicht auf das Referenzdatum des Vorgangs («2025» zeigt die Einsätze des Jahres 2025). Versuche und Wertung
-wirken nicht. Die Sortierung der Haupttabelle liegt nur im Memory.
+wirken nicht. Die Haupttabelle wird wie jede andere Tabelle sortiert (Paket B); der Sortierzustand steht in der URL.
 
 ## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E14)
 
@@ -358,6 +358,17 @@ beginnt bei 65 % – der Wertebereich der Daten. Kein Nullpunkt.»), nicht in de
 Tick trägt die Achsenlinie und nennt den Beginn; darüber liegen runde Vielfache, höchstens sechs Abschnitte.
 **Balkendiagramme rechnen weiter von null** – bei Balken trägt die Länge die Aussage, eine gekappte Achse verzerrt die
 Verhältnisse.
+
+**Sortierung (Paket B):** Jede Tabelle ist sortierbar, mit einer Implementierung: Die Kopfzelle trägt einen Button mit
+`aria-label` «Sortieren nach …», das `th` ein `aria-sort`, und der erste Klick sortiert Text aufsteigend, Zahlen
+absteigend; ein weiterer Klick kehrt um. **Die fachliche Ausgangssortierung bleibt der Standard** – Teilprüfungen,
+Profile und Jahre haben eine Reihenfolge, die Bedeutung trägt, und die darf eine alphabetische Sortierung nicht
+verdrängen; «Sortierung zurücksetzen» stellt sie wieder her. Der Zustand steht in der URL
+(`sort=<tabellen-slug>.<spalte>.<asc|desc>`), sonst zeigt ein geteilter Link etwas anderes als der Absender sieht: ein
+Zustand je Ansicht, die Tabelle über den Slug ihres Titels benannt. Tabellen ohne Titel sortieren nur im Speicher.
+Das Data-Quality-Log behält seine eigene Vergleichsfunktion – «Wirkung» und «Stufe» haben eine fachliche Reihenfolge,
+die eine alphabetische Sortierung zerstören würde –, aber dieselbe Bedienung; seine **Filter** (darunter der Suchtext,
+der ein Name sein kann) bleiben im Memory und stehen nie in der URL.
 
 **Leere Tabellen (Paket B):** Bei null Zeilen wird gar keine Tabelle gerendert – nur die Meldung, mit dem Titel davor,
 solange er sich vom Abschnittstitel unterscheidet. Vorher stand die Meldung hinter der vollständig gerenderten
