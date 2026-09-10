@@ -41,6 +41,8 @@ page.on('requestfailed', (r) => { if (r.url().startsWith(server.url)) errors.pus
 page.on('response', (r) => { if (r.url().startsWith(server.url) && r.status() >= 400) errors.push('HTTP ' + r.status() + ' ' + r.url()); });
 
 const summaryText = () => page.textContent('#filterbar .summary');
+// Query-Teil des Hashs (#ansicht?von=…): beim Ansichtswechsel per goto muss der Filterzustand mitgenommen werden
+const hashQuery = (url) => { const h = url.split('#')[1] || ''; const q = h.indexOf('?'); return q >= 0 ? h.slice(q) : ''; };
 
 try {
   // Laden
@@ -194,6 +196,54 @@ try {
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   check(!/profil=/.test(page.url()) && (await page.locator('#filterbar button.reset').isHidden()), 'Filter zurückgesetzt: URL ohne Filter, keine Chips, Reset ausgeblendet');
+
+  // Paket A (A1): Felder, die eine Ansicht nicht auswertet, sind deaktiviert und abgesetzt statt in der Kurzbeschreibung erklärt.
+  // Erwartete Zahl abgeschalteter Felder je Ansicht; auf «Datenqualität» verschwindet die Leiste ganz.
+  const OFF = {
+    uebersicht: 0, schriftlich: 0, muendlich: 0, 'vss-vsm': 0, bestenlisten: 0, 'bank-report': 0, historie: 0, glossar: 0,
+    zeitverlauf: 3, 'offene-vorgaenge': 3, 'geplante-pruefungen': 3, personen: 4, experten: 1,
+  };
+  for (const [view, expected] of Object.entries(OFF)) {
+    await page.goto(server.url + '#' + view);
+    await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), view, { timeout: 5000 });
+    const off = await page.evaluate(() => {
+      const labels = [...document.querySelectorAll('#filterbar .filter-controls > label')];
+      const inactive = labels.filter((l) => l.classList.contains('inactive'));
+      return {
+        n: inactive.length,
+        namen: inactive.map((l) => (l.firstChild.textContent.trim() || l.textContent.trim())),
+        disabled: inactive.every((l) => l.querySelector('input, select').disabled) && labels.filter((l) => !l.classList.contains('inactive')).every((l) => !l.querySelector('input, select').disabled),
+        grund: inactive.every((l) => (l.getAttribute('title') || '').length > 10),
+      };
+    });
+    check(off.n === expected && off.disabled && off.grund, 'A1 ' + view + ': ' + off.n + ' von ' + expected + ' Feldern abgeschaltet (' + (off.namen.join(' · ') || 'keine') + '), disabled und Grund als title');
+  }
+  check((await page.locator('#filterbar label:has-text("Versuche")').getAttribute('title')) !== null, 'A1 Experten: Grund am abgeschalteten Feld «Versuche»');
+  check((await page.locator('#filterbar .filter-hinweis').isVisible()) && /Run-Datum/.test(await page.textContent('#filterbar .filter-hinweis')), 'A1 Experten: Zeitraum bleibt aktiv, mit sichtbarem Hinweis auf das Run-Datum');
+  await shot(page, 'filter-abgeschaltet');
+  await page.goto(server.url + '#datenqualitaet');
+  await page.waitForSelector('#view h2');
+  check(await page.locator('#filterbar').isHidden(), 'A1 Datenqualität: Filterleiste ganz ausgeblendet');
+  check(/vollen Bestand/.test(await page.textContent('#view p.filter-note')), 'A1 Datenqualität: Satz statt Leiste – das Log zeigt den vollen Bestand');
+  // Der gesetzte Wert bleibt erhalten: Jahr auf der Übersicht setzen, auf dem Zeitverlauf ist er stumm, danach wirkt er wieder
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+  await page.locator('#filterbar label:has-text("Jahr") select').selectOption('2026');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  await page.goto(server.url + '#zeitverlauf' + hashQuery(page.url()));
+  await page.waitForFunction(() => !!document.querySelector('#view h2') && location.hash.startsWith('#zeitverlauf'), null, { timeout: 5000 });
+  const stumm = await page.evaluate(() => ({
+    chips: document.querySelectorAll('#filterbar .chip').length,
+    jahr: document.querySelector('#filterbar .filter-controls > label select').value,
+    note: (document.querySelector('#filterbar .summary-inactive') || {}).textContent || '',
+    reset: !document.querySelector('#filterbar button.reset').hidden,
+  }));
+  check(stumm.chips === 0 && stumm.jahr === '2026' && /wirkt hier nicht/.test(stumm.note) && stumm.reset && /von=2026-01-01/.test(page.url()), 'A1 Zeitverlauf: Jahr 2026 bleibt gesetzt (Feld und URL), kein Chip, Notiz «wirkt hier nicht», Reset sichtbar');
+  await page.goto(server.url + '#uebersicht' + hashQuery(page.url()));
+  await page.waitForSelector('#view .kpi');
+  check((await page.locator('#filterbar .chip', { hasText: '2026' }).count()) === 1 && (await page.locator('#filterbar .summary-inactive').isHidden()), 'A1 Übersicht: zurück – der Jahresfilter wirkt wieder, Chip «2026» erscheint erneut');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
   // Offene Vorgänge (A.5): Statuszellen als Badge (Spalte «Passiv» = ja)
   await page.goto(server.url + '#offene-vorgaenge');

@@ -94,6 +94,16 @@ bei Filteränderungen nur aktualisiert, nicht neu aufgebaut; der Tastaturfokus b
 Die Wertung (Resultat 1. Versuch | Resultat bestandener Run) wird nur in der Ansicht «Bestenlisten» gewählt; alle anderen
 Ansichten zeigen beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfungen» wirkt der Zeitraum nicht.
 
+**Wirksamkeit der Filterleiste je Ansicht (Paket A):** Nicht jede Ansicht wertet jedes Steuerelement aus. Statt das im
+Text zu erklären, schaltet die Leiste ab, was hier nichts tut: Das Feld ist `disabled`, gestrichelt umrandet und gedämpft,
+der Grund steht als Tooltip darauf. Jede Ansicht sagt das selbst über den Export `filters` (`views/<ansicht>.js`); fehlt er,
+gilt alles als wirksam. **Der gesetzte Wert bleibt erhalten** – er steht weiter im Feld und in der URL und wirkt wieder,
+sobald eine Ansicht ihn auswertet; solange er stumm ist, fehlt sein Chip und die Zusammenfassung zählt ihn als
+«n gesetzte Filter wirken hier nicht». Abgeschaltet sind: Zeitraum auf «Zeitverlauf», «Offene Vorgänge» und «Geplante
+Prüfungen»; Zeitraum, Versuche und Wertung auf «Personen»; Versuche und Wertung auf «Experten» – dort bleibt der Zeitraum
+aktiv, mit sichtbarem Hinweis, dass er auf das Run-Datum des Einsatzes wirkt. Auf «Datenqualität» entfällt die Leiste ganz:
+Das Log prüft immer den vollen Bestand.
+
 **Benchmark (Übersicht):** Die Kacheln und eine Vergleichstabelle stellen die Auswahl einem Benchmark gegenüber, der
 dieselben Filter verwendet, nur ohne die gewählte Einschränkung: Alle Banken (Standard), Alle Profile, Alle Sprachen
 oder Gesamt (nur Zeitraum). Differenzen in Prozentpunkten.
@@ -230,7 +240,7 @@ identisch mit der Ansicht «Glossar» in der App.
 | **VSS / VSM** | Anzahl Vorgänge mit Kennzeichnung VSS bzw. VSM. | – | Beides möglich; dann in beiden Zahlen. |
 | **Ausgestellte Zertifikate** | Anzahl Vorgänge im Filter mit ausgestelltem Zertifikat (Sheet «Ausgestellte Zertifikate» oder damit zusammengeführt). | – | – |
 | **Personen mit mehreren Profilen** | Anzahl Personen im Filter mit Vorgängen in mehr als einem Profil; Tabelle mit Profil-Abfolge (zeitlich nach erstem Prüfungsdatum) und Anzahl Personen je Abfolge. | – | Berücksichtigt alle kennzahlrelevanten Vorgänge der Person, auch ausserhalb eines aktiven Profil-Filters; zählt Menschen, nicht Vorgänge (E3). |
-| **Geplante Prüfungstermine** | Anzahl geplanter Runs (Datum in der Zukunft ohne Passed-Wert) für die Filter Profil, Sprache, Bank, VSS/VSM. | – | Zeitraum und Versuchsmodus wirken nicht. |
+| **Geplante Prüfungstermine** | Anzahl geplanter Runs (Datum in der Zukunft ohne Passed-Wert) für die Filter Profil, Sprache, Bank, VSS/VSM. | – | Der Zeitraum wirkt nicht (geplant heisst immer «in der Zukunft»); der Versuchsmodus wirkt über die Vorgänge. |
 | **bbz-Award** | 0.5 · Ø Resultat schriftlich + 0.5 · Ø Resultat mündlich gemäss gewählter Wertung; Rangliste je Profil (Top k, k = höchstens halbe Gruppe, maximal 5). | Vorgänge mit bestandener mündlicher Prüfung und beiden Werten. | Tie-Break 1: weniger Prüfungsversuche gesamt; Tie-Break 2: früheres Referenzdatum; gilt auch für die schriftlichen und mündlichen Bestenlisten. Unter 5 Vorgängen im Profil keine Liste (Mindestgruppengrösse, E5). Begründung je Rang im Award-Dossier. |
 <!-- glossar:end -->
 
