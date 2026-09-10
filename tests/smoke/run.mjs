@@ -1081,9 +1081,16 @@ try {
   for (const v of views) {
     await phone.goto(server.url + '#' + v);
     await phone.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
+    // Bei Überlauf nennen, wer überläuft: Ein Wert ohne Fundstelle kostet in der CI eine ganze Runde.
     const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const ueberRand = overflow > 0 ? await phone.evaluate(() => {
+      const w = window.innerWidth;
+      const imScroller = (e) => { for (let p = e.parentElement; p; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') return true; } return false; };
+      return [...document.querySelectorAll('body *')].filter((e) => Math.round(e.getBoundingClientRect().right) > w + 1 && !imScroller(e))
+        .slice(0, 5).map((e) => e.tagName.toLowerCase() + '.' + (e.className || '').toString().split(' ')[0] + ' → ' + Math.round(e.getBoundingClientRect().right) + ' px');
+    }) : [];
     const hiddenPrio = await phone.evaluate(() => [...document.querySelectorAll('#view table.data td[data-prio="2"], #view table.data td[data-prio="3"]')].every((td) => getComputedStyle(td).display === 'none'));
-    check(overflow <= 0 && hiddenPrio, 'Phone ' + v + ': kein Seitenscroll (' + overflow + ' px), nur Prio-1-Spalten');
+    check(overflow <= 0 && hiddenPrio, 'Phone ' + v + ': kein Seitenscroll (' + overflow + ' px' + (ueberRand.length ? ': ' + ueberRand.join(', ') : '') + '), nur Prio-1-Spalten');
     await phone.screenshot({ path: join(outDir, 'phone-' + v + '.png'), fullPage: true });
   }
   await phone.goto(server.url + '#uebersicht');

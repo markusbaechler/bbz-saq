@@ -260,9 +260,15 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .signal:first-child { border-top: none; }
 .signal-rang { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
 .signal-stufe { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
-.signal-titel { font-weight: 600; }
+.signal-titel { font-weight: 600; min-width: 0; overflow-wrap: break-word; }
 .signal-detail { grid-column: 3 / -1; margin: 0 0 .15rem; color: var(--muted); font-size: var(--fs-sm); }
 .signal-weg { white-space: nowrap; font-size: var(--fs-sm); }
+/* Phone: Stufenwort und Weg brauchen zusammen mehr Breite, als neben dem Titel bleibt (gemessen: fixe Teile 283 von
+   366 px, in der CI mit breiteren Schriften 34 px zu viel). Der Weg rückt deshalb in eine eigene Zeile. */
+@media screen and (max-width: 600px) {
+  .signal { grid-template-columns: 1.5rem max-content 1fr; }
+  .signal-weg { grid-column: 2 / -1; justify-self: start; }
+}
 .stufe-kritisch .signal-stufe { color: var(--danger); }
 .stufe-beachten .signal-stufe { color: var(--warn); }
 .stufe-guenstig .signal-stufe { color: var(--ok); }
