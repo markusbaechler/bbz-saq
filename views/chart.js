@@ -55,15 +55,35 @@ export function yTicks(yMin, yMax) {
   return out;
 }
 
-// series: [{ label, short?, points: [{ x: string, y: number|null, n: number, small: boolean }] }] – gleiche x-Reihenfolge je Reihe;
-// short = Kurzbezeichnung für die Direktbeschriftung am Linienende (die Legende trägt den vollen Namen)
+// Direktbeschriftung am Linienende (Paket B, B2): Sie trägt nur noch den Wert. Den Reihennamen nennt die Legende
+// darunter ohnehin – ihn am Linienende zu wiederholen kostete 250 von 820 Einheiten Breite, also 30 % der Zeichenfläche.
+// Der Rand rechts wird jetzt aus der Länge der Werte berechnet. Die Legende bleibt: Sie ist der verlässliche
+// Identitätskanal, gerade für Farbfehlsichtige; die Direktbeschriftung ergänzt sie, ersetzt sie nicht.
+const LABEL_KEY_W = 14;    // kurzer Linienschlüssel in Reihenfarbe
+const LABEL_CHAR_W = 7;    // Breite je Zeichen bei 12px System-Schrift (grosszügig, damit nichts aus der viewBox ragt)
+const LABEL_PAD = 26;      // Abstand Plot → Schlüssel → Text → rechter Rand
+
+// Rand rechts für die Endbeschriftungen: so breit, wie der längste Wert ihn braucht. Ohne Werte bleibt nur der Rand,
+// den die letzte x-Beschriftung zum Nichtüberlaufen braucht.
+export function endLabelGutter(values) {
+  const list = (values || []).filter(Boolean);
+  return list.length ? LABEL_PAD + LABEL_KEY_W + Math.ceil(Math.max(...list.map((v) => v.length)) * LABEL_CHAR_W) : 24;
+}
+
+// series: [{ label, points: [{ x: string, y: number|null, n: number, small: boolean }] }] – gleiche x-Reihenfolge je Reihe
 // options: { title, yFormat(v) → string, yMin = null (aus den Daten), yMax = 1, height = 260, ariaLabel, compact }
 // compact (Phone, PROMPT-2 B.2): Breite 360, Höhe 200, kleiner Rand ohne Endbeschriftung; Tooltip unter dem Diagramm (CSS .viz.compact)
 export function renderLineChart(series, { title = '', yFormat = (v) => String(v), yMin = null, yMax = 1, height = 260, ariaLabel = '', compact = false } = {}) {
   const y0 = yMin === null || yMin === undefined ? autoYMin(series, yMax) : yMin;
   const xs = [...new Set(series.flatMap((s) => s.points.map((p) => p.x)))];
   const width = compact ? 360 : 820;
-  const pad = compact ? { top: 12, right: 16, bottom: 30, left: 40 } : { top: 16, right: 250, bottom: 34, left: 48 };
+  // Rand rechts = genau so breit, wie die längste Endbeschriftung ihn braucht (B2); auf dem Phone gibt es keine
+  const endValues = compact ? [] : series.map((s) => {
+    const last = [...s.points].reverse().find((p) => p.y !== null && p.y !== undefined);
+    return last ? yFormat(last.y) : '';
+  }).filter(Boolean);
+  const labelW = endLabelGutter(endValues);
+  const pad = compact ? { top: 12, right: 16, bottom: 30, left: 40 } : { top: 16, right: labelW, bottom: 34, left: 48 };
   if (compact) height = 200;
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
@@ -102,10 +122,10 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
       root.appendChild(svg('circle', { cx: p.px, cy: p.py, r: 4, class: 'viz-dot' + (p.small ? ' small' : ''), style: p.small ? 'stroke:' + color : 'fill:' + color }));
     }
     const last = [...pts].reverse().find((p) => p.py !== null);
-    if (last) endLabels.push({ y: last.py, x: last.px, label: s.short || s.label, value: yFormat(last.y), color });
+    if (last) endLabels.push({ y: last.py, x: last.px, value: yFormat(last.y), color });
   });
 
-  // Direktbeschriftung am Linienende (Textfarbe = Text-Token; Farbe nur über den kurzen Linienschlüssel); nicht in compact
+  // Direktbeschriftung am Linienende: nur der Wert (B2); der Reihenname steht in der Legende. Nicht in compact.
   endLabels.sort((a, b) => a.y - b.y);
   let prevY = -Infinity;
   for (const e of compact ? [] : endLabels) {
@@ -113,8 +133,8 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
     prevY = y;
     const x = width - pad.right + 10;
     root.appendChild(svg('line', { x1: e.x + 8, x2: x - 4, y1: e.y, y2: y, class: 'viz-leader' }));
-    root.appendChild(svg('line', { x1: x, x2: x + 14, y1: y, y2: y, class: 'viz-key', style: 'stroke:' + e.color }));
-    root.appendChild(text(x + 18, y + 4, e.value + ' ' + e.label, 'viz-label'));
+    root.appendChild(svg('line', { x1: x, x2: x + LABEL_KEY_W, y1: y, y2: y, class: 'viz-key', style: 'stroke:' + e.color }));
+    root.appendChild(text(x + LABEL_KEY_W + 4, y + 4, e.value, 'viz-label'));
   }
 
   // Fadenkreuz + Tooltip (alle Reihen am nächsten x, auch per Tastatur) und Legende: gemeinsame Bausteine unten (Paket G)

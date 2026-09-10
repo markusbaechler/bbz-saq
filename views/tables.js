@@ -727,18 +727,19 @@ export function timeSeriesByProfileTable(persons) {
 }
 
 // Reihen für das Liniendiagramm: [{ label, points: [{ x, y, n, small }] }]
+// Kein «short» mehr (Paket B, B2): Die Endbeschriftung trägt nur noch den Wert, den Reihennamen nennt die Legende.
 export function timeSeriesChartSeries(persons) {
   const ts = timeSeries(persons);
-  const pick = (label, short, fn) => ({ label, short, points: ts.map((r) => ({ x: String(r.year), y: fn(r), n: r.n, small: r.small })) });
+  const pick = (label, fn) => ({ label, points: ts.map((r) => ({ x: String(r.year), y: fn(r), n: r.n, small: r.small })) });
   return {
     quoten: [
-      pick('Schriftlich im 1. Versuch bestanden', 'schriftlich 1. Versuch', (r) => r.written.erstversuch.pct),
-      pick('Schriftlich insgesamt bestanden', 'schriftlich insgesamt', (r) => r.written.gesamt.pct),
-      pick('Mündlich bestanden', 'mündlich', (r) => r.oral.bestanden.pct),
+      pick('Schriftlich im 1. Versuch bestanden', (r) => r.written.erstversuch.pct),
+      pick('Schriftlich insgesamt bestanden', (r) => r.written.gesamt.pct),
+      pick('Mündlich bestanden', (r) => r.oral.bestanden.pct),
     ],
     resultate: [
-      pick('Ø schriftlich 1. Versuch', 'Ø schriftlich', (r) => r.writtenPerf1.mean),
-      pick('Ø mündlich 1. Versuch', 'Ø mündlich', (r) => r.oralPerf1.mean),
+      pick('Ø schriftlich 1. Versuch', (r) => r.writtenPerf1.mean),
+      pick('Ø mündlich 1. Versuch', (r) => r.oralPerf1.mean),
     ],
   };
 }

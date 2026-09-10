@@ -355,6 +355,31 @@ try {
     return a.sichtbar && a.untertitel.includes(a.beginn) && /Kein Nullpunkt/.test(a.untertitel) && a.ticks >= 3 && a.ticks <= 7;
   }), 'B1 Zeitverlauf: Achse folgt dem Wertebereich, Hinweis genau dann sichtbar, wenn sie nicht bei null beginnt (' + achsen.map((a) => a.titel + ': ab ' + a.beginn + (a.untertitel ? ' + Hinweis' : ' ohne Hinweis')).join(' · ') + ')');
   check((await page.locator('#view figure.viz .viz-legend').count()) >= 1, 'B1 Zeitverlauf: Legende bleibt neben der Achsenänderung erhalten');
+
+  // Paket B (B2): Die Endbeschriftung trägt nur noch den Wert – der Reihenname steht in der Legende. Der Rand rechts
+  // schrumpft entsprechend, die Zeichenfläche wächst. Gemessen in viewBox-Einheiten, kein Label ragt heraus.
+  const flaeche = await page.$$eval('#view figure.viz', (figs) => figs
+    .filter((f) => !f.querySelector('svg.viz-bars'))
+    .map((f) => {
+      const root = f.querySelector('svg');
+      const breite = Number(root.getAttribute('viewBox').split(' ')[2]);
+      const gitter = [...root.querySelectorAll('line.viz-grid, line.viz-axis')];
+      const links = Math.min(...gitter.map((l) => Number(l.getAttribute('x1'))));
+      const rechts = Math.max(...gitter.map((l) => Number(l.getAttribute('x2'))));
+      const labels = [...root.querySelectorAll('text.viz-label')];
+      return {
+        plot: Math.round(rechts - links),
+        randRechts: Math.round(breite - rechts),
+        texte: labels.map((t) => t.textContent.trim()),
+        ueberlauf: labels.some((t) => { const b = t.getBBox(); return b.x + b.width > breite + 0.5 || b.x < 0; }),
+        legende: f.querySelectorAll('.viz-legend-item').length,
+      };
+    }));
+  const PLOT_VORHER = 820 - 48 - 250; // 522 Einheiten vor B2
+  check(flaeche.length >= 2 && flaeche.every((f) => f.plot > PLOT_VORHER * 1.25 && !f.ueberlauf && f.legende >= 2
+    && f.texte.length >= 2 && f.texte.every((t) => /^\d+(\.\d+)? %$/.test(t))),
+    'B2 Zeitverlauf: Plotbreite ' + flaeche.map((f) => f.plot).join('/') + ' statt ' + PLOT_VORHER + ' Einheiten, Endbeschriftung nur der Wert ('
+      + flaeche[0].texte.join(', ') + '), kein Überlauf, Legende mit ' + flaeche.map((f) => f.legende).join('/') + ' Einträgen');
   await shot(page, 'zeitverlauf-achse');
 
   // Offene Vorgänge (A.5): Statuszellen als Badge (Spalte «Passiv» = ja)

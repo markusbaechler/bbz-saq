@@ -359,6 +359,12 @@ Tick trägt die Achsenlinie und nennt den Beginn; darüber liegen runde Vielfach
 **Balkendiagramme rechnen weiter von null** – bei Balken trägt die Länge die Aussage, eine gekappte Achse verzerrt die
 Verhältnisse.
 
+**Direktbeschriftung am Linienende (Paket B):** Sie trägt nur den Wert («75 %»). Den Reihennamen dort zu wiederholen
+kostete 250 von 820 Einheiten Rand – 30 % der Zeichenfläche – für eine Angabe, die die Legende zwei Zeilen darunter
+ohnehin macht. Der Rand richtet sich jetzt nach der Länge der Werte (`endLabelGutter`); die Zeichenfläche wächst damit
+von 522 auf rund 700 Einheiten. **Die Legende bleibt**: Sie ist der verlässliche Identitätskanal, gerade für
+Farbfehlsichtige; die Direktbeschriftung ergänzt sie, ersetzt sie nicht.
+
 **Druck bei dunkler Systemeinstellung:** Der Druck-Block überschreibt den Dark-Block, er ersetzt ihn nicht. Die reale
 Kaskade ist `hell → dunkel → Druck`, und jedes Token, das `@media (prefers-color-scheme: dark)` setzt, muss `@media print`
 zurücksetzen – sonst druckt ein Gerät mit dunkler Einstellung dunkle Farben auf weisses Papier. Das Werkzeug bildet diese

@@ -2,7 +2,7 @@
 // Von null zu rechnen drängt Quoten, die real zwischen 66 % und 100 % liegen, ins obere Drittel und verdeckt jede
 // Bewegung. Für Balken gilt das Gegenteil – renderBarChart rechnet weiter von null (siehe Test unten).
 import { test, assert, assertEqual } from './runner.js';
-import { autoYMin, yTicks } from '../views/chart.js';
+import { autoYMin, yTicks, endLabelGutter } from '../views/chart.js';
 
 const reihe = (values) => [{ label: 'Reihe', points: values.map((y, i) => ({ x: String(2018 + i), y, n: 10, small: false })) }];
 
@@ -38,4 +38,24 @@ test('chart.yTicks: erster Tick ist der Achsenbeginn, darüber runde Vielfache, 
     assert(t[t.length - 1] <= max + 1e-9, 'kein Tick über yMax (' + min + '–' + max + ')');
     assert(t.every((v, i) => i === 0 || v > t[i - 1]), 'aufsteigend (' + min + '–' + max + ')');
   }
+});
+
+// Paket B (B2): Der Rand rechts trug 250 von 820 Einheiten – 30 % der Zeichenfläche – für Endbeschriftungen, die den
+// Reihennamen wiederholten, den die Legende darunter ohnehin nennt. Er richtet sich jetzt nach der Länge der Werte.
+test('chart.endLabelGutter: Rand rechts folgt der längsten Endbeschriftung (B2)', () => {
+  const alt = 250;
+  const g = endLabelGutter(['100 %', '75 %', '64 %']);
+  assert(g < alt / 2, 'deutlich schmaler als die früheren ' + alt + ' Einheiten (jetzt ' + g + ')');
+  assertEqual(g, endLabelGutter(['100 %']), 'die längste Beschriftung bestimmt den Rand');
+  assert(endLabelGutter(['100.0 %']) > g, 'eine Dezimale mehr braucht mehr Rand');
+  assertEqual(endLabelGutter([]), 24, 'ohne Endbeschriftung nur der Rand gegen Überlauf');
+  assertEqual(endLabelGutter(['', null, undefined]), 24, 'leere Werte zählen nicht');
+});
+
+test('chart.endLabelGutter: die Plotbreite wächst messbar (B2)', () => {
+  const breite = 820;
+  const links = 48;
+  const vorher = breite - links - 250;
+  const nachher = breite - links - endLabelGutter(['100 %', '75 %']);
+  assert(nachher > vorher * 1.25, 'mindestens ein Viertel mehr Plotbreite: ' + vorher + ' → ' + nachher);
 });
