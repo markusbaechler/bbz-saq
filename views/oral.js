@@ -7,7 +7,7 @@ import { histogramSection } from './written.js';
 
 export const id = 'muendlich';
 export const label = 'Mündlich';
-export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = 'Prüfungen'; // Geschwister unter diesem Primärziel (Paket E)
 export const intro = 'Bestehensquote mündlich, Anteil 1× und 2× durchgefallen, Ø Resultat nach Profil, Sprache und Bank.';
 export const glossar = 'Mündlich: bestanden';
 // Wirksamkeit der Filterleiste (A1/C5): Der Benchmark wirkt hier über das Histogramm (Auswahl gegen Benchmark).

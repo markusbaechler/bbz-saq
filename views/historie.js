@@ -9,7 +9,7 @@ import { downloadBlob, fmtDate, fmtDateTime } from '../export.js';
 
 export const id = 'historie';
 export const label = 'Historie';
-export const group = 'Daten'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = 'Daten'; // Geschwister unter diesem Primärziel (Paket E)
 export const intro = 'Snapshots der Aggregate erzeugen, laden und Stichtage vergleichen; ohne Namen, ohne Filter, nichts im Browser gespeichert.';
 export const glossar = 'Snapshot (Historisierung)';
 export const noPersonExport = true; // Snapshots und Vergleich enthalten keine Namen

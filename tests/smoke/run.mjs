@@ -61,16 +61,21 @@ try {
   // Laden
   await page.goto(server.url, { waitUntil: 'networkidle' });
   check((await page.locator('#nav a').count()) >= 8, 'Navigation gerendert');
-  // Paket C (C3): alle Ziele an einer Stelle, aus einer Deklaration – die frühere Sekundärnavigation im Kopf entfällt
+  // Paket E: zwei Ebenen. Das Band trägt neun Primärziele, das Auswahlfeld auf dem Phone weiterhin alle vierzehn
+  // Ansichten (gefasste Ziele als optgroup, eigene Ziele als einzelne Option). Keine zweite Leiste im Chrome –
+  // die Geschwister stehen als Reiter im Kopf der Ansicht (.view-tabs), auf der Titelzeile.
   const navAufbau = await page.evaluate(() => ({
-    gruppen: [...document.querySelectorAll('#nav .nav-group')].map((g) => g.getAttribute('aria-label') + ':' + g.querySelectorAll('a').length),
-    links: document.querySelectorAll('#nav a').length,
-    zweiteLeiste: document.querySelectorAll('nav:not(#nav), #nav-secondary').length,
+    band: [...document.querySelectorAll('#nav .nav-links a')].map((a) => a.textContent),
+    optionen: document.querySelectorAll('#nav-select option').length,
     optgroups: [...document.querySelectorAll('#nav-select optgroup')].map((o) => o.label + ':' + o.querySelectorAll('option').length),
+    zweiteLeiste: document.querySelectorAll('nav:not(#nav):not(.view-tabs), #nav-secondary').length,
+    beschriftungen: document.querySelectorAll('#nav .nav-group-label').length,
   }));
-  check(navAufbau.gruppen.join(' · ') === 'Kennzahlen:6 · Personen:4 · Experten:1 · Daten:3' && navAufbau.links === 14 && navAufbau.zweiteLeiste === 0
-    && navAufbau.optgroups.join(' · ') === navAufbau.gruppen.join(' · '),
-    'C3 Navigation: ' + navAufbau.links + ' Ziele in vier Gruppen an einer Stelle (' + navAufbau.gruppen.join(' · ') + '), keine zweite Leiste, Auswahlfeld aus derselben Deklaration');
+  check(navAufbau.band.join(' · ') === 'Übersicht · Prüfungen · Zeitverlauf · Vorgänge · Personen · Bestenlisten · Experten · Bank-Report · Daten'
+    && navAufbau.optionen === 14 && navAufbau.optgroups.join(' · ') === 'Prüfungen:3 · Vorgänge:2 · Daten:3'
+    && navAufbau.zweiteLeiste === 0 && navAufbau.beschriftungen === 0,
+    'E Navigation: ' + navAufbau.band.length + ' Primärziele im Band (' + navAufbau.band.join(' · ') + '), '
+      + navAufbau.optionen + ' Ansichten im Auswahlfeld (' + navAufbau.optgroups.join(' · ') + '), keine zweite Leiste, keine Gruppenbeschriftung');
   check((await page.locator('#view .empty-card .actions button').count()) === 2 && (await page.locator('#view .empty-card h3').textContent()).startsWith('Noch keine Daten'), 'Leerzustand: Karte mit zwei Aktionen statt Fliesstext');
   // Paket C (C1): Im Leerzustand steht die Datenleiste als Zeile; mit geladenen Daten fällt sie weg und der Datenstand
   // steht als Einzeiler im Kopf. Der Volltext in #status bleibt in beiden Zuständen für Screenreader erhalten.
@@ -129,7 +134,8 @@ try {
       + kopf.neuLaden + ' Lade-Aktionen erreichbar');
 
   // Jede Ansicht rendert Titel und mindestens eine Tabelle, ohne Fehler
-  const views = await page.$$eval('#nav a', (as) => as.map((a) => a.getAttribute('href').replace(/^#/, '')));
+  // Das Band trägt seit Paket E neun Primärziele; alle vierzehn Routen stehen im Auswahlfeld.
+  const views = await page.$$eval('#nav-select option', (os) => os.map((o) => o.value));
   for (const v of views) {
     await page.goto(server.url + '#' + v);
     await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
@@ -831,6 +837,16 @@ try {
   check((await page.locator('#view details.fold:not([open])').count()) === 0, 'Druck: alle eingeklappten Blöcke geöffnet');
   await page.emulateMedia({ media: 'print' });
   await shot(page, 'print-geplante-pruefungen');
+  // Paket E: Im Druck erscheint weder das Band noch der Reiterstreifen – gedruckt wird der Inhalt, nicht der Weg
+  // dorthin. Der Titel nennt weiterhin die Ansicht, nicht das Primärziel.
+  const druckNav = await page.evaluate(() => ({
+    band: [...document.querySelectorAll('#nav')].filter((n) => n.getClientRects().length).length,
+    reiter: [...document.querySelectorAll('#view .view-tabs')].filter((e) => e.getClientRects().length).length,
+    imDom: document.querySelectorAll('#view .view-tabs a').length,
+    titel: document.querySelector('#view h2').textContent.trim(),
+  }));
+  check(druckNav.band === 0 && druckNav.reiter === 0 && druckNav.imDom === 2 && druckNav.titel === 'Geplante Prüfungen',
+    'E Druck: Band und Reiter (' + druckNav.imDom + ' im DOM) ausgeblendet, Titel «' + druckNav.titel + '»');
   await page.emulateMedia({ media: null });
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
   check((await page.locator('#view details.fold[open]').count()) === 1, 'Nach dem Druck: nur der zuvor geöffnete Block bleibt offen');
@@ -1093,6 +1109,30 @@ try {
     check(overflow <= 0 && hiddenPrio, 'Phone ' + v + ': kein Seitenscroll (' + overflow + ' px' + (ueberRand.length ? ': ' + ueberRand.join(', ') : '') + '), nur Prio-1-Spalten');
     await phone.screenshot({ path: join(outDir, 'phone-' + v + '.png'), fullPage: true });
   }
+  // Paket E auf dem Phone: Das Band ist ausgeblendet, das Auswahlfeld führt zu allen vierzehn Ansichten. Die Reiter
+  // bleiben als Abkürzung zwischen den Geschwistern – mit 44-px-Tap-Ziel wie jedes andere Bedienelement, in einer Zeile.
+  await phone.goto(server.url + '#schriftlich');
+  await phone.waitForSelector('#view .view-tabs a');
+  const phoneReiter = await phone.evaluate(() => {
+    const reiter = [...document.querySelectorAll('#view .view-tabs a')];
+    return {
+      anzahl: reiter.length,
+      hoehen: [...new Set(reiter.map((a) => Math.round(a.getBoundingClientRect().height)))],
+      zeilen: new Set(reiter.map((a) => Math.round(a.getBoundingClientRect().top))).size,
+      breite: Math.round(document.querySelector('#view .view-tabs').scrollWidth),
+      platz: document.querySelector('#view').clientWidth,
+      bandSichtbar: [...document.querySelectorAll('#nav .nav-links')].some((n) => n.getClientRects().length > 0),
+      optionen: document.querySelectorAll('#nav-select option').length,
+    };
+  });
+  check(phoneReiter.anzahl === 3 && phoneReiter.hoehen.every((h) => h >= 44) && phoneReiter.zeilen === 1
+    && phoneReiter.breite <= phoneReiter.platz && !phoneReiter.bandSichtbar && phoneReiter.optionen === 14,
+    'E Phone: Band aus, Auswahlfeld mit ' + phoneReiter.optionen + ' Ansichten, ' + phoneReiter.anzahl + ' Reiter à '
+      + phoneReiter.hoehen.join('/') + ' px in ' + phoneReiter.zeilen + ' Zeile (' + phoneReiter.breite + ' von ' + phoneReiter.platz + ' px)');
+  // Ein Tipp auf den Reiter wechselt die Ansicht; das Auswahlfeld zeigt danach dieselbe
+  await phone.locator('#view .view-tabs a', { hasText: 'Mündlich' }).first().click();
+  await phone.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'muendlich' && document.querySelector('#view h2').textContent.trim() === 'Mündlich', null, { timeout: 5000 });
+  check((await phone.locator('#nav-select').inputValue()) === 'muendlich', 'E Phone: Reiter wechselt die Ansicht, Auswahlfeld zieht nach');
   await phone.goto(server.url + '#uebersicht');
   await phone.waitForSelector('#view .kpi-groups'); // erste Kachel liegt auf Phone im geschlossenen Block «Mengen»
   const columnsToggle = phone.locator('#view .table-wrap .all-columns:visible').first(); // erster sichtbarer Schalter (eingeklappte Abschnitte überspringen)
@@ -1234,13 +1274,9 @@ try {
   check(await tablet.evaluate(() => document.querySelector('#nav a').getClientRects().length > 0 && document.querySelector('#nav-select').getClientRects().length === 0 && document.querySelector('#filterbar details.filter-drawer').open && document.querySelector('#filterbar .filter-summary').getClientRects().length === 0), 'Tablet: Navigation mit Gruppen, Filter offen ohne Drawer-Kopfzeile');
   await tablet.close();
 
-  // Desktop-Breiten (PROMPT-2 F.1, Option b): Navigation ab 1100 px in einer Zeile ohne horizontalen Scroll; Daten-Links als
-  // C3: Alle 14 Ziele stehen in einem Band. Gemessen brauchen sie mit Gruppenbeschriftung 1437 px, ohne 1165 px –
-  // deshalb entfällt die Beschriftung unter 1500 px. Ab 1200 px passt das Band ohne Scroll; darunter scrollt es
-  // horizontal (F.1: 14 Links passen bei 1100 px nicht in eine Reihe), aber es gibt keine zweite Leiste.
-  // Ab 1400 px muss das Band ohne Scroll passen. Bei 1280 px liegt es je nach Schrift knapp darüber oder darunter
-  // (lokal 1280 von 1280 px, in der CI 1301) – dort wird gemessen und berichtet, aber nichts behauptet.
-  for (const [w, h, scrollErwartet] of [[1100, 900, true], [1280, 900, null], [1400, 1000, false], [1600, 1000, false]]) {
+  // Desktop-Breiten (Paket E): Das Band trägt neun Primärziele statt vierzehn Links. Gemessen braucht es 659 statt
+  // 1165 px und passt damit ab 1100 px ohne Scroll – die Gruppenbeschriftung und ihre 1500-px-Schwelle sind entfallen.
+  for (const [w, h] of [[1100, 900], [1280, 900], [1400, 1000], [1600, 1000]]) {
     await page.setViewportSize({ width: w, height: h });
     await page.goto(server.url + '#uebersicht');
     await page.waitForSelector('#view h2');
@@ -1250,27 +1286,56 @@ try {
         scroll: n.scrollWidth, client: n.clientWidth, hoehe: Math.round(n.getBoundingClientRect().height),
         headScroll: head.scrollWidth, headClient: head.clientWidth,
         active: document.querySelectorAll('#nav a[aria-current="page"]').length,
-        labels: [...n.querySelectorAll('.nav-group-label')].filter((e) => e.getClientRects().length).length,
       };
     });
     const scrollt = nav.scroll > nav.client + 1;
-    check((scrollErwartet === null || scrollt === scrollErwartet) && nav.headScroll <= nav.headClient && nav.active === 1 && nav.hoehe <= 40,
-      'C3 Desktop ' + w + ' px: Band ' + nav.hoehe + ' px, braucht ' + nav.scroll + ' von ' + nav.client + ' px (' + (scrollt ? 'scrollt' : 'passt') + ', erwartet '
-        + (scrollErwartet === null ? 'offen' : scrollErwartet ? 'scrollt' : 'passt') + '), ' + nav.labels + ' Gruppenbeschriftungen, Kopf ohne Überlauf, Übersicht aktiv');
+    check(!scrollt && nav.headScroll <= nav.headClient && nav.active === 1 && nav.hoehe <= 40,
+      'E Desktop ' + w + ' px: Band ' + nav.hoehe + ' px, braucht ' + nav.scroll + ' von ' + nav.client + ' px (' + (scrollt ? 'SCROLLT' : 'passt') + '), Kopf ohne Überlauf, Übersicht aktiv');
     await page.screenshot({ path: join(outDir, 'desktop-' + w + '-uebersicht.png') });
   }
-  // Bei 1100 px scrollt das Band – die aktive Ansicht muss trotzdem sichtbar sein
+  // Ein gefasstes Ziel: Das Band markiert das Primärziel, die Reiter im Kopf die offene Ansicht – beide mit aria-current.
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.goto(server.url + '#glossar');
   await page.waitForSelector('#view h2');
   const glossarAktiv = await page.evaluate(() => {
-    const a = document.querySelector('#nav a[aria-current="page"]');
+    const band = document.querySelector('#nav a[aria-current="page"]');
+    const reiter = [...document.querySelectorAll('#view .view-tabs a')];
     const n = document.getElementById('nav');
-    const r = a.getBoundingClientRect(); const nr = n.getBoundingClientRect();
-    return { text: a.textContent, imBlick: r.left >= nr.left - 1 && r.right <= nr.right + 1, gruppe: a.closest('.nav-group').getAttribute('aria-label') };
+    const r = band.getBoundingClientRect(); const nr = n.getBoundingClientRect();
+    return {
+      band: band.textContent, imBlick: r.left >= nr.left - 1 && r.right <= nr.right + 1,
+      reiter: reiter.map((a) => a.textContent), aktiverReiter: (reiter.find((a) => a.getAttribute('aria-current') === 'page') || {}).textContent,
+      kopfHoehe: Math.round(document.querySelector('#view .view-head').getBoundingClientRect().height),
+    };
   });
-  check(glossarAktiv.text === 'Glossar' && glossarAktiv.gruppe === 'Daten' && glossarAktiv.imBlick && (await page.locator('#nav-select').inputValue()) === 'glossar',
-    'C3: Glossar aktiv in der Gruppe «Daten», im scrollenden Band sichtbar, Auswahlfeld zeigt dieselbe Ansicht');
+  check(glossarAktiv.band === 'Daten' && glossarAktiv.imBlick && glossarAktiv.aktiverReiter === 'Glossar'
+    && glossarAktiv.reiter.join(' · ') === 'Historie · Datenqualität · Glossar' && (await page.locator('#nav-select').inputValue()) === 'glossar',
+    'E Glossar: Band zeigt «' + glossarAktiv.band + '», Reiter «' + glossarAktiv.reiter.join(' · ') + '» mit «' + glossarAktiv.aktiverReiter + '» aktiv, Auswahlfeld gleich');
+  // Die Reiter kosten keine Höhe: Der Kopf einer gefassten Ansicht ist nicht höher als der einer ungefassten.
+  await page.setViewportSize({ width: 1400, height: 1000 });
+  const kopfHoehen = {};
+  for (const v of ['uebersicht', 'schriftlich', 'offene-vorgaenge', 'historie']) {
+    await page.goto(server.url + '#' + v);
+    await page.waitForSelector('#view h2');
+    kopfHoehen[v] = await page.evaluate(() => ({
+      hoehe: Math.round(document.querySelector('#view .view-head').getBoundingClientRect().height),
+      reiter: document.querySelectorAll('#view .view-tabs a').length,
+      titelZeile: (() => { const t = document.querySelector('#view .view-titelzeile'); return t ? Math.round(t.getBoundingClientRect().height) : 0; })(),
+    }));
+  }
+  check(kopfHoehen.uebersicht.reiter === 0 && kopfHoehen.schriftlich.reiter === 3 && kopfHoehen['offene-vorgaenge'].reiter === 2 && kopfHoehen.historie.reiter === 3
+    && Math.max(...Object.values(kopfHoehen).map((k) => k.hoehe)) <= kopfHoehen.uebersicht.hoehe + 1,
+    'E Reiter kosten keine Höhe: Kopf ' + Object.entries(kopfHoehen).map(([v, k]) => v + ' ' + k.hoehe + ' px/' + k.reiter + ' Reiter').join(' · '));
+  // Ein Reiter wechselt die Route und bleibt ein Link (Lesezeichen, Aufziehen in neuem Tab)
+  await page.goto(server.url + '#schriftlich');
+  await page.waitForSelector('#view .view-tabs a');
+  const reiterZiel = await page.locator('#view .view-tabs a', { hasText: 'Mündlich' }).first().getAttribute('href');
+  await page.locator('#view .view-tabs a', { hasText: 'Mündlich' }).first().click();
+  // Auf die Renderung warten, nicht auf den Hash: hashchange läuft erst nach der Zuweisung
+  await page.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'muendlich' && document.querySelector('#view h2').textContent.trim() === 'Mündlich', null, { timeout: 5000 });
+  const nachReiter = { h2: (await page.textContent('#view h2')).trim(), band: await page.$$eval('#nav a[aria-current="page"]', (as) => as.map((a) => a.textContent).join('+')) };
+  check(/^#muendlich/.test(reiterZiel) && nachReiter.h2 === 'Mündlich' && nachReiter.band === 'Prüfungen',
+    'E Reiter «Mündlich» führt auf ' + reiterZiel + ' (Titel «' + nachReiter.h2 + '», Band «' + nachReiter.band + '»)');
   await page.setViewportSize({ width: 1400, height: 1000 });
 
   // Tabellenbreite (PROMPT-2 F.2, Option 1): ab 1280 px keine Tabelle mit horizontalem Überlauf in Übersicht, Schriftlich, Mündlich,

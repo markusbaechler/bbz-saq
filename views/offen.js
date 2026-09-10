@@ -7,7 +7,7 @@ import { PASSIVE_DAYS } from '../metrics.js';
 
 export const id = 'offene-vorgaenge';
 export const label = 'Offene Vorgänge';
-export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = 'Vorgänge'; // Geschwister unter diesem Primärziel (Paket E)
 export const intro = 'Laufende Zertifizierungsprozesse mit fehlenden Teilen, Frühwarnung und passiven Vorgängen; auch ohne absolvierte Prüfung.';
 export const glossar = 'Offene Vorgänge (Ansicht)';
 // Wirksamkeit der globalen Filterleiste (Paket A, A1): die Ansicht arbeitet auf ctx.plannedPersons (period: false);

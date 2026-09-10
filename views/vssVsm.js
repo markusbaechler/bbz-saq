@@ -5,7 +5,7 @@ import { renderTable, hinted } from './common.js';
 
 export const id = 'vss-vsm';
 export const label = 'VSS/VSM';
-export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = 'Prüfungen'; // Geschwister unter diesem Primärziel (Paket E)
 export const intro = 'Bestehensquoten schriftlich und mündlich für VSS, VSM und ohne Kennzeichnung, je Profil.';
 export const glossar = 'VSS / VSM (Kennzeichnung)';
 

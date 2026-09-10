@@ -8,7 +8,7 @@ import { formatPct, yearsOf } from '../metrics.js';
 
 export const id = 'zeitverlauf';
 export const label = 'Zeitverlauf';
-export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = null; // eigenes Ziel im Band (Paket E)
 export const intro = 'Kennzahlen je Jahr des Referenzdatums, zwei Jahre im Vergleich, Schwierigkeit je Teilprüfung.';
 export const glossar = 'Zeitverlauf (Ansicht)';
 // Wirksamkeit der globalen Filterleiste (Paket A, A1): der Zeitverlauf arbeitet auf ctx.timePersons (period: false),

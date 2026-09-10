@@ -8,7 +8,7 @@ import { renderKpis, renderTable, renderExpandableTable, section, hinted, el } f
 
 export const id = 'experten';
 export const label = 'Experten';
-export const group = 'Experten'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = null; // eigenes Ziel im Band (Paket E)
 export const intro = 'Einsätze, Rollen, Durchfallquote und Ø Resultat je Experte der mündlichen Prüfung gegen den Benchmark aller Experten; Beobachtungswerte, mit Namen.';
 export const glossar = 'Einsatz (Experte)';
 export const noPersonExport = true; // eigener Export «Einsatzebene» (app.js)

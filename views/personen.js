@@ -12,7 +12,7 @@ import { fmtDate } from '../export.js';
 
 export const id = 'personen';
 export const label = 'Personen';
-export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = null; // eigenes Ziel im Band (Paket E)
 export const intro = 'Eine Person suchen und ihren Weg durch die Zertifizierung nachvollziehen: Vorgänge, Prüfungen, Status, Zertifikat, Datenqualität; mit Namen.';
 export const glossar = 'Pfad einer Person';
 export const noPersonExport = true; // eigener Export «Diese Person» je Detail (Entscheid 4)
