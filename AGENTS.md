@@ -1,4 +1,4 @@
-# CLAUDE.md – Projektregeln bbz-saq
+# AGENTS.md – Projektregeln bbz-saq
 
 Dashboard-SPA für bbz-Zertifizierungskennzahlen. Datenquelle: Reporting_KUBA.xlsx auf SharePoint.
 Vollständige Spezifikation: `PROMPT.md`. Bei Widerspruch gilt diese Datei.
