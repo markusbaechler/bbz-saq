@@ -367,6 +367,22 @@ Weg**, und die Wege sind Daten: `{ kind: 'view', view: 'zeitverlauf' }` oder
 während KMU herausgefiltert ist, wäre falsch. Unter der Mindestgruppengrösse (n < 5) feuert nichts; je Profil gilt
 dieselbe Grenze. Auch wenn nichts feuert, nennt `signals()` in `geprueft`, was geprüft wurde.
 
+### Die Liste in der Übersicht
+
+Der Signalblock ist der **erste Inhalt** der Übersicht, über «Mengen»: Er beantwortet «worauf schaue ich heute», und das
+gehört nicht unter zwölf Kacheln. Je Signal stehen Rang, Stufenwort, Titel, eine Detailzeile mit Zahl und Schwelle und
+der Weg. **Die Farbe trägt nie allein** – Rang und Wort stehen immer daneben; die Stufen nutzen die bestehenden Tokens
+`--danger`, `--warn` und `--ok`. Der Kopf nennt, wie viele Signale offen sind, dass nach Wirkung sortiert wird und auf
+welcher Auswahl gerechnet wurde («5 offen · nach Wirkung sortiert · gerechnet auf 1204 Vorgängen · Profil: KMU»).
+
+**Höhenbudget, gemessen bei 1400 × 900 mit sechs Signalen:** Alle sechs Detailzeilen offen ergaben 339 px und die erste
+Mengen-Kachel bei y = 699 – zu knapp. Offen bleiben deshalb die **drei schwersten** (273 px, erste Kachel y = 633); die
+übrigen Detailzeilen bleiben im DOM und sind über «Alle Details zeigen» erreichbar. Weggelassen wird nichts: Zahl und
+Schwelle jedes Signals sind höchstens einen Klick weit.
+
+**Leerzustand:** Feuert keine Regel, ist der Block nicht leer und verschwindet auch nicht – er nennt, was geprüft wurde
+und ruhig blieb. Ein verschwindender Block ist von einem kaputten nicht zu unterscheiden.
+
 ## Normalisierung und Data-Quality-Log
 
 Spalten werden ausschliesslich über die Header-Namen in Zeile 10 gemappt (Varianten «… Passed» | «… yes»).

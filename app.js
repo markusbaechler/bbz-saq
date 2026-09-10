@@ -5,7 +5,7 @@ import { GraphError, AuthExpiredError } from './graph.js';
 import { load, loadFromFile, loadAudit, write } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
-import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, MODE, personCount, isVorgang, expertRuns, DEFAULT_FILTER } from './metrics.js';
+import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, MODE, personCount, isVorgang, expertRuns, signals, DEFAULT_FILTER } from './metrics.js';
 import { CONFIG, headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay, isAuthResponseHash } from './urlState.js';
@@ -578,6 +578,14 @@ function renderView() {
     allRows: state.persons, // alle Zeilen inklusive Duplikate: Name zur Fundstelle im Änderungsprotokoll
     glossaryHref: (term) => hashWithParam('glossar', 'begriff', glossarySlug(term)), // Kachel-Label → Glossar, Filter bleibt
     focusFilter: (field) => focusFilterField(field), // A2: Weg von der Ansicht zum Bedienelement der Leiste («Bank wählen»)
+    // Signale (Paket D): gerechnet auf der gefilterten Menge; der Weg ist ein Datensatz, den erst die Shell übersetzt
+    signale: signals(store.getFilteredPersons(), { dq: state.dq }),
+    filterKurz: filterChips(filter).map((c) => c.label).join(' · ') || 'kein Filter',
+    onSignalWeg: (weg) => {
+      if (!weg) return;
+      if (weg.kind === 'view') location.hash = buildHash(weg.view, store.getState().filter, store.getState().ui);
+      else if (weg.kind === 'filter') store.setFilter(weg.patch);
+    },
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
     snapshots: state.ui.snapshots || [],

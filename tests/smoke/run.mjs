@@ -10,6 +10,7 @@ import { dirname, join, resolve } from 'node:path';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { startServer } from './server.mjs';
 import { writeSynthWorkbook } from './synth.mjs';
+import { SECHS_SIGNALE } from './signale-sechs.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -106,7 +107,9 @@ try {
   // Navigation. Zielmarken des Auftrags: statisches Chrome höchstens 170 px, erster Zahlenwert über y = 360.
   const kopf = await page.evaluate(() => {
     const hoehe = (sel) => { const e = document.querySelector(sel); return e && e.getClientRects().length ? Math.round(e.getBoundingClientRect().height) : 0; };
-    const wert = document.querySelector('#view .kpi-value');
+    // Seit D2 ist der Signalblock der erste Inhalt der Übersicht; er trägt die Zahlen, die zuerst zählen.
+    // Gemessen wird deshalb der Beginn des ersten Inhalts, nicht mehr zwingend die erste Kachel.
+    const wert = document.querySelector('#view .signale, #view .kpi-value');
     const st = document.getElementById('status');
     return {
       header: hoehe('.app-header'), databar: hoehe('#databar'), nav: hoehe('.views'), filterbar: hoehe('#filterbar'),
@@ -122,7 +125,7 @@ try {
   const anteil = kopf.ersterWert / 900;
   check(chrome <= 175 && kopf.databar === 0 && anteil <= 0.45 && kopf.statusImDom && kopf.datastandImKopf && kopf.neuLaden === 2,
     'C1 geladen: Chrome ' + chrome + ' px (Ziel 170, seit C5 mit zwei Steuerelementen mehr; vorher 293) = Kopf ' + kopf.header + ' + Navigation ' + kopf.nav + ' + Filter ' + kopf.filterbar
-      + ', keine Datenleiste, erster Zahlenwert y = ' + kopf.ersterWert + ' = ' + Math.round(anteil * 100) + ' % der Höhe (Ziel ≤ 45 %; vorher 495 px = 55 %), Datenstand im Kopf, Volltext für Screenreader, '
+      + ', keine Datenleiste, erster Inhalt (Signale) y = ' + kopf.ersterWert + ' = ' + Math.round(anteil * 100) + ' % der Höhe (Ziel ≤ 45 %; vorher 495 px = 55 %), Datenstand im Kopf, Volltext für Screenreader, '
       + kopf.neuLaden + ' Lade-Aktionen erreichbar');
 
   // Jede Ansicht rendert Titel und mindestens eine Tabelle, ohne Fehler
@@ -166,6 +169,72 @@ try {
   check(views.includes('uebersicht') && views.includes('geplante-pruefungen') && views.includes('datenqualitaet'), 'Kern-Ansichten vorhanden: ' + views.join(', '));
 
   // Übersicht: Kacheln mit n
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+
+  // Signale (Paket D, D2): erster Inhalt der Übersicht, Farbe nie allein, Höhenbudget im vollen Fall, Leerzustand.
+  const signalLage = await page.evaluate(() => {
+    const b = document.querySelector('#view .signale');
+    const kachel = document.querySelector('#view .kpi');
+    const gruppe = document.querySelector('#view .kpi-group');
+    if (!b || !kachel) return null;
+    const folgt = (x) => !!(x && (b.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_FOLLOWING));
+    return {
+      vorKachel: folgt(kachel), vorMengen: folgt(gruppe),
+      kopf: (b.querySelector('.signale-meta') || {}).textContent || '',
+      zeilen: [...b.querySelectorAll('.signal')].map((li) => ({
+        rang: (li.querySelector('.signal-rang') || {}).textContent,
+        wort: (li.querySelector('.signal-stufe') || {}).textContent,
+        weg: !!li.querySelector('.signal-weg'),
+      })),
+    };
+  });
+  check(!!signalLage && signalLage.vorKachel && signalLage.vorMengen, 'D2 Übersicht: Signalblock steht vor den Mengen-Kacheln');
+  check(!!signalLage && /·\s*nach Wirkung sortiert\s*·\s*gerechnet auf \d+ Vorgängen\s*·/.test(signalLage.kopf), 'D2 Signalkopf nennt Zahl, Sortierung und Grundlage: «' + (signalLage ? signalLage.kopf.trim() : '') + '»');
+  check(!!signalLage && signalLage.zeilen.length > 0 && signalLage.zeilen.every((z, i) => z.rang === String(i + 1) && /^(kritisch|beachten|günstig)$/.test(z.wort) && z.weg),
+    'D2 jede Signalzeile trägt Rang, Stufenwort und Weg – Farbe nie allein (' + (signalLage ? signalLage.zeilen.length : 0) + ' Zeilen)');
+  // Der Weg ist begehbar: der Datensatz aus metrics.js wird von der Shell in Ansicht oder Filter übersetzt
+  const vorWeg = { hash: new URL(page.url()).hash, chips: await page.locator('#filterbar .chip').count() };
+  await page.locator('#view .signal-weg').first().click();
+  await page.waitForFunction((v) => location.hash !== v.hash || document.querySelectorAll('#filterbar .chip').length !== v.chips, vorWeg, { timeout: 5000 }).catch(() => {});
+  const nachWeg = { hash: new URL(page.url()).hash, chips: await page.locator('#filterbar .chip').count() };
+  check(nachWeg.hash !== vorWeg.hash || nachWeg.chips !== vorWeg.chips, 'D2 Weg des ersten Signals führt irgendwohin (Hash «' + vorWeg.hash + '» → «' + nachWeg.hash + '», Chips ' + vorWeg.chips + ' → ' + nachWeg.chips + ')');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click().catch(() => {});
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+
+  // Höhenbudget: gemessen mit dem vollen Fall (sechs Signale), nicht mit dem leeren. Offen bleiben die drei schwersten;
+  // die übrigen Detailzeilen sind über «Alle Details zeigen» erreichbar, gehen also nicht verloren.
+  await page.setViewportSize({ width: 1400, height: 900 });
+  const budget = await page.evaluate(async (sechs) => {
+    const mod = await import('/views/common.js');
+    document.querySelector('#view .signale').replaceWith(mod.signalBlock({ signale: sechs, geprueft: [], n: 1204, zuKlein: false }, { onWeg: () => {}, filterKurz: 'kein Filter' }));
+    const b = document.querySelector('#view .signale');
+    const mess = () => ({
+      hoehe: Math.round(b.getBoundingClientRect().height),
+      kachelY: Math.round(document.querySelector('#view .kpi').getBoundingClientRect().top + window.scrollY),
+      details: [...b.querySelectorAll('.signal-detail')].filter((p) => p.getClientRects().length > 0).length,
+    });
+    const zu = mess();
+    b.querySelector('.signale-mehr').click();
+    const auf = mess();
+    b.querySelector('.signale-mehr').click();
+    return { zu, auf, zeilen: b.querySelectorAll('.signal').length };
+  }, SECHS_SIGNALE);
+  check(budget.zeilen === 6 && budget.zu.hoehe <= 300, 'D2 Höhenbudget: sechs Signale in ' + budget.zu.hoehe + ' px (Grenze 300 px bei 1400 × 900)');
+  check(budget.zu.kachelY < 700, 'D2 erste Mengen-Kachel bei y = ' + budget.zu.kachelY + ' (über 700)');
+  check(budget.zu.details === 3 && budget.auf.details === 6, 'D2 drei Detailzeilen offen, alle sechs über den Schalter erreichbar (' + budget.zu.details + ' → ' + budget.auf.details + ')');
+
+  // Leerzustand: Feuert keine Regel, verschwindet der Block nicht, sondern nennt, was geprüft wurde und ruhig blieb.
+  const ruhig = await page.evaluate(async () => {
+    const mod = await import('/views/common.js');
+    const metrics = await import('/metrics.js');
+    document.querySelector('#view .signale').replaceWith(mod.signalBlock({ signale: [], geprueft: metrics.SIGNAL_REGELN, n: 1204, zuKlein: false }, { filterKurz: 'kein Filter' }));
+    const b = document.querySelector('#view .signale');
+    return { da: b.getClientRects().length > 0, text: b.textContent.replace(/\s+/g, ' ').trim(), geprueft: b.querySelectorAll('.signale-geprueft li').length };
+  });
+  check(ruhig.da && ruhig.geprueft >= 5 && /Keine Regel hat ausgelöst\. Geprüft wurde:/.test(ruhig.text), 'D2 Leerzustand: Block bleibt stehen und nennt ' + ruhig.geprueft + ' geprüfte Regeln');
+  await page.setViewportSize({ width: 1400, height: 1000 });
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
   const kpiCount = await page.locator('#view .kpi').count();

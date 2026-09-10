@@ -1,7 +1,7 @@
 // views/overview.js – View 1 «Übersicht»: KPIs gesamt für den aktiven Filter, Kennzahlen je Profil.
 
 import { overviewModel, plannedTables, comparisonTable } from './tables.js';
-import { renderKpis, renderTable, section, hinted, el } from './common.js';
+import { renderKpis, renderTable, section, hinted, el, signalBlock } from './common.js';
 import { BENCHMARKS, benchmarkFilter, DEFAULT_FILTER } from '../metrics.js';
 
 export const id = 'uebersicht';
@@ -74,6 +74,8 @@ export function build(ctx) {
   };
   return {
     nodes: [
+      // D2: Signale zuerst – sie beantworten «worauf schaue ich heute», und das gehört nicht unter zwölf Kacheln
+      signalBlock(ctx.signale, { onWeg: ctx.onSignalWeg, filterKurz: ctx.filterKurz }),
       benchmarkBar,
       renderKpis(kpis, { glossaryHref: ctx.glossaryHref }),
       // Phone (B.4): Benchmark-Tabelle und Mehrfachprofile eingeklappt, Kennzahlen je Profil offen
