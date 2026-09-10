@@ -77,6 +77,9 @@ try {
       return [...s.querySelectorAll('caption')].some((c) => !c.classList.contains('visually-hidden') && (c.querySelector('.caption-text') || c).textContent === title);
     }));
     check(!doubleTitle && (await page.locator('#view p.note').count()) === 0, 'Ansicht ' + v + ': kein doppelter Tabellentitel, keine Fussnoten unter Tabellen');
+    // B3: keine Tabelle ohne Zeilen – bei null Zeilen steht nur die Meldung, nicht Kopfzeile plus Meldung
+    const leer = await page.$$eval('#view table.data', (ts) => ts.filter((t) => !t.querySelector('tbody tr')).map((t) => (t.querySelector('caption') || {}).textContent || '(ohne Titel)'));
+    check(leer.length === 0, 'Ansicht ' + v + ': keine leere Tabelle gerendert' + (leer.length ? ' – ' + leer.join(' | ') : ''));
     await shot(page, v);
   }
 
@@ -329,6 +332,30 @@ try {
   await page.goto(server.url + '#uebersicht' + hashQuery(page.url()));
   await page.waitForSelector('#view .kpi');
   check((await page.locator('#filterbar .chip', { hasText: '2026' }).count()) === 1 && (await page.locator('#filterbar .summary-inactive').isHidden()), 'A1 Übersicht: zurück – der Jahresfilter wirkt wieder, Chip «2026» erscheint erneut');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
+  // Paket B (B3): Mit einem Institut-Filter waren auf «Bestenlisten» zwölf von sechzehn Tabellen leer – über 2000 px
+  // Spaltenüberschriften ohne einen einzigen Wert. Zu kleine Gruppen stehen jetzt zusammen in einer Zeile.
+  await page.goto(server.url + '#bestenlisten?bank=' + encodeURIComponent('Testbank AG'));
+  await page.waitForSelector('#view h2');
+  const listen = await page.evaluate(() => {
+    const tabellen = [...document.querySelectorAll('#view table.data')];
+    const sammel = [...document.querySelectorAll('#view p.empty')].map((p) => p.textContent.trim()).filter((t) => /^Keine Bestenliste für /.test(t));
+    return {
+      tabellen: tabellen.length,
+      ohneZeilen: tabellen.filter((t) => !t.querySelector('tbody tr')).length,
+      kopfhoehe: Math.round(tabellen.reduce((a, t) => a + (t.tHead ? t.tHead.getBoundingClientRect().height : 0), 0)),
+      sammel,
+      profileJeSammelmeldung: sammel.map((t) => (t.match(/für ([^–]+) –/) || [null, ''])[1].split(', ').filter(Boolean).length),
+    };
+  });
+  check(listen.ohneZeilen === 0 && listen.sammel.length <= 3 && listen.sammel.every((t) => /Gruppen unter n = 5 im aktiven Filter\.$/.test(t)) && listen.profileJeSammelmeldung.every((n) => n >= 2),
+    'B3 Bestenlisten mit Bank-Filter: ' + listen.tabellen + ' Tabellen, keine davon leer, ' + listen.sammel.length + ' Sammelmeldung(en) für je '
+      + listen.profileJeSammelmeldung.join('/') + ' Profile, Kopfzeilen zusammen ' + listen.kopfhoehe + ' px (statt Überschriften ohne Werte)');
+  check((await page.locator('#view p.empty').count()) >= 1 && (await page.locator('#view .ranking-grid table.data').count()) >= 1, 'B3 Bestenlisten: die Listen mit Treffern bleiben als Tabelle');
+  await shot(page, 'bestenlisten-gefiltert');
+  // Filter über die Schaltfläche zurücksetzen: ein Hash ohne Parameter lässt den Zustand stehen (urlState, hasParams)
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
@@ -724,7 +751,13 @@ try {
   await phone.goto(server.url + '#offene-vorgaenge');
   await phone.waitForSelector('#view h2');
   check((await collapsed(phone, ['Je Profil', 'Teilprüfungen je Profil'])).join(',') === 'Je Profil:zu,Teilprüfungen je Profil:zu', 'Phone Offene Vorgänge: Je-Profil-Tabellen eingeklappt');
-  check(JSON.stringify(await visibleHeads(phone, 'Teilnehmende')) === JSON.stringify(['Name', 'Profil', 'Fehlende Teile', 'Nächster Termin']) && JSON.stringify(await visibleHeads(phone, 'Frühwarnung')) === JSON.stringify(['Stufe', 'Name', 'Teilprüfung', 'Nächster Termin']), 'Phone Offene Vorgänge: Teilnehmende und Frühwarnung mit Prio-1-Spalten');
+  check(JSON.stringify(await visibleHeads(phone, 'Teilnehmende')) === JSON.stringify(['Name', 'Profil', 'Fehlende Teile', 'Nächster Termin']), 'Phone Offene Vorgänge: Teilnehmende mit Prio-1-Spalten');
+  // B3: Die Frühwarnung hat in der synthetischen Datei keine Zeilen – statt acht Spaltenüberschriften ohne Werte nur die Meldung
+  const warnung = await phone.evaluate(() => {
+    const abschnitt = [...document.querySelectorAll('#view section.block, #view details.fold')].find((x) => (x.querySelector('h3, summary') || {}).textContent.startsWith('Frühwarnung'));
+    return abschnitt ? { tabellen: abschnitt.querySelectorAll('table.data').length, meldung: (abschnitt.querySelector('p.empty') || {}).textContent || '' } : null;
+  });
+  check(warnung && warnung.tabellen === 0 && warnung.meldung.length > 10, 'Phone Offene Vorgänge: Frühwarnung ohne Zeilen zeigt nur die Meldung, keine Kopfzeile («' + (warnung ? warnung.meldung.slice(0, 60) : '–') + '»)');
   await phone.screenshot({ path: join(outDir, 'phone-offene-vorgaenge.png'), fullPage: true });
   await phone.goto(server.url + '#geplante-pruefungen');
   await phone.waitForSelector('#view h2');

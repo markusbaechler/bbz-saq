@@ -92,7 +92,20 @@ function allColumnsToggle(wrap, columns) {
 // Tabellenmodell → <div class="table-wrap"><table>…; Zeilen mit small=true erhalten die Klasse «small».
 // table.wide = true (breite Tabellen, z. B. Experten mit 13 Spalten): Klasse «wide» am Rahmen, Prio 3 erst ab 1900 px, Full HD (F.2, Paket G).
 // Fussnoten (note) erscheinen nicht mehr unter der Tabelle, sondern als ⓘ am Titel und in der Legende der View.
+// Leere Tabelle (Paket B, B3): Bei null Zeilen wird gar keine Tabelle gerendert – nur die Meldung. Vorher stand die
+// Meldung hinter der vollständig gerenderten Kopfzeile: auf «Bestenlisten» mit einem Institut-Filter 12 leere Tabellen
+// mit zusammen über 2000 px Spaltenüberschriften ohne einen einzigen Wert. Der Titel bleibt vor der Meldung, damit sie
+// zuzuordnen ist; section() entfernt ihn wieder, wenn er den Abschnittstitel wiederholt.
+function emptyTable(table) {
+  const text = table.empty || 'Keine Daten für den aktiven Filter.';
+  return el('p', {
+    class: 'empty table-empty', 'data-title': table.title || null, 'data-empty': text,
+    text: table.title ? table.title + ' – ' + text : text,
+  });
+}
+
 export function renderTable(table, { caption = true } = {}) {
+  if (!table.rows.length) return emptyTable(table);
   const numeric = numericColumns(table); // Befund 13: Zahlen- und Prozentspalten rechtsbündig
   const thead = el('thead', {}, [el('tr', {}, table.columns.map((c) => headerCell(c, numeric)))]);
   const tbody = el('tbody', {}, table.rows.map((row) => el('tr', { class: row.small ? 'small' : null }, table.columns.map((c) => cell(c, row, numeric)))));
@@ -102,7 +115,6 @@ export function renderTable(table, { caption = true } = {}) {
   const wrap = el('div', { class: 'table-wrap' + (table.wide ? ' wide' : '') }, [el('table', { class: 'data' }, children)]);
   const toggle = allColumnsToggle(wrap, table.columns);
   if (toggle) wrap.appendChild(toggle);
-  if (!table.rows.length) wrap.appendChild(el('p', { class: 'empty', text: table.empty || 'Keine Daten für den aktiven Filter.' }));
   return wrap;
 }
 
@@ -112,6 +124,7 @@ export function renderTable(table, { caption = true } = {}) {
 let expandableSeq = 0;
 // isOpen(row) → Zeile initial aufgeklappt (z. B. gewählte Person); onToggle(row, open) nach jedem Umschalten (Paket C)
 export function renderExpandableTable(table, { detail, hint = null, isOpen = null, onToggle = null } = {}) {
+  if (!table.rows.length) return emptyTable(table); // B3: keine Kopfzeile ohne Zeilen
   const numeric = numericColumns(table);
   const cols = table.columns;
   const thead = el('thead', {}, [el('tr', {}, [el('th', { scope: 'col', class: 'toggle', 'data-prio': '1', 'aria-label': 'Aufklappen' })].concat(cols.map((c) => headerCell(c, numeric))))]);
@@ -147,7 +160,6 @@ export function renderExpandableTable(table, { detail, hint = null, isOpen = nul
   const wrap = el('div', { class: 'table-wrap' + (table.wide ? ' wide' : '') }, [el('table', { class: 'data expandable-table' }, children)]);
   const columnsToggle = allColumnsToggle(wrap, cols);
   if (columnsToggle) wrap.appendChild(columnsToggle);
-  if (!table.rows.length) wrap.appendChild(el('p', { class: 'empty', text: table.empty || 'Keine Daten für den aktiven Filter.' }));
   return wrap;
 }
 
@@ -261,6 +273,11 @@ export function section(title, nodes, { info = null, meta = null, collapsed: alw
   const node = collapsed
     ? el('details', { class: 'fold print-open block' }, [head].concat(nodes))
     : el('section', { class: 'block' }, [head].concat(nodes));
+  // Kein Doppeltitel, auch bei leeren Tabellen (B3): Die Meldung trägt den Tabellentitel nur, solange er sich vom
+  // Abschnittstitel unterscheidet – sonst bleibt der reine Meldungstext.
+  for (const p of node.querySelectorAll('p.table-empty[data-title]')) {
+    if (p.getAttribute('data-title') === title) p.textContent = p.getAttribute('data-empty');
+  }
   // Kein Doppeltitel (Befund B8): eine caption mit dem Titel des Abschnitts bleibt nur für Screenreader; ihr ⓘ wandert an den Titel
   for (const cap of node.querySelectorAll('table > caption')) {
     const text = cap.querySelector('.caption-text');

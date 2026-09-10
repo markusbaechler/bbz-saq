@@ -10,9 +10,21 @@ export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
 export const intro = 'Top-Listen je Profil für bbz-Award, schriftliche und mündliche Prüfung mit Begründung je Rang; mit Namen, nur intern.';
 export const glossar = 'bbz-Award';
 
+// Raster der Listen je Profil (Paket B, B3): Gruppen unter der Mindestgrösse bekommen keine eigene Tabelle mehr,
+// sondern zusammen eine Zeile. Mit einem Institut-Filter waren sonst zwölf von sechzehn Tabellen leer – über 2000 px
+// Spaltenüberschriften ohne einen einzigen Wert.
 function grid(groups) {
   if (!groups.length) return el('p', { class: 'empty', text: 'Keine Vorgänge im aktiven Filter.' });
-  return el('div', { class: 'ranking-grid' }, groups.map((g) => renderTable({ ...g, title: g.profil + ' (n = ' + g.n + (g.suppressed ? ', keine Liste' : ', Top ' + g.k) + ')' })));
+  const listen = groups.filter((g) => !g.suppressed);
+  const zuKlein = groups.filter((g) => g.suppressed);
+  const nodes = [];
+  if (listen.length) {
+    nodes.push(el('div', { class: 'ranking-grid' }, listen.map((g) => renderTable({ ...g, title: g.profil + ' (n = ' + g.n + ', Top ' + g.k + ')' }))));
+  }
+  if (zuKlein.length) {
+    nodes.push(el('p', { class: 'empty', text: 'Keine Bestenliste für ' + zuKlein.map((g) => g.profil).join(', ') + ' – Gruppen unter n = ' + SMALL_N + ' im aktiven Filter.' }));
+  }
+  return nodes.length === 1 ? nodes[0] : el('div', {}, nodes);
 }
 
 export function build(ctx) {

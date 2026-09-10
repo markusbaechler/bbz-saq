@@ -359,6 +359,13 @@ Tick trägt die Achsenlinie und nennt den Beginn; darüber liegen runde Vielfach
 **Balkendiagramme rechnen weiter von null** – bei Balken trägt die Länge die Aussage, eine gekappte Achse verzerrt die
 Verhältnisse.
 
+**Leere Tabellen (Paket B):** Bei null Zeilen wird gar keine Tabelle gerendert – nur die Meldung, mit dem Titel davor,
+solange er sich vom Abschnittstitel unterscheidet. Vorher stand die Meldung hinter der vollständig gerenderten
+Kopfzeile: auf «Bestenlisten» mit einem Institut-Filter zwölf von sechzehn Tabellen leer, zusammen über 2000 px
+Spaltenüberschriften ohne einen einzigen Wert. Auf «Bestenlisten» stehen die Gruppen unter der Mindestgrösse
+zusätzlich zusammen in einer Zeile («Keine Bestenliste für IK, CWMA, KMU, AFFL – Gruppen unter n = 5 im aktiven
+Filter.») statt in je einer eigenen leeren Tabelle. Der Export enthält weiterhin alle Tabellenmodelle.
+
 **Direktbeschriftung am Linienende (Paket B):** Sie trägt nur den Wert («75 %»). Den Reihennamen dort zu wiederholen
 kostete 250 von 820 Einheiten Rand – 30 % der Zeichenfläche – für eine Angabe, die die Legende zwei Zeilen darunter
 ohnehin macht. Der Rand richtet sich jetzt nach der Länge der Werte (`endLabelGutter`); die Zeichenfläche wächst damit
