@@ -80,6 +80,26 @@ try {
   const status = (await page.textContent('#status')).replace(/\s+/g, ' ').trim();
   check(/Data-Quality-Log/.test(status) && /Duplikate/.test(status), 'Datei geladen: ' + status.slice(0, 170));
   // Datenstand (A.2): sichtbarer Einzeiler mit aufklappbaren Zählern; der Volltext in #status bleibt (nur für Screenreader)
+  // D0: Der Fehlerzähler wurde im Kopf abgeschnitten – bei 1280 px waren 26 % des Einzeilers verdeckt, und weg fiel
+  // ausgerechnet «DQ n Fehler». Er schrumpft jetzt nie; gekürzt wird der Mittelteil.
+  for (const w of [1280, 1400, 1920]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.waitForTimeout(120);
+    const ds = await page.evaluate(() => {
+      const dq = document.querySelector('.datastand-dq');
+      const txt = document.querySelector('.datastand-text');
+      const kopf = document.querySelector('.app-header').getBoundingClientRect();
+      const box = dq.getBoundingClientRect();
+      return {
+        dq: dq.textContent.trim(), ganzSichtbar: box.width > 0 && box.right <= kopf.right + 0.5 && box.left >= kopf.left - 0.5,
+        dqVerdeckt: Math.round(Math.max(0, dq.scrollWidth - dq.clientWidth)),
+        textVerdeckt: Math.round(Math.max(0, txt.scrollWidth - txt.clientWidth)),
+      };
+    });
+    check(ds.ganzSichtbar && ds.dqVerdeckt === 0 && /^DQ \d+ Fehler$/.test(ds.dq),
+      'D0 Datenstand ' + w + ' px: «' + ds.dq + '» vollständig im Kopf, gekürzt wird der Mittelteil (' + ds.textVerdeckt + ' px)');
+  }
+  await page.setViewportSize({ width: 1400, height: 1000 });
   const datastand = (await page.textContent('#datastand summary')).replace(/\s+/g, ' ').trim();
   check(datastand.startsWith('Datenstand: synth.xlsx') && /DQ \d+ Fehler$/.test(datastand) && (await page.locator('#datastand dt').count()) >= 6 && (await page.locator('#status.visually-hidden').count()) === 1, 'Datenstand: «' + datastand.slice(0, 90) + '» mit Details, Volltext nur für Screenreader');
   // C1: Kopfbereich verdichtet – vier gestapelte Bänder (293 px, erster Zahlenwert bei y = 495) auf zwei plus
@@ -1253,16 +1273,30 @@ try {
   await page.selectOption('#filterbar select.bank', 'Testbank AG');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   check((await page.getAttribute('#filterbar select.bank', 'title')) === 'Testbank AG' && (await page.evaluate(() => Math.round(document.getElementById('filterbar').getBoundingClientRect().height))) <= 110, 'Desktop 1400 px: Bank gewählt → voller Name als title, Filterleiste mit Chip weiterhin ≤ 110 px');
-  // Dokumentierte Grenze: Bei 1280 px passen elf Steuerelemente nicht mehr in eine Zeile
+  // D0: Seit die Optionstexte die Feldbeschriftung nicht mehr wiederholen, passen die elf Steuerelemente auch bei
+  // 1280 px in eine Zeile – damit gilt das Zielmass aus C1 auch dort wieder.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
   const fb1280 = await page.evaluate(() => {
     const bar = document.getElementById('filterbar');
-    const bottoms = [...bar.querySelectorAll('.filter-controls > label')].map((l) => l.getBoundingClientRect().bottom);
-    return { hoehe: Math.round(bar.getBoundingClientRect().height), reihen: new Set(bottoms.map((b) => Math.round(b / 10))).size };
+    const labels = [...bar.querySelectorAll('.filter-controls > label')];
+    const controls = bar.querySelector('.filter-controls');
+    const gap = parseFloat(getComputedStyle(controls).columnGap) || 0;
+    const hoehe = (sel) => { const e = document.querySelector(sel); return e && e.getClientRects().length ? Math.round(e.getBoundingClientRect().height) : 0; };
+    return {
+      hoehe: Math.round(bar.getBoundingClientRect().height),
+      reihen: new Set(labels.map((l) => Math.round(l.getBoundingClientRect().bottom / 10))).size,
+      braucht: Math.round(labels.reduce((a, l) => a + l.getBoundingClientRect().width, 0) + gap * (labels.length - 1)),
+      platz: Math.round(controls.clientWidth),
+      chrome: hoehe('.app-header') + hoehe('#databar') + hoehe('.views') + hoehe('#filterbar'),
+    };
   });
-  check(fb1280.reihen === 2 && fb1280.hoehe <= 165, 'C5 Desktop 1280 px: elf Steuerelemente brauchen zwei Zeilen (' + fb1280.hoehe + ' px) – dokumentierte Grenze, ab 1400 px eine Zeile');
+  // Das C1-Zielmass ist bei 1400 x 900 definiert; bei 1280 px liegt die Leiste 4 px höher (Umbruch der
+  // Zusammenfassungszeile). Geprüft wird deshalb 180 px – gegenüber 225 px vor der Entdopplung.
+  check(fb1280.reihen === 1 && fb1280.chrome <= 180 && fb1280.braucht < fb1280.platz,
+    'D0 Desktop 1280 px: elf Steuerelemente in einer Zeile (brauchen ' + fb1280.braucht + ' von ' + fb1280.platz + ' px), Leiste '
+      + fb1280.hoehe + ' px, statisches Chrome ' + fb1280.chrome + ' px (vorher 225)');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   await page.screenshot({ path: join(outDir, 'desktop-1280-filterleiste.png'), fullPage: false });

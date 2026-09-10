@@ -143,7 +143,13 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .subtitle { color: var(--muted); font-size: .85rem; white-space: nowrap; }
 /* Datenstand und Status teilen sich die Mitte der Kopfzeile und dürfen sie nicht verbreitern */
 .app-header .datastand, .app-header .status { flex: 1 1 8rem; min-width: 0; font-size: var(--fs-sm); }
-.app-header .datastand > summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* D0: Der Fehlerzähler schrumpft nie – er ist die Kennzahl im Kopf. Gekürzt wird der Mittelteil; unter 1500 bzw.
+   1200 px entfallen zuerst die Ladezeit, dann das Änderungsdatum, statt den Zähler abzuschneiden. */
+.app-header .datastand > summary { display: flex; align-items: baseline; gap: var(--space-2); white-space: nowrap; }
+.datastand-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.datastand-dq { flex: 0 0 auto; }
+@media (max-width: 1499px) { .datastand-geladen { display: none; } }
+@media (max-width: 1199px) { .datastand-geaendert { display: none; } }
 /* Aufgeklappt legt sich der Datenstand über den Inhalt, statt die Kopfzeile aufzublähen */
 .app-header .datastand[open] { position: relative; }
 .app-header .datastand[open] > :not(summary) {
@@ -237,7 +243,7 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 /* C5: Elf Steuerelemente passen bei 1400 px nur in eine Zeile, wenn keines mehr Platz nimmt als es braucht.
    Der Benchmark-Wert «Gesamt (nur Zeitraum)» und die Wertung würden sie sonst sprengen. */
 .filterbar label[data-field="benchmark"] > select, .filterbar label[data-field="wertung"] > select { max-width: 8.5rem; }
-.filterbar label > input[type="date"] { max-width: 7.5rem; }
+.filterbar label > input[type="date"] { max-width: 6.5rem; } /* D0: «dd.mm.yyyy» plus Kalendersymbol brauchen 105 px */
 .filter-controls { gap: var(--space-1) var(--space-2); }
 /* C5: Wo der Benchmark gewählt wurde, steht jetzt nur noch, was er bewirkt */
 .benchmark-bar { color: var(--muted); font-size: var(--fs-sm); margin: 0 0 var(--space-2); }

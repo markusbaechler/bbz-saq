@@ -68,6 +68,11 @@ horizontal über, und **keine** der 7 Tabellen über 500 px Höhe gehört dazu; 
 Scroll-Container also gar nicht. In den drei breiten Tabellen bleibt der Kopf ungeklebt, dafür bleibt dort die erste
 Spalte beim horizontalen Scrollen stehen. Auf dem Phone schrumpft nichts: Dort klebt die Leiste ohnehin nicht.
 
+**Datenstand im Kopf:** Der Einzeiler besteht aus einem schrumpfenden Mittelteil (Dateiname, Zeilen, Änderungs- und
+Ladezeit) und dem **nicht schrumpfenden Fehlerzähler**. Vorher wurde am Ende gekürzt und damit ausgerechnet «DQ n
+Fehler» verdeckt – bei 1280 px 26 % des Einzeilers. Unter 1500 px entfällt zuerst die Ladezeit, unter 1200 px das
+Änderungsdatum; der Zähler bleibt in jeder Breite vollständig stehen.
+
 **Kopfbereich (Paket C):** Über dem Inhalt stehen zwei Bänder plus Navigation – Kopfzeile (Marke, Datenstand, Konto) und
 Filterleiste. Die **Datenleiste erscheint nur im Leerzustand**: Sie trägt zwei Aktionen, keine Dauerinformation, und die
 Leerzustandskarte bietet dieselben zwei Aktionen ohnehin. Mit geladenen Daten fällt sie weg; «Neu laden» und «Lokale
@@ -147,8 +152,11 @@ Werkzeugleisten einzelner Ansichten. Wer die Wertung in den Bestenlisten umstell
 Ansichten gelten: «Wertung» auf «Bestenlisten», «Benchmark» auf «Übersicht», «Schriftlich» und «Mündlich». Die
 Ansichts-Werkzeugleisten sind entfallen; in der Übersicht bleibt stehen, was der Benchmark bewirkt (seine Grösse).
 
-Damit trägt die Leiste elf statt neun Steuerelemente. Gemessen bei 1400 px passt sie weiterhin in **eine Zeile**
-(97 px, statisches Chrome 172 px, erster Zahlenwert bei y = 343); bei 1280 px braucht sie **zwei Zeilen** (158 px).
+Damit trägt die Leiste elf statt neun Steuerelemente. Gemessen passt sie bei 1400 px in **eine Zeile** (97 px,
+statisches Chrome 172 px, erster Zahlenwert bei y = 343) und seit Paket D auch bei **1280 px** (101 px, Chrome 176 px
+statt 225). Möglich wurde das durch Entdopplung der Optionstexte: Das Substantiv steht in der Feldbeschriftung, der
+Wert in der Option – «VSS/VSM: Ohne» statt «VSS/VSM: Ohne VSS/VSM». Die **Chips** behalten die ausgeschriebene Form,
+weil sie ohne Feldbeschriftung stehen.
 Die Beschriftung des Zertifikat-Filters ist dafür auf «Zertifikate» gekürzt (voller Text als Tooltip) – sie war mit
 188 von 1384 px die längste und entschied allein darüber, ob die Reihe umbricht. Jedes Steuerelement trägt ein
 `data-field`, weil sich «Bank» und «Benchmark» über den Beschriftungstext nicht unterscheiden lassen.

@@ -184,10 +184,17 @@ function renderDatastand(visible) {
   const { meta, persons } = store.getState();
   const c = meta.counts || {};
   const fehler = c.fehler || 0;
+  // D0: Der Einzeiler wurde im Kopf am Ende gekürzt – und dort stand ausgerechnet der Fehlerzähler (bei 1280 px waren
+  // 26 % verdeckt). Er steht jetzt als eigener, nicht schrumpfender Teil rechts; gekürzt wird der Mittelteil, und zwar
+  // von hinten nach vorn in der Reihenfolge geladen → geändert → Zeilen. Der Dateiname bleibt am längsten stehen.
   const summary = el('summary', {}, [
-    'Datenstand: ' + meta.fileName + ' · geändert ' + (fmtDateTime(meta.lastModified) || '–') + ' · geladen ' + (fmtTime(meta.loadedAt) || '–')
-      + ' · ' + (c.zeilen || persons.length) + ' Zeilen · ',
-    el('span', { class: fehler ? 'warn' : null, text: 'DQ ' + fehler + ' Fehler' }),
+    el('span', { class: 'datastand-text' }, [
+      'Datenstand: ' + meta.fileName,
+      el('span', { class: 'datastand-zeilen', text: ' · ' + (c.zeilen || persons.length) + ' Zeilen' }),
+      el('span', { class: 'datastand-geaendert', text: ' · geändert ' + (fmtDateTime(meta.lastModified) || '–') }),
+      el('span', { class: 'datastand-geladen', text: ' · geladen ' + (fmtTime(meta.loadedAt) || '–') }),
+    ]),
+    el('span', { class: 'datastand-dq' + (fehler ? ' warn' : ''), text: 'DQ ' + fehler + ' Fehler' }),
   ]);
   const rows = [
     ['Quelle', meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint'],
@@ -290,11 +297,16 @@ function buildFilterBar() {
   const sprache = selectControl('sprache', 'Sprache', listOptions(opts.sprache), (v) => set({ sprache: v ? [v] : [] }));
   const bank = selectControl('bank', 'Bank', listOptions(opts.bank), (v) => set({ bank: v ? [v] : [] }));
   bank.select.className = 'bank'; // F.3 (F5): höchstens 12rem breit, voller Name als title (updateFilterBar)
-  const vssVsm = selectControl('vssVsm', 'VSS/VSM', [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne VSS/VSM' }], (v) => set({ vssVsm: v }));
-  const versuche = selectControl('versuche', 'Versuche', [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: 'Nur 1. Versuch' }, { value: 'mehrere', label: 'Mehrere Versuche' }], (v) => set({ versuche: v }));
+  // D0: Der Optionstext wiederholte die Feldbeschriftung – «VSS/VSM: Ohne VSS/VSM», «Versuche: Mehrere Versuche».
+  // Die Entdopplung holt die 66 px, die bei 1280 px zur einen Zeile fehlten, ohne eine Angabe unverständlich zu machen:
+  // Das Substantiv steht in der Beschriftung, der Wert in der Option. Die Chips behalten die Langform (filterChips.js),
+  // weil sie ohne Feldbeschriftung stehen.
+  const vssVsm = selectControl('vssVsm', 'VSS/VSM', [{ value: 'alle', label: 'Alle' }, { value: 'vss', label: 'Nur VSS' }, { value: 'vsm', label: 'Nur VSM' }, { value: 'ohne', label: 'Ohne' }], (v) => set({ vssVsm: v }));
+  const versuche = selectControl('versuche', 'Versuche', [{ value: 'alle', label: 'Alle' }, { value: 'erstversuch', label: '1. Versuch' }, { value: 'mehrere', label: 'Mehrere' }], (v) => set({ versuche: v }));
   // C5: Wertung schreibt in den Filter, Benchmark in den Anzeigezustand – beides global und in der URL
-  const wertung = selectControl('wertung', 'Wertung', [{ value: MODE.ERSTVERSUCH, label: 'Resultat 1. Versuch' }, { value: MODE.BESTANDEN, label: 'Resultat bestandener Run' }], (v) => set({ mode: v }));
-  const benchmark = selectControl('benchmark', 'Benchmark', BENCHMARKS.map((b) => ({ value: b.id, label: b.label })), (v) => store.setUi({ benchmark: v }));
+  const wertung = selectControl('wertung', 'Wertung', [{ value: MODE.ERSTVERSUCH, label: '1. Versuch' }, { value: MODE.BESTANDEN, label: 'Bestandener Run' }], (v) => set({ mode: v }));
+  // Der volle Name des Benchmarks steht weiter in der Übersicht und in der Spaltenüberschrift der Vergleichstabelle
+  const benchmark = selectControl('benchmark', 'Benchmark', BENCHMARKS.map((b) => ({ value: b.id, label: b.label.replace(' (nur Zeitraum)', '') })), (v) => store.setUi({ benchmark: v }));
   Object.assign(c, { jahr: jahr.select, profil: profil.select, sprache: sprache.select, bank: bank.select, vssVsm: vssVsm.select, versuche: versuche.select, wertung: wertung.select, benchmark: benchmark.select });
   c.onlyIssued = el('input', { type: 'checkbox', onchange: (ev) => set({ onlyIssued: ev.target.checked }) });
   // Reset nur sichtbar, wenn ein Filter vom Standard abweicht; Zusammenfassung = Zähler + Chips je aktive Einschränkung
