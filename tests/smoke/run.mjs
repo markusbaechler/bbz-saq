@@ -143,6 +143,26 @@ try {
   const offen = await vergleich();
   check(offen && offen.tag === 'SECTION' && !offen.satz, 'A2 Übersicht mit Bank-Filter: Vergleichstabelle offen, kein Gleichstand-Satz');
   check(restOhne.length >= 2 && restOhne.every((r) => r <= 1), 'A3 Übersicht ohne Filter: keine Kachel höher als ihr Inhalt verlangt (Rest je Reihe ' + restOhne.join('/') + ' px)');
+  // A3: Wert zuerst, Beschriftung darunter, n darunter, Delta zuletzt – Wert und n liegen je Kachelreihe auf einer Linie
+  const grundlinien = () => page.$$eval('#view .kpi', (tiles) => {
+    const rows = new Map();
+    for (const t of tiles) {
+      const box = t.getBoundingClientRect();
+      const abstand = (sel) => { const c = t.querySelector(sel); return c ? Math.round(c.getBoundingClientRect().top - box.top) : null; };
+      const key = Math.round(box.top);
+      if (!rows.has(key)) rows.set(key, { value: new Set(), n: new Set(), reihenfolge: new Set() });
+      const r = rows.get(key);
+      r.value.add(abstand('.kpi-value'));
+      r.n.add(abstand('.kpi-n'));
+      r.reihenfolge.add([...t.children].map((c) => c.className.split(' ')[0]).join('>'));
+    }
+    return [...rows.values()].map((r) => ({ value: [...r.value], n: [...r.n], reihenfolge: [...r.reihenfolge] }));
+  });
+  const linien = await grundlinien();
+  check(linien.length >= 3 && linien.every((r) => r.value.length === 1 && r.value[0] > 0 && r.n.length === 1),
+    'A3 Übersicht: je Kachelreihe liegen alle .kpi-value auf einer Linie und alle .kpi-n ebenfalls (' + linien.map((r) => r.value[0] + '/' + r.n[0]).join(' · ') + ' px)');
+  check(linien.every((r) => r.reihenfolge.every((o) => /^kpi-value>kpi-label>kpi-n/.test(o))),
+    'A3 Übersicht: Reihenfolge Wert · Beschriftung · n · (Streuung) · Delta (' + linien[0].reihenfolge[0] + ')');
   const deltas = await page.$$eval('#view .kpi-delta', (d) => d.map((x) => x.textContent.trim()));
   check(deltas.length >= 5 && deltas.every((t) => /^[▲▼●] [+−]?\d+\.\d pp vs\. /.test(t)), 'Benchmark-Delta je Quoten-Kachel mit Symbol und Vorzeichen (' + deltas.length + ', z. B. «' + deltas[0] + '»)');
   const deltaCells = await page.$$eval('#view td.delta', (t) => t.map((x) => x.textContent.trim()));

@@ -156,16 +156,18 @@ export function renderCollapsible(summaryText, nodes, { open = false, printOpen 
   return el('details', { class: 'fold' + (printOpen ? ' print-open' : ''), open: open ? '' : null }, [el('summary', { text: summaryText })].concat(nodes));
 }
 
-// KPI-Kachel (PROMPT-2 A.4): Label als Glossar-Link (wenn ein Eintrag mit dieser Beschriftung existiert und glossaryHref
-// gegeben ist) plus ⓘ mit der Definition; Wert; n; Differenz zum Benchmark mit Symbol, Vorzeichen und Farbe nach Richtung.
-// Mengen (kind count oder ohne kind) sind kleinere Kacheln ohne Differenz.
+// KPI-Kachel (PROMPT-2 A.4): Wert zuerst, darunter die Beschriftung als Glossar-Link (wenn ein Eintrag mit dieser
+// Beschriftung existiert und glossaryHref gegeben ist) plus ⓘ mit der Definition, darunter n, zuletzt die Differenz zum
+// Benchmark mit Symbol, Vorzeichen und Farbe nach Richtung. Mengen (kind count oder ohne kind) sind kleinere Kacheln ohne Differenz.
+// Der Wert steht oben (Paket A, A3), damit die Werte einer Reihe unabhängig vom Umbruch der Beschriftung auf einer Linie
+// liegen; die Mindesthöhe der Beschriftung (styles.css) richtet zusätzlich n und Delta darunter aus.
 function kpiTile(k, glossaryHref) {
   const isCount = !k.kind || k.kind === 'count';
   const label = glossaryHref && glossaryEntry(k.label) ? el('a', { href: glossaryHref(k.label), text: k.label }) : k.label;
   const d = !isCount && typeof k.delta === 'number' && Number.isFinite(k.delta) ? deltaView(k.delta, k.direction) : null;
   return el('div', { class: 'kpi' + (k.small ? ' small' : '') + (isCount ? ' count' : '') }, [
-    el('div', { class: 'kpi-label' }, [label, k.hint ? infoIcon(k.hint, 'Definition: ') : null]),
     el('div', { class: 'kpi-value', text: k.value }),
+    el('div', { class: 'kpi-label' }, [label, k.hint ? infoIcon(k.hint, 'Definition: ') : null]),
     el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' ' + (k.unit || 'Vorgängen') : 'n = ' + k.n) + (k.small ? ' *' : '') }),
     // Streuung (PROMPT-2 Paket G): Zweitzeile der Ø-Kacheln «σ 9.8 pp · Median 76.0 % (P25 70.0 · P75 84.5)»; Phone nur «σ 9.8 pp» (Entscheid 6)
     k.spread ? el('div', { class: 'kpi-spread' }, [el('span', { class: 'kpi-spread-full', text: k.spread.text }), el('span', { class: 'kpi-spread-short', text: k.spread.short })]) : null,

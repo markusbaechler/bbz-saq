@@ -107,7 +107,7 @@ export const GLOSSARY = [
   },
   {
     kind: 'Begriff', term: 'Offene Vorgänge (Ansicht)',
-    definition: 'Alle Vorgänge mit Status offen – auch solche ohne absolvierte Prüfung – mit fehlendem Teil (schriftlich/mündlich), letzter Prüfung, Tagen seit der letzten Prüfung, nächstem geplanten Termin und Versuchen. Filter Profil, Sprache, Bank, VSS/VSM gelten; Zeitraum und Versuchsmodus nicht.',
+    definition: 'Alle Vorgänge mit Status offen – auch solche ohne absolvierte Prüfung – mit fehlendem Teil (schriftlich/mündlich), letzter Prüfung, Tagen seit der letzten Prüfung, nächstem geplanten Termin und Versuchen. Filter Profil, Sprache, Bank, VSS/VSM und Versuche gelten; der Zeitraum nicht.',
     nenner: '–', grenzfaelle: 'Die Kachel «Vorgänge offen» in der Übersicht zählt nur kennzahlrelevante offene Vorgänge im Filter (inkl. Zeitraum) und kann deshalb kleiner sein.',
   },
   {
