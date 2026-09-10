@@ -7,7 +7,7 @@ import { renderKpis, renderTable, renderExpandableTable, renderCollapsible, sect
 
 export const id = 'geplante-pruefungen';
 export const label = 'Geplante Prüfungen';
-export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = 'Vorgänge'; // Geschwister unter diesem Primärziel (Paket E)
 export const intro = 'Termine in der Zukunft ohne Ergebnis, schriftlich und mündlich, je Tag und Ort mit Teilnehmenden; mit Namen.';
 export const glossar = 'Geplante Prüfung';
 // Wirksamkeit der globalen Filterleiste (Paket A, A1): die Ansicht arbeitet auf ctx.plannedPersons (period: false);

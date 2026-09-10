@@ -8,7 +8,7 @@ import { printPage } from '../export.js';
 
 export const id = 'bank-report';
 export const label = 'Bank-Report';
-export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = null; // eigenes Ziel im Band (Paket E)
 export const intro = 'Kennzahlen einer gewählten Bank gegen den anonymen Benchmark aller Banken; für die Weitergabe an das Institut.';
 export const glossar = 'Bank-Report';
 export const noPersonExport = true; // keine Vorgangsebene (Namen) in dieser Ansicht

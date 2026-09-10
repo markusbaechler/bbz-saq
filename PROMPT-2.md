@@ -249,7 +249,10 @@ bbz sind aktuelle Edge/Chrome; am Zielgerät prüfen]`.
 Schlüssel ohne Geburtsdatum). Der vollständige Text bleibt im `#status`-Element (`aria-live`, Smoke-Test B17); der Einzeiler ist die
 `summary`. Fehlerzähler > 0 mit `--warn`-Farbe.
 
-**Navigation** (B1; `app.js` `VIEWS`, `renderNav()`): jede View erhält `group` `[entscheid 06.09.2026: Gruppierung bestätigt]`:
+**Navigation** (B1; `app.js` `VIEWS`, `renderNav()`): jede View erhält `group` `[entscheid 06.09.2026: Gruppierung bestätigt]`
+`[überholt 11.09.2026, Paket E: zwei Ebenen statt vierzehn gleichrangiger Ziele – neun Primärziele im Band
+(661 statt 1165 px), die Geschwister von «Prüfungen», «Vorgänge» und «Daten» als Reiter im Kopf der Ansicht.
+Die Gruppenbeschriftung im Band entfällt ersatzlos; alle vierzehn Routen bleiben. Siehe README «Ansichten».]`:
 
 | Gruppe | Ansichten (Reihenfolge) |
 |---|---|
@@ -396,7 +399,7 @@ bedienbar (`details/summary`); Chips als Buttons mit `aria-label="Filter Profil 
 
 ### A.12 Entscheide (Stand 06.09.2026)
 
-- Gruppierung der Navigation (A.2): **bestätigt**.
+- Gruppierung der Navigation (A.2): **bestätigt** `[überholt 11.09.2026 durch Paket E: zwei Ebenen, neun Primärziele]`.
 - Jahr als `<select>` statt Buttons (A.2): **bestätigt**; die Alternative «Buttons in einem `details`-Popover» entfällt.
 
 ---

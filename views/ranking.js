@@ -6,7 +6,7 @@ import { SMALL_N } from '../metrics.js';
 
 export const id = 'bestenlisten';
 export const label = 'Bestenlisten';
-export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = null; // eigenes Ziel im Band (Paket E)
 export const intro = 'Top-Listen je Profil für bbz-Award, schriftliche und mündliche Prüfung mit Begründung je Rang; mit Namen, nur intern.';
 export const glossar = 'bbz-Award';
 // Wirksamkeit der Filterleiste (A1/C5): Die Wertung wirkt hier – und nur hier. Sie stand bis Paket C in einer

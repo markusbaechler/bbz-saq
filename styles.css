@@ -199,16 +199,11 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
   display: flex; align-items: center; gap: var(--space-4); flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity;
   padding: 0 var(--space-3); background: var(--panel); border-bottom: 1px solid var(--border);
 }
-.nav-group { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; scroll-snap-align: start; }
-/* C1: Die Gruppenbeschriftung stand über den Links und machte das Band 68 px hoch; sie steht jetzt davor. */
-.nav-group-label { font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
-/* C1/C3: Die Beschriftung steht neben den Links und kostet dadurch Breite statt Höhe. Gemessen brauchen die 14 Links
-   mit Beschriftung 1437 px, ohne 1165 px – sie entfällt deshalb unter 1500 px, damit die Links in einer Reihe bleiben
-   (F.1). Sie ist rein dekorativ (aria-hidden); die Gruppe bleibt über role="group" mit aria-label angesagt, und der
-   Abstand zwischen den Gruppen trennt sie weiterhin sichtbar. Unter 1200 px reicht auch das nicht: dann scrollt das
-   Band horizontal – eine zweite Leiste kommt nicht in Frage (F.1). */
-@media (max-width: 1499px) { .nav-group-label { display: none; } }
-.nav-links { display: flex; gap: var(--space-1); }
+/* Paket E: Das Band trägt neun Primärziele statt vierzehn gleichrangiger Links – gemessen 659 statt 1165 px, damit
+   passt es ab 1100 px ohne Scroll. Gruppenbeschriftungen entfallen ersatzlos (sie ordneten eine flache Reihe, ohne sie
+   zu entlasten) und mit ihnen die 1500-px-Schwelle aus C1/C3. Die Geschwister eines gefassten Ziels stehen als Reiter
+   im Kopf der Ansicht, nie in einer zweiten Leiste. */
+.nav-links { display: flex; gap: var(--space-1); flex: 0 0 auto; scroll-snap-align: start; }
 .views a { padding: var(--space-1) var(--space-1); font-size: var(--fs-sm); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
 .views a:hover { background: var(--hover); }
 .views a.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
@@ -395,6 +390,14 @@ th.sortable.active button { color: var(--accent); }
 .view { flex: 1; padding: 1rem 1.25rem 2rem; background: var(--panel); margin: var(--space-4) 1.25rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); }
 
 /* View-Kopf (PROMPT-2 A.3): Titel und Kurzbeschreibung links, rechts Export-Menü und «Definitionen» */
+/* Paket E: Reiter der Geschwister auf der Titelzeile. Sie kosten keine Höhe – gemessen bleibt der Kopf 53 px – und
+   markieren die offene Ansicht mit Farbe und Wort (aria-current), nicht mit Farbe allein. */
+.view-titelzeile { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.view-tabs { display: flex; gap: var(--space-1); }
+.view-tabs a { padding: var(--space-1) var(--space-2); font-size: var(--fs-sm); color: var(--text); text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+.view-tabs a:hover { background: var(--hover); }
+.view-tabs a.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
+@media print { .view-tabs { display: none !important; } }
 .view-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-3); }
 .view-intro { color: var(--muted); margin: var(--space-1) 0 0; max-width: 60rem; }
 .view-actions { display: flex; align-items: center; gap: var(--space-3); }
@@ -629,7 +632,7 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .view { margin: var(--space-2) 0 var(--space-4); border-left: none; border-right: none; border-radius: 0; }
   /* B.2: Navigation als Auswahlfeld, Filter als Drawer, Kopf kompakt */
   .nav-select { display: block; width: 100%; }
-  .nav-group { display: none; }
+  .nav-links { display: none; }
   .views { overflow: visible; padding-bottom: var(--space-2); }
   .filterbar { position: static; padding: 0 var(--space-3) var(--space-2); }
   .filter-drawer > summary {

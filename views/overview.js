@@ -6,7 +6,7 @@ import { BENCHMARKS, benchmarkFilter, DEFAULT_FILTER } from '../metrics.js';
 
 export const id = 'uebersicht';
 export const label = 'Übersicht';
-export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = null; // eigenes Ziel im Band (Paket E)
 export const intro = 'Kennzahlen der Vorgänge mit absolviertem schriftlichem Run im Filter; Quoten auf abgeschlossene Vorgänge, Personen zählen Menschen.';
 export const glossar = 'Kennzahlrelevant (Grundgesamtheit)'; // Ziel des Links «Definitionen»
 // Wirksamkeit der Filterleiste (A1/C5): Der Benchmark wirkt hier; er stand bis Paket C in einer Werkzeugleiste dieser

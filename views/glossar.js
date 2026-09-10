@@ -5,7 +5,7 @@ import { renderTable, section, hinted } from './common.js';
 
 export const id = 'glossar';
 export const label = 'Glossar';
-export const group = 'Daten'; // Navigationsgruppe (PROMPT-2 A.2)
+export const group = 'Daten'; // Geschwister unter diesem Primärziel (Paket E)
 export const intro = 'Verbindliche Definitionen aller Begriffe und Kennzahlen des Cockpits, identisch mit README.md.';
 export const isStatic = true;
 // Wirksamkeit der globalen Filterleiste (Paket A, A1): statische Ansicht ohne Daten – die Leiste entfällt ganz.

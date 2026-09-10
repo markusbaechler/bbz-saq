@@ -17,26 +17,34 @@ import * as experten from '../views/experten.js';
 import * as glossar from '../views/glossar.js';
 
 export const VIEW_MODULES = { overview, written, oral, vssVsm, zeitverlauf, historie, ranking, bankReport, offen, planned, personen, experten, glossar };
-const GROUPS = ['Kennzahlen', 'Personen', 'Experten', 'Daten'];
+// Paket E: Die Navigation hat zwei Ebenen. `group` nennt das Primärziel, unter dem eine Ansicht als Geschwister steht;
+// `null` heisst «eigenes Ziel im Band». Die Reihenfolge des Bands steht in app.js (NAV_PRIMAER) – hier steht, was jede
+// Ansicht über sich selbst sagt.
+const GRUPPEN = ['Prüfungen', 'Vorgänge', 'Daten'];
+
 // Felder der globalen Filterleiste. «wertung» und «benchmark» stehen seit Paket C (C5) ebenfalls darin; sie gelten
 // nur in wenigen Ansichten und sind deshalb ohne ausdrückliche Angabe abgeschaltet (app.js, FILTER_DEFAULT_AUS).
 const FILTER_KEYS = ['jahr', 'von', 'bis', 'profil', 'sprache', 'bank', 'vssVsm', 'versuche', 'zertifikate', 'wertung', 'benchmark'];
 const FILTER_STANDARD_AUS = ['wertung', 'benchmark'];
 
-test('views: jede View hat id, label und eine der vier Navigationsgruppen (A.2)', () => {
+test('views: jede View hat id, label und ein Primärziel – Gruppe oder eigenes Ziel (Paket E)', () => {
   for (const [name, v] of Object.entries(VIEW_MODULES)) {
     assert(typeof v.id === 'string' && v.id && typeof v.label === 'string' && v.label, name + ': id/label');
-    assert(GROUPS.includes(v.group), name + ': Gruppe «' + v.group + '»');
+    assert(v.group === null || GRUPPEN.includes(v.group), name + ': Gruppe «' + v.group + '»');
   }
   assertEqual(new Set(Object.values(VIEW_MODULES).map((v) => v.id)).size, Object.keys(VIEW_MODULES).length, 'ids eindeutig');
-  assertEqual(overview.group, 'Kennzahlen');
-  assertEqual(bankReport.group, 'Kennzahlen');
-  assertEqual(offen.group, 'Personen');
-  assertEqual(personen.group, 'Personen');
-  assertEqual(experten.group, 'Experten');
-  assertEqual(ranking.group, 'Personen');
+  // Gefasst wird nur, was dieselbe Frage in Teilen beantwortet
+  assertEqual(written.group, 'Prüfungen');
+  assertEqual(oral.group, 'Prüfungen');
+  assertEqual(vssVsm.group, 'Prüfungen');
+  assertEqual(offen.group, 'Vorgänge');
+  assertEqual(planned.group, 'Vorgänge');
   assertEqual(historie.group, 'Daten');
   assertEqual(glossar.group, 'Daten');
+  // Eigene Ziele im Band
+  for (const v of [overview, zeitverlauf, personen, ranking, experten, bankReport]) assertEqual(v.group, null, v.id);
+  // Eine Gruppe mit einer einzigen Ansicht wäre eine Beschriftung ohne Funktion
+  for (const g of GRUPPEN) assert(Object.values(VIEW_MODULES).filter((v) => v.group === g).length >= 2, 'Gruppe «' + g + '» braucht mindestens zwei Ansichten');
 });
 
 test('views: Kurzbeschreibung (intro) mit höchstens 160 Zeichen und Glossar-Begriff für «Definitionen» (A.3)', () => {

@@ -26,14 +26,21 @@ die Ausgangs-URL (`navigateToLoginRequestUrl: false`). Hotfix vom 07.09.2026, Fe
 
 ## Ansichten
 
-Die Navigation steht **an einer Stelle** und ist in vier Gruppen gegliedert: **Kennzahlen** (Übersicht, Schriftlich,
-Mündlich, VSS/VSM, Zeitverlauf, Bank-Report), **Personen** (Personen, Offene Vorgänge, Geplante Prüfungen,
-Bestenlisten), **Experten** und **Daten** (Historie, Datenqualität, Glossar). Alle drei Erscheinungsformen – Links,
-Gruppierung und das Auswahlfeld auf dem Phone – entstehen in `renderNav()` aus **einer Deklaration** (`NAV_GROUPS` in
-`app.js` und der `group`-Export je Ansicht); eine spätere Umgruppierung ist damit eine Datenänderung, keine
-Strukturänderung. Gemessen brauchen die 14 Links mit Gruppenbeschriftung 1437 px, ohne 1165 px: Die Beschriftung
-entfällt deshalb unter 1500 px, ab 1200 px passt das Band ohne Scroll. Darunter scrollt es horizontal und die aktive
-Ansicht wird eingescrollt – eine zweite Leiste gibt es nicht (F.1). Die frühere Sekundärnavigation im Kopf ist
+Die Navigation hat **zwei Ebenen** (Paket E). Das Band trägt **neun Primärziele**: Übersicht · **Prüfungen** ·
+Zeitverlauf · **Vorgänge** · Personen · Bestenlisten · Experten · Bank-Report · **Daten**. Drei davon fassen
+Geschwister zusammen, die dieselbe Frage in Teilen beantworten – Prüfungen (Schriftlich, Mündlich, VSS/VSM),
+Vorgänge (Offene Vorgänge, Geplante Prüfungen) und Daten (Historie, Datenqualität, Glossar). Die Geschwister stehen
+als **Reiter neben dem Titel** der Ansicht, nicht in einer zweiten Leiste; sie kosten keine Höhe (der View-Kopf bleibt
+57 px). **Alle vierzehn Routen bleiben unverändert** – `#schriftlich` bleibt `#schriftlich`, Lesezeichen und die Wege
+der Signale gelten weiter; das Band markiert das Primärziel, der Reiter die offene Ansicht (beide `aria-current`).
+
+Warum: Vierzehn gleichrangige Links brauchten 1165 px und scrollten unter 1200 px. Gruppieren änderte daran nichts –
+gemessen 1153–1165 px in jeder geprüften Gruppierung, weil eine Gruppenbeschriftung eine flache Reihe ordnet, aber
+nicht entlastet. **Neun Primärziele brauchen 661 px** und passen ab 1000 px ohne Scroll; die Gruppenbeschriftung und
+ihre 1500-px-Schwelle sind ersatzlos entfallen. Alle drei Erscheinungsformen – Band, Reiter und das Auswahlfeld auf dem
+Phone (weiterhin alle vierzehn Ansichten, gefasste Ziele als `optgroup`) – entstehen aus **einer Deklaration**
+(`NAV_PRIMAER` in `app.js` und der `group`-Export je Ansicht: der Name des Primärziels oder `null` für ein eigenes
+Ziel). Eine Umgruppierung bleibt damit eine Datenänderung. Die frühere Sekundärnavigation im Kopf ist
 entfallen (Paket C). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
 Menü «Export» und der Link «Definitionen», der die passende Zeile im Glossar fokussiert. Erklärungen und Fussnoten der
 Tabellen stehen gesammelt in der Legende «Hinweise und Definitionen» am Ende jeder Ansicht (im Druck geöffnet) und als ⓘ
@@ -117,7 +124,7 @@ erst ab 1900 px (Full HD). Kopfzellen brechen um, Zahlen nicht (Paket F).
 
 **Mobile:** Phone bis 600 px, Tablet 601–900 px, darüber Desktop; der Druck behält immer das Desktop-Layout. Auf dem
 Phone gilt: Grundschrift 16 px, Touch-Ziele mindestens 44 px, nie horizontaler Seitenscroll (nur Tabellen scrollen in
-ihrem Rahmen). Die Navigation ist ein Auswahlfeld mit den vier Gruppen, die Filter liegen in einem Drawer «Filter
+ihrem Rahmen). Die Navigation ist ein Auswahlfeld mit allen vierzehn Ansichten (gefasste Ziele als Gruppe), die Filter liegen in einem Drawer «Filter
 (n aktiv) · n Vorgänge · n Personen» mit Chips darunter, der Datenstand ist ein Einzeiler mit den Lade-Aktionen «Neu laden · Lokale Datei» im aufgeklappten Zustand (die
 Datenleiste zeigt auf dem Phone keine Knöpfe, vor dem Laden ist die Leerzustand-Karte der einzige Aufruf), das Konto ein
 Initialen-Button mit «Abmelden». Tabellen zeigen nur Spalten der Priorität 1 (Tablet und Desktop bis 1200 px: 1 und 2);
