@@ -557,6 +557,8 @@ Statusfarbe je Schritt (A.1), Passerelle-Kennzeichen aus `passerelleFrom()`, feh
 
 - Globale Filter Profil, Sprache, Bank, VSS/VSM und Zertifikate schränken die **Trefferliste** ein; das Detail zeigt **immer alle** Vorgänge
   der Person. Zeitraum, Versuche und Wertung wirken nicht `[entscheid: vor Start, Frage 2]`; Hinweis unter dem Suchfeld.
+  *(Überholt durch Paket A, A1: Die Felder sind in der Filterleiste deaktiviert und tragen den Grund als Tooltip; der erklärende
+  Nebensatz unter dem Suchfeld ist entfallen. Die Aussage selbst bleibt richtig.)*
 - Suchtext und gewählte Person liegen in `store.ui.personen = { query, selectedKey }` (Memory), werden in `urlState.js` **nicht serialisiert**
   (wie `snapshots`; `DEFAULT_UI.personen = null`); Test in `tests/urlState.test.js`: `serializeState()` enthält nie `personen`. Kein Deep-Link auf
   eine Person (README: «Die URL enthält nie Personendaten»).
@@ -706,6 +708,8 @@ Formeln in `metrics.js` als reine Funktionen: `expertRuns(persons, { from, to })
 
 Profil, Sprache, Bank, VSS/VSM, Zertifikate wirken über die Vorgänge. **Zeitraum wirkt auf das Run-Datum des Einsatzes** (nicht auf das
 Referenzdatum des Vorgangs), damit «2025» die Einsätze des Jahres 2025 zeigt. Versuche-Filter und Wertung wirken nicht (Hinweis in der Ansicht).
+*(Überholt durch Paket A, A1: «Versuche» ist in der Filterleiste deaktiviert und trägt den Grund als Tooltip; der Zeitraum bleibt aktiv und
+trägt einen sichtbaren Hinweis auf das Run-Datum. Die Aussage selbst bleibt richtig.)*
 Umsetzung: `filterPersons(state.persons, filter, { period: false })` → `expertRuns(persons, { from: filter.from, to: filter.to })`.
 
 ### D.7 Schritte

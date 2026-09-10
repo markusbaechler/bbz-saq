@@ -1,5 +1,5 @@
 // views/offen.js – Ansicht «Offene Vorgänge» (E4): Zertifizierungsprozesse, die noch laufen. Hier erscheinen Namen
-// (Auftraggeber: Nutzerkreis bbz-intern, E5). Filter Profil, Sprache, Bank, VSS/VSM gelten; Zeitraum und Versuchsmodus nicht.
+// (Auftraggeber: Nutzerkreis bbz-intern, E5). Filter Profil, Sprache, Bank, VSS/VSM und Versuche gelten; der Zeitraum nicht.
 
 import { openCasesTables, earlyWarningTable, passiveTable, profilePartsTable } from './tables.js';
 import { renderKpis, renderTable, section, hinted } from './common.js';
