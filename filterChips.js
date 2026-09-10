@@ -1,6 +1,7 @@
 // filterChips.js – aktive Filter als Chips (reine Funktionen, kein DOM; PROMPT-2 A.2). Ein Chip je Einschränkung gegenüber
 // DEFAULT_FILTER; reset = Teilzustand für store.setFilter(), der genau diesen Chip entfernt. Die Wertung (nur Bestenlisten)
-// ist nie ein Chip. Beschriftungen wie die Optionen der Auswahlfelder in app.js.
+// ist nie ein Chip. Die Chips tragen die ausgeschriebene Form («Ohne VSS/VSM», «Mehrere Versuche»): Sie stehen ohne
+// Feldbeschriftung, während die Optionen der Auswahlfelder sie neben sich haben (Paket D, D0).
 
 import { DEFAULT_FILTER } from './metrics.js';
 import { fmtDate } from './export.js';

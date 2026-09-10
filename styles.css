@@ -143,7 +143,13 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .subtitle { color: var(--muted); font-size: .85rem; white-space: nowrap; }
 /* Datenstand und Status teilen sich die Mitte der Kopfzeile und dürfen sie nicht verbreitern */
 .app-header .datastand, .app-header .status { flex: 1 1 8rem; min-width: 0; font-size: var(--fs-sm); }
-.app-header .datastand > summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* D0: Der Fehlerzähler schrumpft nie – er ist die Kennzahl im Kopf. Gekürzt wird der Mittelteil; unter 1500 bzw.
+   1200 px entfallen zuerst die Ladezeit, dann das Änderungsdatum, statt den Zähler abzuschneiden. */
+.app-header .datastand > summary { display: flex; align-items: baseline; gap: var(--space-2); white-space: nowrap; }
+.datastand-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.datastand-dq { flex: 0 0 auto; }
+@media (max-width: 1499px) { .datastand-geladen { display: none; } }
+@media (max-width: 1199px) { .datastand-geaendert { display: none; } }
 /* Aufgeklappt legt sich der Datenstand über den Inhalt, statt die Kopfzeile aufzublähen */
 .app-header .datastand[open] { position: relative; }
 .app-header .datastand[open] > :not(summary) {
@@ -237,10 +243,37 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 /* C5: Elf Steuerelemente passen bei 1400 px nur in eine Zeile, wenn keines mehr Platz nimmt als es braucht.
    Der Benchmark-Wert «Gesamt (nur Zeitraum)» und die Wertung würden sie sonst sprengen. */
 .filterbar label[data-field="benchmark"] > select, .filterbar label[data-field="wertung"] > select { max-width: 8.5rem; }
-.filterbar label > input[type="date"] { max-width: 7.5rem; }
+.filterbar label > input[type="date"] { max-width: 6.5rem; } /* D0: «dd.mm.yyyy» plus Kalendersymbol brauchen 105 px */
 .filter-controls { gap: var(--space-1) var(--space-2); }
 /* C5: Wo der Benchmark gewählt wurde, steht jetzt nur noch, was er bewirkt */
 .benchmark-bar { color: var(--muted); font-size: var(--fs-sm); margin: 0 0 var(--space-2); }
+
+/* Signale (Paket D, D2): erster Inhalt der Übersicht. Höhenbudget 300 px bei sechs Signalen, damit die erste
+   Mengen-Kachel über y = 700 bleibt – deshalb je Signal zwei Zeilen und keine Karten. Farbe trägt nie allein:
+   Rang und Stufenwort stehen immer daneben, die Farbe kommt nur dazu. Keine neuen Tokens. */
+.signale { margin-bottom: var(--space-4); }
+.signale-kopf { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.signale-meta { color: var(--muted); font-size: var(--fs-sm); }
+.signale-mehr { margin-left: auto; font-size: var(--fs-sm); }
+.signal-liste { list-style: none; margin: var(--space-2) 0 0; padding: 0; }
+.signal { display: grid; grid-template-columns: 1.5rem max-content 1fr max-content; gap: 0 var(--space-2); align-items: baseline; padding: .15rem 0; border-top: 1px solid var(--border); }
+.signal:first-child { border-top: none; }
+.signal-rang { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.signal-stufe { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+.signal-titel { font-weight: 600; min-width: 0; overflow-wrap: break-word; }
+.signal-detail { grid-column: 3 / -1; margin: 0 0 .15rem; color: var(--muted); font-size: var(--fs-sm); }
+.signal-weg { white-space: nowrap; font-size: var(--fs-sm); }
+/* Phone: Stufenwort und Weg brauchen zusammen mehr Breite, als neben dem Titel bleibt (gemessen: fixe Teile 283 von
+   366 px, in der CI mit breiteren Schriften 34 px zu viel). Der Weg rückt deshalb in eine eigene Zeile. */
+@media screen and (max-width: 600px) {
+  .signal { grid-template-columns: 1.5rem max-content 1fr; }
+  .signal-weg { grid-column: 2 / -1; justify-self: start; }
+}
+.stufe-kritisch .signal-stufe { color: var(--danger); }
+.stufe-beachten .signal-stufe { color: var(--warn); }
+.stufe-guenstig .signal-stufe { color: var(--ok); }
+.signale-ruhig .empty { margin: var(--space-2) 0 0; }
+.signale-geprueft { margin: var(--space-1) 0 0; padding-left: 1.2rem; color: var(--muted); font-size: var(--fs-sm); }
 /* Paket A (A1): Felder, die die aktive Ansicht nicht auswertet – gestrichelter Rahmen, gedämpfte Farbe, Grund als title.
    Der gesetzte Wert bleibt erhalten und wirkt wieder, sobald eine Ansicht ihn auswertet. */
 .filterbar label.inactive { color: var(--muted); opacity: .65; border: 1px dashed var(--border); border-radius: var(--radius); padding: .1rem .3rem; margin: -1px -.3rem; }

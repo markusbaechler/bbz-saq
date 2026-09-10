@@ -1172,3 +1172,172 @@ export function modelComparison(allRows) {
     byProfil: oldGroups.map((g) => row(g.key, g.persons, newGroups.get(g.key) || [])),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Signale (Paket D, B-06): sechs Regeln über den vorhandenen Kennzahlen.
+// Reine Funktionen – keine Farben, kein DOM, kein Markup. Ein Signal ist ein Datensatz; die Ansicht übersetzt ihn.
+// Es entsteht keine neue Kennzahl: Die Regeln lesen writtenPassRates, timeSeries, statusCounts und earlyWarnings.
+//
+// Sechs Vorgaben, die diese Engine einhält:
+// 1. Sortiert wird nach GEWICHT, nicht nach Stufe. Das Gewicht hat überall dieselbe Einheit: betroffene Vorgänge.
+//    Ein Abstand von 9 pp bei n = 302 wiegt mehr als 10.6 pp bei n = 80 – genau das soll die Reihenfolge zeigen.
+// 2. Jedes Signal nennt seine eigene Schwelle. Ein Signal, das nicht sagt, warum es da ist, ist eine Behauptung –
+//    und die Liste wird dadurch prüfbar, ohne in den Code zu sehen.
+// 3. Jedes Signal trägt eine Zahl und einen Weg.
+// 4. Die Wege sind Daten: { kind: 'view', view } oder { kind: 'filter', patch }. metrics.js kennt weder app.js noch
+//    den Router; die Ansicht übersetzt.
+// 5. Gerechnet wird auf der übergebenen (gefilterten) Menge – ein Signal über KMU, während KMU herausgefiltert ist,
+//    wäre falsch.
+// 6. Kein Signal unter SMALL_N; je Profil gilt dieselbe Mindestgrösse.
+// ---------------------------------------------------------------------------
+
+export const SIGNAL_JAHRE_MIN_N = 20;     // ein Jahr zählt für den Trend erst ab dieser Grösse
+export const SIGNAL_JAHRE_MIN = 4;        // so viele solche Jahre braucht ein Trend
+export const SIGNAL_ABFALL_PP = 8;        // ab diesem Abfall in Prozentpunkten feuert der Trend
+export const SIGNAL_PASSIV_ANTEIL = 0.10; // Anteil passiver an offenen Vorgängen
+
+const signalPp = (v) => Math.round(v * 10) / 10; // Prozentpunkte, eine Dezimale
+
+// Wie viele Vorgänge stehen hinter einem Abstand von d Prozentpunkten bei n Vorgängen?
+export function betroffeneVorgaenge(diffPp, n) {
+  return Math.round((n * Math.abs(diffPp)) / 100);
+}
+
+// Regel 1 «Jahrestrend» (kritisch): schriftlich im 1. Versuch bestanden, erstes gegen letztes auswertbares Jahr
+function regelJahrestrend(persons) {
+  const jahre = timeSeries(persons).filter((j) => j.n >= SIGNAL_JAHRE_MIN_N && isNum(j.written.erstversuch.pct));
+  if (jahre.length < SIGNAL_JAHRE_MIN) return null;
+  const erst = jahre[0];
+  const letzt = jahre[jahre.length - 1];
+  const abfall = signalPp((erst.written.erstversuch.pct - letzt.written.erstversuch.pct) * 100);
+  if (abfall < SIGNAL_ABFALL_PP) return null;
+  const auswertbar = jahre.reduce((a, j) => a + j.written.erstversuch.n, 0);
+  return {
+    id: 'jahrestrend',
+    stufe: 'kritisch',
+    gewicht: (abfall * auswertbar) / 100,
+    titel: 'Schriftliche Erstversuchsquote fällt seit ' + erst.year,
+    detail: 'Von ' + formatPct(erst.written.erstversuch.pct) + ' (' + erst.year + ') auf ' + formatPct(letzt.written.erstversuch.pct)
+      + ' (' + letzt.year + '), also ' + abfall + ' pp über ' + jahre.length + ' Jahre mit je mindestens '
+      + SIGNAL_JAHRE_MIN_N + ' Vorgängen; ' + auswertbar + ' auswertbare Vorgänge.',
+    schwelle: 'Schwelle: ab ' + SIGNAL_ABFALL_PP + ' pp Abfall, bei mindestens ' + SIGNAL_JAHRE_MIN + ' Jahren mit je n ≥ ' + SIGNAL_JAHRE_MIN_N,
+    weg: { kind: 'view', view: 'zeitverlauf' },
+    wegText: 'Zeitverlauf öffnen',
+  };
+}
+
+// Regeln 2 und 6 «Profil unter / über dem Gesamtwert»: 95-%-Wilson-Intervall des Profils gegen den Gesamtwert.
+// Grundmenge ist der Nenner der Erstversuchsquote – Vorgänge ohne auswertbaren RUN1 zählen dort nicht mit.
+function regelnProfilAbstand(persons) {
+  const gesamt = writtenPassRates(persons).erstversuch;
+  if (!isNum(gesamt.pct)) return [];
+  const out = [];
+  for (const gruppe of groupBy(persons, 'profil')) {
+    if (gruppe.key === null) continue;
+    const quote = writtenPassRates(gruppe.persons).erstversuch;
+    if (!isNum(quote.pct) || quote.n < SMALL_N) continue;
+    const iv = wilsonInterval(quote.count, quote.n);
+    if (iv.low === null) continue;
+    if (gesamt.pct >= iv.low && gesamt.pct <= iv.high) continue; // Intervall enthält den Gesamtwert
+    const diff = signalPp((quote.pct - gesamt.pct) * 100);
+    const unten = diff < 0;
+    const betroffen = betroffeneVorgaenge(diff, quote.n);
+    out.push({
+      id: (unten ? 'profil-unter-' : 'profil-ueber-') + gruppe.key,
+      stufe: unten ? 'kritisch' : 'guenstig',
+      gewicht: unten ? (Math.abs(diff) * quote.n) / 100 : -1,
+      titel: gruppe.key + (unten ? ' liegt unter dem Gesamtwert' : ' liegt über dem Gesamtwert'),
+      detail: formatPct(quote.pct) + ' gegen ' + formatPct(gesamt.pct) + ' gesamt, n = ' + quote.n
+        + ', Wilson-Halbbreite ±' + signalPp(iv.half * 100) + ' pp – das sind ' + betroffen + ' Vorgänge'
+        + (unten ? '.' : ', kein Handlungsbedarf.'),
+      schwelle: 'Schwelle: das 95-%-Wilson-Intervall des Profils enthält den Gesamtwert nicht',
+      weg: { kind: 'filter', patch: { profil: [gruppe.key] } },
+      wegText: 'Auf ' + gruppe.key + ' filtern',
+    });
+  }
+  return out;
+}
+
+// Regel 3 «Data-Quality-Fehler» (beachten): zählt nicht, sondern ordnet ein – was betroffen ist und was dadurch fehlt
+function regelDatenqualitaet(persons, dq) {
+  const fehler = (dq || []).filter((e) => e && e.level === 'fehler');
+  if (!fehler.length) return null;
+  const imFilter = new Set(persons.map((p) => p.sheetName + '|' + p.row));
+  const betroffen = new Set(fehler.map((e) => e.sheet + '|' + e.row).filter((k) => imFilter.has(k)));
+  const ohneErstversuch = persons.filter((p) => betroffen.has(p.sheetName + '|' + p.row) && firstAttemptPassed(p) === null).length;
+  const haeufig = [...fehler.reduce((m, e) => m.set(e.header || '(ohne Header)', (m.get(e.header || '(ohne Header)') || 0) + 1), new Map())]
+    .sort((a, b) => b[1] - a[1]).slice(0, 3).map(([h, n]) => h + ' (' + n + ')');
+  return {
+    id: 'datenqualitaet',
+    stufe: 'beachten',
+    gewicht: 0.6,
+    titel: fehler.length + ' Fehler im Data-Quality-Log',
+    detail: 'Betroffen: ' + haeufig.join(', ') + '. Im aktiven Filter ' + betroffen.size + ' Vorgänge, davon '
+      + ohneErstversuch + ' ohne auswertbaren schriftlichen Erstversuch.',
+    schwelle: 'Schwelle: mehr als 0 Fehler',
+    weg: { kind: 'view', view: 'datenqualitaet' },
+    wegText: 'Data-Quality-Log öffnen',
+  };
+}
+
+// Regel 4 «Passive offene Vorgänge» (beachten)
+function regelPassiv(persons) {
+  const st = statusCounts(persons);
+  if (!st.offen) return null;
+  const anteil = st.passiv / st.offen;
+  if (anteil <= SIGNAL_PASSIV_ANTEIL) return null;
+  return {
+    id: 'passiv',
+    stufe: 'beachten',
+    gewicht: 0.9,
+    titel: st.passiv + ' von ' + st.offen + ' offenen Vorgängen sind passiv',
+    detail: formatPct(anteil) + ' der offenen Vorgänge: letzte Prüfung vor mehr als ' + PASSIVE_DAYS
+      + ' Tagen und kein Termin gesetzt.',
+    schwelle: 'Schwelle: über ' + Math.round(SIGNAL_PASSIV_ANTEIL * 100) + ' %',
+    weg: { kind: 'view', view: 'offene-vorgaenge' },
+    wegText: 'Offene Vorgänge öffnen',
+  };
+}
+
+// Regel 5 «Vor dem letzten Versuch» (beachten): zwei mündliche Fehlversuche, der nächste Versuch entscheidet
+function regelLetzterVersuch(persons) {
+  const faelle = earlyWarnings(persons).filter((w) => w.kind === 'oe' && w.stage === 'letzter Versuch');
+  if (!faelle.length) return null;
+  return {
+    id: 'letzter-versuch',
+    stufe: 'beachten',
+    gewicht: 0.8,
+    titel: faelle.length + (faelle.length === 1 ? ' Vorgang vor dem letzten Versuch' : ' Vorgänge vor dem letzten Versuch'),
+    detail: 'Zwei mündliche Fehlversuche; der nächste Versuch entscheidet.',
+    schwelle: 'Schwelle: mehr als 0 Vorgänge',
+    weg: { kind: 'view', view: 'offene-vorgaenge' },
+    wegText: 'Frühwarnung öffnen',
+  };
+}
+
+// Was geprüft wird – auch dann zu nennen, wenn nichts feuert: Ein verschwindender Block ist von einem kaputten nicht
+// zu unterscheiden.
+export const SIGNAL_REGELN = Object.freeze([
+  { id: 'jahrestrend', titel: 'Jahrestrend der schriftlichen Erstversuchsquote' },
+  { id: 'profil-abstand', titel: 'Profile gegen den Gesamtwert (Wilson, 95 %)' },
+  { id: 'datenqualitaet', titel: 'Fehler im Data-Quality-Log' },
+  { id: 'passiv', titel: 'Passive offene Vorgänge' },
+  { id: 'letzter-versuch', titel: 'Vorgänge vor dem letzten mündlichen Versuch' },
+]);
+
+// signals(persons, { dq }) → { signale, geprueft, n, zuKlein }
+// signale: nach Gewicht absteigend. Günstige Signale tragen Gewicht −1 und stehen damit immer zuletzt.
+export function signals(persons, { dq = [] } = {}) {
+  const menge = eligible(persons);
+  if (menge.length < SMALL_N) return { signale: [], geprueft: SIGNAL_REGELN, n: menge.length, zuKlein: true };
+  const signale = [
+    regelJahrestrend(menge),
+    ...regelnProfilAbstand(menge),
+    regelDatenqualitaet(menge, dq),
+    regelPassiv(menge),
+    regelLetzterVersuch(menge),
+  ].filter(Boolean);
+  // Nach Wirkung, nicht nach Stufe; bei gleichem Gewicht stabil nach Kennung
+  signale.sort((a, b) => b.gewicht - a.gewicht || a.id.localeCompare(b.id, 'de'));
+  return { signale, geprueft: SIGNAL_REGELN, n: menge.length, zuKlein: false };
+}

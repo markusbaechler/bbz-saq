@@ -4,6 +4,7 @@
 import { downloadCsv, downloadXlsx, exportFileName, printPage, tablesToCsv } from '../export.js';
 import { numericColumns, deltaView, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, sortTableRows } from './tables.js';
 import { glossaryEntry, glossarySlug } from '../glossary.js';
+import { SMALL_N } from '../metrics.js';
 
 export function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -434,4 +435,66 @@ export function renderExportMenu({ viewId, tables, headerLines, extra = null, la
   }
   menu.append(el('summary', { text: label }), el('div', { class: 'menu-list', role: 'group', 'aria-label': label }, items));
   return menu;
+}
+
+// Signalblock (Paket D, D2): erster Inhalt der Übersicht, über «Mengen». Er beantwortet «worauf schaue ich heute» –
+// das gehört nicht unter zwölf Kacheln. Farbe trägt nie allein: Rang und Stufenwort stehen immer daneben.
+// Der Block verschwindet nie: Feuert keine Regel, nennt er, was geprüft wurde und ruhig blieb – ein verschwindender
+// Block ist von einem kaputten nicht zu unterscheiden.
+// Höhenbudget (gemessen bei 1400 × 900, sechs Signale): sechs offene Zeilen ergaben 339 px und die erste Mengen-Kachel
+// bei y = 699 – zu knapp. Offen bleiben deshalb die drei schwersten; die übrigen Detailzeilen bleiben im DOM und sind
+// über einen Schalter im Kopf erreichbar. Weggelassen wird nichts: Zahl und Schwelle jedes Signals sind einen Klick weit.
+const STUFE_WORT = { kritisch: 'kritisch', beachten: 'beachten', guenstig: 'günstig' };
+export const SIGNAL_DETAILS_OFFEN = 3; // gemessen, nicht geschätzt – siehe Kommentar oben
+
+function signalZeile(s, rang, onWeg, detailOffen) {
+  return el('li', { class: 'signal stufe-' + s.stufe }, [
+    el('span', { class: 'signal-rang', text: String(rang) }),
+    el('span', { class: 'signal-stufe', text: STUFE_WORT[s.stufe] || s.stufe }),
+    el('span', { class: 'signal-titel', text: s.titel }),
+    onWeg ? el('button', { type: 'button', class: 'linklike signal-weg', text: s.wegText, onclick: () => onWeg(s.weg) }) : null,
+    el('p', {
+      class: 'signal-detail',
+      text: s.detail + ' ' + s.schwelle + '.',
+      hidden: !detailOffen,
+      'data-zusatz': detailOffen ? null : 'true',
+    }),
+  ]);
+}
+
+export function signalBlock(ergebnis, { onWeg = null, filterKurz = 'kein Filter' } = {}) {
+  const liste = (ergebnis && ergebnis.signale) || [];
+  const offen = liste.filter((s) => s.stufe !== 'guenstig').length;
+  const grundlage = 'gerechnet auf ' + ((ergebnis && ergebnis.n) || 0) + ' Vorgängen · ' + filterKurz;
+  const kopf = el('div', { class: 'signale-kopf' }, [
+    el('h3', { text: 'Signale' }),
+    el('span', { class: 'signale-meta', text: liste.length
+      ? offen + ' offen · nach Wirkung sortiert · ' + grundlage
+      : 'nichts Auffälliges · ' + grundlage }),
+  ]);
+  const inhalt = liste.length
+    ? el('ol', { class: 'signal-liste' }, liste.map((s, i) => signalZeile(s, i + 1, onWeg, i < SIGNAL_DETAILS_OFFEN)))
+    : el('div', { class: 'signale-ruhig' }, [
+      el('p', { class: 'empty', text: (ergebnis && ergebnis.zuKlein)
+        ? 'Zu wenige Vorgänge im Filter für Signale (Mindestgruppengrösse ' + SMALL_N + ').'
+        : 'Keine Regel hat ausgelöst. Geprüft wurde:' }),
+      el('ul', { class: 'signale-geprueft' }, ((ergebnis && ergebnis.geprueft) || []).map((r) => el('li', { text: r.titel }))),
+    ]);
+  const block = el('section', { class: 'block signale', 'aria-label': 'Signale' }, [kopf, inhalt]);
+  if (liste.length > SIGNAL_DETAILS_OFFEN) {
+    const schalter = el('button', {
+      type: 'button',
+      class: 'linklike signale-mehr',
+      text: 'Alle Details zeigen',
+      'aria-expanded': 'false',
+      onclick: () => {
+        const zeigen = schalter.getAttribute('aria-expanded') === 'false';
+        for (const p of block.querySelectorAll('.signal-detail[data-zusatz="true"]')) p.hidden = !zeigen;
+        schalter.setAttribute('aria-expanded', zeigen ? 'true' : 'false');
+        schalter.textContent = zeigen ? 'Details einklappen' : 'Alle Details zeigen';
+      },
+    });
+    kopf.appendChild(schalter);
+  }
+  return block;
 }

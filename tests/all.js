@@ -15,6 +15,7 @@ import './urlState.test.js';
 import './snapshot.test.js';
 import './contrast.test.js';
 import './views-meta.test.js';
+import './signals.test.js';
 import './chart.test.js';
 import './regeln.test.js';
 import './overview.test.js';

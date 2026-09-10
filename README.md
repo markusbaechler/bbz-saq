@@ -68,6 +68,11 @@ horizontal über, und **keine** der 7 Tabellen über 500 px Höhe gehört dazu; 
 Scroll-Container also gar nicht. In den drei breiten Tabellen bleibt der Kopf ungeklebt, dafür bleibt dort die erste
 Spalte beim horizontalen Scrollen stehen. Auf dem Phone schrumpft nichts: Dort klebt die Leiste ohnehin nicht.
 
+**Datenstand im Kopf:** Der Einzeiler besteht aus einem schrumpfenden Mittelteil (Dateiname, Zeilen, Änderungs- und
+Ladezeit) und dem **nicht schrumpfenden Fehlerzähler**. Vorher wurde am Ende gekürzt und damit ausgerechnet «DQ n
+Fehler» verdeckt – bei 1280 px 26 % des Einzeilers. Unter 1500 px entfällt zuerst die Ladezeit, unter 1200 px das
+Änderungsdatum; der Zähler bleibt in jeder Breite vollständig stehen.
+
 **Kopfbereich (Paket C):** Über dem Inhalt stehen zwei Bänder plus Navigation – Kopfzeile (Marke, Datenstand, Konto) und
 Filterleiste. Die **Datenleiste erscheint nur im Leerzustand**: Sie trägt zwei Aktionen, keine Dauerinformation, und die
 Leerzustandskarte bietet dieselben zwei Aktionen ohnehin. Mit geladenen Daten fällt sie weg; «Neu laden» und «Lokale
@@ -147,8 +152,11 @@ Werkzeugleisten einzelner Ansichten. Wer die Wertung in den Bestenlisten umstell
 Ansichten gelten: «Wertung» auf «Bestenlisten», «Benchmark» auf «Übersicht», «Schriftlich» und «Mündlich». Die
 Ansichts-Werkzeugleisten sind entfallen; in der Übersicht bleibt stehen, was der Benchmark bewirkt (seine Grösse).
 
-Damit trägt die Leiste elf statt neun Steuerelemente. Gemessen bei 1400 px passt sie weiterhin in **eine Zeile**
-(97 px, statisches Chrome 172 px, erster Zahlenwert bei y = 343); bei 1280 px braucht sie **zwei Zeilen** (158 px).
+Damit trägt die Leiste elf statt neun Steuerelemente. Gemessen passt sie bei 1400 px in **eine Zeile** (97 px,
+statisches Chrome 172 px, erster Zahlenwert bei y = 343) und seit Paket D auch bei **1280 px** (101 px, Chrome 176 px
+statt 225). Möglich wurde das durch Entdopplung der Optionstexte: Das Substantiv steht in der Feldbeschriftung, der
+Wert in der Option – «VSS/VSM: Ohne» statt «VSS/VSM: Ohne VSS/VSM». Die **Chips** behalten die ausgeschriebene Form,
+weil sie ohne Feldbeschriftung stehen.
 Die Beschriftung des Zertifikat-Filters ist dafür auf «Zertifikate» gekürzt (voller Text als Tooltip) – sie war mit
 188 von 1384 px die längste und entschied allein darüber, ob die Reihe umbricht. Jedes Steuerelement trägt ein
 `data-field`, weil sich «Bank» und «Benchmark» über den Beschriftungstext nicht unterscheiden lassen.
@@ -334,6 +342,46 @@ identisch mit der Ansicht «Glossar» in der App.
   «Communication Language» übernommen (Hinweis im Log).
 - Schreibvarianten werden zugelassen, wenn die Zuordnung eindeutig ist (Gross-/Kleinschreibung, Leerzeichen,
   Aliase wie Affluent/Affl/AFF → AFFL, CCOB → CCoB, Bank-Kürzel wie BKB, GKB, LUKB, TKB, UKB, D/F/I/E als Sprache).
+
+## Signale (Paket D)
+
+Sechs Regeln über den vorhandenen Kennzahlen, als reine Funktionen in `metrics.js` (`signals(persons, { dq })`).
+Sie definieren **keine neue Kennzahl**, sondern lesen `writtenPassRates`, `timeSeries`, `statusCounts` und
+`earlyWarnings`. Ein Signal ist ein Datensatz – keine Farbe, kein Markup, kein Rückruf; die Ansicht übersetzt ihn.
+
+| Regel | Stufe | feuert | Gewicht |
+|---|---|---|---|
+| Jahrestrend der schriftlichen Erstversuchsquote | kritisch | Abfall vom ersten zum letzten Jahr ≥ 8 pp, bei ≥ 4 Jahren mit je n ≥ 20 | Abfall in pp × auswertbare Vorgänge / 100 |
+| Profil unter dem Gesamtwert | kritisch | 95-%-Wilson-Intervall des Profils enthält den Gesamtwert nicht, Differenz negativ | \|Differenz in pp\| × n / 100 |
+| Fehler im Data-Quality-Log | beachten | mehr als 0 Fehler | 0.6 |
+| Passive offene Vorgänge | beachten | passiv / offen > 10 % | 0.9 |
+| Vor dem letzten Versuch | beachten | mehr als 0 Vorgänge mit zwei mündlichen Fehlversuchen | 0.8 |
+| Profil über dem Gesamtwert | günstig | wie oben, Differenz positiv | −1 (steht immer zuletzt) |
+
+**Sortiert wird nach Gewicht, nicht nach Stufe.** Das Gewicht hat überall dieselbe Einheit – betroffene Vorgänge –,
+damit die Reihenfolge die Wirkung zeigt: Ein Abstand von 9 pp bei n = 302 wiegt schwerer als 10.6 pp bei n = 80.
+**Jedes Signal nennt seine eigene Schwelle** («Schwelle: über 10 %»); ein Signal, das nicht sagt, warum es da ist, ist
+eine Behauptung, und die Liste bleibt so prüfbar, ohne in den Code zu sehen. **Jedes Signal trägt eine Zahl und einen
+Weg**, und die Wege sind Daten: `{ kind: 'view', view: 'zeitverlauf' }` oder
+`{ kind: 'filter', patch: { profil: ['KMU'] } }`. Gerechnet wird auf der **gefilterten** Menge – ein Signal über KMU,
+während KMU herausgefiltert ist, wäre falsch. Unter der Mindestgruppengrösse (n < 5) feuert nichts; je Profil gilt
+dieselbe Grenze. Auch wenn nichts feuert, nennt `signals()` in `geprueft`, was geprüft wurde.
+
+### Die Liste in der Übersicht
+
+Der Signalblock ist der **erste Inhalt** der Übersicht, über «Mengen»: Er beantwortet «worauf schaue ich heute», und das
+gehört nicht unter zwölf Kacheln. Je Signal stehen Rang, Stufenwort, Titel, eine Detailzeile mit Zahl und Schwelle und
+der Weg. **Die Farbe trägt nie allein** – Rang und Wort stehen immer daneben; die Stufen nutzen die bestehenden Tokens
+`--danger`, `--warn` und `--ok`. Der Kopf nennt, wie viele Signale offen sind, dass nach Wirkung sortiert wird und auf
+welcher Auswahl gerechnet wurde («5 offen · nach Wirkung sortiert · gerechnet auf 1204 Vorgängen · Profil: KMU»).
+
+**Höhenbudget, gemessen bei 1400 × 900 mit sechs Signalen:** Alle sechs Detailzeilen offen ergaben 339 px und die erste
+Mengen-Kachel bei y = 699 – zu knapp. Offen bleiben deshalb die **drei schwersten** (273 px, erste Kachel y = 633); die
+übrigen Detailzeilen bleiben im DOM und sind über «Alle Details zeigen» erreichbar. Weggelassen wird nichts: Zahl und
+Schwelle jedes Signals sind höchstens einen Klick weit.
+
+**Leerzustand:** Feuert keine Regel, ist der Block nicht leer und verschwindet auch nicht – er nennt, was geprüft wurde
+und ruhig blieb. Ein verschwindender Block ist von einem kaputten nicht zu unterscheiden.
 
 ## Normalisierung und Data-Quality-Log
 

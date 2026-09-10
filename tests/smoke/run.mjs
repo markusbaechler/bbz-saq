@@ -10,6 +10,7 @@ import { dirname, join, resolve } from 'node:path';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { startServer } from './server.mjs';
 import { writeSynthWorkbook } from './synth.mjs';
+import { SECHS_SIGNALE } from './signale-sechs.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -80,13 +81,35 @@ try {
   const status = (await page.textContent('#status')).replace(/\s+/g, ' ').trim();
   check(/Data-Quality-Log/.test(status) && /Duplikate/.test(status), 'Datei geladen: ' + status.slice(0, 170));
   // Datenstand (A.2): sichtbarer Einzeiler mit aufklappbaren Zählern; der Volltext in #status bleibt (nur für Screenreader)
+  // D0: Der Fehlerzähler wurde im Kopf abgeschnitten – bei 1280 px waren 26 % des Einzeilers verdeckt, und weg fiel
+  // ausgerechnet «DQ n Fehler». Er schrumpft jetzt nie; gekürzt wird der Mittelteil.
+  for (const w of [1280, 1400, 1920]) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.waitForTimeout(120);
+    const ds = await page.evaluate(() => {
+      const dq = document.querySelector('.datastand-dq');
+      const txt = document.querySelector('.datastand-text');
+      const kopf = document.querySelector('.app-header').getBoundingClientRect();
+      const box = dq.getBoundingClientRect();
+      return {
+        dq: dq.textContent.trim(), ganzSichtbar: box.width > 0 && box.right <= kopf.right + 0.5 && box.left >= kopf.left - 0.5,
+        dqVerdeckt: Math.round(Math.max(0, dq.scrollWidth - dq.clientWidth)),
+        textVerdeckt: Math.round(Math.max(0, txt.scrollWidth - txt.clientWidth)),
+      };
+    });
+    check(ds.ganzSichtbar && ds.dqVerdeckt === 0 && /^DQ \d+ Fehler$/.test(ds.dq),
+      'D0 Datenstand ' + w + ' px: «' + ds.dq + '» vollständig im Kopf, gekürzt wird der Mittelteil (' + ds.textVerdeckt + ' px)');
+  }
+  await page.setViewportSize({ width: 1400, height: 1000 });
   const datastand = (await page.textContent('#datastand summary')).replace(/\s+/g, ' ').trim();
   check(datastand.startsWith('Datenstand: synth.xlsx') && /DQ \d+ Fehler$/.test(datastand) && (await page.locator('#datastand dt').count()) >= 6 && (await page.locator('#status.visually-hidden').count()) === 1, 'Datenstand: «' + datastand.slice(0, 90) + '» mit Details, Volltext nur für Screenreader');
   // C1: Kopfbereich verdichtet – vier gestapelte Bänder (293 px, erster Zahlenwert bei y = 495) auf zwei plus
   // Navigation. Zielmarken des Auftrags: statisches Chrome höchstens 170 px, erster Zahlenwert über y = 360.
   const kopf = await page.evaluate(() => {
     const hoehe = (sel) => { const e = document.querySelector(sel); return e && e.getClientRects().length ? Math.round(e.getBoundingClientRect().height) : 0; };
-    const wert = document.querySelector('#view .kpi-value');
+    // Seit D2 ist der Signalblock der erste Inhalt der Übersicht; er trägt die Zahlen, die zuerst zählen.
+    // Gemessen wird deshalb der Beginn des ersten Inhalts, nicht mehr zwingend die erste Kachel.
+    const wert = document.querySelector('#view .signale, #view .kpi-value');
     const st = document.getElementById('status');
     return {
       header: hoehe('.app-header'), databar: hoehe('#databar'), nav: hoehe('.views'), filterbar: hoehe('#filterbar'),
@@ -102,7 +125,7 @@ try {
   const anteil = kopf.ersterWert / 900;
   check(chrome <= 175 && kopf.databar === 0 && anteil <= 0.45 && kopf.statusImDom && kopf.datastandImKopf && kopf.neuLaden === 2,
     'C1 geladen: Chrome ' + chrome + ' px (Ziel 170, seit C5 mit zwei Steuerelementen mehr; vorher 293) = Kopf ' + kopf.header + ' + Navigation ' + kopf.nav + ' + Filter ' + kopf.filterbar
-      + ', keine Datenleiste, erster Zahlenwert y = ' + kopf.ersterWert + ' = ' + Math.round(anteil * 100) + ' % der Höhe (Ziel ≤ 45 %; vorher 495 px = 55 %), Datenstand im Kopf, Volltext für Screenreader, '
+      + ', keine Datenleiste, erster Inhalt (Signale) y = ' + kopf.ersterWert + ' = ' + Math.round(anteil * 100) + ' % der Höhe (Ziel ≤ 45 %; vorher 495 px = 55 %), Datenstand im Kopf, Volltext für Screenreader, '
       + kopf.neuLaden + ' Lade-Aktionen erreichbar');
 
   // Jede Ansicht rendert Titel und mindestens eine Tabelle, ohne Fehler
@@ -146,6 +169,72 @@ try {
   check(views.includes('uebersicht') && views.includes('geplante-pruefungen') && views.includes('datenqualitaet'), 'Kern-Ansichten vorhanden: ' + views.join(', '));
 
   // Übersicht: Kacheln mit n
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+
+  // Signale (Paket D, D2): erster Inhalt der Übersicht, Farbe nie allein, Höhenbudget im vollen Fall, Leerzustand.
+  const signalLage = await page.evaluate(() => {
+    const b = document.querySelector('#view .signale');
+    const kachel = document.querySelector('#view .kpi');
+    const gruppe = document.querySelector('#view .kpi-group');
+    if (!b || !kachel) return null;
+    const folgt = (x) => !!(x && (b.compareDocumentPosition(x) & Node.DOCUMENT_POSITION_FOLLOWING));
+    return {
+      vorKachel: folgt(kachel), vorMengen: folgt(gruppe),
+      kopf: (b.querySelector('.signale-meta') || {}).textContent || '',
+      zeilen: [...b.querySelectorAll('.signal')].map((li) => ({
+        rang: (li.querySelector('.signal-rang') || {}).textContent,
+        wort: (li.querySelector('.signal-stufe') || {}).textContent,
+        weg: !!li.querySelector('.signal-weg'),
+      })),
+    };
+  });
+  check(!!signalLage && signalLage.vorKachel && signalLage.vorMengen, 'D2 Übersicht: Signalblock steht vor den Mengen-Kacheln');
+  check(!!signalLage && /·\s*nach Wirkung sortiert\s*·\s*gerechnet auf \d+ Vorgängen\s*·/.test(signalLage.kopf), 'D2 Signalkopf nennt Zahl, Sortierung und Grundlage: «' + (signalLage ? signalLage.kopf.trim() : '') + '»');
+  check(!!signalLage && signalLage.zeilen.length > 0 && signalLage.zeilen.every((z, i) => z.rang === String(i + 1) && /^(kritisch|beachten|günstig)$/.test(z.wort) && z.weg),
+    'D2 jede Signalzeile trägt Rang, Stufenwort und Weg – Farbe nie allein (' + (signalLage ? signalLage.zeilen.length : 0) + ' Zeilen)');
+  // Der Weg ist begehbar: der Datensatz aus metrics.js wird von der Shell in Ansicht oder Filter übersetzt
+  const vorWeg = { hash: new URL(page.url()).hash, chips: await page.locator('#filterbar .chip').count() };
+  await page.locator('#view .signal-weg').first().click();
+  await page.waitForFunction((v) => location.hash !== v.hash || document.querySelectorAll('#filterbar .chip').length !== v.chips, vorWeg, { timeout: 5000 }).catch(() => {});
+  const nachWeg = { hash: new URL(page.url()).hash, chips: await page.locator('#filterbar .chip').count() };
+  check(nachWeg.hash !== vorWeg.hash || nachWeg.chips !== vorWeg.chips, 'D2 Weg des ersten Signals führt irgendwohin (Hash «' + vorWeg.hash + '» → «' + nachWeg.hash + '», Chips ' + vorWeg.chips + ' → ' + nachWeg.chips + ')');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click().catch(() => {});
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+
+  // Höhenbudget: gemessen mit dem vollen Fall (sechs Signale), nicht mit dem leeren. Offen bleiben die drei schwersten;
+  // die übrigen Detailzeilen sind über «Alle Details zeigen» erreichbar, gehen also nicht verloren.
+  await page.setViewportSize({ width: 1400, height: 900 });
+  const budget = await page.evaluate(async (sechs) => {
+    const mod = await import('/views/common.js');
+    document.querySelector('#view .signale').replaceWith(mod.signalBlock({ signale: sechs, geprueft: [], n: 1204, zuKlein: false }, { onWeg: () => {}, filterKurz: 'kein Filter' }));
+    const b = document.querySelector('#view .signale');
+    const mess = () => ({
+      hoehe: Math.round(b.getBoundingClientRect().height),
+      kachelY: Math.round(document.querySelector('#view .kpi').getBoundingClientRect().top + window.scrollY),
+      details: [...b.querySelectorAll('.signal-detail')].filter((p) => p.getClientRects().length > 0).length,
+    });
+    const zu = mess();
+    b.querySelector('.signale-mehr').click();
+    const auf = mess();
+    b.querySelector('.signale-mehr').click();
+    return { zu, auf, zeilen: b.querySelectorAll('.signal').length };
+  }, SECHS_SIGNALE);
+  check(budget.zeilen === 6 && budget.zu.hoehe <= 300, 'D2 Höhenbudget: sechs Signale in ' + budget.zu.hoehe + ' px (Grenze 300 px bei 1400 × 900)');
+  check(budget.zu.kachelY < 700, 'D2 erste Mengen-Kachel bei y = ' + budget.zu.kachelY + ' (über 700)');
+  check(budget.zu.details === 3 && budget.auf.details === 6, 'D2 drei Detailzeilen offen, alle sechs über den Schalter erreichbar (' + budget.zu.details + ' → ' + budget.auf.details + ')');
+
+  // Leerzustand: Feuert keine Regel, verschwindet der Block nicht, sondern nennt, was geprüft wurde und ruhig blieb.
+  const ruhig = await page.evaluate(async () => {
+    const mod = await import('/views/common.js');
+    const metrics = await import('/metrics.js');
+    document.querySelector('#view .signale').replaceWith(mod.signalBlock({ signale: [], geprueft: metrics.SIGNAL_REGELN, n: 1204, zuKlein: false }, { filterKurz: 'kein Filter' }));
+    const b = document.querySelector('#view .signale');
+    return { da: b.getClientRects().length > 0, text: b.textContent.replace(/\s+/g, ' ').trim(), geprueft: b.querySelectorAll('.signale-geprueft li').length };
+  });
+  check(ruhig.da && ruhig.geprueft >= 5 && /Keine Regel hat ausgelöst\. Geprüft wurde:/.test(ruhig.text), 'D2 Leerzustand: Block bleibt stehen und nennt ' + ruhig.geprueft + ' geprüfte Regeln');
+  await page.setViewportSize({ width: 1400, height: 1000 });
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
   const kpiCount = await page.locator('#view .kpi').count();
@@ -992,9 +1081,16 @@ try {
   for (const v of views) {
     await phone.goto(server.url + '#' + v);
     await phone.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
+    // Bei Überlauf nennen, wer überläuft: Ein Wert ohne Fundstelle kostet in der CI eine ganze Runde.
     const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const ueberRand = overflow > 0 ? await phone.evaluate(() => {
+      const w = window.innerWidth;
+      const imScroller = (e) => { for (let p = e.parentElement; p; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') return true; } return false; };
+      return [...document.querySelectorAll('body *')].filter((e) => Math.round(e.getBoundingClientRect().right) > w + 1 && !imScroller(e))
+        .slice(0, 5).map((e) => e.tagName.toLowerCase() + '.' + (e.className || '').toString().split(' ')[0] + ' → ' + Math.round(e.getBoundingClientRect().right) + ' px');
+    }) : [];
     const hiddenPrio = await phone.evaluate(() => [...document.querySelectorAll('#view table.data td[data-prio="2"], #view table.data td[data-prio="3"]')].every((td) => getComputedStyle(td).display === 'none'));
-    check(overflow <= 0 && hiddenPrio, 'Phone ' + v + ': kein Seitenscroll (' + overflow + ' px), nur Prio-1-Spalten');
+    check(overflow <= 0 && hiddenPrio, 'Phone ' + v + ': kein Seitenscroll (' + overflow + ' px' + (ueberRand.length ? ': ' + ueberRand.join(', ') : '') + '), nur Prio-1-Spalten');
     await phone.screenshot({ path: join(outDir, 'phone-' + v + '.png'), fullPage: true });
   }
   await phone.goto(server.url + '#uebersicht');
@@ -1253,16 +1349,30 @@ try {
   await page.selectOption('#filterbar select.bank', 'Testbank AG');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   check((await page.getAttribute('#filterbar select.bank', 'title')) === 'Testbank AG' && (await page.evaluate(() => Math.round(document.getElementById('filterbar').getBoundingClientRect().height))) <= 110, 'Desktop 1400 px: Bank gewählt → voller Name als title, Filterleiste mit Chip weiterhin ≤ 110 px');
-  // Dokumentierte Grenze: Bei 1280 px passen elf Steuerelemente nicht mehr in eine Zeile
+  // D0: Seit die Optionstexte die Feldbeschriftung nicht mehr wiederholen, passen die elf Steuerelemente auch bei
+  // 1280 px in eine Zeile – damit gilt das Zielmass aus C1 auch dort wieder.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
   const fb1280 = await page.evaluate(() => {
     const bar = document.getElementById('filterbar');
-    const bottoms = [...bar.querySelectorAll('.filter-controls > label')].map((l) => l.getBoundingClientRect().bottom);
-    return { hoehe: Math.round(bar.getBoundingClientRect().height), reihen: new Set(bottoms.map((b) => Math.round(b / 10))).size };
+    const labels = [...bar.querySelectorAll('.filter-controls > label')];
+    const controls = bar.querySelector('.filter-controls');
+    const gap = parseFloat(getComputedStyle(controls).columnGap) || 0;
+    const hoehe = (sel) => { const e = document.querySelector(sel); return e && e.getClientRects().length ? Math.round(e.getBoundingClientRect().height) : 0; };
+    return {
+      hoehe: Math.round(bar.getBoundingClientRect().height),
+      reihen: new Set(labels.map((l) => Math.round(l.getBoundingClientRect().bottom / 10))).size,
+      braucht: Math.round(labels.reduce((a, l) => a + l.getBoundingClientRect().width, 0) + gap * (labels.length - 1)),
+      platz: Math.round(controls.clientWidth),
+      chrome: hoehe('.app-header') + hoehe('#databar') + hoehe('.views') + hoehe('#filterbar'),
+    };
   });
-  check(fb1280.reihen === 2 && fb1280.hoehe <= 165, 'C5 Desktop 1280 px: elf Steuerelemente brauchen zwei Zeilen (' + fb1280.hoehe + ' px) – dokumentierte Grenze, ab 1400 px eine Zeile');
+  // Das C1-Zielmass ist bei 1400 x 900 definiert; bei 1280 px liegt die Leiste 4 px höher (Umbruch der
+  // Zusammenfassungszeile). Geprüft wird deshalb 180 px – gegenüber 225 px vor der Entdopplung.
+  check(fb1280.reihen === 1 && fb1280.chrome <= 180 && fb1280.braucht < fb1280.platz,
+    'D0 Desktop 1280 px: elf Steuerelemente in einer Zeile (brauchen ' + fb1280.braucht + ' von ' + fb1280.platz + ' px), Leiste '
+      + fb1280.hoehe + ' px, statisches Chrome ' + fb1280.chrome + ' px (vorher 225)');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   await page.screenshot({ path: join(outDir, 'desktop-1280-filterleiste.png'), fullPage: false });
