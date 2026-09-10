@@ -41,6 +41,14 @@ page.on('requestfailed', (r) => { if (r.url().startsWith(server.url)) errors.pus
 page.on('response', (r) => { if (r.url().startsWith(server.url) && r.status() >= 400) errors.push('HTTP ' + r.status() + ' ' + r.url()); });
 
 const summaryText = () => page.textContent('#filterbar .summary');
+// Paket C (C2): Gescrollt schrumpft die Filterleiste auf die Zusammenfassungszeile – Zähler und Chips bleiben, die
+// Steuerelemente sind bewusst nicht mehr erreichbar. Der Test tut, was ein Mensch tut: erst nach oben, dann bedienen.
+const filterWaehlen = async (p, label, wert) => {
+  await p.evaluate(() => window.scrollTo(0, 0));
+  const feld = p.locator(`#filterbar label:has-text("${label}") select`);
+  await feld.focus();
+  await feld.selectOption(wert);
+};
 // Query-Teil des Hashs (#ansicht?von=…): beim Ansichtswechsel per goto muss der Filterzustand mitgenommen werden
 const hashQuery = (url) => { const h = url.split('#')[1] || ''; const q = h.indexOf('?'); return q >= 0 ? h.slice(q) : ''; };
 
@@ -110,7 +118,7 @@ try {
   await page.goto(server.url + '#bank-report');
   await page.waitForSelector('#view h2');
   check((await page.locator('#view p.empty').count()) === 1 && (await page.locator('#view table').count()) === 0, 'Bank-Report ohne Bank: Hinweis, keine Tabellen');
-  await page.locator('#filterbar label:has-text("Bank") select').selectOption({ label: 'Testbank AG' });
+  await filterWaehlen(page, 'Bank', { label: 'Testbank AG' });
   await page.waitForSelector('#view table');
   const bankTables = await page.$$eval('#view table caption', (c) => c.map((x) => x.textContent));
   check(bankTables.length >= 3 && bankTables.every((t) => /Testbank AG/.test(t)), 'Bank-Report mit Bank: ' + bankTables.length + ' Tabellen (' + bankTables.join(' | ') + ')');
@@ -164,7 +172,7 @@ try {
     'A2 Übersicht ohne Filter: keine Delta-Zeile, Vergleichstabelle eingeklappt mit Satz «' + zu.satz.trim().slice(0, 70) + '»');
   check((await page.locator('#view .benchmark-gleichstand button.linklike').count()) === 1, 'A2 Übersicht ohne Filter: Link «Bank wählen» im Satz');
   await shot(page, 'uebersicht-ohne-filter');
-  await page.locator('#filterbar label:has-text("Bank") select').selectOption({ label: 'Testbank AG' });
+  await filterWaehlen(page, 'Bank', { label: 'Testbank AG' });
   await page.waitForSelector('#view .kpi-delta');
   const offen = await vergleich();
   check(offen && offen.tag === 'SECTION' && !offen.satz, 'A2 Übersicht mit Bank-Filter: Vergleichstabelle offen, kein Gleichstand-Satz');
@@ -232,7 +240,7 @@ try {
   await page.keyboard.press('ArrowLeft');
   const barTip = await page.evaluate(() => { const t = document.querySelector('#view .viz-tip'); return { hidden: !t || t.hidden, text: t ? t.textContent : '' }; });
   check(!barTip.hidden && /Auswahl/.test(barTip.text) && /%/.test(barTip.text), 'Histogramm: Tooltip per Tastatur (' + barTip.text.slice(0, 70) + ')');
-  await page.selectOption('#filterbar label:has-text("Profil") select', 'IK');
+  await filterWaehlen(page, 'Profil', 'IK');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   check((await page.locator('#view svg.viz-bars').count()) === 0 && /Verteilung erst ab 5/.test(await page.textContent('#view')) && (await page.locator('#view table caption:has-text("Verteilung der Resultate")').count()) === 1, 'Histogramm: Profil IK (n < 5) → Hinweis statt Diagramm, Tabelle bleibt');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
@@ -275,12 +283,13 @@ try {
   // Chip ✕ entfernt nur diesen Filter; Reset nur sichtbar, wenn ein Filter aktiv ist
   check(await page.locator('#filterbar button.reset').isHidden(), 'Reset ohne aktiven Filter ausgeblendet');
   const before = await summaryText();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.focus('#filterbar label:has-text("Profil") select');
-  await page.locator('#filterbar label:has-text("Profil") select').selectOption('PK');
+  await filterWaehlen(page, 'Profil', 'PK');
   await page.waitForFunction((b) => document.querySelector('#filterbar .summary').textContent !== b, before, { timeout: 5000 });
   check((await page.locator('#filterbar .chip', { hasText: 'Profil PK' }).count()) === 1 && /profil=PK/.test(page.url()), 'Filter Profil = PK wirkt: Chip «Profil PK», steht in der URL');
   check(await page.evaluate(() => document.activeElement && document.activeElement.tagName === 'SELECT' && document.activeElement.closest('label').textContent.startsWith('Profil')), 'Fokus bleibt nach der Filteränderung auf dem Auswahlfeld Profil');
-  await page.locator('#filterbar label:has-text("Jahr") select').selectOption('2026');
+  await filterWaehlen(page, 'Jahr', '2026');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 2, null, { timeout: 5000 });
   check(/von=2026-01-01/.test(page.url()) && (await page.locator('#filterbar .chip', { hasText: '2026' }).count()) === 1 && (await page.locator('#filterbar button.reset').isVisible()), 'Jahr 2026 gewählt: Chip «2026», Von/Bis in der URL, Reset sichtbar');
   await shot(page, 'filter-chips');
@@ -327,7 +336,7 @@ try {
   // Gesetzter Filter bleibt erhalten, auch wo keine Leiste steht: der Satz nennt ihn und bietet «Filter zurücksetzen» an
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
-  await page.selectOption('#filterbar label:has-text("Profil") select', 'PK');
+  await filterWaehlen(page, 'Profil', 'PK');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   for (const view of OHNE_LEISTE) {
     await page.goto(server.url + '#' + view + hashQuery(page.url()));
@@ -341,7 +350,7 @@ try {
   // Der gesetzte Wert bleibt erhalten: Jahr auf der Übersicht setzen, auf dem Zeitverlauf ist er stumm, danach wirkt er wieder
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
-  await page.locator('#filterbar label:has-text("Jahr") select').selectOption('2026');
+  await filterWaehlen(page, 'Jahr', '2026');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   await page.goto(server.url + '#zeitverlauf' + hashQuery(page.url()));
   await page.waitForFunction(() => !!document.querySelector('#view h2') && location.hash.startsWith('#zeitverlauf'), null, { timeout: 5000 });
@@ -358,21 +367,79 @@ try {
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
-  // Paket B (B6): Kein toter sticky Tabellenkopf. «position: sticky; top: 0» am th wirkte nie – der nächste
-  // Scroll-Container ist .table-wrap, und der scrollt nur horizontal. Die Regel ist entfernt statt repariert; ein
-  // fixierter Kopf ergibt erst Sinn, wenn feststeht, wie viel Kopfbereich über ihm klebt (Paket C, Filterleiste).
-  // Die horizontale Fixierung der ersten Spalte (sticky, left: 0) bleibt und wird hier mitgeprüft.
+  // Paket C (C2): Die Filterleiste war das einzige klebende Element – 95 px, 11 % der Viewporthöhe, dauerhaft, für
+  // Bedienelemente, die beim Lesen niemand anfasst. Gescrollt bleibt nur die Zusammenfassungszeile (Zähler und Chips);
+  // der frei gewordene Platz geht an den Tabellenkopf, der darunter klebt.
+  await page.goto(server.url + '#zeitverlauf');
+  await page.waitForSelector('#view table');
+  const ungescrollt = await page.evaluate(() => Math.round(document.getElementById('filterbar').getBoundingClientRect().height));
+  await page.evaluate(() => {
+    const hoch = [...document.querySelectorAll('#view .table-wrap')].filter((w) => !w.classList.contains('scrolls-x'))
+      .sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+    window.scrollTo(0, window.scrollY + hoch.getBoundingClientRect().top + 250);
+  });
+  await page.waitForTimeout(250);
+  const gescrollt = await page.evaluate(() => {
+    const bar = document.getElementById('filterbar');
+    const hoch = [...document.querySelectorAll('#view .table-wrap')].filter((w) => !w.classList.contains('scrolls-x'))
+      .sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+    const th = hoch.querySelector('table th');
+    const sicht = (el) => !!el && el.getClientRects().length > 0;
+    return {
+      hoehe: Math.round(bar.getBoundingClientRect().height),
+      stickyTop: Math.round(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sticky-top')) || 0),
+      kopfY: Math.round(th.getBoundingClientRect().top),
+      barY: Math.round(bar.getBoundingClientRect().top),
+      steuerelemente: sicht(bar.querySelector('.filter-controls')),
+      zusammenfassung: sicht(bar.querySelector('.summary')),
+      zaehler: (bar.querySelector('.summary-count') || {}).textContent || '',
+    };
+  });
+  check(gescrollt.hoehe < ungescrollt - 40 && gescrollt.barY === 0 && !gescrollt.steuerelemente && gescrollt.zusammenfassung
+    && /Vorgänge/.test(gescrollt.zaehler) && Math.abs(gescrollt.kopfY - gescrollt.stickyTop) <= 2 && gescrollt.stickyTop === gescrollt.hoehe,
+    'C2 Zeitverlauf gescrollt: Filterleiste ' + ungescrollt + ' auf ' + gescrollt.hoehe + ' px geschrumpft, Steuerelemente weg, Zusammenfassung bleibt («'
+      + gescrollt.zaehler.trim() + '»), Tabellenkopf klebt bei y = ' + gescrollt.kopfY + ' direkt darunter');
+  // Der Weg zurück: nach oben scrollen – für Maus und Tastatur gleich
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(250);
+  const zurueck = await page.evaluate(() => {
+    const bar = document.getElementById('filterbar');
+    return { hoehe: Math.round(bar.getBoundingClientRect().height), controls: bar.querySelector('.filter-controls').getClientRects().length > 0 };
+  });
+  check(zurueck.controls && zurueck.hoehe === ungescrollt, 'C2: nach oben gescrollt sind die Steuerelemente wieder da (' + zurueck.hoehe + ' px)');
+
+  // Paket C (C2): Der Tabellenkopf klebt jetzt – unter der geschrumpften Filterleiste. Möglich ist das nur, weil
+  // .table-wrap nur noch dort ein Scroll-Container ist, wo die Tabelle wirklich horizontal überläuft (Klasse
+  // «scrolls-x»); ein Scroll-Container im Vorfahren verhindert seitenweites Kleben (Paket B, B6).
   await page.goto(server.url + '#datenqualitaet');
   await page.waitForSelector('#view table.dq-table');
-  const kopfFix = await page.evaluate(() => {
-    const ths = [...document.querySelectorAll('#view table th')];
-    const vertikal = ths.filter((th) => { const cs = getComputedStyle(th); return cs.position === 'sticky' && cs.top !== 'auto'; });
-    const ersteSpalte = [...document.querySelectorAll('#view .table-wrap table.data th:first-child')]
-      .filter((th) => { const cs = getComputedStyle(th); return cs.position === 'sticky' && cs.left !== 'auto'; });
-    return { alle: ths.length, vertikal: vertikal.length, ersteSpalte: ersteSpalte.length };
+  // bis kurz unter den Kopf der höchsten Tabelle scrollen – dort muss er kleben bleiben
+  await page.evaluate(() => {
+    const hoch = [...document.querySelectorAll('#view .table-wrap')].filter((w) => !w.classList.contains('scrolls-x'))
+      .sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+    window.scrollTo(0, window.scrollY + hoch.getBoundingClientRect().top + 300);
   });
-  check(kopfFix.vertikal === 0 && kopfFix.ersteSpalte >= 1,
-    'B6: keine der ' + kopfFix.alle + ' Kopfzellen klebt vertikal; die erste Spalte bleibt horizontal fixiert (' + kopfFix.ersteSpalte + ' Tabellen)');
+  await page.waitForTimeout(200);
+  const kopfFix = await page.evaluate(() => {
+    const wraps = [...document.querySelectorAll('#view .table-wrap')];
+    // die höchste Tabelle der Ansicht nehmen – eine kurze ist beim Scrollen längst vorbei, ihr Kopf klebt dann zu Recht nicht mehr
+    const hoechste = wraps.filter((w) => !w.classList.contains('scrolls-x'))
+      .sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+    const th = hoechste ? hoechste.querySelector('table th') : null;
+    const stickyTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sticky-top')) || 0;
+    return {
+      wraps: wraps.length,
+      scrollend: wraps.filter((w) => w.classList.contains('scrolls-x')).length,
+      falschKlassifiziert: wraps.filter((w) => { const t = w.querySelector('table'); return t && (t.scrollWidth > w.clientWidth + 1) !== w.classList.contains('scrolls-x'); }).length,
+      kopfY: th ? Math.round(th.getBoundingClientRect().top) : null,
+      stickyTop: Math.round(stickyTop),
+      gescrollt: Math.round(window.scrollY),
+    };
+  });
+  check(kopfFix.gescrollt > 200 && kopfFix.kopfY !== null && Math.abs(kopfFix.kopfY - kopfFix.stickyTop) <= 2 && kopfFix.falschKlassifiziert === 0,
+    'C2 Datenqualität: Tabellenkopf klebt bei y = ' + kopfFix.kopfY + ' (Oberkante ' + kopfFix.stickyTop + ' px) nach ' + kopfFix.gescrollt
+      + ' px Scroll; ' + kopfFix.scrollend + ' von ' + kopfFix.wraps + ' Tabellen brauchen einen Scroll-Container, keine falsch klassifiziert');
+  await page.evaluate(() => window.scrollTo(0, 0));
 
   // Paket B (B5): Datenbalken.  // Paket B (B5): Datenbalken. Der Balken füllt von rechts – dieselbe Richtung wie die rechtsbündige Zahl – und liegt
   // auf einer festen Spur: Derselbe Prozentwert hat in jeder Spalte und in jeder Tabelle dieselbe Länge, unabhängig
@@ -621,10 +688,10 @@ try {
   check((await page.$$eval('#view .person-results thead th', (th) => th.map((x) => x.textContent))).includes('Jahrgang'), 'Personen: Namensgleiche → Spalte Jahrgang');
   await page.fill('#view .person-search', '');
   await page.waitForSelector('#view .person-results p.empty', { timeout: 5000 }); // Debounce abwarten: Liste leer, bevor der Bank-Filter wirkt
-  await page.locator('#filterbar label:has-text("Bank") select').selectOption({ label: 'Musterbank' });
+  await filterWaehlen(page, 'Bank', { label: 'Musterbank' });
   await page.waitForSelector('#view .person-results tr.expandable', { timeout: 5000 });
   check((await page.locator('#view .person-results tr.expandable').count()) === 5 && (await page.locator('#view .person-search').inputValue()) === '', 'Personen: ohne Suchtext mit Bank-Filter alle Personen der Bank (5)');
-  await page.locator('#filterbar label:has-text("Profil") select').selectOption('IK');
+  await filterWaehlen(page, 'Profil', 'IK');
   await page.waitForFunction(() => document.querySelectorAll('#view .person-results tr.expandable').length === 2, null, { timeout: 5000 });
   await page.locator('#view .person-results tr.expandable', { hasText: 'Wechsel' }).click();
   await page.waitForSelector('#view tr.event-detail:not([hidden]) .person-detail');
@@ -655,7 +722,7 @@ try {
   await page.click('#view details.menu > summary');
   check((await page.locator('#view details.menu[open] .menu-item', { hasText: 'CSV (Einsatzebene)' }).count()) === 1, 'Experten: Export-Menü mit «CSV (Einsatzebene)»');
   await page.click('#view details.menu > summary');
-  await page.locator('#filterbar label:has-text("Jahr") select').selectOption('2024');
+  await filterWaehlen(page, 'Jahr', '2024');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   await page.waitForSelector('#view .expert-table table');
   check((await einsaetzeKpi()) === '4', 'Experten: Zeitraum 2024 → Einsätze = 4 (Run-Datum, nicht Referenzdatum)');
@@ -825,7 +892,7 @@ try {
   check(!(await phone.locator('#filterbar details.filter-drawer').evaluate((d) => d.open)) && (await phone.locator('#filterbar .filter-summary').isVisible()), 'Phone: Filter-Drawer geschlossen, Kopfzeile «Filter» sichtbar');
   await phone.locator('#filterbar .filter-summary').click();
   await phone.waitForSelector('#filterbar label:has-text("Profil") select', { state: 'visible' });
-  await phone.selectOption('#filterbar label:has-text("Profil") select', 'PK');
+  await filterWaehlen(phone, 'Profil', 'PK');
   await phone.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
   check(/Filter \(1 aktiv\)/.test(await phone.textContent('#filterbar .filter-summary')) && /profil=PK/.test(phone.url()), 'Phone: Filter über Drawer gesetzt, Zähler «Filter (1 aktiv)», Chip, Hash wie Desktop');
   await phone.screenshot({ path: join(outDir, 'phone-filter-drawer.png'), fullPage: false });

@@ -10,7 +10,7 @@ import { CONFIG, headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay, isAuthResponseHash } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
-import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials, setSortContext } from './views/common.js';
+import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials, setSortContext, markScrollingTables } from './views/common.js';
 import { glossarySlug } from './glossary.js';
 import { vorgangExportTables, expertRunExportTable, auditTable } from './views/tables.js';
 import { renderDataQuality, DEFAULT_DQ_STATE, DQ_SORT_ID } from './views/dataQuality.js';
@@ -213,6 +213,7 @@ function renderDatastand(visible) {
 // ---------------------------------------------------------------------------
 
 const filterBar = { dataKey: null, controls: null };
+let syncSticky = () => {}; // C2: aus initStickyChrome; nach jedem Rendern nachführen
 
 // Wirksamkeit der Steuerelemente je Ansicht (Paket A, A1): Eine View exportiert `filters` und sagt darin je Feld, ob sie es
 // auswertet; `grund` liefert die Begründung für ein abgeschaltetes Feld, `hinweis` einen sichtbaren Hinweis zu einem
@@ -598,11 +599,49 @@ function renderEditMode() {
   ui.editModePhone.textContent = on ? 'Bearbeiten ausschalten' : 'Bearbeiten einschalten';
 }
 
+// ---------------------------------------------------------------------------
+// Klebender Kopfbereich (Paket C, C2)
+// Die Filterleiste war das einzige klebende Element: 95 px, 11 % der Viewporthöhe, dauerhaft – für Bedienelemente, die
+// beim Lesen niemand anfasst. Im gescrollten Zustand bleibt nur die Zusammenfassungszeile stehen (Zähler und Chips):
+// Sie ist der Qualifier jeder Zahl auf dem Schirm, ohne sie liest man Prozente ohne zu wissen, wofür sie gelten.
+// Der frei gewordene Platz geht an den Tabellenkopf, der jetzt unter der geschrumpften Leiste klebt (--sticky-top).
+// ---------------------------------------------------------------------------
+function initStickyChrome() {
+  // Zustand aus der Scrollposition, nicht aus einem beobachteten Element: Ein Wächter über der Leiste wird beim
+  // Schrumpfen wieder sichtbar und schaukelt sich auf. Zwei Schwellen (Hysterese) verhindern das Flattern am Rand.
+  const AN = 140;
+  const AUS = 80;
+  const setzeZustand = () => {
+    const y = window.scrollY || document.documentElement.scrollTop || 0;
+    const jetzt = document.body.classList.contains('scrolled');
+    if (!jetzt && y > AN) document.body.classList.add('scrolled');
+    else if (jetzt && y < AUS) document.body.classList.remove('scrolled');
+  };
+  window.addEventListener('scroll', setzeZustand, { passive: true });
+  syncSticky = setzeZustand;
+  setzeZustand();
+  // Oberkante für den Tabellenkopf = tatsächliche Höhe der klebenden Leiste. Nur bei echter Änderung schreiben:
+  // Ein Schreibvorgang löst eine Stilneuberechnung aus, die den Beobachter sonst erneut weckt (Rückkopplung).
+  let letzteHoehe = -1;
+  const setzeOberkante = () => {
+    const h = ui.filterbar.hidden ? 0 : Math.round(ui.filterbar.getBoundingClientRect().height);
+    if (h === letzteHoehe) return;
+    letzteHoehe = h;
+    document.documentElement.style.setProperty('--sticky-top', h + 'px');
+  };
+  if (typeof ResizeObserver === 'function') new ResizeObserver(setzeOberkante).observe(ui.filterbar);
+  window.addEventListener('scroll', setzeOberkante, { passive: true });
+  setzeOberkante();
+}
+
 function renderAll() {
   renderStatus();
   renderEditMode();
   updateFilterBar();
   renderView();
+  // C2: Erst nach dem Rendern steht fest, welche Tabelle horizontal überläuft und deshalb einen Scroll-Container braucht
+  markScrollingTables(ui.view);
+  syncSticky(); // eine kurze Ansicht ist womöglich gar nicht scrollbar – dann darf die Leiste nicht geschrumpft bleiben
   syncHash();
 }
 
@@ -757,6 +796,10 @@ async function init() {
   ui.signout.addEventListener('click', () => run(signOut));
   ui.signoutPhone.addEventListener('click', () => { ui.accountMenu.open = false; run(signOut); });
   // Wechsel Phone ↔ grösser (Drehen, Fenstergrösse): Drawer-Zustand setzen und neu rendern (B.2)
+  initStickyChrome();
+  // Breitenwechsel ändert, welche Tabelle überläuft; entprellt wie der Geräteklassen-Wechsel
+  let messTimer = null;
+  window.addEventListener('resize', () => { clearTimeout(messTimer); messTimer = setTimeout(() => markScrollingTables(ui.view), 150); });
   onViewportChange((phone) => {
     if (window.matchMedia('print').matches) return; // Druck: kein Neurendern, die geöffneten Blöcke bleiben
     if (filterBar.controls) filterBar.controls.drawer.open = !phone;

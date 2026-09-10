@@ -35,6 +35,19 @@ Tabellen stehen gesammelt in der Legende «Hinweise und Definitionen» am Ende j
 am jeweiligen Titel. Der Datenstand (Datei, Änderungs- und Ladezeit, Zeilen, Data-Quality-Fehler) steht als Einzeiler in
 der Kopfzeile und lässt sich zu allen Zählern aufklappen.
 
+**Klebender Kopfbereich und Tabellenkopf (Paket C):** Beim Scrollen schrumpft die Filterleiste auf ihre
+Zusammenfassungszeile – **99 auf 29 px**. Zähler und Chips bleiben stehen, weil sie der Qualifier jeder Zahl auf dem
+Schirm sind; die Steuerelemente verschwinden, weil man sie beim Lesen nicht bedient. Der Weg zurück ist das Scrollen
+nach oben, für Maus und Tastatur gleich. Darunter klebt der **Tabellenkopf** auf `--sticky-top`, das aus der
+tatsächlichen Leistenhöhe kommt (`ResizeObserver`), damit es in jeder Breite und in beiden Zuständen stimmt.
+
+Möglich ist das nur, weil `.table-wrap` **nur noch dort ein Scroll-Container ist, wo die Tabelle wirklich horizontal
+überläuft** (Klasse `scrolls-x`, in `app.js` gemessen). Ein Scroll-Container im Vorfahren verhindert seitenweites
+Kleben – gemessen in Paket B (B6) und dort belegt. Die Zahlen dahinter: bei 1400 px laufen 3 von 60 Tabellen
+horizontal über, und **keine** der 7 Tabellen über 500 px Höhe gehört dazu; die langen Tabellen brauchen den
+Scroll-Container also gar nicht. In den drei breiten Tabellen bleibt der Kopf ungeklebt, dafür bleibt dort die erste
+Spalte beim horizontalen Scrollen stehen. Auf dem Phone schrumpft nichts: Dort klebt die Leiste ohnehin nicht.
+
 **Kopfbereich (Paket C):** Über dem Inhalt stehen zwei Bänder plus Navigation – Kopfzeile (Marke, Datenstand, Konto) und
 Filterleiste. Die **Datenleiste erscheint nur im Leerzustand**: Sie trägt zwei Aktionen, keine Dauerinformation, und die
 Leerzustandskarte bietet dieselben zwei Aktionen ohnehin. Mit geladenen Daten fällt sie weg; «Neu laden» und «Lokale
