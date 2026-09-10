@@ -77,6 +77,9 @@ try {
       return [...s.querySelectorAll('caption')].some((c) => !c.classList.contains('visually-hidden') && (c.querySelector('.caption-text') || c).textContent === title);
     }));
     check(!doubleTitle && (await page.locator('#view p.note').count()) === 0, 'Ansicht ' + v + ': kein doppelter Tabellentitel, keine Fussnoten unter Tabellen');
+    // B3: keine Tabelle ohne Zeilen – bei null Zeilen steht nur die Meldung, nicht Kopfzeile plus Meldung
+    const leer = await page.$$eval('#view table.data', (ts) => ts.filter((t) => !t.querySelector('tbody tr')).map((t) => (t.querySelector('caption') || {}).textContent || '(ohne Titel)'));
+    check(leer.length === 0, 'Ansicht ' + v + ': keine leere Tabelle gerendert' + (leer.length ? ' – ' + leer.join(' | ') : ''));
     await shot(page, v);
   }
 
@@ -332,6 +335,177 @@ try {
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
+  // Paket B (B6): Kein toter sticky Tabellenkopf. «position: sticky; top: 0» am th wirkte nie – der nächste
+  // Scroll-Container ist .table-wrap, und der scrollt nur horizontal. Die Regel ist entfernt statt repariert; ein
+  // fixierter Kopf ergibt erst Sinn, wenn feststeht, wie viel Kopfbereich über ihm klebt (Paket C, Filterleiste).
+  // Die horizontale Fixierung der ersten Spalte (sticky, left: 0) bleibt und wird hier mitgeprüft.
+  await page.goto(server.url + '#datenqualitaet');
+  await page.waitForSelector('#view table.dq-table');
+  const kopfFix = await page.evaluate(() => {
+    const ths = [...document.querySelectorAll('#view table th')];
+    const vertikal = ths.filter((th) => { const cs = getComputedStyle(th); return cs.position === 'sticky' && cs.top !== 'auto'; });
+    const ersteSpalte = [...document.querySelectorAll('#view .table-wrap table.data th:first-child')]
+      .filter((th) => { const cs = getComputedStyle(th); return cs.position === 'sticky' && cs.left !== 'auto'; });
+    return { alle: ths.length, vertikal: vertikal.length, ersteSpalte: ersteSpalte.length };
+  });
+  check(kopfFix.vertikal === 0 && kopfFix.ersteSpalte >= 1,
+    'B6: keine der ' + kopfFix.alle + ' Kopfzellen klebt vertikal; die erste Spalte bleibt horizontal fixiert (' + kopfFix.ersteSpalte + ' Tabellen)');
+
+  // Paket B (B5): Datenbalken.  // Paket B (B5): Datenbalken. Der Balken füllt von rechts – dieselbe Richtung wie die rechtsbündige Zahl – und liegt
+  // auf einer festen Spur: Derselbe Prozentwert hat in jeder Spalte und in jeder Tabelle dieselbe Länge, unabhängig
+  // von der Spaltenbreite (gemessen wurden vorher 93 px gegen 221 px für dieselbe Kennzahl in einer Tabelle).
+  await page.goto(server.url + '#uebersicht?bank=' + encodeURIComponent('Testbank AG'));
+  await page.waitForSelector('#view .kpi');
+  const balken = await page.evaluate(() => {
+    const zellen = [...document.querySelectorAll('#view td.pct')];
+    const spur = getComputedStyle(zellen[0]).backgroundSize;
+    const laenge = (td) => {
+      const v = Number(getComputedStyle(td).getPropertyValue('--v'));
+      const track = parseFloat(getComputedStyle(td).backgroundSize);
+      return { v, px: Math.round((track * v) / 100), spaltenbreite: Math.round(td.getBoundingClientRect().width) };
+    };
+    const proWert = new Map();
+    for (const td of zellen) {
+      const m = laenge(td);
+      if (!Number.isFinite(m.v)) continue;
+      if (!proWert.has(m.v)) proWert.set(m.v, []);
+      proWert.get(m.v).push(m);
+    }
+    // Werte, die in verschieden breiten Spalten vorkommen: dort muss die Balkenlänge trotzdem gleich sein
+    const gemischt = [...proWert.entries()]
+      .filter(([, list]) => new Set(list.map((x) => x.spaltenbreite)).size > 1)
+      .map(([v, list]) => ({ v, laengen: [...new Set(list.map((x) => x.px))], breiten: [...new Set(list.map((x) => x.spaltenbreite))] }));
+    return { spur, richtung: getComputedStyle(zellen[0]).backgroundPosition, bild: getComputedStyle(zellen[0]).backgroundImage, gemischt, zellen: zellen.length };
+  });
+  check(balken.zellen > 0 && /^(right|100%)/.test(balken.richtung) && /to left/.test(balken.bild) && balken.gemischt.length >= 1 && balken.gemischt.every((g) => g.laengen.length === 1),
+    'B5 Übersicht: Balken von rechts (Position ' + balken.richtung + ', Verlauf nach links), feste Spur ' + balken.spur + '; ' + balken.gemischt.length
+      + ' Wert(e) in verschieden breiten Spalten (' + (balken.gemischt[0] ? balken.gemischt[0].breiten.join('/') + ' px' : '–') + ') mit gleicher Balkenlänge');
+  const passt = await page.evaluate(() => [...document.querySelectorAll('#view td.pct')]
+    .every((td) => parseFloat(getComputedStyle(td).backgroundSize) <= td.getBoundingClientRect().width + 0.5));
+  check(passt, 'B5: die Balkenspur ist nie breiter als ihre Spalte – kein abgeschnittener Balken');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
+  // Paket B (B4): Sortierung auf allen Tabellen – eine Implementierung, aria-sort auf jeder Kopfzelle, die fachliche
+  // Ausgangssortierung als Standard und ein Schalter, der sie wiederherstellt. Der Zustand steht in der URL.
+  const SORTIERPROBEN = [
+    { view: 'uebersicht', tabelle: 'Kennzahlen je Profil', spalte: 'Profil', slug: 'kennzahlen-je-profil' },
+    { view: 'zeitverlauf', tabelle: 'Kennzahlen je Jahr', spalte: 'Jahr', slug: 'kennzahlen-je-jahr' },
+    { view: 'datenqualitaet', tabelle: null, spalte: 'Header', slug: 'einzelne-eintraege' },
+  ];
+  for (const probe of SORTIERPROBEN) {
+    await page.goto(server.url + '#' + probe.view);
+    await page.waitForSelector('#view h2');
+    const auswahl = probe.tabelle
+      ? '#view table.data:has(.caption-text:text-is("' + probe.tabelle + '"))'
+      : '#view table.dq-table';
+    await page.waitForSelector(auswahl, { state: 'attached', timeout: 5000 });
+    // Werte der sortierten Spalte lesen (nicht der ersten): sonst sieht man die Wirkung der Sortierung nicht
+    const spalten = () => page.$$eval(auswahl, (ts, label) => {
+      const t = ts[0];
+      const i = [...t.querySelectorAll('thead th')].findIndex((th) => th.textContent.replace(/[▲▼]/g, '').trim() === label);
+      return [...t.querySelectorAll('tbody tr')].map((tr) => (tr.children[i] || {}).textContent || '').map((x) => x.trim());
+    }, probe.spalte);
+    const kopfInfo = await page.$$eval(auswahl + ' thead th', (ths) => {
+      const sortierbar = ths.filter((th) => th.querySelector('button[aria-label^="Sortieren nach"]'));
+      return { alle: ths.length, sortierbar: sortierbar.length, mitAria: sortierbar.filter((th) => th.hasAttribute('aria-sort')).length };
+    });
+    check(kopfInfo.sortierbar >= kopfInfo.alle - 1 && kopfInfo.mitAria === kopfInfo.sortierbar,
+      'B4 ' + probe.view + ': ' + kopfInfo.sortierbar + ' von ' + kopfInfo.alle + ' Kopfzellen sortierbar, alle mit aria-sort und aria-label');
+    check((await page.locator('#view button.reset-sort:visible').count()) === 0, 'B4 ' + probe.view + ': ohne Sortierung kein Schalter «Sortierung zurücksetzen»');
+    const vorher = await spalten();
+    await page.click(auswahl + ' thead th button[aria-label="Sortieren nach ' + probe.spalte + '"]');
+    await page.waitForTimeout(300);
+    const sortiert = await spalten();
+    const aktiv = await page.getAttribute(auswahl + ' thead th.sortable.active', 'aria-sort');
+    const inUrl = probe.slug ? new RegExp('sort=' + probe.slug + '\.').test(page.url()) : /sort=/.test(page.url());
+    check(sortiert.join('|') !== vorher.join('|') && ['ascending', 'descending'].includes(aktiv) && inUrl,
+      'B4 ' + probe.view + ': «' + probe.spalte + '» sortiert (' + vorher.slice(0, 3).join(',') + ' → ' + sortiert.slice(0, 3).join(',') + '), aria-sort ' + aktiv + ', in der URL');
+    // Zurücksetzen stellt die fachliche Ausgangsreihenfolge wieder her
+    const reset = page.locator((probe.tabelle
+      ? '#view .table-wrap:has(.caption-text:text-is("' + probe.tabelle + '"))'
+      : '#view .table-wrap:has(table.dq-table)') + ' button.reset-sort');
+    await reset.click();
+    await page.waitForTimeout(300);
+    check((await spalten()).join('|') === vorher.join('|'), 'B4 ' + probe.view + ': «Sortierung zurücksetzen» stellt die Ausgangsreihenfolge her');
+  }
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+
+  // Paket B (B3): Mit einem Institut-Filter waren auf «Bestenlisten» zwölf von sechzehn Tabellen leer – über 2000 px
+  // Spaltenüberschriften ohne einen einzigen Wert. Zu kleine Gruppen stehen jetzt zusammen in einer Zeile.
+  await page.goto(server.url + '#bestenlisten?bank=' + encodeURIComponent('Testbank AG'));
+  await page.waitForSelector('#view h2');
+  const listen = await page.evaluate(() => {
+    const tabellen = [...document.querySelectorAll('#view table.data')];
+    const sammel = [...document.querySelectorAll('#view p.empty')].map((p) => p.textContent.trim()).filter((t) => /^Keine Bestenliste für /.test(t));
+    return {
+      tabellen: tabellen.length,
+      ohneZeilen: tabellen.filter((t) => !t.querySelector('tbody tr')).length,
+      kopfhoehe: Math.round(tabellen.reduce((a, t) => a + (t.tHead ? t.tHead.getBoundingClientRect().height : 0), 0)),
+      sammel,
+      profileJeSammelmeldung: sammel.map((t) => (t.match(/für ([^–]+) –/) || [null, ''])[1].split(', ').filter(Boolean).length),
+    };
+  });
+  check(listen.ohneZeilen === 0 && listen.sammel.length <= 3 && listen.sammel.every((t) => /Gruppen unter n = 5 im aktiven Filter\.$/.test(t)) && listen.profileJeSammelmeldung.every((n) => n >= 2),
+    'B3 Bestenlisten mit Bank-Filter: ' + listen.tabellen + ' Tabellen, keine davon leer, ' + listen.sammel.length + ' Sammelmeldung(en) für je '
+      + listen.profileJeSammelmeldung.join('/') + ' Profile, Kopfzeilen zusammen ' + listen.kopfhoehe + ' px (statt Überschriften ohne Werte)');
+  check((await page.locator('#view p.empty').count()) >= 1 && (await page.locator('#view .ranking-grid table.data').count()) >= 1, 'B3 Bestenlisten: die Listen mit Treffern bleiben als Tabelle');
+  await shot(page, 'bestenlisten-gefiltert');
+  // Filter über die Schaltfläche zurücksetzen: ein Hash ohne Parameter lässt den Zustand stehen (urlState, hasParams)
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
+  // Paket B (B1): Die Y-Achse der Liniendiagramme folgt dem Wertebereich. Beginnt sie nicht bei null, steht das
+  // sichtbar über dem Diagramm – nicht in der eingeklappten Legende. Der unterste Y-Tick ist der Achsenbeginn.
+  await page.goto(server.url + '#zeitverlauf');
+  await page.waitForSelector('#view figure.viz svg');
+  const achsen = await page.$$eval('#view figure.viz', (figs) => figs
+    .filter((f) => !f.querySelector('svg.viz-bars'))
+    .map((f) => {
+      const untertitel = f.querySelector('.viz-subtitle');
+      const ticks = [...f.querySelectorAll('svg text.viz-tick[text-anchor="end"]')].map((t) => t.textContent.trim());
+      return {
+        titel: (f.querySelector('figcaption') || {}).textContent.split(' · ')[0],
+        untertitel: untertitel ? untertitel.textContent.trim() : '',
+        sichtbar: untertitel ? untertitel.getClientRects().length > 0 : false,
+        beginn: ticks[0] || '',
+        ticks: ticks.length,
+      };
+    }));
+  check(achsen.length >= 2 && achsen.every((a) => {
+    const beiNull = /^0\s*%$/.test(a.beginn);
+    if (beiNull) return a.untertitel === '';
+    return a.sichtbar && a.untertitel.includes(a.beginn) && /Kein Nullpunkt/.test(a.untertitel) && a.ticks >= 3 && a.ticks <= 7;
+  }), 'B1 Zeitverlauf: Achse folgt dem Wertebereich, Hinweis genau dann sichtbar, wenn sie nicht bei null beginnt (' + achsen.map((a) => a.titel + ': ab ' + a.beginn + (a.untertitel ? ' + Hinweis' : ' ohne Hinweis')).join(' · ') + ')');
+  check((await page.locator('#view figure.viz .viz-legend').count()) >= 1, 'B1 Zeitverlauf: Legende bleibt neben der Achsenänderung erhalten');
+
+  // Paket B (B2): Die Endbeschriftung trägt nur noch den Wert – der Reihenname steht in der Legende. Der Rand rechts
+  // schrumpft entsprechend, die Zeichenfläche wächst. Gemessen in viewBox-Einheiten, kein Label ragt heraus.
+  const flaeche = await page.$$eval('#view figure.viz', (figs) => figs
+    .filter((f) => !f.querySelector('svg.viz-bars'))
+    .map((f) => {
+      const root = f.querySelector('svg');
+      const breite = Number(root.getAttribute('viewBox').split(' ')[2]);
+      const gitter = [...root.querySelectorAll('line.viz-grid, line.viz-axis')];
+      const links = Math.min(...gitter.map((l) => Number(l.getAttribute('x1'))));
+      const rechts = Math.max(...gitter.map((l) => Number(l.getAttribute('x2'))));
+      const labels = [...root.querySelectorAll('text.viz-label')];
+      return {
+        plot: Math.round(rechts - links),
+        randRechts: Math.round(breite - rechts),
+        texte: labels.map((t) => t.textContent.trim()),
+        ueberlauf: labels.some((t) => { const b = t.getBBox(); return b.x + b.width > breite + 0.5 || b.x < 0; }),
+        legende: f.querySelectorAll('.viz-legend-item').length,
+      };
+    }));
+  const PLOT_VORHER = 820 - 48 - 250; // 522 Einheiten vor B2
+  check(flaeche.length >= 2 && flaeche.every((f) => f.plot > PLOT_VORHER * 1.25 && !f.ueberlauf && f.legende >= 2
+    && f.texte.length >= 2 && f.texte.every((t) => /^\d+(\.\d+)? %$/.test(t))),
+    'B2 Zeitverlauf: Plotbreite ' + flaeche.map((f) => f.plot).join('/') + ' statt ' + PLOT_VORHER + ' Einheiten, Endbeschriftung nur der Wert ('
+      + flaeche[0].texte.join(', ') + '), kein Überlauf, Legende mit ' + flaeche.map((f) => f.legende).join('/') + ' Einträgen');
+  await shot(page, 'zeitverlauf-achse');
+
   // Offene Vorgänge (A.5): Statuszellen als Badge (Spalte «Passiv» = ja)
   await page.goto(server.url + '#offene-vorgaenge');
   await page.waitForSelector('#view h2');
@@ -446,7 +620,7 @@ try {
   check((await einsaetzeKpi()) === '7', 'Experten: Kachel Einsätze = 7 (synthetische Datei)');
   await page.click('#view .expert-table th.sortable button[aria-label="Sortieren nach Experte"]');
   await page.waitForFunction(() => { const td = document.querySelector('#view .expert-table tbody tr.expandable td:nth-child(2)'); return td && td.textContent.trim() === 'Beisitz Bruno'; }, null, { timeout: 5000 });
-  check((await page.getAttribute('#view .expert-table th.sortable.active', 'aria-sort')) === 'ascending' && !/sort/i.test(page.url()), 'Experten: Sortierung nach Name (aria-sort ascending), nicht in der URL');
+  check((await page.getAttribute('#view .expert-table th.sortable.active', 'aria-sort')) === 'ascending' && /sort=experten\.experte\.asc/.test(page.url()), 'Experten: Sortierung nach Name (aria-sort ascending), steht in der URL (B4: ' + page.url().split('?')[1] + ')');
   await page.click('#view .expert-table th.sortable button[aria-label="Sortieren nach Durchfallquote 1. Versuch"]');
   await page.waitForFunction(() => { const td = document.querySelector('#view .expert-table tbody tr.expandable td:nth-child(2)'); return td && td.textContent.trim() === 'Experte Emil'; }, null, { timeout: 5000 });
   check((await page.getAttribute('#view .expert-table th.sortable.active', 'aria-sort')) === 'descending', 'Experten: Sortierung nach Durchfallquote 1. Versuch absteigend (Emil 40.0 % zuerst)');
@@ -674,7 +848,13 @@ try {
   await phone.goto(server.url + '#offene-vorgaenge');
   await phone.waitForSelector('#view h2');
   check((await collapsed(phone, ['Je Profil', 'Teilprüfungen je Profil'])).join(',') === 'Je Profil:zu,Teilprüfungen je Profil:zu', 'Phone Offene Vorgänge: Je-Profil-Tabellen eingeklappt');
-  check(JSON.stringify(await visibleHeads(phone, 'Teilnehmende')) === JSON.stringify(['Name', 'Profil', 'Fehlende Teile', 'Nächster Termin']) && JSON.stringify(await visibleHeads(phone, 'Frühwarnung')) === JSON.stringify(['Stufe', 'Name', 'Teilprüfung', 'Nächster Termin']), 'Phone Offene Vorgänge: Teilnehmende und Frühwarnung mit Prio-1-Spalten');
+  check(JSON.stringify(await visibleHeads(phone, 'Teilnehmende')) === JSON.stringify(['Name', 'Profil', 'Fehlende Teile', 'Nächster Termin']), 'Phone Offene Vorgänge: Teilnehmende mit Prio-1-Spalten');
+  // B3: Die Frühwarnung hat in der synthetischen Datei keine Zeilen – statt acht Spaltenüberschriften ohne Werte nur die Meldung
+  const warnung = await phone.evaluate(() => {
+    const abschnitt = [...document.querySelectorAll('#view section.block, #view details.fold')].find((x) => (x.querySelector('h3, summary') || {}).textContent.startsWith('Frühwarnung'));
+    return abschnitt ? { tabellen: abschnitt.querySelectorAll('table.data').length, meldung: (abschnitt.querySelector('p.empty') || {}).textContent || '' } : null;
+  });
+  check(warnung && warnung.tabellen === 0 && warnung.meldung.length > 10, 'Phone Offene Vorgänge: Frühwarnung ohne Zeilen zeigt nur die Meldung, keine Kopfzeile («' + (warnung ? warnung.meldung.slice(0, 60) : '–') + '»)');
   await phone.screenshot({ path: join(outDir, 'phone-offene-vorgaenge.png'), fullPage: true });
   await phone.goto(server.url + '#geplante-pruefungen');
   await phone.waitForSelector('#view h2');

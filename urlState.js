@@ -2,7 +2,7 @@
 // Erlaubt gemäss CLAUDE.md: ein Filter enthält keine Personendaten. Personendaten stehen nie in der URL.
 //
 // Format: #<ansicht>?von=2025-01-01&bis=2025-12-31&profil=PK&sprache=DE&bank=Testbank+AG&vss=vsm&versuche=erstversuch
-//         &zertifikate=1&wertung=bestanden&benchmark=profil
+//         &zertifikate=1&wertung=bestanden&benchmark=profil&sort=experten.einsaetze.desc
 // Nur vom Standard abweichende Werte werden geschrieben; unbekannte oder ungültige Werte werden ignoriert.
 
 import { DEFAULT_FILTER, MODE, BENCHMARKS, dayKey } from './metrics.js';
@@ -10,9 +10,14 @@ import { DEFAULT_FILTER, MODE, BENCHMARKS, dayKey } from './metrics.js';
 // compare: zwei Jahre für den Zeitraumvergleich (a6), null = automatisch die zwei jüngsten Jahre mit Daten
 // snapshots / snapshotErrors (Historie, b7): nur im Memory, nie in der URL (Aggregate, aber Datei-Inhalte gehören nicht in Links)
 // personen: Suchtext und gewählte Person der Ansicht «Personen» (Paket C) – nur im Memory, nie in der URL (C.4)
-// experten: Sortierung der Experten-Tabelle (Paket D) – nur im Memory, nie in der URL
-export const DEFAULT_UI = Object.freeze({ benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null, experten: null, editMode: false });
+// sort: Sortierung der Ansicht (Paket B, B4) – { view, table, key, dir }. Steht in der URL, weil ein geteilter Link
+// sonst etwas anderes zeigt als der Absender sieht. Ein Zustand je Ansicht; «table» ist der Titel-Slug der Tabelle,
+// damit klar ist, welche der Tabellen einer Ansicht gemeint ist. Enthält nie Personendaten (Spaltenschlüssel).
+export const DEFAULT_UI = Object.freeze({ benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null, sort: null, editMode: false });
 // editMode: Bearbeitungsmodus des Schreibpfads (Paket E) – Schalter im Kopf, Standard aus, nur im Memory
+
+// sort=<tabelle>.<spalte>.<asc|desc>: Tabelle = Titel-Slug (a–z, 0–9, Bindestrich), Spalte = Schlüssel des Modells
+const SORT_PARAM = /^([a-z0-9-]+)\.([A-Za-z0-9_]+)\.(asc|desc)$/;
 
 const VSS_VALUES = ['alle', 'vss', 'vsm', 'ohne'];
 const VERSUCHE_VALUES = ['alle', 'erstversuch', 'mehrere'];
@@ -34,7 +39,8 @@ export function formatDay(date) {
 }
 
 // Zustand → Query-String (ohne '?'); leer, wenn alles Standard ist
-export function serializeState(filter = DEFAULT_FILTER, ui = DEFAULT_UI) {
+// view: nötig für den Sortierzustand – er gilt je Ansicht und darf beim Wechsel nicht mitwandern.
+export function serializeState(filter = DEFAULT_FILTER, ui = DEFAULT_UI, view = null) {
   const f = { ...DEFAULT_FILTER, ...filter };
   const u = { ...DEFAULT_UI, ...ui };
   const p = new URLSearchParams();
@@ -49,11 +55,13 @@ export function serializeState(filter = DEFAULT_FILTER, ui = DEFAULT_UI) {
   if (f.mode !== DEFAULT_FILTER.mode) p.set('wertung', f.mode);
   if (u.benchmark !== DEFAULT_UI.benchmark) p.set('benchmark', u.benchmark);
   if (u.compare && Number.isInteger(u.compare.a) && Number.isInteger(u.compare.b)) p.set('vergleich', u.compare.a + '-' + u.compare.b);
+  const st = u.sort;
+  if (st && st.table && st.key && (view === null || st.view === view)) p.set('sort', st.table + '.' + st.key + '.' + (st.dir === 'desc' ? 'desc' : 'asc'));
   return p.toString();
 }
 
 export function buildHash(view, filter, ui) {
-  const q = serializeState(filter, ui);
+  const q = serializeState(filter, ui, view);
   return '#' + (view || '') + (q ? '?' + q : '');
 }
 
@@ -84,6 +92,8 @@ export function parseHash(hash) {
   if (benchmark) ui.benchmark = benchmark;
   const cmp = /^(\d{4})-(\d{4})$/.exec(p.get('vergleich') || '');
   if (cmp) ui.compare = { a: Number(cmp[1]), b: Number(cmp[2]) };
+  const st = SORT_PARAM.exec(p.get('sort') || '');
+  if (st) ui.sort = { view, table: st[1], key: st[2], dir: st[3] };
   return { view, hasParams: q >= 0, filter, ui };
 }
 

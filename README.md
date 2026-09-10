@@ -64,7 +64,9 @@ Definition steckt im ⓘ, das Label verlinkt auf das Glossar. Bei aktivem Benchm
 Vorzeichen und Farbe nach Richtung der Kennzahl (▲ +2.1 pp; höher ist besser bei Bestehensquoten und Ø Resultat, tiefer
 ist besser bei Durchfallquoten und passiven Vorgängen; unter 0.5 pp neutral ●). In Tabellen tragen Prozentspalten einen
 Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die erste Spalte bleibt beim horizontalen
-Scrollen stehen. Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
+Scrollen stehen. Der **Tabellenkopf ist nicht fixiert**: Er war es dem CSS nach, wirkte aber nie – der nächste
+Scroll-Container ist `.table-wrap`, und der scrollt nur horizontal. Die Regel ist in Paket B entfernt statt repariert;
+ein fixierter Kopf ergibt erst Sinn, wenn feststeht, wie viel Kopfbereich über ihm klebt (Paket C, Filterleiste). Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
 1200 px) für schmale Bildschirme; unter 1200 px blendet «Alle Spalten» die Prio-3-Spalten ein; breite Tabellen (Experten, Ø-Tabellen mit Streuung) zeigen Prio 3
 erst ab 1900 px (Full HD). Kopfzellen brechen um, Zahlen nicht (Paket F).
 
@@ -135,7 +137,7 @@ URL (nur im Memory) und werden beim Neuladen der Daten geleert.
 
 In der Ansicht «Experten» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» über die Vorgänge; der Zeitraum wirkt auf
 das Run-Datum des Einsatzes, nicht auf das Referenzdatum des Vorgangs («2025» zeigt die Einsätze des Jahres 2025). Versuche und Wertung
-wirken nicht. Die Sortierung der Haupttabelle liegt nur im Memory.
+wirken nicht. Die Haupttabelle wird wie jede andere Tabelle sortiert (Paket B); der Sortierzustand steht in der URL.
 
 ## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E14)
 
@@ -349,6 +351,47 @@ MSAL.js 3.30.0 (MIT), SheetJS 0.20.3 (Apache-2.0), fflate 0.8.3 (MIT). Diagramme
 der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die Gestaltung läuft über CSS-Tokens in
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
 aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
+
+**Y-Achse der Liniendiagramme (Paket B):** Die Achse folgt dem Wertebereich der Daten, nicht dem Nullpunkt: Beginn auf
+der nächsten 5-%-Stufe unter dem kleinsten Wert, mindestens 10 Prozentpunkte Spanne. Von null zu rechnen drängte
+Quoten, die real zwischen 66 % und 100 % liegen, ins obere Drittel und verdeckte jede Bewegung – etwa den Rückgang der
+schriftlichen Erstversuchsquote. Beginnt die Achse nicht bei null, steht das sichtbar über dem Diagramm («Achse
+beginnt bei 65 % – der Wertebereich der Daten. Kein Nullpunkt.»), nicht in der eingeklappten Legende. Der unterste
+Tick trägt die Achsenlinie und nennt den Beginn; darüber liegen runde Vielfache, höchstens sechs Abschnitte.
+**Balkendiagramme rechnen weiter von null** – bei Balken trägt die Länge die Aussage, eine gekappte Achse verzerrt die
+Verhältnisse.
+
+**Datenbalken in Prozentspalten (Paket B):** Der Balken füllt **von rechts** – dieselbe Richtung wie die rechtsbündige
+Zahl – und liegt auf einer **festen Spur** (`--bar-track`, 3.5 rem): 100 % sind überall gleich breit, in jeder Spalte
+und in jeder Tabelle. Vorher lief er über die ganze Zellbreite; da benachbarte Prozentspalten verschieden breit sind
+(gemessen: «Auswahl» 93 px gegen «Benchmark» 221 px in derselben Tabelle, «Ø Resultat 1. Versuch» 286 px gegen
+«Ø Resultat bestandener Run» 367 px), hatte derselbe Prozentwert dort verschiedene Länge – der Balken versprach einen
+Vergleich, den er nicht einlöste. Die Spur ist schmaler als die schmalste Prozentspalte, damit kein Balken
+abgeschnitten wird.
+
+**Sortierung (Paket B):** Jede Tabelle ist sortierbar, mit einer Implementierung: Die Kopfzelle trägt einen Button mit
+`aria-label` «Sortieren nach …», das `th` ein `aria-sort`, und der erste Klick sortiert Text aufsteigend, Zahlen
+absteigend; ein weiterer Klick kehrt um. **Die fachliche Ausgangssortierung bleibt der Standard** – Teilprüfungen,
+Profile und Jahre haben eine Reihenfolge, die Bedeutung trägt, und die darf eine alphabetische Sortierung nicht
+verdrängen; «Sortierung zurücksetzen» stellt sie wieder her. Der Zustand steht in der URL
+(`sort=<tabellen-slug>.<spalte>.<asc|desc>`), sonst zeigt ein geteilter Link etwas anderes als der Absender sieht: ein
+Zustand je Ansicht, die Tabelle über den Slug ihres Titels benannt. Tabellen ohne Titel sortieren nur im Speicher.
+Das Data-Quality-Log behält seine eigene Vergleichsfunktion – «Wirkung» und «Stufe» haben eine fachliche Reihenfolge,
+die eine alphabetische Sortierung zerstören würde –, aber dieselbe Bedienung; seine **Filter** (darunter der Suchtext,
+der ein Name sein kann) bleiben im Memory und stehen nie in der URL.
+
+**Leere Tabellen (Paket B):** Bei null Zeilen wird gar keine Tabelle gerendert – nur die Meldung, mit dem Titel davor,
+solange er sich vom Abschnittstitel unterscheidet. Vorher stand die Meldung hinter der vollständig gerenderten
+Kopfzeile: auf «Bestenlisten» mit einem Institut-Filter zwölf von sechzehn Tabellen leer, zusammen über 2000 px
+Spaltenüberschriften ohne einen einzigen Wert. Auf «Bestenlisten» stehen die Gruppen unter der Mindestgrösse
+zusätzlich zusammen in einer Zeile («Keine Bestenliste für IK, CWMA, KMU, AFFL – Gruppen unter n = 5 im aktiven
+Filter.») statt in je einer eigenen leeren Tabelle. Der Export enthält weiterhin alle Tabellenmodelle.
+
+**Direktbeschriftung am Linienende (Paket B):** Sie trägt nur den Wert («75 %»). Den Reihennamen dort zu wiederholen
+kostete 250 von 820 Einheiten Rand – 30 % der Zeichenfläche – für eine Angabe, die die Legende zwei Zeilen darunter
+ohnehin macht. Der Rand richtet sich jetzt nach der Länge der Werte (`endLabelGutter`); die Zeichenfläche wächst damit
+von 522 auf rund 700 Einheiten. **Die Legende bleibt**: Sie ist der verlässliche Identitätskanal, gerade für
+Farbfehlsichtige; die Direktbeschriftung ergänzt sie, ersetzt sie nicht.
 
 **Druck bei dunkler Systemeinstellung:** Der Druck-Block überschreibt den Dark-Block, er ersetzt ihn nicht. Die reale
 Kaskade ist `hell → dunkel → Druck`, und jedes Token, das `@media (prefers-color-scheme: dark)` setzt, muss `@media print`

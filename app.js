@@ -10,10 +10,10 @@ import { CONFIG, headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay, isAuthResponseHash } from './urlState.js';
 import { filterChips, yearOf } from './filterChips.js';
-import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials } from './views/common.js';
+import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials, setSortContext } from './views/common.js';
 import { glossarySlug } from './glossary.js';
 import { vorgangExportTables, expertRunExportTable, auditTable } from './views/tables.js';
-import { renderDataQuality } from './views/dataQuality.js';
+import { renderDataQuality, DEFAULT_DQ_STATE, DQ_SORT_ID } from './views/dataQuality.js';
 import * as overview from './views/overview.js';
 import * as written from './views/written.js';
 import * as oral from './views/oral.js';
@@ -398,9 +398,16 @@ function updateFilterBar() {
 
 function renderDq(table) {
   const { dq, persons, ui: uiState } = store.getState();
+  // B4: Die Sortierung des Logs läuft über denselben Zustand wie alle anderen Tabellen und steht damit in der URL.
+  // Die Filter des Logs bleiben im Memory – der Suchtext kann ein Name sein, und Personendaten gehören nie in die URL.
+  const aktiv = uiState.sort && uiState.sort.view === 'datenqualitaet' && uiState.sort.table === DQ_SORT_ID ? uiState.sort : null;
+  const state = { ...(uiState.dq || {}), sortKey: aktiv ? aktiv.key : DEFAULT_DQ_STATE.sortKey, sortDir: aktiv ? aktiv.dir : DEFAULT_DQ_STATE.sortDir };
   // Sortierung/Filter des Logs: im Store merken, aber nur diesen Block neu rendern – so bleibt der Fokus im Suchfeld
-  renderDataQuality(table, dq, uiState.dq || {}, (next) => {
-    store.setUi({ dq: next }, { silent: true });
+  renderDataQuality(table, dq, state, (next) => {
+    const { sortKey, sortDir, ...filter } = next;
+    const standard = sortKey === DEFAULT_DQ_STATE.sortKey && sortDir === DEFAULT_DQ_STATE.sortDir;
+    store.setUi({ dq: filter, sort: standard ? null : { view: 'datenqualitaet', table: DQ_SORT_ID, key: sortKey, dir: sortDir } }, { silent: true });
+    syncHash();
     renderDq(table);
   }, { persons, onJump: jumpToPerson });
 }
@@ -448,8 +455,21 @@ function jumpToGlossaryTerm() {
   target.focus({ preventScroll: true });
 }
 
+// Sortierkontext der Ansicht (Paket B, B4): Zustand aus der URL hinein, Änderungen zurück in URL und Store.
+// silent: Die Tabelle zeichnet sich selbst neu und behält den Tastaturfokus auf der bedienten Kopfzelle – ein
+// vollständiges Neurendern würde ihn verlieren.
+function applySortContext(viewId) {
+  const { ui: uiState } = store.getState();
+  const active = uiState.sort && uiState.sort.view === viewId ? uiState.sort : null;
+  setSortContext(active, (next) => {
+    store.setUi({ sort: next ? { view: viewId, ...next } : null }, { silent: true });
+    syncHash();
+  });
+}
+
 function renderView() {
   const current = viewFromHash();
+  applySortContext(current);
   renderNav();
   const view = VIEWS.find((v) => v.id === current);
   const container = ui.view;
@@ -515,8 +535,6 @@ function renderView() {
     // Experten (Paket D, D.6): Vorgänge des Filters ohne Zeitraum und ohne Versuche; der Zeitraum wirkt auf das Run-Datum des Einsatzes
     expertRuns: expertRuns(filterPersons(state.persons, { ...filter, versuche: 'alle' }, { period: false }), { from: filter.from, to: filter.to }),
     expertMeta: { ...(state.meta.experts || { columns: false, from: null, headers: [] }), expected: [headerCandidates(runKey('oe', 1, 1, 'expert1'))[0], headerCandidates(runKey('oe', 1, 1, 'expert2'))[0]] },
-    experten: state.ui.experten,
-    onExpertenChange: (next) => store.setUi({ experten: next }, { silent: true }), // Sortierung nur im Memory
     onWrite: (change) => writeChange(change), // Schreibpfad (Paket E): nur mit Flag, nur bei Daten von SharePoint
     editMode: !!state.ui.editMode, // Bearbeitungsmodus (Schalter im Kopf): Raster-Zellen anklickbar
     audit: state.audit || [], // Historie der App-Änderungen (Ansicht Historie, Personen-Karten)

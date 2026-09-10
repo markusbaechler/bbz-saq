@@ -125,7 +125,7 @@ test('createStore.setUi / update: Anzeigezustand im Store; silent ohne Benachric
   const store = createStore();
   let calls = 0;
   store.subscribe(() => { calls += 1; });
-  assertEqual(store.getState().ui, { benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null, experten: null, editMode: false });
+  assertEqual(store.getState().ui, { benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null, sort: null, editMode: false });
   store.setUi({ benchmark: 'profil' });
   assertEqual([store.getState().ui.benchmark, calls], ['profil', 1]);
   store.setUi({ dq: { text: 'x' } }, { silent: true });

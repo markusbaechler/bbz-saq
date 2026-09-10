@@ -5,7 +5,7 @@
 import { CONFIG } from '../config.js';
 import { IMPACT_LABELS, IMPACT_ORDER } from '../store.js';
 import { excludedTables } from './tables.js';
-import { renderTable } from './common.js';
+import { renderTable, sortableHeadCell, nextSortDir } from './common.js';
 
 // Stufen: Fehler (nicht interpretierbar, Wert ignoriert), Hinweis (interpretiert/abgeleitet, auffällig),
 // Nicht ausgewertet (nicht interpretierbar, aber Feld fliesst in keine Kennzahl – Score, Entscheid E6 offen)
@@ -135,6 +135,9 @@ export function summaryAsText(summary) {
 }
 
 export const DEFAULT_DQ_STATE = Object.freeze({ sortKey: 'impact', sortDir: 'asc', text: '', sheet: '', level: '', impact: '' });
+// Kennung der Tabelle für den Sortierzustand in der URL (Paket B, B4); die Filter des Logs bleiben im Memory,
+// weil der Suchtext ein Name sein kann und Personendaten nie in die URL gehören.
+export const DQ_SORT_ID = 'einzelne-eintraege';
 
 // Volltextsuche entprellt (Befund 14): erst 150 ms nach dem letzten Tastendruck neu rendern
 export const SEARCH_DEBOUNCE_MS = 150;
@@ -246,14 +249,15 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
   ]));
   container.appendChild(el('h3', { text: 'Einzelne Einträge' }));
 
-  const headCells = DQ_COLUMNS.map((c) => {
-    const active = s.sortKey === c.key;
-    const arrow = active ? (s.sortDir === 'asc' ? ' ▲' : ' ▼') : '';
-    return el('th', {
-      scope: 'col', 'data-prio': String(c.prio), class: 'sortable' + (active ? ' active' : ''), 'aria-sort': active ? (s.sortDir === 'asc' ? 'ascending' : 'descending') : 'none',
-      onclick: () => onChange({ ...s, sortKey: c.key, sortDir: active && s.sortDir === 'asc' ? 'desc' : 'asc' }),
-    }, [el('button', { type: 'button', text: c.label + arrow })]);
-  });
+  // B4: dieselbe Kopfzelle wie alle anderen Tabellen (Button, aria-label, aria-sort, Erstrichtung nach Spaltentyp).
+  // Die Vergleichsfunktion bleibt sortDq: «Wirkung» und «Stufe» haben eine fachliche Reihenfolge, die eine
+  // alphabetische Sortierung zerstören würde – «Zeile» ist die einzige numerische Spalte.
+  const numeric = new Set(['row']);
+  const headCells = DQ_COLUMNS.map((c) => sortableHeadCell(c, {
+    sort: s.sortKey ? { key: s.sortKey, dir: s.sortDir } : null,
+    numeric,
+    onSort: (col) => onChange({ ...s, sortKey: col.key, sortDir: nextSortDir(col, numeric, { key: s.sortKey, dir: s.sortDir }) }),
+  }));
   if (onJump) headCells.push(el('th', { scope: 'col', 'data-prio': '1', text: 'Person' }));
   const headRow = el('tr', {}, headCells);
   const byRow = new Map(persons.map((p) => [p.sheetName + '|' + p.row, p]));
@@ -272,5 +276,13 @@ export function renderDataQuality(container, entries, state = DEFAULT_DQ_STATE, 
     }
     return el('tr', { class: 'level-' + levelOf(e) + ' impact-' + impactOf(e) }, cells);
   }));
-  container.appendChild(el('div', { class: 'table-wrap' }, [el('table', { class: 'dq-table' }, [el('thead', {}, [headRow]), body])]));
+  const wrap = el('div', { class: 'table-wrap' }, [el('table', { class: 'dq-table' }, [el('thead', {}, [headRow]), body])]);
+  // B4: derselbe Schalter wie in allen anderen Tabellen – zurück zur fachlichen Ausgangssortierung (Wirkung, Wichtigstes zuerst)
+  if (s.sortKey !== DEFAULT_DQ_STATE.sortKey || s.sortDir !== DEFAULT_DQ_STATE.sortDir) {
+    wrap.appendChild(el('button', {
+      type: 'button', class: 'link reset-sort', text: 'Sortierung zurücksetzen',
+      onclick: () => onChange({ ...s, sortKey: DEFAULT_DQ_STATE.sortKey, sortDir: DEFAULT_DQ_STATE.sortDir }),
+    }));
+  }
+  container.appendChild(wrap);
 }

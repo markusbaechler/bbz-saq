@@ -24,6 +24,7 @@
   --warn-bg: #fff4e0;
   --shadow: rgba(0, 0, 0, .08);
   --radius: 6px;
+  --bar-track: 3.5rem; /* B5: feste Spur der Datenbalken – gleicher Wert, gleiche Länge in jeder Spalte und Tabelle */
   /* Abstände (4-px-Raster) und Schriftgrade (PROMPT-2 A.1) */
   --space-1: .25rem; --space-2: .5rem; --space-3: .75rem; --space-4: 1rem; --space-5: 1.5rem; --space-6: 2rem;
   --fs-xs: .75rem; --fs-sm: .85rem; --fs-md: 1rem; --fs-lg: 1.2rem; --fs-xl: 1.75rem; /* xl nur KPI-Wert */
@@ -304,7 +305,8 @@ dialog.edit-dialog select, dialog.edit-dialog input { width: 100%; box-sizing: b
 /* Experten (PROMPT-2 Paket D): Zeilen-Detail mit vier kleinen Tabellen, sortierbare Kopfzellen wie im Data-Quality-Log */
 .expert-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-3); }
 .expert-detail .table-wrap { margin: 0; }
-.expert-table th.sortable.active button { color: var(--accent); }
+/* B4: aktive Sortierspalte in jeder Tabelle erkennbar (Pfeil im Text, dazu die Akzentfarbe) */
+th.sortable.active button { color: var(--accent); }
 
 /* Inhalt */
 .view { flex: 1; padding: 1rem 1.25rem 2rem; background: var(--panel); margin: var(--space-4) 1.25rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); }
@@ -361,7 +363,18 @@ table.data tbody tr:nth-child(even) td { background-color: var(--panel-2); }
 .table-wrap table.data th:first-child { z-index: 2; background-color: var(--th-bg); }
 table.data tbody tr:nth-child(even) td:first-child { background-color: var(--panel-2); }
 table.data caption .info { margin-left: var(--space-1); }
-td.pct { background-image: linear-gradient(to right, var(--bar) calc(var(--v) * 1%), transparent 0); background-repeat: no-repeat; }
+/* B5: Datenbalken. Zwei Fehler waren zu beheben. (1) Der Balken füllte von links, die Zahl steht rechtsbündig – beide
+   zeigten in entgegengesetzte Richtungen. (2) Schwerer: Der Balken lief über die ganze Zellbreite, und benachbarte
+   Prozentspalten sind verschieden breit (gemessen: «Auswahl» 93 px gegen «Benchmark» 221 px in derselben Tabelle).
+   Derselbe Prozentwert hatte dort verschiedene Länge – der Balken versprach einen Vergleich, den er nicht einlöste.
+   Jetzt füllt er von rechts auf einer festen Spur: 100 % sind überall --bar-track breit, in jeder Spalte und in jeder
+   Tabelle. Die Spur ist schmaler als die schmalste Prozentspalte, damit nichts abgeschnitten wird. */
+td.pct {
+  background-image: linear-gradient(to left, var(--bar) calc(var(--v) * 1%), transparent 0);
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: var(--bar-track) 100%;
+}
 td.delta.pos { color: var(--delta-pos); }
 td.delta.neg { color: var(--delta-neg); }
 td.delta.neutral { color: var(--delta-neutral); }
@@ -384,8 +397,15 @@ td.status-cell { white-space: nowrap; } /* Raster-Zellen mit Badge und Datum (Pa
 }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-th { background: var(--th-bg); position: sticky; top: 0; }
-th.sortable button { background: none; border: none; color: inherit; padding: 0; font-weight: 600; cursor: pointer; }
+/* B6: Kein sticky Tabellenkopf. «position: sticky; top: 0» stand hier, wirkte aber nie: Der nächste Scroll-Container
+   ist .table-wrap, und der scrollt nur horizontal (overflow-x: auto, keine Höhenbegrenzung – scrollHeight gleich
+   clientHeight). Gemessen: bei 1766 px Seitenscroll wanderte der Kopf von y = 439 auf y = −1327, also vollständig mit.
+   Eine tote Regel liest sich wie eine Zusage; ein fixierter Kopf ergibt erst Sinn, wenn feststeht, wie viel Kopfbereich
+   über ihm klebt – das entscheidet Paket C (die Filterleiste ist sticky mit z-index 3). Dort erneut prüfen. */
+th { background: var(--th-bg); }
+th.sortable button { background: none; border: none; color: inherit; padding: 0; font-weight: 600; cursor: pointer; text-align: inherit; }
+/* B4: «Sortierung zurücksetzen» – nur sichtbar, solange eine Sortierung aktiv ist; das Modell trägt die fachliche Reihenfolge */
+.table-wrap .reset-sort:not([hidden]) { display: inline-block; margin: var(--space-1) var(--space-3) var(--space-2) 0; font-size: var(--fs-sm); }
 th.active button { color: var(--accent); }
 td.col-row { text-align: right; white-space: nowrap; }
 .dq-summary-box { margin: .25rem 0 1rem; }
@@ -448,6 +468,8 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .viz-legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .8rem; color: var(--muted); margin-top: .25rem; }
 .viz-legend-item { display: inline-flex; align-items: center; gap: .35rem; }
 .viz-key-box { display: inline-block; width: 14px; height: 2px; border-radius: 1px; }
+/* B1: Achsenhinweis über dem Diagramm – wer die Kurve sieht, muss zugleich sehen, dass die Fläche unter ihr fehlt */
+.viz-subtitle { color: var(--muted); font-size: var(--fs-sm); margin: 0 0 .35rem; }
 .viz figcaption { color: var(--muted); font-size: .75rem; margin-top: .25rem; }
 .viz.compact .viz-tip { position: static; margin-top: var(--space-2); min-width: 0; } /* Phone (B.3): Tooltip unter dem Diagramm */
 
@@ -575,7 +597,6 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   table.data { page-break-inside: auto; }
   tr { page-break-inside: avoid; }
   .view { border: none; margin: 0; padding: 0; }
-  th { position: static; }
   a { color: inherit; text-decoration: none; }
   tr.event-detail[hidden] { display: table-row; } /* Druck: zugeteilte Personen je Ereignis immer sichtbar */
   tr.expandable td.toggle::before { content: ''; }

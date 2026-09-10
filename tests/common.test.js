@@ -1,6 +1,6 @@
 // tests/common.test.js – reine Helfer aus views/common.js (kein DOM): Geräteklasse und Initialen (PROMPT-2 B.2)
 import { test, assertEqual } from './runner.js';
-import { initials, isPhone, onViewportChange } from '../views/common.js';
+import { initials, isPhone, onViewportChange, nextSortDir, tableSortId } from '../views/common.js';
 
 const mm = (matches) => () => ({ matches, addEventListener() {}, removeEventListener() {} });
 
@@ -44,4 +44,22 @@ test('common.isPhone: matchMedia (max-width: 600px); ohne matchMedia (Node) nie 
   assertEqual(isPhone(mm(true)), true);
   assertEqual(isPhone(mm(false)), false);
   assertEqual(isPhone(undefined), false);
+});
+
+// Paket B (B4): eine Sortier-Implementierung für alle Tabellen. Vorher gab es zwei mit verschiedenem Verhalten –
+// Experten (Text aufsteigend, Zahlen absteigend) und Data-Quality (immer aufsteigend zuerst).
+test('common.nextSortDir: Text aufsteigend, Zahlen absteigend, aktive Spalte kehrt um (B4)', () => {
+  const numeric = new Set(['einsaetze', 'fail1']);
+  assertEqual(nextSortDir({ key: 'experte' }, numeric, null), 'asc', 'Textspalte startet aufsteigend');
+  assertEqual(nextSortDir({ key: 'einsaetze' }, numeric, null), 'desc', 'Zahlenspalte startet mit dem grössten Wert');
+  assertEqual(nextSortDir({ key: 'einsaetze' }, numeric, { key: 'einsaetze', dir: 'desc' }), 'asc', 'zweiter Klick kehrt um');
+  assertEqual(nextSortDir({ key: 'einsaetze' }, numeric, { key: 'einsaetze', dir: 'asc' }), 'desc', 'dritter Klick kehrt zurück');
+  assertEqual(nextSortDir({ key: 'experte' }, numeric, { key: 'einsaetze', dir: 'asc' }), 'asc', 'andere Spalte beginnt neu');
+});
+
+test('common.tableSortId: Titel-Slug als Kennung, ohne Titel keine Kennung (B4)', () => {
+  assertEqual(tableSortId({ title: 'Kennzahlen je Profil' }), 'kennzahlen-je-profil');
+  assertEqual(tableSortId({ title: 'Ø Resultat (Experten)' }), 'resultat-experten', 'Sonderzeichen fallen weg (glossarySlug)');
+  assertEqual(tableSortId({ title: 'Trefferliste', sortId: 'eigene-kennung' }), 'eigene-kennung', 'ein Modell darf die Kennung setzen');
+  assertEqual(tableSortId({ rows: [] }), null, 'ohne Titel sortiert die Tabelle nur im Speicher');
 });

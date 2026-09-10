@@ -1,8 +1,9 @@
 // views/experten.js – Ansicht «Experten» (PROMPT-2 Paket D): Beobachtungswerte je Experte der mündlichen Prüfung (E8, E9):
 // Einsätze, Rollen, Durchfallquote je Versuchsart und Ø Resultat mit Δ zum Benchmark aller Experten; Zeilen-Detail je Jahr,
-// Profil, Sprache und Partner; Paarungen. Sortierzustand nur im Memory (store.ui.experten), nie in der URL.
+// Profil, Sprache und Partner; Paarungen. Sortiert wird wie in jeder anderen Tabelle (Paket B, B4): über
+// renderExpandableTable, Zustand in der URL.
 
-import { expertTables, sortTableRows } from './tables.js';
+import { expertTables } from './tables.js';
 import { renderKpis, renderTable, renderExpandableTable, section, hinted, el } from './common.js';
 
 export const id = 'experten';
@@ -11,7 +12,9 @@ export const group = 'Experten'; // Navigationsgruppe (PROMPT-2 A.2)
 export const intro = 'Einsätze, Rollen, Durchfallquote und Ø Resultat je Experte der mündlichen Prüfung gegen den Benchmark aller Experten; Beobachtungswerte, mit Namen.';
 export const glossar = 'Einsatz (Experte)';
 export const noPersonExport = true; // eigener Export «Einsatzebene» (app.js)
-export const DEFAULT_SORT = Object.freeze({ sortKey: 'einsaetze', sortDir: 'desc' });
+// Die Ausgangssortierung «Einsätze absteigend» steckt im Modell (metrics.expertStats sortiert danach); die Tabelle
+// braucht dafür keinen eigenen Zustand mehr. Sortiert wird seit Paket B (B4) über renderExpandableTable – eine
+// Implementierung für alle Tabellen, Zustand in der URL statt nur im Memory.
 // Wirksamkeit der globalen Filterleiste (Paket A, A1): die Einsätze entstehen aus ctx.expertRuns – die Vorgangsfilter wirken,
 // der Versuchsmodus nicht (er wird auf 'alle' gesetzt). Der Zeitraum bleibt aktiv, wirkt aber auf das Run-Datum des Einsatzes;
 // darum der sichtbare Hinweis in der Leiste statt einer Erklärung im Text.
@@ -41,35 +44,10 @@ export function build(ctx) {
     return { nodes: [el('p', { class: 'empty', text: 'Keine Expertenspalten in dieser Datei (erwartete Header: ' + (meta.expected || []).join(', ') + ' je mündlichem Run).' })], tables: [], hints };
   }
   const t = expertTables(ctx.expertRuns || []);
-  const state = { ...DEFAULT_SORT, ...(ctx.experten || {}) };
-  const commit = () => ctx.onExpertenChange && ctx.onExpertenChange({ sortKey: state.sortKey, sortDir: state.sortDir });
-  const holder = el('div', { class: 'expert-table' });
-
-  // Haupttabelle: sortierbare Kopfzellen (button, aria-sort wie im Data-Quality-Log), Zeilen-Detail zum Aufklappen
-  function renderMain() {
-    const rows = sortTableRows(t.main.rows, state.sortKey, state.sortDir);
-    const wrap = renderExpandableTable({ ...t.main, rows }, { detail: (row) => detailNode(t.details.get(row.key)), hint: 'Zeile anklicken (oder Enter): Aufschlüsselung je Jahr, Profil, Sprache und Partner.' });
-    const ths = [...wrap.querySelectorAll('thead th')].filter((th) => !th.classList.contains('toggle'));
-    t.main.columns.forEach((c, i) => {
-      const th = ths[i];
-      if (!th) return;
-      const active = state.sortKey === c.key;
-      th.classList.add('sortable');
-      if (active) th.classList.add('active');
-      th.setAttribute('aria-sort', active ? (state.sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
-      th.replaceChildren(el('button', {
-        type: 'button', text: c.label + (active ? (state.sortDir === 'asc' ? ' ▲' : ' ▼') : ''), 'aria-label': 'Sortieren nach ' + c.label,
-        onclick: () => {
-          state.sortDir = active && state.sortDir === 'desc' ? 'asc' : (active ? 'desc' : (c.key === 'experte' ? 'asc' : 'desc'));
-          state.sortKey = c.key;
-          commit();
-          renderMain();
-        },
-      }));
-    });
-    holder.replaceChildren(wrap);
-  }
-  renderMain();
+  const holder = el('div', { class: 'expert-table' }, [renderExpandableTable(t.main, {
+    detail: (row) => detailNode(t.details.get(row.key)),
+    hint: 'Zeile anklicken (oder Enter): Aufschlüsselung je Jahr, Profil, Sprache und Partner.',
+  })]);
 
   return {
     nodes: [

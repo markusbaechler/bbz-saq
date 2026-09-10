@@ -24,26 +24,80 @@ function text(x, y, content, cls, anchor = 'start') {
   return t;
 }
 
-// series: [{ label, short?, points: [{ x: string, y: number|null, n: number, small: boolean }] }] – gleiche x-Reihenfolge je Reihe;
-// short = Kurzbezeichnung für die Direktbeschriftung am Linienende (die Legende trägt den vollen Namen)
-// options: { title, yFormat(v) → string, yMax = 1, height = 260, ariaLabel, compact }
+// Y-Achse des Liniendiagramms (Paket B, B1): Von null zu rechnen drängt Quoten, die real zwischen 66 % und 100 % liegen,
+// ins obere Drittel und verdeckt jede Bewegung. Die Achse folgt deshalb dem Wertebereich der Daten.
+// Nur für Linien – Balken brauchen den Nullpunkt, sonst verzerrt die gekappte Achse die Längenverhältnisse (renderBarChart
+// bleibt unverändert). Dass die Achse nicht bei null beginnt, steht sichtbar über dem Diagramm.
+const Y_STEP = 0.05;       // Achsenbeginn immer auf einer 5-%-Stufe
+const Y_MIN_SPAN = 0.10;   // mindestens 10 pp Spanne, sonst zeigt das Diagramm Rauschen als Bewegung
+const Y_TICK_STEPS = [0.05, 0.1, 0.2, 0.25, 0.5];
+const round3 = (v) => Math.round(v * 1000) / 1000;
+
+// Kleinster Wert der Reihen, auf die nächste 5-%-Stufe abgerundet; nie über yMax − 10 pp, nie unter 0.
+// Ohne Werte → 0. Reihen, die bis nahe null reichen, ergeben 0 – dann ist der Nullpunkt der Wertebereich.
+export function autoYMin(series, yMax = 1) {
+  const values = (series || []).flatMap((s) => (s.points || []).map((p) => p.y)).filter((v) => typeof v === 'number' && Number.isFinite(v));
+  if (!values.length) return 0;
+  const floored = Math.floor(Math.min(...values) / Y_STEP + 1e-9) * Y_STEP;
+  return round3(Math.min(Math.max(0, floored), Math.max(0, yMax - Y_MIN_SPAN)));
+}
+
+// Achsenbeginn plus die runden Vielfachen der Schrittweite darüber; höchstens sechs Abschnitte, damit das Gitter ruhig bleibt.
+// Der erste Eintrag ist immer yMin: Er trägt die Achsenlinie und sagt, wo die Achse beginnt.
+export function yTicks(yMin, yMax) {
+  const span = Math.max(0, yMax - yMin);
+  const step = Y_TICK_STEPS.find((c) => span / c <= 6 + 1e-9) || Y_TICK_STEPS[Y_TICK_STEPS.length - 1];
+  const out = [round3(yMin)];
+  for (let t = Math.ceil((yMin + 1e-9) / step) * step; t <= yMax + 1e-9; t += step) {
+    const v = round3(t);
+    if (v > yMin + 1e-9) out.push(v);
+  }
+  return out;
+}
+
+// Direktbeschriftung am Linienende (Paket B, B2): Sie trägt nur noch den Wert. Den Reihennamen nennt die Legende
+// darunter ohnehin – ihn am Linienende zu wiederholen kostete 250 von 820 Einheiten Breite, also 30 % der Zeichenfläche.
+// Der Rand rechts wird jetzt aus der Länge der Werte berechnet. Die Legende bleibt: Sie ist der verlässliche
+// Identitätskanal, gerade für Farbfehlsichtige; die Direktbeschriftung ergänzt sie, ersetzt sie nicht.
+const LABEL_KEY_W = 14;    // kurzer Linienschlüssel in Reihenfarbe
+const LABEL_CHAR_W = 7;    // Breite je Zeichen bei 12px System-Schrift (grosszügig, damit nichts aus der viewBox ragt)
+const LABEL_PAD = 26;      // Abstand Plot → Schlüssel → Text → rechter Rand
+
+// Rand rechts für die Endbeschriftungen: so breit, wie der längste Wert ihn braucht. Ohne Werte bleibt nur der Rand,
+// den die letzte x-Beschriftung zum Nichtüberlaufen braucht.
+export function endLabelGutter(values) {
+  const list = (values || []).filter(Boolean);
+  return list.length ? LABEL_PAD + LABEL_KEY_W + Math.ceil(Math.max(...list.map((v) => v.length)) * LABEL_CHAR_W) : 24;
+}
+
+// series: [{ label, points: [{ x: string, y: number|null, n: number, small: boolean }] }] – gleiche x-Reihenfolge je Reihe
+// options: { title, yFormat(v) → string, yMin = null (aus den Daten), yMax = 1, height = 260, ariaLabel, compact }
 // compact (Phone, PROMPT-2 B.2): Breite 360, Höhe 200, kleiner Rand ohne Endbeschriftung; Tooltip unter dem Diagramm (CSS .viz.compact)
-export function renderLineChart(series, { title = '', yFormat = (v) => String(v), yMax = 1, height = 260, ariaLabel = '', compact = false } = {}) {
+export function renderLineChart(series, { title = '', yFormat = (v) => String(v), yMin = null, yMax = 1, height = 260, ariaLabel = '', compact = false } = {}) {
+  const y0 = yMin === null || yMin === undefined ? autoYMin(series, yMax) : yMin;
   const xs = [...new Set(series.flatMap((s) => s.points.map((p) => p.x)))];
   const width = compact ? 360 : 820;
-  const pad = compact ? { top: 12, right: 16, bottom: 30, left: 40 } : { top: 16, right: 250, bottom: 34, left: 48 };
+  // Rand rechts = genau so breit, wie die längste Endbeschriftung ihn braucht (B2); auf dem Phone gibt es keine
+  const endValues = compact ? [] : series.map((s) => {
+    const last = [...s.points].reverse().find((p) => p.y !== null && p.y !== undefined);
+    return last ? yFormat(last.y) : '';
+  }).filter(Boolean);
+  const labelW = endLabelGutter(endValues);
+  const pad = compact ? { top: 12, right: 16, bottom: 30, left: 40 } : { top: 16, right: labelW, bottom: 34, left: 48 };
   if (compact) height = 200;
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
   const xPos = (i) => pad.left + (xs.length === 1 ? plotW / 2 : (plotW * i) / (xs.length - 1));
-  const yPos = (v) => pad.top + plotH - (plotH * v) / yMax;
-  const root = svg('svg', { viewBox: '0 0 ' + width + ' ' + height, class: 'viz-svg', role: 'img', 'aria-label': ariaLabel || title, tabindex: 0 });
+  const span = Math.max(yMax - y0, 1e-9);
+  const yPos = (v) => pad.top + plotH - (plotH * (v - y0)) / span;
+  const achsenhinweis = y0 > 0 ? 'Achse beginnt bei ' + yFormat(y0) + ' – der Wertebereich der Daten. Kein Nullpunkt.' : '';
+  const root = svg('svg', { viewBox: '0 0 ' + width + ' ' + height, class: 'viz-svg', role: 'img', 'aria-label': (ariaLabel || title) + (achsenhinweis ? ' – ' + achsenhinweis : ''), tabindex: 0 });
   if (title) root.appendChild(svg('title', {}, [document.createTextNode(title)]));
 
-  // Gitter und Achsen (haarfein, durchgezogen)
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * yMax);
+  // Gitter und Achsen (haarfein, durchgezogen); die unterste Linie ist die Achse und liegt auf yMin
+  const ticks = yTicks(y0, yMax);
   for (const tv of ticks) {
-    root.appendChild(svg('line', { x1: pad.left, x2: width - pad.right, y1: yPos(tv), y2: yPos(tv), class: tv === 0 ? 'viz-axis' : 'viz-grid' }));
+    root.appendChild(svg('line', { x1: pad.left, x2: width - pad.right, y1: yPos(tv), y2: yPos(tv), class: tv === ticks[0] ? 'viz-axis' : 'viz-grid' }));
     root.appendChild(text(pad.left - 8, yPos(tv) + 4, yFormat(tv), 'viz-tick', 'end'));
   }
   xs.forEach((x, i) => root.appendChild(text(xPos(i), height - pad.bottom + 18, x, 'viz-tick', 'middle')));
@@ -68,10 +122,10 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
       root.appendChild(svg('circle', { cx: p.px, cy: p.py, r: 4, class: 'viz-dot' + (p.small ? ' small' : ''), style: p.small ? 'stroke:' + color : 'fill:' + color }));
     }
     const last = [...pts].reverse().find((p) => p.py !== null);
-    if (last) endLabels.push({ y: last.py, x: last.px, label: s.short || s.label, value: yFormat(last.y), color });
+    if (last) endLabels.push({ y: last.py, x: last.px, value: yFormat(last.y), color });
   });
 
-  // Direktbeschriftung am Linienende (Textfarbe = Text-Token; Farbe nur über den kurzen Linienschlüssel); nicht in compact
+  // Direktbeschriftung am Linienende: nur der Wert (B2); der Reihenname steht in der Legende. Nicht in compact.
   endLabels.sort((a, b) => a.y - b.y);
   let prevY = -Infinity;
   for (const e of compact ? [] : endLabels) {
@@ -79,14 +133,17 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
     prevY = y;
     const x = width - pad.right + 10;
     root.appendChild(svg('line', { x1: e.x + 8, x2: x - 4, y1: e.y, y2: y, class: 'viz-leader' }));
-    root.appendChild(svg('line', { x1: x, x2: x + 14, y1: y, y2: y, class: 'viz-key', style: 'stroke:' + e.color }));
-    root.appendChild(text(x + 18, y + 4, e.value + ' ' + e.label, 'viz-label'));
+    root.appendChild(svg('line', { x1: x, x2: x + LABEL_KEY_W, y1: y, y2: y, class: 'viz-key', style: 'stroke:' + e.color }));
+    root.appendChild(text(x + LABEL_KEY_W + 4, y + 4, e.value, 'viz-label'));
   }
 
   // Fadenkreuz + Tooltip (alle Reihen am nächsten x, auch per Tastatur) und Legende: gemeinsame Bausteine unten (Paket G)
   const cross = svg('line', { x1: 0, x2: 0, y1: pad.top, y2: height - pad.bottom, class: 'viz-cross', visibility: 'hidden' });
   root.appendChild(cross);
-  const figure = el('figure', { class: 'viz' + (compact ? ' compact' : '') }, [root]);
+  // Der Achsenhinweis steht sichtbar über dem Diagramm, nicht in der eingeklappten Legende: Wer die Kurve sieht,
+  // muss zugleich sehen, dass die Fläche unter ihr fehlt.
+  const figure = el('figure', { class: 'viz' + (compact ? ' compact' : '') },
+    [achsenhinweis ? el('p', { class: 'viz-subtitle', text: achsenhinweis }) : null, root].filter(Boolean));
   attachTooltip(root, figure, { xs, xPos, series, yFormat, width, cross });
   const leg = legend(series);
   if (leg) figure.appendChild(leg);
