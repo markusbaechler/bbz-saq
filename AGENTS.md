@@ -33,12 +33,16 @@ Vollständige Spezifikation: `PROMPT.md`. Bei Widerspruch gilt diese Datei.
 - Jede nicht interpretierbare Zelle landet im Data-Quality-Log (Sheet, Zeile, Header, Rohwert, Grund),
   nie stilles Überspringen.
 - Commits klein und thematisch; Commit-Messages deutsch, Imperativ.
+- `CLAUDE.md` und `AGENTS.md` tragen dieselben Regeln und sind ab Zeile 2 identisch (nur die Titelzeile benennt die
+  Datei). Welche ein Agent liest, hängt vom Harness ab – Änderungen deshalb immer in beiden.
 - Nach jedem Arbeitsschritt (siehe PROMPT.md, Vorgehen) kurze Zusammenfassung und auf Bestätigung warten.
 
 ## Lokal
 - `python -m http.server 3000` → http://localhost:3000
 - Tests: `tests.html` im Browser öffnen oder `node tests/run-node.js`; alle Tests müssen grün sein, bevor Views geändert werden.
-- CI: `.github/workflows/tests.yml` führt bei Push auf `main` und bei Pull Requests Syntaxprüfung, Tests und den
-  README-Glossar-Abgleich (`node tools/glossar-readme.js --write` muss keine Änderung ergeben) aus, dazu den
-  Browser-Smoke-Test `node tests/smoke/run.mjs` (Playwright/Chromium; `tests/smoke` ist das einzige npm-Paket, nur Tests).
+- CI: `.github/workflows/tests.yml` führt bei Push auf `main` und bei Pull Requests aus: Syntaxprüfung, Tests,
+  Kontrastprüfung der Farb-Tokens (`node tools/contrast.js`; Light, Dark und Druck – Text 4.5:1, Bedienelemente und
+  Linien 3:1), README-Glossar-Abgleich (`node tools/glossar-readme.js --write` muss keine Änderung ergeben),
+  Abgleich von `CLAUDE.md` und `AGENTS.md` (`node tools/regeln-abgleich.js`) und den Browser-Smoke-Test
+  `node tests/smoke/run.mjs` (Playwright/Chromium; `tests/smoke` ist das einzige npm-Paket, nur Tests).
   Neue Ansicht oder Interaktion = Prüfung im Smoke-Test ergänzen.
