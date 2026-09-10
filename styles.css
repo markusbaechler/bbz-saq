@@ -95,7 +95,7 @@
 
 /* Tastaturfokus sichtbar (Befund 9); Maus-Fokus bleibt dezent */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-button:focus-visible, .views a:focus-visible, .nav-secondary a:focus-visible { outline: 3px solid var(--accent-dark); outline-offset: 2px; }
+button:focus-visible, .views a:focus-visible { outline: 3px solid var(--accent-dark); outline-offset: 2px; }
 input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
 th.sortable button:focus-visible { outline-offset: 0; }
 
@@ -187,7 +187,8 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .error button { margin-top: .5rem; }
 
 /* Navigation (PROMPT-2 A.2, F.1): drei Gruppen nebeneinander mit Beschriftung über den Links, ab 1100 px in einer Zeile;
-   darunter horizontal scrollbar, nie umbrechend. Die Gruppe «Daten» steht als Sekundärnavigation im Kopf (.nav-secondary). */
+   darunter horizontal scrollbar, nie umbrechend. Seit Paket C (C3) stehen alle vier Gruppen hier – eine Stelle, eine
+   Deklaration; die frühere Sekundärnavigation im Kopf ist entfallen. */
 .views {
   display: flex; align-items: center; gap: var(--space-4); flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity;
   padding: 0 var(--space-3); background: var(--panel); border-bottom: 1px solid var(--border);
@@ -195,19 +196,17 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .nav-group { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; scroll-snap-align: start; }
 /* C1: Die Gruppenbeschriftung stand über den Links und machte das Band 68 px hoch; sie steht jetzt davor. */
 .nav-group-label { font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
-/* C1: Die Beschriftung steht jetzt neben den Links und kostet dadurch Breite statt Höhe. Unter 1200 px passen die
-   Links sonst nicht mehr in eine Reihe (F.1). Sie ist rein dekorativ (aria-hidden); die Gruppe bleibt über
-   role="group" mit aria-label angesagt, und der Abstand zwischen den Gruppen trennt sie weiterhin sichtbar. */
-@media (max-width: 1199px) { .nav-group-label { display: none; } }
+/* C1/C3: Die Beschriftung steht neben den Links und kostet dadurch Breite statt Höhe. Gemessen brauchen die 14 Links
+   mit Beschriftung 1437 px, ohne 1165 px – sie entfällt deshalb unter 1500 px, damit die Links in einer Reihe bleiben
+   (F.1). Sie ist rein dekorativ (aria-hidden); die Gruppe bleibt über role="group" mit aria-label angesagt, und der
+   Abstand zwischen den Gruppen trennt sie weiterhin sichtbar. Unter 1200 px reicht auch das nicht: dann scrollt das
+   Band horizontal – eine zweite Leiste kommt nicht in Frage (F.1). */
+@media (max-width: 1499px) { .nav-group-label { display: none; } }
 .nav-links { display: flex; gap: var(--space-1); }
 .views a { padding: var(--space-1) var(--space-1); font-size: var(--fs-sm); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
 .views a:hover { background: var(--hover); }
 .views a.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
-/* Sekundärnavigation «Daten» im Kopf (F.1): Optik der Hauptnavigation, kompakter; auf dem Phone ausgeblendet (Auswahlfeld) */
-.nav-secondary { display: flex; margin-right: var(--space-2); }
-.nav-secondary a { padding: var(--space-1) var(--space-2); font-size: var(--fs-sm); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
-.nav-secondary a:hover { background: var(--hover); }
-.nav-secondary a.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
+
 .nav-select { display: none; } /* Phone: Auswahlfeld statt Links (B.2) */
 .account-menu { display: none; } /* Phone: Konto als Initialen-Button (B.2) */
 /* Filterleiste (PROMPT-2 A.2): eine Zeile auf Desktop, haftet beim Scrollen oben; Chips je aktive Einschränkung */
@@ -567,7 +566,6 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   /* B.2: Navigation als Auswahlfeld, Filter als Drawer, Kopf kompakt */
   .nav-select { display: block; width: 100%; }
   .nav-group { display: none; }
-  .nav-secondary { display: none; }
   .views { overflow: visible; padding-bottom: var(--space-2); }
   .filterbar { position: static; padding: 0 var(--space-3) var(--space-2); }
   .filter-drawer > summary {

@@ -56,7 +56,16 @@ try {
   // Laden
   await page.goto(server.url, { waitUntil: 'networkidle' });
   check((await page.locator('#nav a').count()) >= 8, 'Navigation gerendert');
-  check((await page.locator('#nav .nav-group').count()) === 3 && (await page.locator('#nav .nav-group[aria-label="Kennzahlen"] a').count()) === 6 && (await page.locator('#nav-secondary a').count()) === 3, 'Navigation in drei Gruppen (Kennzahlen · Personen · Experten), Daten-Links als Sekundärnavigation im Kopf');
+  // Paket C (C3): alle Ziele an einer Stelle, aus einer Deklaration – die frühere Sekundärnavigation im Kopf entfällt
+  const navAufbau = await page.evaluate(() => ({
+    gruppen: [...document.querySelectorAll('#nav .nav-group')].map((g) => g.getAttribute('aria-label') + ':' + g.querySelectorAll('a').length),
+    links: document.querySelectorAll('#nav a').length,
+    zweiteLeiste: document.querySelectorAll('nav:not(#nav), #nav-secondary').length,
+    optgroups: [...document.querySelectorAll('#nav-select optgroup')].map((o) => o.label + ':' + o.querySelectorAll('option').length),
+  }));
+  check(navAufbau.gruppen.join(' · ') === 'Kennzahlen:6 · Personen:4 · Experten:1 · Daten:3' && navAufbau.links === 14 && navAufbau.zweiteLeiste === 0
+    && navAufbau.optgroups.join(' · ') === navAufbau.gruppen.join(' · '),
+    'C3 Navigation: ' + navAufbau.links + ' Ziele in vier Gruppen an einer Stelle (' + navAufbau.gruppen.join(' · ') + '), keine zweite Leiste, Auswahlfeld aus derselben Deklaration');
   check((await page.locator('#view .empty-card .actions button').count()) === 2 && (await page.locator('#view .empty-card h3').textContent()).startsWith('Noch keine Daten'), 'Leerzustand: Karte mit zwei Aktionen statt Fliesstext');
   // Paket C (C1): Im Leerzustand steht die Datenleiste als Zeile; mit geladenen Daten fällt sie weg und der Datenstand
   // steht als Einzeiler im Kopf. Der Volltext in #status bleibt in beiden Zuständen für Screenreader erhalten.
@@ -90,7 +99,7 @@ try {
       + kopf.neuLaden + ' Lade-Aktionen erreichbar');
 
   // Jede Ansicht rendert Titel und mindestens eine Tabelle, ohne Fehler
-  const views = await page.$$eval('#nav a, #nav-secondary a', (as) => as.map((a) => a.getAttribute('href').replace(/^#/, '')));
+  const views = await page.$$eval('#nav a', (as) => as.map((a) => a.getAttribute('href').replace(/^#/, '')));
   for (const v of views) {
     await page.goto(server.url + '#' + v);
     await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
@@ -288,7 +297,11 @@ try {
   await filterWaehlen(page, 'Profil', 'PK');
   await page.waitForFunction((b) => document.querySelector('#filterbar .summary').textContent !== b, before, { timeout: 5000 });
   check((await page.locator('#filterbar .chip', { hasText: 'Profil PK' }).count()) === 1 && /profil=PK/.test(page.url()), 'Filter Profil = PK wirkt: Chip «Profil PK», steht in der URL');
-  check(await page.evaluate(() => document.activeElement && document.activeElement.tagName === 'SELECT' && document.activeElement.closest('label').textContent.startsWith('Profil')), 'Fokus bleibt nach der Filteränderung auf dem Auswahlfeld Profil');
+  const fokus = await page.evaluate(() => {
+    const a = document.activeElement;
+    return { tag: a && a.tagName, label: a && a.closest && a.closest('label') ? a.closest('label').textContent.slice(0, 12) : null, id: a && a.id, klasse: a && String(a.className).slice(0, 30) };
+  });
+  check(fokus.tag === 'SELECT' && (fokus.label || '').startsWith('Profil'), 'Fokus bleibt nach der Filteränderung auf dem Auswahlfeld Profil (' + JSON.stringify(fokus) + ')');
   await filterWaehlen(page, 'Jahr', '2026');
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 2, null, { timeout: 5000 });
   check(/von=2026-01-01/.test(page.url()) && (await page.locator('#filterbar .chip', { hasText: '2026' }).count()) === 1 && (await page.locator('#filterbar button.reset').isVisible()), 'Jahr 2026 gewählt: Chip «2026», Von/Bis in der URL, Reset sichtbar');
@@ -1016,22 +1029,40 @@ try {
   await tablet.close();
 
   // Desktop-Breiten (PROMPT-2 F.1, Option b): Navigation ab 1100 px in einer Zeile ohne horizontalen Scroll; Daten-Links als
-  // Sekundärnavigation im Kopf, der Kopf bleibt ohne Überlauf; der aktive Link liegt je nach Ansicht in #nav oder #nav-secondary
-  for (const [w, h] of [[1100, 900], [1280, 900], [1400, 1000]]) {
+  // C3: Alle 14 Ziele stehen in einem Band. Gemessen brauchen sie mit Gruppenbeschriftung 1437 px, ohne 1165 px –
+  // deshalb entfällt die Beschriftung unter 1500 px. Ab 1200 px passt das Band ohne Scroll; darunter scrollt es
+  // horizontal (F.1: 14 Links passen bei 1100 px nicht in eine Reihe), aber es gibt keine zweite Leiste.
+  for (const [w, h, scrollErwartet] of [[1100, 900, true], [1280, 900, false], [1400, 1000, false], [1600, 1000, false]]) {
     await page.setViewportSize({ width: w, height: h });
     await page.goto(server.url + '#uebersicht');
     await page.waitForSelector('#view h2');
     const nav = await page.evaluate(() => {
       const n = document.getElementById('nav'); const head = document.querySelector('.app-header');
-      const sec = [...document.querySelectorAll('#nav-secondary a')].filter((a) => a.getClientRects().length > 0);
-      return { scroll: n.scrollWidth, client: n.clientWidth, headScroll: head.scrollWidth, headClient: head.clientWidth, sec: sec.length, active: document.querySelectorAll('#nav a[aria-current="page"]').length };
+      return {
+        scroll: n.scrollWidth, client: n.clientWidth, hoehe: Math.round(n.getBoundingClientRect().height),
+        headScroll: head.scrollWidth, headClient: head.clientWidth,
+        active: document.querySelectorAll('#nav a[aria-current="page"]').length,
+        labels: [...n.querySelectorAll('.nav-group-label')].filter((e) => e.getClientRects().length).length,
+      };
     });
-    check(nav.scroll <= nav.client && nav.headScroll <= nav.headClient && nav.sec === 3 && nav.active === 1, 'Desktop ' + w + ' px: Navigation ohne Scroll (' + nav.scroll + ' von ' + nav.client + ' px), drei Daten-Links im Kopf ohne Überlauf, Übersicht aktiv');
+    const scrollt = nav.scroll > nav.client + 1;
+    check(scrollt === scrollErwartet && nav.headScroll <= nav.headClient && nav.active === 1 && nav.hoehe <= 40,
+      'C3 Desktop ' + w + ' px: Band ' + nav.hoehe + ' px, braucht ' + nav.scroll + ' von ' + nav.client + ' px (' + (scrollt ? 'scrollt' : 'passt') + ', erwartet '
+        + (scrollErwartet ? 'scrollt' : 'passt') + '), ' + nav.labels + ' Gruppenbeschriftungen, Kopf ohne Überlauf, Übersicht aktiv');
     await page.screenshot({ path: join(outDir, 'desktop-' + w + '-uebersicht.png') });
   }
+  // Bei 1100 px scrollt das Band – die aktive Ansicht muss trotzdem sichtbar sein
+  await page.setViewportSize({ width: 1100, height: 900 });
   await page.goto(server.url + '#glossar');
   await page.waitForSelector('#view h2');
-  check((await page.locator('#nav-secondary a[aria-current="page"]').count()) === 1 && (await page.locator('#nav a[aria-current="page"], #nav a.active').count()) === 0 && (await page.locator('#nav-select').inputValue()) === 'glossar', 'Desktop: Glossar aktiv in der Sekundärnavigation, kein aktiver Link in #nav, Auswahlfeld zeigt Glossar');
+  const glossarAktiv = await page.evaluate(() => {
+    const a = document.querySelector('#nav a[aria-current="page"]');
+    const n = document.getElementById('nav');
+    const r = a.getBoundingClientRect(); const nr = n.getBoundingClientRect();
+    return { text: a.textContent, imBlick: r.left >= nr.left - 1 && r.right <= nr.right + 1, gruppe: a.closest('.nav-group').getAttribute('aria-label') };
+  });
+  check(glossarAktiv.text === 'Glossar' && glossarAktiv.gruppe === 'Daten' && glossarAktiv.imBlick && (await page.locator('#nav-select').inputValue()) === 'glossar',
+    'C3: Glossar aktiv in der Gruppe «Daten», im scrollenden Band sichtbar, Auswahlfeld zeigt dieselbe Ansicht');
   await page.setViewportSize({ width: 1400, height: 1000 });
 
   // Tabellenbreite (PROMPT-2 F.2, Option 1): ab 1280 px keine Tabelle mit horizontalem Überlauf in Übersicht, Schriftlich, Mündlich,

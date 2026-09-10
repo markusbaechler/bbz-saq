@@ -46,8 +46,11 @@ const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, 
 // Navigationsgruppen (PROMPT-2 A.2, Entscheid 06.09.2026); Gruppen ohne Ansicht (Experten bis Paket D) werden nicht gerendert.
 // Die Gruppe «Daten» steht als Sekundärnavigation rechts im Kopf (PROMPT-2 F.1, Option b, Entscheid 07.09.2026): 14 Links
 // passen bei 1100 px nicht in eine Zeile; das Auswahlfeld auf dem Phone behält alle Gruppen.
+// Navigationsgruppen (Paket C, C3): die einzige Deklaration der Navigation. Reihenfolge und Zuordnung sind Daten –
+// die Gruppe einer Ansicht steht in ihrem Modul (export const group). Eine spätere Umgruppierung (Paket F) ändert
+// diese Liste und die group-Exporte, nicht die Struktur: Alle drei Erscheinungsformen (Links, Auswahlfeld auf dem
+// Phone, Gruppierung) entstehen in renderNav() aus derselben Quelle, an einer Stelle im Kopf.
 const NAV_GROUPS = ['Kennzahlen', 'Personen', 'Experten', 'Daten'];
-const NAV_SECONDARY = 'Daten';
 
 // Aller Zustand liegt im Store (Filter, Anzeigezustand, Daten); app.js hält nur DOM-Referenzen und Lauf-Flags (Befund 16).
 const store = createStore();
@@ -113,12 +116,13 @@ function renderNav() {
   const select = el('select', { id: 'nav-select', class: 'nav-select', 'aria-label': 'Ansicht', onchange: (ev) => { location.hash = buildHash(ev.target.value, filter, uiState); } },
     groups.map((g) => el('optgroup', { label: g.name }, g.views.map((v) => el('option', { value: v.id, text: v.label })))));
   select.value = current;
-  ui.nav.replaceChildren(select, ...groups.filter((g) => g.name !== NAV_SECONDARY).map((g) => el('div', { class: 'nav-group', role: 'group', 'aria-label': g.name }, [
+  ui.nav.replaceChildren(select, ...groups.map((g) => el('div', { class: 'nav-group', role: 'group', 'aria-label': g.name }, [
     el('span', { class: 'nav-group-label', 'aria-hidden': 'true', text: g.name }),
     el('div', { class: 'nav-links' }, g.views.map(link)),
   ])));
-  const secondary = groups.find((g) => g.name === NAV_SECONDARY);
-  ui.navSecondary.replaceChildren(...(secondary ? secondary.views.map(link) : []));
+  // C3: Unter 1200 px scrollt das Band horizontal (F.1). Die aktive Ansicht muss dann trotzdem sichtbar sein.
+  const aktiv = ui.nav.querySelector('a.active');
+  if (aktiv && ui.nav.scrollWidth > ui.nav.clientWidth + 1) aktiv.scrollIntoView({ inline: 'nearest', block: 'nearest' });
 }
 
 function renderSession() {
@@ -779,7 +783,6 @@ async function init() {
   ui.databar = $('databar');
   ui.error = $('error');
   ui.nav = $('nav');
-  ui.navSecondary = $('nav-secondary');
   ui.filterbar = $('filterbar');
   ui.view = $('view');
   ui.accountMenu = $('account-menu');

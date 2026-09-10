@@ -26,10 +26,15 @@ die Ausgangs-URL (`navigateToLoginRequestUrl: false`). Hotfix vom 07.09.2026, Fe
 
 ## Ansichten
 
-Die Navigation ist in drei Gruppen gegliedert: **Kennzahlen** (Übersicht, Schriftlich, Mündlich, VSS/VSM, Zeitverlauf,
-Bank-Report), **Personen** (Personen, Offene Vorgänge, Geplante Prüfungen, Bestenlisten) und **Experten**; die Gruppe **Daten**
-(Historie, Datenqualität, Glossar) steht als Sekundärnavigation rechts im Kopf, damit die Navigation ab 1100 px in einer
-Zeile bleibt (Paket F). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
+Die Navigation steht **an einer Stelle** und ist in vier Gruppen gegliedert: **Kennzahlen** (Übersicht, Schriftlich,
+Mündlich, VSS/VSM, Zeitverlauf, Bank-Report), **Personen** (Personen, Offene Vorgänge, Geplante Prüfungen,
+Bestenlisten), **Experten** und **Daten** (Historie, Datenqualität, Glossar). Alle drei Erscheinungsformen – Links,
+Gruppierung und das Auswahlfeld auf dem Phone – entstehen in `renderNav()` aus **einer Deklaration** (`NAV_GROUPS` in
+`app.js` und der `group`-Export je Ansicht); eine spätere Umgruppierung ist damit eine Datenänderung, keine
+Strukturänderung. Gemessen brauchen die 14 Links mit Gruppenbeschriftung 1437 px, ohne 1165 px: Die Beschriftung
+entfällt deshalb unter 1500 px, ab 1200 px passt das Band ohne Scroll. Darunter scrollt es horizontal und die aktive
+Ansicht wird eingescrollt – eine zweite Leiste gibt es nicht (F.1). Die frühere Sekundärnavigation im Kopf ist
+entfallen (Paket C). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
 Menü «Export» und der Link «Definitionen», der die passende Zeile im Glossar fokussiert. Erklärungen und Fussnoten der
 Tabellen stehen gesammelt in der Legende «Hinweise und Definitionen» am Ende jeder Ansicht (im Druck geöffnet) und als ⓘ
 am jeweiligen Titel. Der Datenstand (Datei, Änderungs- und Ladezeit, Zeilen, Data-Quality-Fehler) steht als Einzeiler in
