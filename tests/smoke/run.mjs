@@ -335,6 +335,41 @@ try {
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
+  // Paket B (B5): Datenbalken. Der Balken füllt von rechts – dieselbe Richtung wie die rechtsbündige Zahl – und liegt
+  // auf einer festen Spur: Derselbe Prozentwert hat in jeder Spalte und in jeder Tabelle dieselbe Länge, unabhängig
+  // von der Spaltenbreite (gemessen wurden vorher 93 px gegen 221 px für dieselbe Kennzahl in einer Tabelle).
+  await page.goto(server.url + '#uebersicht?bank=' + encodeURIComponent('Testbank AG'));
+  await page.waitForSelector('#view .kpi');
+  const balken = await page.evaluate(() => {
+    const zellen = [...document.querySelectorAll('#view td.pct')];
+    const spur = getComputedStyle(zellen[0]).backgroundSize;
+    const laenge = (td) => {
+      const v = Number(getComputedStyle(td).getPropertyValue('--v'));
+      const track = parseFloat(getComputedStyle(td).backgroundSize);
+      return { v, px: Math.round((track * v) / 100), spaltenbreite: Math.round(td.getBoundingClientRect().width) };
+    };
+    const proWert = new Map();
+    for (const td of zellen) {
+      const m = laenge(td);
+      if (!Number.isFinite(m.v)) continue;
+      if (!proWert.has(m.v)) proWert.set(m.v, []);
+      proWert.get(m.v).push(m);
+    }
+    // Werte, die in verschieden breiten Spalten vorkommen: dort muss die Balkenlänge trotzdem gleich sein
+    const gemischt = [...proWert.entries()]
+      .filter(([, list]) => new Set(list.map((x) => x.spaltenbreite)).size > 1)
+      .map(([v, list]) => ({ v, laengen: [...new Set(list.map((x) => x.px))], breiten: [...new Set(list.map((x) => x.spaltenbreite))] }));
+    return { spur, richtung: getComputedStyle(zellen[0]).backgroundPosition, bild: getComputedStyle(zellen[0]).backgroundImage, gemischt, zellen: zellen.length };
+  });
+  check(balken.zellen > 0 && /^(right|100%)/.test(balken.richtung) && /to left/.test(balken.bild) && balken.gemischt.length >= 1 && balken.gemischt.every((g) => g.laengen.length === 1),
+    'B5 Übersicht: Balken von rechts (Position ' + balken.richtung + ', Verlauf nach links), feste Spur ' + balken.spur + '; ' + balken.gemischt.length
+      + ' Wert(e) in verschieden breiten Spalten (' + (balken.gemischt[0] ? balken.gemischt[0].breiten.join('/') + ' px' : '–') + ') mit gleicher Balkenlänge');
+  const passt = await page.evaluate(() => [...document.querySelectorAll('#view td.pct')]
+    .every((td) => parseFloat(getComputedStyle(td).backgroundSize) <= td.getBoundingClientRect().width + 0.5));
+  check(passt, 'B5: die Balkenspur ist nie breiter als ihre Spalte – kein abgeschnittener Balken');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
   // Paket B (B4): Sortierung auf allen Tabellen – eine Implementierung, aria-sort auf jeder Kopfzelle, die fachliche
   // Ausgangssortierung als Standard und ein Schalter, der sie wiederherstellt. Der Zustand steht in der URL.
   const SORTIERPROBEN = [
@@ -361,6 +396,7 @@ try {
     });
     check(kopfInfo.sortierbar >= kopfInfo.alle - 1 && kopfInfo.mitAria === kopfInfo.sortierbar,
       'B4 ' + probe.view + ': ' + kopfInfo.sortierbar + ' von ' + kopfInfo.alle + ' Kopfzellen sortierbar, alle mit aria-sort und aria-label');
+    check((await page.locator('#view button.reset-sort:visible').count()) === 0, 'B4 ' + probe.view + ': ohne Sortierung kein Schalter «Sortierung zurücksetzen»');
     const vorher = await spalten();
     await page.click(auswahl + ' thead th button[aria-label="Sortieren nach ' + probe.spalte + '"]');
     await page.waitForTimeout(300);

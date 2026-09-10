@@ -24,6 +24,7 @@
   --warn-bg: #fff4e0;
   --shadow: rgba(0, 0, 0, .08);
   --radius: 6px;
+  --bar-track: 3.5rem; /* B5: feste Spur der Datenbalken – gleicher Wert, gleiche Länge in jeder Spalte und Tabelle */
   /* Abstände (4-px-Raster) und Schriftgrade (PROMPT-2 A.1) */
   --space-1: .25rem; --space-2: .5rem; --space-3: .75rem; --space-4: 1rem; --space-5: 1.5rem; --space-6: 2rem;
   --fs-xs: .75rem; --fs-sm: .85rem; --fs-md: 1rem; --fs-lg: 1.2rem; --fs-xl: 1.75rem; /* xl nur KPI-Wert */
@@ -362,7 +363,18 @@ table.data tbody tr:nth-child(even) td { background-color: var(--panel-2); }
 .table-wrap table.data th:first-child { z-index: 2; background-color: var(--th-bg); }
 table.data tbody tr:nth-child(even) td:first-child { background-color: var(--panel-2); }
 table.data caption .info { margin-left: var(--space-1); }
-td.pct { background-image: linear-gradient(to right, var(--bar) calc(var(--v) * 1%), transparent 0); background-repeat: no-repeat; }
+/* B5: Datenbalken. Zwei Fehler waren zu beheben. (1) Der Balken füllte von links, die Zahl steht rechtsbündig – beide
+   zeigten in entgegengesetzte Richtungen. (2) Schwerer: Der Balken lief über die ganze Zellbreite, und benachbarte
+   Prozentspalten sind verschieden breit (gemessen: «Auswahl» 93 px gegen «Benchmark» 221 px in derselben Tabelle).
+   Derselbe Prozentwert hatte dort verschiedene Länge – der Balken versprach einen Vergleich, den er nicht einlöste.
+   Jetzt füllt er von rechts auf einer festen Spur: 100 % sind überall --bar-track breit, in jeder Spalte und in jeder
+   Tabelle. Die Spur ist schmaler als die schmalste Prozentspalte, damit nichts abgeschnitten wird. */
+td.pct {
+  background-image: linear-gradient(to left, var(--bar) calc(var(--v) * 1%), transparent 0);
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: var(--bar-track) 100%;
+}
 td.delta.pos { color: var(--delta-pos); }
 td.delta.neg { color: var(--delta-neg); }
 td.delta.neutral { color: var(--delta-neutral); }
@@ -388,7 +400,7 @@ th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--
 th { background: var(--th-bg); position: sticky; top: 0; }
 th.sortable button { background: none; border: none; color: inherit; padding: 0; font-weight: 600; cursor: pointer; text-align: inherit; }
 /* B4: «Sortierung zurücksetzen» – nur sichtbar, solange eine Sortierung aktiv ist; das Modell trägt die fachliche Reihenfolge */
-.table-wrap .reset-sort { display: inline-block; margin: var(--space-1) var(--space-3) var(--space-2) 0; font-size: var(--fs-sm); }
+.table-wrap .reset-sort:not([hidden]) { display: inline-block; margin: var(--space-1) var(--space-3) var(--space-2) 0; font-size: var(--fs-sm); }
 th.active button { color: var(--accent); }
 td.col-row { text-align: right; white-space: nowrap; }
 .dq-summary-box { margin: .25rem 0 1rem; }
