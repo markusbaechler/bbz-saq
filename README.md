@@ -56,8 +56,11 @@ Jede Kennzahl-Ansicht bietet im Menü «Export» CSV (alle Tabellen in einer Dat
 eine Druckansicht. Zusätzlich exportiert jede Kennzahl-Ansicht die Vorgangsebene (eine Zeile je Vorgang, eine Zeile je
 Run, mit Namen, nur intern). Der Filterzustand steht im Kopf jedes Exports.
 
-**Darstellung:** Die Kacheln der Übersicht stehen in den Blöcken Mengen, Schriftlich und Mündlich; die Definition steckt
-im ⓘ, das Label verlinkt auf das Glossar. Bei aktivem Benchmark zeigt jede Quoten-Kachel die Differenz mit Symbol,
+**Darstellung:** Die Kacheln der Übersicht stehen in den Blöcken Mengen, Schriftlich und Mündlich. Auf jeder Kachel steht
+der **Wert zuoberst**, darunter die Beschriftung, darunter n und zuletzt die Differenz zum Benchmark (Paket A): So liegen die
+Werte einer Reihe unabhängig vom Umbruch der Beschriftung auf einer Linie. Die Beschriftung hält zwei Zeilen frei, damit auch
+n und Differenz auf einer Linie liegen – der Preis ist eine Zeilenhöhe bei den wenigen einzeiligen Beschriftungen. Die
+Definition steckt im ⓘ, das Label verlinkt auf das Glossar. Bei aktivem Benchmark zeigt jede Quoten-Kachel die Differenz mit Symbol,
 Vorzeichen und Farbe nach Richtung der Kennzahl (▲ +2.1 pp; höher ist besser bei Bestehensquoten und Ø Resultat, tiefer
 ist besser bei Durchfallquoten und passiven Vorgängen; unter 0.5 pp neutral ●). In Tabellen tragen Prozentspalten einen
 Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die erste Spalte bleibt beim horizontalen
@@ -94,9 +97,37 @@ bei Filteränderungen nur aktualisiert, nicht neu aufgebaut; der Tastaturfokus b
 Die Wertung (Resultat 1. Versuch | Resultat bestandener Run) wird nur in der Ansicht «Bestenlisten» gewählt; alle anderen
 Ansichten zeigen beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfungen» wirkt der Zeitraum nicht.
 
+**Wirksamkeit der Filterleiste je Ansicht (Paket A):** Nicht jede Ansicht wertet jedes Steuerelement aus. Statt das im
+Text zu erklären, schaltet die Leiste ab, was hier nichts tut: Das Feld ist `disabled`, gestrichelt umrandet und gedämpft,
+der Grund steht als Tooltip darauf. Jede Ansicht sagt das selbst über den Export `filters` (`views/<ansicht>.js`); fehlt er,
+gilt alles als wirksam. **Der gesetzte Wert bleibt erhalten** – er steht weiter im Feld und in der URL und wirkt wieder,
+sobald eine Ansicht ihn auswertet; solange er stumm ist, fehlt sein Chip und die Zusammenfassung zählt ihn als
+«n gesetzte Filter wirken hier nicht». Abgeschaltet sind: Zeitraum auf «Zeitverlauf», «Offene Vorgänge» und «Geplante
+Prüfungen»; Zeitraum, Versuche und Wertung auf «Personen»; Versuche und Wertung auf «Experten» – dort bleibt der Zeitraum
+aktiv, mit sichtbarem Hinweis, dass er auf das Run-Datum des Einsatzes wirkt.
+
+Wo **kein** Feld wirkt, entfällt die Leiste ganz (`filters.hidden`) und ein Satz sagt, warum: «Datenqualität» (das Log prüft
+immer den vollen Bestand beider Sheets), «Historie» (ein Snapshot hält den Stand der ganzen Datei fest) und «Glossar»
+(statisch, ohne Daten). Ein trotzdem gesetzter Filter geht auch dort nicht verloren: Der Satz nennt ihn («1 gesetzter Filter
+wirkt hier nicht») und trägt «Filter zurücksetzen», damit kein Wert ohne Bedienelement stehen bleibt.
+
+**Zwei Prozessstufen, zwei Namen (Paket A):** Die schriftliche Prüfung ist das Gate zur mündlichen. Entsprechend gibt es zwei
+verschiedene «offen»-Zahlen, die früher beide «Offen» hiessen: **«Schriftlich offen»** (Spalte in «Kennzahlen je Profil») zählt
+Vorgänge ohne *schriftliches* Gesamtergebnis, **«Zertifizierung offen»** (Kachel im Block «Mengen») Vorgänge ohne Gesamtergebnis
+überhaupt. Wer schriftlich offen ist, ist immer auch in der Zertifizierung offen – umgekehrt nicht; die Spaltensumme ist deshalb
+nie grösser als die Kachel. Im Snapshot bleibt der Schlüssel `offen` unverändert (Dateiformat), nur die Beschriftung folgt.
+
 **Benchmark (Übersicht):** Die Kacheln und eine Vergleichstabelle stellen die Auswahl einem Benchmark gegenüber, der
 dieselben Filter verwendet, nur ohne die gewählte Einschränkung: Alle Banken (Standard), Alle Profile, Alle Sprachen
 oder Gesamt (nur Zeitraum). Differenzen in Prozentpunkten.
+
+Ist die weggenommene Einschränkung gar nicht gesetzt, sind Auswahl und Benchmark dieselbe Menge – jede Kachel trüge dann
+«● 0.0 pp» und sagte damit nur, dass kein Filter aktiv ist. In diesem Zustand entfällt die Delta-Zeile ganz (Paket A), die
+Vergleichstabelle wird eingeklappt und davor steht der Satz «Kein Filter aktiv – die Auswahl entspricht dem Benchmark …»
+mit dem Link «Bank wählen», der den Bank-Filter in den Fokus holt. Massgeblich ist der Filterzustand, nicht die Zahl der
+Vorgänge: `benchmarkRelevant()` vergleicht den Filter der Auswahl mit dem des Benchmarks. Der Zeitraum zählt nie mit, weil
+der Benchmark denselben verwendet. Die Kachel reserviert für die Delta-Zeile keinen Platz auf Vorrat: Die Reihe wächst
+einmalig, wenn ein Filter gesetzt wird – eine dauerhaft leere Zeile unter zehn Kacheln kostet mehr, als der Sprung wert ist.
 
 In der Ansicht «Personen» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» auf die Trefferliste; Zeitraum,
 Versuche und Wertung wirken nicht. Das Detail zeigt immer alle Vorgänge der Person. Suchtext und gewählte Person stehen nie in der
@@ -176,7 +207,8 @@ identisch mit der Ansicht «Glossar» in der App.
 | **Ausgestellte Zertifikate (Filter)** | Vorgänge aus dem Sheet «Ausgestellte Zertifikate» oder mit einer Zeile daraus zusammengeführt (Kennzeichen «ausgestellt»). | – |
 | **Wirkungsklasse (Data-Quality-Log)** | Was sich ändert, wenn die Zelle korrigiert wird: «macht Zeile unsichtbar» (die Zeile fehlt deswegen in allen Kennzahlen: kein Name, kein absolvierter datierter schriftlicher Run), «verändert Kennzahl» (die Zeile ist sichtbar, aber ein Wert, eine Gruppe oder eine Zählung hängt an der Zelle), «ohne Kennzahlwirkung» (reine Interpretation wie Result als Prozentwert oder Excel-Serienzahl, oder nicht ausgewertetes Feld wie Score). | Das Log ist nach Wirkung, dann Stufe, dann Zeile sortiert (Arbeitsliste). Einträge auf zusammengeführten Duplikaten gelten als «verändert Kennzahl», weil ihre Daten im behaltenen Vorgang weiterleben. |
 | **Nicht in den Kennzahlen** | Zeilen, die in keiner Kennzahl vorkommen, mit Grund: noch keine Prüfung absolviert (ggf. nur geplante Termine), nur mündliche Runs, schriftlicher Run ohne Datum, Duplikat (zusammengeführt) oder kein Name. Abschnitt in der Ansicht «Datenqualität», unabhängig vom Filter. | Zeilen ohne Namen ergeben keine Person und erscheinen nur als Fehler «Name fehlt». |
-| **Offene Vorgänge (Ansicht)** | Alle Vorgänge mit Status offen – auch solche ohne absolvierte Prüfung – mit fehlendem Teil (schriftlich/mündlich), letzter Prüfung, Tagen seit der letzten Prüfung, nächstem geplanten Termin und Versuchen. Filter Profil, Sprache, Bank, VSS/VSM gelten; Zeitraum und Versuchsmodus nicht. | Die Kachel «Vorgänge offen» in der Übersicht zählt nur kennzahlrelevante offene Vorgänge im Filter (inkl. Zeitraum) und kann deshalb kleiner sein. |
+| **Offene Vorgänge (Ansicht)** | Alle Vorgänge mit Status offen – auch solche ohne absolvierte Prüfung – mit fehlendem Teil (schriftlich/mündlich), letzter Prüfung, Tagen seit der letzten Prüfung, nächstem geplanten Termin und Versuchen. Filter Profil, Sprache, Bank, VSS/VSM und Versuche gelten; der Zeitraum nicht. | Die Kachel «Zertifizierung offen» in der Übersicht zählt nur kennzahlrelevante offene Vorgänge im Filter (inkl. Zeitraum) und kann deshalb kleiner sein. |
+| **Bestehensgrenze** | Ein Run gilt ab 70 % der erreichbaren Punkte als bestanden (Auftraggeber, bestätigt 10.09.2026). Als PASS_THRESHOLD in config.js geführt. | Die App leitet daraus keine Kennzahl ab: bestanden oder nicht bestanden kommt immer aus dem Passed-Feld. Die Grenze dient allein der Prüfung «Passed-Wert und Resultat widersprechen sich» – «yes» unter 70 % oder «no» ab 70 % ergibt einen Hinweis im Data-Quality-Log (Wirkung «verändert Kennzahl»), weil die Quoten den Passed-Wert lesen und die Ø-Resultate das Resultat. Beide Werte bleiben unverändert. |
 | **Zeitverlauf (Ansicht)** | Kennzahlen je Jahr des Referenzdatums als Liniendiagramm und Tabelle (gesamt und je Profil), Vergleich zweier Jahre in Prozentpunkten sowie Schwierigkeit je Teilprüfung (Durchfallquote und Ø Resultat des ersten Versuchs je WE1–WE6, OE1–OE2 und Jahr des ersten Versuchs). | Der Zeitraumfilter wirkt nicht (alle Jahre sichtbar); die übrigen Filter gelten. Jahre mit n < 5 sind markiert (hohle Marker, *). Vorgänge ohne Referenzdatum tragen kein Jahr bei. Ein Diagramm hat immer eine Tabelle als Zwilling. |
 | **Frühwarnung «zweiter Fehlversuch»** | Teilprüfungen (WE1–WE6, OE1–OE2) mit zwei nicht bestandenen Versuchen und ohne bestandenen Run. «Letzter Versuch» = genau ein Versuch bleibt (der nächste ist der letzte); «ausgeschöpft» = alle Versuche nicht bestanden. Liste mit Namen in der Ansicht «Offene Vorgänge», unabhängig vom Zeitraumfilter. | Maximal drei Versuche je Teilprüfung gemäss Spaltenaufbau der Datei (RUN1–RUN3). |
 | **Durchlaufzeit** | Tage vom ersten Prüfungsdatum eines Vorgangs bis zur bestandenen mündlichen Prüfung (Referenzdatum); nur bestandene Vorgänge. Zusätzlich Tage bis zum Zertifikatsbeginn, wo «Certificate Start Date» vorhanden ist. Ausgewiesen als Median, Ø, Quartile, Min, Max je Profil und je Jahr. | Der Median ist gegen Ausreisser (sehr lange Unterbrüche) robuster als der Mittelwert. |
@@ -213,8 +245,9 @@ identisch mit der Ansicht «Glossar» in der App.
 | **Benchmark (Experten)** | Durchfallquote (gesamt, 1. Versuch, Wiederholung) und Ø Resultat über alle Einsätze im Filter. | Einsätze | Basis der Δ-Werte; keine Schichtung nach Profil (E9: Methodik profilübergreifend vergleichbar). |
 | **Vorgänge** | Anzahl kennzahlrelevanter Zertifizierungsvorgänge im aktiven Filter. | – | Duplikate sind zusammengeführt und zählen einmal. |
 | **Personen** | Anzahl Menschen hinter den Vorgängen im Filter (Personenschlüssel). | – | Kleiner oder gleich «Vorgänge»; die Differenz sind Personen mit mehreren Profilen. |
-| **Vorgänge offen** | Vorgänge im Filter ohne Gesamtergebnis (schriftlich oder mündlich leer): der Prozess läuft noch. | – | Nicht im Nenner der Bestehensquoten (E4). Eigene Ansicht «Offene Vorgänge». |
-| **Vorgänge passiv (> 365 Tage)** | Offene Vorgänge im Filter, deren letzte Prüfung mehr als 365 Tage zurückliegt und die keinen geplanten Termin haben. | – | Teilmenge von «Vorgänge offen»; nicht im Nenner. Bestehensquoten sind ohne diese Kategorie eine Obergrenze. |
+| **Zertifizierung offen** | Vorgänge im Filter ohne Gesamtergebnis – weder schriftlich noch mündlich abgeschlossen; die Zertifizierung läuft noch. Kachel im Block «Mengen» der Übersicht (früher «Vorgänge offen»). | Alle kennzahlrelevanten Vorgänge im Filter (n der Kachel). | Nicht im Nenner der Bestehensquoten (E4). Spätere Prozessstufe als «Schriftlich offen» und deshalb die kleinere Zahl. Eigene Ansicht «Offene Vorgänge» (die ohne Zeitraumfilter rechnet und weitere Vorgänge zeigt). |
+| **Schriftlich offen** | Vorgänge im Filter ohne schriftliches Gesamtergebnis: die schriftliche Prüfung ist noch nicht abgeschlossen. Spalte in «Kennzahlen je Profil» (Übersicht), früher «Offen». | Vorgänge des Profils im Filter (Spalte «n (Vorgänge)»). | Die schriftliche Prüfung ist das Gate zur mündlichen: Wer hier offen ist, ist auch in «Zertifizierung offen» enthalten – umgekehrt nicht. Frühere Prozessstufe und deshalb die grössere Zahl. |
+| **Vorgänge passiv (> 365 Tage)** | Offene Vorgänge im Filter, deren letzte Prüfung mehr als 365 Tage zurückliegt und die keinen geplanten Termin haben. | – | Teilmenge von «Zertifizierung offen»; nicht im Nenner. Bestehensquoten sind ohne diese Kategorie eine Obergrenze. |
 | **Vorgänge nicht erfasst** | Vorgänge im Filter, deren Gesamtergebnis gefüllt, aber unlesbar ist (Fehler im Data-Quality-Log). | – | Nicht im Nenner der Bestehensquoten; zählt nicht als offen (E4). |
 | **Schriftlich: im 1. Versuch bestanden** | Anteil Vorgänge, bei denen alle absolvierten WE RUN1 bestanden sind. | Vorgänge mit mindestens einem absolvierten WE RUN1. | Komplement zu «im 1. Versuch durchgefallen». |
 | **Schriftlich: im 1. Versuch durchgefallen** | Anteil Vorgänge mit mindestens einem WE RUN1 = no. | Vorgänge mit mindestens einem absolvierten WE RUN1. | – |
@@ -230,7 +263,7 @@ identisch mit der Ansicht «Glossar» in der App.
 | **VSS / VSM** | Anzahl Vorgänge mit Kennzeichnung VSS bzw. VSM. | – | Beides möglich; dann in beiden Zahlen. |
 | **Ausgestellte Zertifikate** | Anzahl Vorgänge im Filter mit ausgestelltem Zertifikat (Sheet «Ausgestellte Zertifikate» oder damit zusammengeführt). | – | – |
 | **Personen mit mehreren Profilen** | Anzahl Personen im Filter mit Vorgängen in mehr als einem Profil; Tabelle mit Profil-Abfolge (zeitlich nach erstem Prüfungsdatum) und Anzahl Personen je Abfolge. | – | Berücksichtigt alle kennzahlrelevanten Vorgänge der Person, auch ausserhalb eines aktiven Profil-Filters; zählt Menschen, nicht Vorgänge (E3). |
-| **Geplante Prüfungstermine** | Anzahl geplanter Runs (Datum in der Zukunft ohne Passed-Wert) für die Filter Profil, Sprache, Bank, VSS/VSM. | – | Zeitraum und Versuchsmodus wirken nicht. |
+| **Geplante Prüfungstermine** | Anzahl geplanter Runs (Datum in der Zukunft ohne Passed-Wert) für die Filter Profil, Sprache, Bank, VSS/VSM. | – | Der Zeitraum wirkt nicht (geplant heisst immer «in der Zukunft»); der Versuchsmodus wirkt über die Vorgänge. |
 | **bbz-Award** | 0.5 · Ø Resultat schriftlich + 0.5 · Ø Resultat mündlich gemäss gewählter Wertung; Rangliste je Profil (Top k, k = höchstens halbe Gruppe, maximal 5). | Vorgänge mit bestandener mündlicher Prüfung und beiden Werten. | Tie-Break 1: weniger Prüfungsversuche gesamt; Tie-Break 2: früheres Referenzdatum; gilt auch für die schriftlichen und mündlichen Bestenlisten. Unter 5 Vorgängen im Profil keine Liste (Mindestgruppengrösse, E5). Begründung je Rang im Award-Dossier. |
 <!-- glossar:end -->
 
@@ -261,6 +294,7 @@ Fehlt ein Pflicht-Header, wird die Datei nicht verarbeitet und die fehlenden Hea
 | Score | ganze Zahl ≥ 0; sonst Stufe «nicht ausgewertet» (Feld fliesst in keine Kennzahl; Entscheid E6: Result ist massgebend, Parsing bleibt zur Sichtbarkeit verrutschter Zellen) |
 | Geburtsdatum | wie Datum, plausible Jahrgänge 1920–2010 (Serienzahlen entsprechend); nur für den Personenschlüssel |
 | Datum | Excel-Datum oder Text `dd.mm.yy(yy)[ / hh.mm]` (Trenner . oder , Suffix h / Uhr); Excel-Serienzahl ohne Format → Datum + Hinweis; Jahr ausserhalb 2000–2100, ohne Jahr, dreistelliges Jahr → Fehler |
+| Passed × Result | Widersprechen sich beide Werte, ist das ein **Hinweis** mit Wirkung «verändert Kennzahl»: «yes» unter der Bestehensgrenze oder «no» auf/über der Grenze. Die Bestehensgrenze liegt bei **70 %** (Auftraggeber, bestätigt 10.09.2026) und steht als `PASS_THRESHOLD` in `config.js`. Beide Werte bleiben stehen – die App deutet nichts um; die Quoten lesen weiter den Passed-Wert, die Ø-Resultate das Resultat. |
 
 Stufen im Log: **Fehler** = Zelle nicht interpretierbar, Wert wird ignoriert. **Hinweis** = Wert interpretiert oder
 abgeleitet, aber auffällig (z. B. vergangener Termin ohne Ergebnis, Passed ohne Datum, abgeleitete Sprache, Result als
@@ -314,7 +348,17 @@ MSAL.js 3.30.0 (MIT), SheetJS 0.20.3 (Apache-2.0), fflate 0.8.3 (MIT). Diagramme
 (`views/chart.js`), Farben nach validierter Palette. Dark Mode folgt der Systemeinstellung (`prefers-color-scheme`);
 der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die Gestaltung läuft über CSS-Tokens in
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
-aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Linien ≥ 3:1) und läuft in der CI.
+aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
+
+**Druck bei dunkler Systemeinstellung:** Der Druck-Block überschreibt den Dark-Block, er ersetzt ihn nicht. Die reale
+Kaskade ist `hell → dunkel → Druck`, und jedes Token, das `@media (prefers-color-scheme: dark)` setzt, muss `@media print`
+zurücksetzen – sonst druckt ein Gerät mit dunkler Einstellung dunkle Farben auf weisses Papier. Das Werkzeug bildet diese
+Kaskade ab und meldet über `darkLeftovers()` zusätzlich jedes Token, das der Druck-Block vergisst; der Smoke-Test prüft
+dieselbe Lage im Browser (`media: 'print'` bei `colorScheme: 'dark'`).
+
+**Feldrahmen:** Eingabefelder haben dieselbe Füllfarbe wie ihre Umgebung und sind allein durch ihren Rahmen erkennbar;
+der braucht 3:1 (WCAG 2.1 SC 1.4.11). Dafür gibt es `--field-border` – `--border` trägt daneben reine Deko-Rahmen
+(Tabellen, Karten) und bleibt dezent, statt global angehoben zu werden.
 
 ```
 index.html / app.js / styles.css   Shell, Filterleiste, Navigation, View-Kopf, Legende, Fehleranzeige

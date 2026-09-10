@@ -612,7 +612,14 @@ Je Modul `intro` (≤ 160 Zeichen) und `glossar`:
 | historie | Snapshots der Aggregate erzeugen, laden und Stichtage vergleichen; ohne Namen, ohne Filter, nichts im Browser gespeichert. | Snapshot (Historisierung) |
 | ranking | Top-Listen je Profil für bbz-Award, schriftliche und mündliche Prüfung mit Begründung je Rang; mit Namen, nur intern. | bbz-Award |
 | bankReport | Kennzahlen einer gewählten Bank gegen den anonymen Benchmark aller Banken; für die Weitergabe an das Institut. | Bank-Report |
-| offen | Laufende Zertifizierungsprozesse mit fehlenden Teilen, Frühwarnung und passiven Vorgängen; Zeitraum und Versuche wirken nicht. | Offene Vorgänge (Ansicht) |
+| offen | Laufende Zertifizierungsprozesse mit fehlenden Teilen, Frühwarnung und passiven Vorgängen; auch ohne absolvierte Prüfung. | Offene Vorgänge (Ansicht) |
+
+> **Korrektur 10.09.2026 (Paket A, A1/A3):** Der ursprüngliche Text sagte «Zeitraum und Versuche wirken nicht». Das stimmt für den
+> Zeitraum, nicht für die Versuche: Die Ansicht arbeitet auf `ctx.plannedPersons` = `filterPersons(persons, filter, { eligibleOnly: false,
+> period: false })`; `period` ist aus, `versuche` läuft mit und filtert über `hasRetry`. Dieselbe falsche Aussage stand in `views/offen.js`
+> (Kopf, intro, Hinweis), in `views/planned.js` (Hinweis) und im Glossar bei «Offene Vorgänge (Ansicht)» und «Geplante Prüfungstermine».
+> Alle sechs Fundstellen sind korrigiert. Nicht betroffen: «Personen» und «Experten» – dort setzt app.js den Filter tatsächlich auf
+> `versuche: 'alle'`, die Aussage in PROMPT-2.md (D.6, C.4) ist dort richtig.
 | planned | Termine in der Zukunft ohne Ergebnis, schriftlich und mündlich, je Tag und Ort mit Teilnehmenden; mit Namen. | Geplante Prüfung |
 | glossar | Verbindliche Definitionen aller Begriffe und Kennzahlen, identisch mit README.md. | – |
 | datenqualitaet (in `app.js`) | Jede nicht interpretierbare oder auffällige Zelle mit Wirkung, Stufe, Fundstelle und Grund; unabhängig vom Filter. | Data-Quality-Stufen |

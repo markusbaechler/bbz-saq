@@ -36,7 +36,7 @@
 
 import {
   CONFIG, HEADER_FIELDS, PROFILES, PROFILE_ALIASES, LANGUAGES, LANGUAGE_ALIASES, PROFILE_LANGUAGE_HINTS,
-  PASSED_TRUE, PASSED_FALSE, EMPLOYER_ALIASES, EXPERT_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, BIRTH_DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
+  PASSED_TRUE, PASSED_FALSE, PASS_THRESHOLD, EMPLOYER_ALIASES, EXPERT_ALIASES, VSS_REGEX, VSM_REGEX, DATE_RULES, BIRTH_DATE_RULES, requiredFieldKeys, headerCandidates, partKey, runKey,
 } from './config.js';
 import { DEFAULT_FILTER, STATUS, PASSIVE_DAYS, filterPersons, eligible, groupBy, groupByPerson, dayKey, partsByProfile, missingParts, profileParts, partsOutsideProfile, personIndex, passerelleFrom, normalizeNamePart } from './metrics.js';
 
@@ -51,6 +51,9 @@ export const LEVEL = Object.freeze({ FEHLER: 'fehler', HINWEIS: 'hinweis', NICHT
 //   kennzahl   = die Zeile ist sichtbar, aber ein Wert, eine Gruppe oder eine Zählung hängt an der Zelle
 //   keine      = reine Interpretation oder nicht ausgewertetes Feld – keine Zahl im Cockpit ändert sich
 export const IMPACT = Object.freeze({ UNSICHTBAR: 'unsichtbar', KENNZAHL: 'kennzahl', KEINE: 'keine' });
+
+// Anteil 0–1 als Prozentangabe für das Data-Quality-Log – eine Dezimale wie in den Kennzahlen
+const pctText = (v) => (v * 100).toFixed(1) + ' %';
 export const IMPACT_LABELS = Object.freeze({ unsichtbar: 'macht Zeile unsichtbar', kennzahl: 'verändert Kennzahl', keine: 'ohne Kennzahlwirkung' });
 export const IMPACT_ORDER = Object.freeze({ unsichtbar: 0, kennzahl: 1, keine: 2 });
 
@@ -467,6 +470,19 @@ export function normalizeSheet(sheet, comments = {}, options = {}) {
           }
           if (run.taken && run.date !== null && run.date > horizon) {
             hint(dateKey, rawDate, 'Passed-Wert erfasst, aber Prüfungsdatum liegt in der Zukunft');
+          }
+          // A6 (Bestehensgrenze, Auftraggeber 10.09.2026): Passed-Wert und Resultat müssen zusammenpassen. Widersprechen
+          // sie sich, geht einer der beiden Werte falsch in die Kennzahlen ein – die Quoten lesen den Passed-Wert, die
+          // Ø-Resultate das Resultat. Stufe «Hinweis», Wirkung «verändert Kennzahl»; die Zeile bleibt ausgewertet, weil
+          // beide Werte für sich lesbar sind und die App nichts umdeutet.
+          if (run.taken && run.result !== null) {
+            const resultKey = runKey(kind, p, r, 'result');
+            const grenze = ' der Bestehensgrenze von ' + pctText(PASS_THRESHOLD) + ' – Passed-Wert oder Resultat prüfen';
+            if (run.passed === true && run.result < PASS_THRESHOLD) {
+              logDq(resultKey, get(resultKey), 'Als bestanden erfasst, aber Resultat ' + pctText(run.result) + ' liegt unter' + grenze, LEVEL.HINWEIS, IMPACT.KENNZAHL);
+            } else if (run.passed === false && run.result >= PASS_THRESHOLD) {
+              logDq(resultKey, get(resultKey), 'Als nicht bestanden erfasst, aber Resultat ' + pctText(run.result) + ' liegt auf oder über' + grenze, LEVEL.HINWEIS, IMPACT.KENNZAHL);
+            }
           }
           runs.push(run);
         }

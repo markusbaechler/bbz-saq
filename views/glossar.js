@@ -8,6 +8,11 @@ export const label = 'Glossar';
 export const group = 'Daten'; // Navigationsgruppe (PROMPT-2 A.2)
 export const intro = 'Verbindliche Definitionen aller Begriffe und Kennzahlen des Cockpits, identisch mit README.md.';
 export const isStatic = true;
+// Wirksamkeit der globalen Filterleiste (Paket A, A1): statische Ansicht ohne Daten – die Leiste entfällt ganz.
+export const filters = {
+  hidden: true,
+  satz: 'Ohne Filterleiste: Das Glossar beschreibt die Kennzahlen selbst und hängt nicht von den geladenen Daten ab.',
+};
 
 function table(kind) {
   const rows = GLOSSARY.filter((g) => g.kind === kind).map((g) => ({ term: g.term, definition: g.definition, nenner: g.nenner, grenzfaelle: g.grenzfaelle }));

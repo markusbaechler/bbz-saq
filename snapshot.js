@@ -13,7 +13,7 @@ export const SNAPSHOT_VERSION = 1;
 export const SNAPSHOT_KPIS = Object.freeze([
   { key: 'vorgaenge', label: 'Vorgänge', kind: 'count' },
   { key: 'personen', label: 'Personen', kind: 'count' },
-  { key: 'offen', label: 'Vorgänge offen', kind: 'count' },
+  { key: 'offen', label: 'Zertifizierung offen', kind: 'count' }, // A5: Schlüssel bleibt «offen» (Dateiformat), nur die Beschriftung folgt der Kachel
   { key: 'passiv', label: 'Vorgänge passiv (> 365 Tage)', kind: 'count' },
   { key: 'nichtErfasst', label: 'Vorgänge nicht erfasst', kind: 'count' },
   { key: 'weErstversuch', label: 'Schriftlich: im 1. Versuch bestanden', kind: 'ratio' },

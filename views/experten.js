@@ -12,6 +12,17 @@ export const intro = 'Einsätze, Rollen, Durchfallquote und Ø Resultat je Exper
 export const glossar = 'Einsatz (Experte)';
 export const noPersonExport = true; // eigener Export «Einsatzebene» (app.js)
 export const DEFAULT_SORT = Object.freeze({ sortKey: 'einsaetze', sortDir: 'desc' });
+// Wirksamkeit der globalen Filterleiste (Paket A, A1): die Einsätze entstehen aus ctx.expertRuns – die Vorgangsfilter wirken,
+// der Versuchsmodus nicht (er wird auf 'alle' gesetzt). Der Zeitraum bleibt aktiv, wirkt aber auf das Run-Datum des Einsatzes;
+// darum der sichtbare Hinweis in der Leiste statt einer Erklärung im Text.
+export const filters = {
+  versuche: false, wertung: false,
+  grund: {
+    versuche: 'Ein Einsatz zählt unabhängig davon, der wievielte Versuch der Kandidatin oder des Kandidaten er ist',
+    wertung: 'Die Wertung gilt nur für die Bestenlisten',
+  },
+  hinweis: 'Der Zeitraum wirkt hier auf das Run-Datum des Einsatzes, nicht auf das Referenzdatum des Vorgangs.',
+};
 
 // Zeilen-Detail: vier kleine Tabellen (je Jahr, je Profil, je Sprache, Partner)
 function detailNode(det) {
@@ -23,7 +34,7 @@ export function build(ctx) {
   const meta = ctx.expertMeta || { columns: false, expected: [] };
   const hints = [
     'Beobachtungswerte, keine Leistungsbeurteilung: ein Einsatz zählt für beide Experten voll; Kandidaten mit Wiederholung haben strukturell höhere Durchfallquoten, deshalb getrennter Benchmark je Versuchsart (E9). Δ = Wert des Experten minus Benchmark aller Experten im Filter, in Prozentpunkten, neutral dargestellt.',
-    'Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» wirken über die Vorgänge; der Zeitraum wirkt auf das Run-Datum des Einsatzes; Versuche und Wertung wirken nicht. Runs mit Ergebnis ohne Datum zählen nur ohne Zeitraum («ohne Datum»).',
+    'Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» wirken über die Vorgänge; der Zeitraum wirkt auf das Run-Datum des Einsatzes. Runs mit Ergebnis ohne Datum zählen nur ohne Zeitraum («ohne Datum»).',
   ];
   const sec = hinted(hints);
   if (!meta.columns) {

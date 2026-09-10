@@ -1,5 +1,8 @@
 import { test, assert, assertEqual } from './runner.js';
 import { DQ_COLUMNS, LEVEL_LABELS, levelOf, impactOf, formatRaw, sortDq, filterDq, sheetOptions, summarizeDq, summaryAsText, DEFAULT_DQ_STATE } from '../views/dataQuality.js';
+import { LEVEL, IMPACT, normalizeSheet } from '../store.js';
+import { PASS_THRESHOLD } from '../config.js';
+import { makeSheet, runValues } from './fixtures.js';
 
 const ENTRIES = [
   { level: 'fehler', sheet: 'First Certification', row: 100, header: 'WE1 RUN1 Passed', field: 'we1.run1.passed', raw: 'maybe', reason: 'Passed-Wert nicht in Whitelist' },
@@ -126,4 +129,49 @@ test('dataQuality.impactOf / sortDq(impact) / filterDq(impact): Priorisierung na
   const summary = summarizeDq(entries);
   assertEqual(summary.map((r) => [r.impact, r.count]), [['unsichtbar', 1], ['unsichtbar', 1], ['kennzahl', 1], ['kennzahl', 1], ['keine', 1]]);
   assert(summaryAsText(summary).startsWith('Wirkung'));
+});
+
+// ---------------------------------------------------------------------------
+// Paket A (A6): Ergebnis unter der Bestehensgrenze
+// Die Bestehensgrenze liegt bei 70 % (Auftraggeber, bestätigt 10.09.2026). Passed-Wert und Resultat müssen zusammenpassen:
+// Die Quoten lesen den Passed-Wert, die Ø-Resultate das Resultat – widersprechen sie sich, geht einer der beiden Werte
+// falsch in die Kennzahlen ein. Synthetische Zeilen beidseits der Grenze.
+// ---------------------------------------------------------------------------
+
+const person = (name, we) => ({ lastName: name, firstName: 'Test', profil: 'PK', sprache: 'DE', employer: 'Testbank AG', ...runValues('we', we) });
+const grenzeDq = (rowValues) => normalizeSheet(makeSheet('first', rowValues), {}, { today: new Date(2026, 8, 10) })
+  .dq.filter((e) => /Bestehensgrenze/.test(e.reason));
+
+test('dataQuality A6: bestanden unter der Grenze und nicht bestanden darüber ergeben je einen Hinweis', () => {
+  const dq = grenzeDq([
+    person('Widerspruch', { 1: [{ passed: 'yes', date: '2026-03-02', result: 0.65 }] }),
+    person('Umgekehrt', { 1: [{ passed: 'no', date: '2026-03-03', result: 0.82 }] }),
+  ]);
+  assertEqual(dq.length, 2, 'ein Eintrag je widersprüchlichem Run');
+  for (const e of dq) {
+    assertEqual(e.level, LEVEL.HINWEIS);
+    assertEqual(e.impact, IMPACT.KENNZAHL, 'verändert Kennzahl');
+    assertEqual(e.sheet, 'First Certification');
+    assertEqual(e.header, 'WE1 RUN1 Result', 'Fundstelle ist die Resultat-Spalte');
+    assert(typeof e.row === 'number' && e.row >= 11, 'Excel-Zeile genannt');
+    assert(e.raw !== null && e.raw !== undefined, 'Rohwert mitgeführt');
+    assert(!/ß/.test(e.reason), 'ss statt ß');
+  }
+  assert(/Als bestanden erfasst/.test(dq[0].reason) && /65\.0 %/.test(dq[0].reason) && /70\.0 %/.test(dq[0].reason), 'Grund nennt beide Werte: ' + dq[0].reason);
+  assert(/Als nicht bestanden erfasst/.test(dq[1].reason) && /82\.0 %/.test(dq[1].reason), 'Grund der Gegenrichtung: ' + dq[1].reason);
+});
+
+test('dataQuality A6: passende Werte, die Grenze selbst und fehlende Angaben ergeben keinen Hinweis', () => {
+  assertEqual(grenzeDq([
+    person('Passt', { 1: [{ passed: 'yes', date: '2026-03-02', result: 0.82 }] }),          // bestanden, darüber
+    person('PasstAuch', { 1: [{ passed: 'no', date: '2026-03-02', result: 0.65 }] }),       // nicht bestanden, darunter
+    person('Genau', { 1: [{ passed: 'yes', date: '2026-03-02', result: PASS_THRESHOLD }] }), // genau 70 % gilt als bestanden
+    person('OhneResultat', { 1: [{ passed: 'yes', date: '2026-03-02' }] }),                 // Resultat leer
+    person('Geplant', { 1: [{ date: '2027-03-02', result: 0.65 }] }),                       // kein Passed-Wert: Run nicht absolviert
+  ]).length, 0);
+});
+
+test('dataQuality A6: knapp unter der Grenze zählt, die Grenze selbst nicht', () => {
+  assertEqual(grenzeDq([person('Knapp', { 1: [{ passed: 'yes', date: '2026-03-02', result: 0.699 }] })]).length, 1);
+  assertEqual(grenzeDq([person('Grenze', { 1: [{ passed: 'no', date: '2026-03-02', result: PASS_THRESHOLD }] })]).length, 1, 'genau 70 % und «no» widersprechen sich');
 });

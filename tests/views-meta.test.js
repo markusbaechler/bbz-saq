@@ -18,6 +18,8 @@ import * as glossar from '../views/glossar.js';
 
 export const VIEW_MODULES = { overview, written, oral, vssVsm, zeitverlauf, historie, ranking, bankReport, offen, planned, personen, experten, glossar };
 const GROUPS = ['Kennzahlen', 'Personen', 'Experten', 'Daten'];
+// Felder der globalen Filterleiste plus «wertung» (Bedienelement der Bestenlisten, nicht in der Leiste)
+const FILTER_KEYS = ['jahr', 'von', 'bis', 'profil', 'sprache', 'bank', 'vssVsm', 'versuche', 'zertifikate', 'wertung'];
 
 test('views: jede View hat id, label und eine der vier Navigationsgruppen (A.2)', () => {
   for (const [name, v] of Object.entries(VIEW_MODULES)) {
@@ -41,4 +43,41 @@ test('views: Kurzbeschreibung (intro) mit höchstens 160 Zeichen und Glossar-Beg
     assert(!/ß/.test(v.intro), name + ': ss statt ß');
     if (v.id !== 'glossar') assert(glossaryEntry(v.glossar), name + ': Glossar-Begriff «' + v.glossar + '» fehlt');
   }
+});
+
+// Paket A (A1): Wirksamkeit der Filterleiste je Ansicht. Fehlt `filters`, gilt alles als wirksam (Rückwärtskompatibilität);
+// jedes abgeschaltete Feld braucht eine Begründung, damit die Leiste sie als title zeigen kann.
+test('views: filters nennt je Steuerelement die Wirksamkeit, jedes abgeschaltete Feld hat einen Grund (A1)', () => {
+  for (const [name, v] of Object.entries(VIEW_MODULES)) {
+    if (v.filters === undefined) continue;
+    const f = v.filters;
+    for (const key of Object.keys(f)) {
+      if (['grund', 'hinweis', 'hidden', 'satz'].includes(key)) continue;
+      assert(FILTER_KEYS.includes(key), name + ': unbekanntes Filterfeld «' + key + '»');
+      assertEqual(typeof f[key], 'boolean', name + ': ' + key + ' muss true oder false sein');
+    }
+    for (const key of FILTER_KEYS) {
+      if (f[key] !== false) continue;
+      const grund = (f.grund || {})[key];
+      assert(typeof grund === 'string' && grund.length >= 10, name + ': Begründung für «' + key + '» fehlt');
+      assert(!/ß/.test(grund), name + ': ss statt ß in der Begründung für «' + key + '»');
+    }
+    if (f.hinweis !== undefined) assert(typeof f.hinweis === 'string' && f.hinweis.length >= 10 && !/ß/.test(f.hinweis), name + ': hinweis');
+    // Ansichten ohne wirksames Feld tragen keine Leiste, sondern einen Satz mit der Begründung
+    if (f.hidden) assert(typeof f.satz === 'string' && f.satz.length >= 20 && !/ß/.test(f.satz), name + ': Satz statt Leiste fehlt');
+    assert(f.satz === undefined || f.hidden === true, name + ': satz nur zusammen mit hidden');
+  }
+});
+
+test('views: die abgeschalteten Felder je Ansicht (A1, Abnahme)', () => {
+  const off = (v) => FILTER_KEYS.filter((k) => v.filters && v.filters[k] === false);
+  assertEqual(off(zeitverlauf).join(','), 'jahr,von,bis', 'Zeitverlauf: Zeitraum ohne Wirkung');
+  assertEqual(off(offen).join(','), 'jahr,von,bis', 'Offene Vorgänge: Zeitraum ohne Wirkung');
+  assertEqual(off(planned).join(','), 'jahr,von,bis', 'Geplante Prüfungen: Zeitraum ohne Wirkung');
+  assertEqual(off(personen).join(','), 'jahr,von,bis,versuche,wertung', 'Personen: Zeitraum, Versuche, Wertung ohne Wirkung');
+  assertEqual(off(experten).join(','), 'versuche,wertung', 'Experten: Versuche und Wertung ohne Wirkung, Zeitraum bleibt aktiv');
+  assert(experten.filters.hinweis.includes('Run-Datum'), 'Experten: sichtbarer Hinweis zum Zeitraum');
+  for (const v of [overview, written, oral, vssVsm, ranking, bankReport]) assertEqual(off(v).length, 0, v.id + ': alle Felder wirksam');
+  // Ganz ohne Leiste: Historie rechnet auf allen Vorgängen ohne Filter, das Glossar braucht gar keine Daten
+  for (const v of [historie, glossar]) assert(v.filters.hidden === true && /Ohne Filterleiste/.test(v.filters.satz), v.id + ': Leiste entfällt, Satz vorhanden');
 });

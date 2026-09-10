@@ -41,6 +41,8 @@ page.on('requestfailed', (r) => { if (r.url().startsWith(server.url)) errors.pus
 page.on('response', (r) => { if (r.url().startsWith(server.url) && r.status() >= 400) errors.push('HTTP ' + r.status() + ' ' + r.url()); });
 
 const summaryText = () => page.textContent('#filterbar .summary');
+// Query-Teil des Hashs (#ansicht?von=…): beim Ansichtswechsel per goto muss der Filterzustand mitgenommen werden
+const hashQuery = (url) => { const h = url.split('#')[1] || ''; const q = h.indexOf('?'); return q >= 0 ? h.slice(q) : ''; };
 
 try {
   // Laden
@@ -110,8 +112,57 @@ try {
   check(spreads.length === 4 && spreads.every((t) => /^σ \d+\.\d pp · Median \d+\.\d % \(P25 \d+\.\d · P75 \d+\.\d\)$/.test(t)) && spreadShortHidden, 'Übersicht: Streuungszeile auf den vier Ø-Kacheln, Kurzform ausgeblendet (' + spreads.length + ', z. B. «' + (spreads[0] || '') + '»)');
   const einordnung = await page.$$eval('#view td.tone', (t) => t.map((x) => x.textContent.trim()));
   check(einordnung.length >= 8 && einordnung.some((t) => /^d [+−]?\d\.\d · (gering|mittel|deutlich|gross)$/.test(t)) && einordnung.some((t) => /^±\d+\.\d pp · Benchmark im Intervall: (ja|nein)$/.test(t)) && (await page.$$eval('#view thead th', (th) => th.map((x) => x.textContent))).includes('Einordnung') && (await page.locator('#view td.tone.neutral, #view td.tone.pos, #view td.tone.neg').count()) === einordnung.length, 'Übersicht: Spalte «Einordnung» mit Effektstärke und Wilson-Intervall, Ton je Zelle (' + einordnung.length + ' Zellen, z. B. «' + (einordnung[0] || '') + '»)');
+  // Paket A (A2): Ohne benchmarkrelevanten Filter ist die Auswahl der Benchmark – keine «● 0.0 pp»-Zeile auf zehn Kacheln,
+  // die Vergleichstabelle bleibt eingeklappt und nennt den Grund samt Weg zum Bank-Filter
+  const vergleich = () => page.evaluate(() => {
+    const s = [...document.querySelectorAll('#view section.block, #view details.block')].find((x) => (x.querySelector('h3, summary') || {}).textContent.startsWith('Auswahl im Vergleich'));
+    const satz = document.querySelector('#view .benchmark-gleichstand');
+    // Der Satz steht sichtbar vor der Tabelle, nicht im Aufklapper
+    return s ? { tag: s.tagName, open: s.tagName === 'DETAILS' ? s.open : true, satz: satz ? satz.textContent : '', sichtbar: satz ? satz.getClientRects().length > 0 : false } : null;
+  });
+  // Keine Kachel ist höher, als ihr Inhalt verlangt: je Reihe füllt mindestens eine Kachel ihre Höhe ganz aus (kein Platz auf Vorrat)
+  const kachelFuellung = () => page.$$eval('#view .kpi:not(.count)', (tiles) => {
+    const rows = new Map();
+    for (const t of tiles) {
+      const box = t.getBoundingClientRect();
+      const last = t.lastElementChild.getBoundingClientRect();
+      const rest = Math.round(box.bottom - last.bottom - parseFloat(getComputedStyle(t).paddingBottom));
+      const key = Math.round(box.top);
+      rows.set(key, Math.min(rows.has(key) ? rows.get(key) : 1e9, rest));
+    }
+    return [...rows.values()];
+  });
+  const zu = await vergleich();
+  const restOhne = await kachelFuellung();
+  check((await page.locator('#view .kpi-delta').count()) === 0 && zu && zu.tag === 'DETAILS' && !zu.open && zu.sichtbar && /Kein Filter aktiv/.test(zu.satz) && /Bank wählen/.test(zu.satz),
+    'A2 Übersicht ohne Filter: keine Delta-Zeile, Vergleichstabelle eingeklappt mit Satz «' + zu.satz.trim().slice(0, 70) + '»');
+  check((await page.locator('#view .benchmark-gleichstand button.linklike').count()) === 1, 'A2 Übersicht ohne Filter: Link «Bank wählen» im Satz');
+  await shot(page, 'uebersicht-ohne-filter');
   await page.locator('#filterbar label:has-text("Bank") select').selectOption({ label: 'Testbank AG' });
   await page.waitForSelector('#view .kpi-delta');
+  const offen = await vergleich();
+  check(offen && offen.tag === 'SECTION' && !offen.satz, 'A2 Übersicht mit Bank-Filter: Vergleichstabelle offen, kein Gleichstand-Satz');
+  check(restOhne.length >= 2 && restOhne.every((r) => r <= 1), 'A3 Übersicht ohne Filter: keine Kachel höher als ihr Inhalt verlangt (Rest je Reihe ' + restOhne.join('/') + ' px)');
+  // A3: Wert zuerst, Beschriftung darunter, n darunter, Delta zuletzt – Wert und n liegen je Kachelreihe auf einer Linie
+  const grundlinien = () => page.$$eval('#view .kpi', (tiles) => {
+    const rows = new Map();
+    for (const t of tiles) {
+      const box = t.getBoundingClientRect();
+      const abstand = (sel) => { const c = t.querySelector(sel); return c ? Math.round(c.getBoundingClientRect().top - box.top) : null; };
+      const key = Math.round(box.top);
+      if (!rows.has(key)) rows.set(key, { value: new Set(), n: new Set(), reihenfolge: new Set() });
+      const r = rows.get(key);
+      r.value.add(abstand('.kpi-value'));
+      r.n.add(abstand('.kpi-n'));
+      r.reihenfolge.add([...t.children].map((c) => c.className.split(' ')[0]).join('>'));
+    }
+    return [...rows.values()].map((r) => ({ value: [...r.value], n: [...r.n], reihenfolge: [...r.reihenfolge] }));
+  });
+  const linien = await grundlinien();
+  check(linien.length >= 3 && linien.every((r) => r.value.length === 1 && r.value[0] > 0 && r.n.length === 1),
+    'A3 Übersicht: je Kachelreihe liegen alle .kpi-value auf einer Linie und alle .kpi-n ebenfalls (' + linien.map((r) => r.value[0] + '/' + r.n[0]).join(' · ') + ' px)');
+  check(linien.every((r) => r.reihenfolge.every((o) => /^kpi-value>kpi-label>kpi-n/.test(o))),
+    'A3 Übersicht: Reihenfolge Wert · Beschriftung · n · (Streuung) · Delta (' + linien[0].reihenfolge[0] + ')');
   const deltas = await page.$$eval('#view .kpi-delta', (d) => d.map((x) => x.textContent.trim()));
   check(deltas.length >= 5 && deltas.every((t) => /^[▲▼●] [+−]?\d+\.\d pp vs\. /.test(t)), 'Benchmark-Delta je Quoten-Kachel mit Symbol und Vorzeichen (' + deltas.length + ', z. B. «' + deltas[0] + '»)');
   const deltaCells = await page.$$eval('#view td.delta', (t) => t.map((x) => x.textContent.trim()));
@@ -119,6 +170,25 @@ try {
   await shot(page, 'uebersicht-benchmark');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
+  // Paket A (A5): Zwei Prozessstufen, zwei Namen. «Schriftlich offen» (Spalte je Profil) zählt Vorgänge ohne schriftliches
+  // Gesamtergebnis, «Zertifizierung offen» (Kachel) Vorgänge ohne Gesamtergebnis überhaupt. Die schriftliche Prüfung ist
+  // das Gate zur mündlichen: Die Spaltensumme ist deshalb höchstens so gross wie die Kachel.
+  const stufen = await page.evaluate(() => {
+    const tile = [...document.querySelectorAll('#view .kpi')].find((k) => k.querySelector('.kpi-label').textContent.startsWith('Zertifizierung offen'));
+    const tabelle = [...document.querySelectorAll('#view table')].find((t) => [...t.querySelectorAll('thead th')].some((th) => th.textContent.trim() === 'Schriftlich offen'));
+    if (!tile || !tabelle) return { kachel: null, spalte: null, summe: null };
+    const i = [...tabelle.querySelectorAll('thead th')].findIndex((th) => th.textContent.trim() === 'Schriftlich offen');
+    const summe = [...tabelle.querySelectorAll('tbody tr')].reduce((a, tr) => a + (Number(tr.children[i].textContent.trim()) || 0), 0);
+    return {
+      kachel: Number(tile.querySelector('.kpi-value').textContent.trim()),
+      glossar: (tile.querySelector('.kpi-label a') || {}).getAttribute ? tile.querySelector('.kpi-label a').getAttribute('href') : '',
+      spalte: 'Schriftlich offen', summe,
+      altNamen: [...document.querySelectorAll('#view .kpi-label, #view thead th')].map((x) => x.textContent.trim()).filter((t) => t === 'Offen' || t.startsWith('Vorgänge offen')),
+    };
+  });
+  check(stufen.kachel !== null && stufen.spalte === 'Schriftlich offen' && stufen.summe <= stufen.kachel && stufen.altNamen.length === 0 && /begriff=zertifizierung-offen/.test(stufen.glossar || ''),
+    'A5 Übersicht: Kachel «Zertifizierung offen» = ' + stufen.kachel + ', Spalte «Schriftlich offen» Summe ' + stufen.summe + ' (frühere Stufe, also nicht grösser), kein «Offen» mehr, Kachel verlinkt ins Glossar');
 
   // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
   // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
@@ -195,6 +265,73 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   check(!/profil=/.test(page.url()) && (await page.locator('#filterbar button.reset').isHidden()), 'Filter zurückgesetzt: URL ohne Filter, keine Chips, Reset ausgeblendet');
 
+  // Paket A (A1): Felder, die eine Ansicht nicht auswertet, sind deaktiviert und abgesetzt statt in der Kurzbeschreibung erklärt.
+  // Erwartete Zahl abgeschalteter Felder je Ansicht; auf «Datenqualität» verschwindet die Leiste ganz.
+  const OFF = {
+    uebersicht: 0, schriftlich: 0, muendlich: 0, 'vss-vsm': 0, bestenlisten: 0, 'bank-report': 0,
+    zeitverlauf: 3, 'offene-vorgaenge': 3, 'geplante-pruefungen': 3, personen: 4, experten: 1,
+  };
+  // Ganz ohne Leiste: Datenqualität (voller Bestand), Historie (Snapshot der ganzen Datei), Glossar (statisch)
+  const OHNE_LEISTE = ['datenqualitaet', 'historie', 'glossar'];
+  for (const [view, expected] of Object.entries(OFF)) {
+    await page.goto(server.url + '#' + view);
+    await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), view, { timeout: 5000 });
+    const off = await page.evaluate(() => {
+      const labels = [...document.querySelectorAll('#filterbar .filter-controls > label')];
+      const inactive = labels.filter((l) => l.classList.contains('inactive'));
+      return {
+        n: inactive.length,
+        namen: inactive.map((l) => (l.firstChild.textContent.trim() || l.textContent.trim())),
+        disabled: inactive.every((l) => l.querySelector('input, select').disabled) && labels.filter((l) => !l.classList.contains('inactive')).every((l) => !l.querySelector('input, select').disabled),
+        grund: inactive.every((l) => (l.getAttribute('title') || '').length > 10),
+      };
+    });
+    check(off.n === expected && off.disabled && off.grund, 'A1 ' + view + ': ' + off.n + ' von ' + expected + ' Feldern abgeschaltet (' + (off.namen.join(' · ') || 'keine') + '), disabled und Grund als title');
+  }
+  check((await page.locator('#filterbar label:has-text("Versuche")').getAttribute('title')) !== null, 'A1 Experten: Grund am abgeschalteten Feld «Versuche»');
+  check((await page.locator('#filterbar .filter-hinweis').isVisible()) && /Run-Datum/.test(await page.textContent('#filterbar .filter-hinweis')), 'A1 Experten: Zeitraum bleibt aktiv, mit sichtbarem Hinweis auf das Run-Datum');
+  await shot(page, 'filter-abgeschaltet');
+  for (const view of OHNE_LEISTE) {
+    await page.goto(server.url + '#' + view);
+    await page.waitForSelector('#view h2');
+    const satz = await page.textContent('#view p.filter-note');
+    check((await page.locator('#filterbar').isHidden()) && /^Ohne Filterleiste: /.test(satz) && (await page.locator('#view p.filter-note button.reset').count()) === 0,
+      'A1 ' + view + ': keine Filterleiste, dafür ein Satz («' + satz.slice(0, 60) + '…»), ohne Filter kein Reset');
+  }
+  // Gesetzter Filter bleibt erhalten, auch wo keine Leiste steht: der Satz nennt ihn und bietet «Filter zurücksetzen» an
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+  await page.selectOption('#filterbar label:has-text("Profil") select', 'PK');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  for (const view of OHNE_LEISTE) {
+    await page.goto(server.url + '#' + view + hashQuery(page.url()));
+    await page.waitForSelector('#view p.filter-note button.reset');
+    check(/1 gesetzter Filter wirkt hier nicht/.test(await page.textContent('#view p.filter-note')) && /profil=PK/.test(page.url()),
+      'A1 ' + view + ': gesetzter Filter bleibt in der URL, der Satz nennt ihn und trägt «Filter zurücksetzen»');
+  }
+  await page.locator('#view p.filter-note button.reset').click();
+  await page.waitForFunction(() => !/profil=/.test(location.hash), null, { timeout: 5000 });
+  check((await page.locator('#view p.filter-note button.reset').count()) === 0, 'A1 Glossar: Reset im Satz räumt den Filter weg und verschwindet danach');
+  // Der gesetzte Wert bleibt erhalten: Jahr auf der Übersicht setzen, auf dem Zeitverlauf ist er stumm, danach wirkt er wieder
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+  await page.locator('#filterbar label:has-text("Jahr") select').selectOption('2026');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  await page.goto(server.url + '#zeitverlauf' + hashQuery(page.url()));
+  await page.waitForFunction(() => !!document.querySelector('#view h2') && location.hash.startsWith('#zeitverlauf'), null, { timeout: 5000 });
+  const stumm = await page.evaluate(() => ({
+    chips: document.querySelectorAll('#filterbar .chip').length,
+    jahr: document.querySelector('#filterbar .filter-controls > label select').value,
+    note: (document.querySelector('#filterbar .summary-inactive') || {}).textContent || '',
+    reset: !document.querySelector('#filterbar button.reset').hidden,
+  }));
+  check(stumm.chips === 0 && stumm.jahr === '2026' && /wirkt hier nicht/.test(stumm.note) && stumm.reset && /von=2026-01-01/.test(page.url()), 'A1 Zeitverlauf: Jahr 2026 bleibt gesetzt (Feld und URL), kein Chip, Notiz «wirkt hier nicht», Reset sichtbar');
+  await page.goto(server.url + '#uebersicht' + hashQuery(page.url()));
+  await page.waitForSelector('#view .kpi');
+  check((await page.locator('#filterbar .chip', { hasText: '2026' }).count()) === 1 && (await page.locator('#filterbar .summary-inactive').isHidden()), 'A1 Übersicht: zurück – der Jahresfilter wirkt wieder, Chip «2026» erscheint erneut');
+  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
   // Offene Vorgänge (A.5): Statuszellen als Badge (Spalte «Passiv» = ja)
   await page.goto(server.url + '#offene-vorgaenge');
   await page.waitForSelector('#view h2');
@@ -234,6 +371,22 @@ try {
   const counter = (await page.textContent('#view .dq-count')).trim();
   check(filtered > 0 && filtered < allRows && counter.startsWith(filtered + ' von ' + allRows), 'DQ-Suche «Score» filtert (' + filtered + ' von ' + allRows + ' Einträgen; Zähler: «' + counter.slice(0, 40) + '…»)');
   check(await page.evaluate(() => !!document.activeElement && document.activeElement.classList.contains('dq-text')), 'DQ-Suche behält den Fokus');
+  // Paket A (A6): Passed-Wert und Resultat widersprechen sich (synthetische Zeile: «no» bei 78 %, Bestehensgrenze 70 %)
+  await page.fill('#view .dq-text', 'Bestehensgrenze');
+  await page.waitForTimeout(500);
+  const grenze = await page.evaluate(() => {
+    const tr = document.querySelector('#view table.dq-table tbody tr');
+    if (!tr) return null;
+    const zellen = [...tr.children].map((td) => td.textContent.trim());
+    // Die sortierte Spalte trägt einen Pfeil im Kopf – für den Schlüssel abschneiden
+    const kopf = [...document.querySelectorAll('#view table.dq-table thead th')].map((th) => th.textContent.trim().replace(/\s*[▲▼]$/, ''));
+    return Object.fromEntries(kopf.map((k, i) => [k, zellen[i]]));
+  });
+  check(grenze && grenze.Stufe === 'Hinweis' && grenze.Wirkung === 'verändert Kennzahl' && /RUN1 Result$/.test(grenze.Header) && Number(grenze.Zeile) > 10
+    && /78\.0 %/.test(grenze.Grund) && /70\.0 %/.test(grenze.Grund) && grenze.Rohwert !== '',
+    'A6 Datenqualität: Widerspruch zur Bestehensgrenze als Hinweis mit Sheet, Zeile, Header, Rohwert und Grund (' + (grenze ? grenze.Sheet + ' Zeile ' + grenze.Zeile + ', ' + grenze.Header + ' = ' + grenze.Rohwert + ': ' + grenze.Grund : 'kein Eintrag') + ')');
+  await page.fill('#view .dq-text', '');
+  await page.waitForTimeout(500);
   // Bereinigung: Sprung vom Eintrag zur Person und zur betroffenen Zelle (Schreibpfad-Arbeitsablauf)
   await page.fill('#view .dq-text', 'RUN1 Result');
   await page.waitForTimeout(400);
@@ -408,7 +561,27 @@ try {
   const printActions = await page.evaluate(() => { const a = document.querySelector('#view .view-actions'); return a ? getComputedStyle(a).display : ''; });
   check(/rgba\(0, 0, 0, 0\.12\)/.test(printBar) && printActions === 'none' && (await page.locator('#view details.legend[open]').count()) === 1, 'Druck: Datenbalken grau, Export-Menü ausgeblendet, Legende offen');
   await shot(page, 'print-uebersicht');
-  await page.emulateMedia({ media: null });
+
+  // A4: Druck bei dunkler Systemeinstellung – im Browser gilt dann die Kaskade hell → dunkel → Druck. Jedes Token, das der
+  // Dark-Block setzt, muss der Druck-Block zurücksetzen, sonst landen dunkle Farben auf weissem Papier (--ok mit 1.96:1).
+  await page.emulateMedia({ media: 'print', colorScheme: 'dark' });
+  const TOKENS = { '--ok': 'rgb(26, 127, 55)', '--status-geplant': 'rgb(91, 75, 196)', '--hover': 'rgb(238, 244, 250)', '--danger-bg': 'rgb(253, 236, 234)', '--danger-border': 'rgb(241, 184, 179)', '--warn-bg': 'rgb(255, 244, 224)', '--status-bestanden-bg': 'rgb(237, 248, 240)', '--status-offen-bg': 'rgb(230, 240, 250)', '--status-geplant-bg': 'rgb(238, 235, 251)', '--text': 'rgb(31, 41, 51)', '--field-border': 'rgb(125, 136, 150)' };
+  const printDark = await page.evaluate((tokens) => {
+    const probe = document.createElement('div');
+    document.body.appendChild(probe);
+    const out = { body: getComputedStyle(document.body).backgroundColor, falsch: [] };
+    for (const [token, erwartet] of Object.entries(tokens)) {
+      probe.style.color = 'var(' + token + ')';
+      const ist = getComputedStyle(probe).color;
+      if (ist !== erwartet) out.falsch.push(token + ' = ' + ist + ' statt ' + erwartet);
+    }
+    probe.remove();
+    return out;
+  }, TOKENS);
+  check(printDark.body === 'rgb(255, 255, 255)' && printDark.falsch.length === 0,
+    'A4 Druck bei dunkler Systemeinstellung: weisses Papier, alle ' + Object.keys(TOKENS).length + ' geprüften Tokens hell' + (printDark.falsch.length ? ' – ' + printDark.falsch.join('; ') : ''));
+  await shot(page, 'print-dark-uebersicht');
+  await page.emulateMedia({ media: null, colorScheme: 'light' });
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
 
   // Phone (B.1): 390 × 844 – jede Ansicht ohne horizontalen Seitenscroll, nur Prio-1-Spalten, Schalter «Alle Spalten» sichtbar
@@ -471,9 +644,12 @@ try {
   const phoneSpread = await phone.evaluate(() => { const full = document.querySelector('#view details.kpi-group[open] .kpi-spread-full'); const short = document.querySelector('#view details.kpi-group[open] .kpi-spread-short'); return { full: full ? full.getClientRects().length : -1, short: short ? short.getClientRects().length : -1, text: short ? short.textContent.trim() : '' }; });
   check(phoneSpread.full === 0 && phoneSpread.short > 0 && /^σ \d+\.\d pp$/.test(phoneSpread.text), 'Phone: Streuung nur als Kurzform «σ x pp» (' + phoneSpread.text + ')');
   check(kpiGroups.join(',') === 'Mengen:zu,Schriftlich:offen,Mündlich:offen' && kpiCols === 2, 'Phone: Kachel-Blöcke als details (' + kpiGroups.join(', ') + '), zwei Spalten');
+  await phone.screenshot({ path: join(outDir, 'phone-uebersicht-kacheln.png'), fullPage: true });
+  // Delta erscheint erst mit einem benchmarkrelevanten Filter (A2), deshalb mit Bank im Hash
+  await phone.goto(server.url + '#uebersicht?bank=' + encodeURIComponent('Testbank AG'));
+  await phone.waitForSelector('#view .kpi-delta');
   const deltaVs = await phone.evaluate(() => { const s = [...document.querySelectorAll('#view .kpi-delta-vs')]; return { n: s.length, hidden: s.every((x) => getComputedStyle(x).display === 'none') }; });
   check(deltaVs.n >= 5 && deltaVs.hidden, 'Phone: Delta nur mit Symbol und Wert, «vs. Benchmark» ausgeblendet (' + deltaVs.n + ')');
-  await phone.screenshot({ path: join(outDir, 'phone-uebersicht-kacheln.png'), fullPage: true });
   await phone.goto(server.url + '#zeitverlauf');
   await phone.waitForSelector('#view svg');
   const compactSvg = await phone.evaluate(() => ({ viewBox: document.querySelector('#view svg').getAttribute('viewBox'), labels: document.querySelectorAll('#view .viz-label').length, tip: (() => { const t = document.querySelector('#view .viz.compact .viz-tip'); return t ? getComputedStyle(t).position : 'fehlt'; })() }));

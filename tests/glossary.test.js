@@ -35,3 +35,25 @@ test('glossary.glossarySlug: Umlaute, ß und Sonderzeichen; Anker «glossar-<slu
   assertEqual(new Set(slugs).size, slugs.length, 'Slugs eindeutig');
   assert(slugs.every((s) => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(s)), 'nur a-z, 0-9 und Bindestrich');
 });
+
+// Paket A (A5): «Schriftlich offen» und «Zertifizierung offen» sind zwei Prozessstufen, nicht zwei Namen für dasselbe.
+// Die schriftliche Prüfung ist das Gate zur mündlichen; beide Begriffe müssen sich im Glossar gegenseitig abgrenzen.
+test('glossary: «Schriftlich offen» und «Zertifizierung offen» sind getrennt definiert und grenzen sich ab (A5)', () => {
+  const schriftlich = glossaryEntry('Schriftlich offen');
+  const zertifizierung = glossaryEntry('Zertifizierung offen');
+  assert(schriftlich && zertifizierung, 'beide Begriffe im Glossar');
+  assert(!glossaryEntry('Vorgänge offen'), 'der alte Sammelname «Vorgänge offen» ist ersetzt');
+  for (const g of [schriftlich, zertifizierung]) {
+    assert(g.nenner !== '–' && g.nenner.length > 10, g.term + ': Nenner genannt');
+  }
+  assert(schriftlich.grenzfaelle.includes('Zertifizierung offen'), '«Schriftlich offen» verweist auf die spätere Stufe');
+  assert(zertifizierung.grenzfaelle.includes('Schriftlich offen'), '«Zertifizierung offen» verweist auf die frühere Stufe');
+  assert(/grössere Zahl/.test(schriftlich.grenzfaelle) && /kleinere Zahl/.test(zertifizierung.grenzfaelle), 'Richtung der Abgrenzung genannt');
+});
+
+test('glossary: die Spalte «Schriftlich offen» der Übersicht trägt die Beschriftung des Glossar-Eintrags (A5)', () => {
+  const persons = [makePerson({ weAllPassed: true, oeAllPassed: true, we: { 1: [{ passed: true, date: '2024-03-01', result: 0.8 }] }, oe: { 1: [{ passed: true, date: '2024-06-01', result: 0.9 }] } })];
+  const spalte = overviewModel(persons).byProfil.columns.find((c) => c.key === 'offen');
+  assertEqual(spalte.label, 'Schriftlich offen');
+  assert(glossaryEntry(spalte.label), 'Glossar-Eintrag mit identischer Beschriftung');
+});

@@ -6,7 +6,7 @@
 
 export const PAIRS = [
   // Text auf Fläche (≥ 4.5:1)
-  ...['--bg', '--panel', '--panel-2', '--th-bg', '--hover', '--nav-bg'].map((bg) => ({ fg: '--text', bg, min: 4.5 })),
+  ...['--bg', '--panel', '--panel-2', '--th-bg', '--hover'].map((bg) => ({ fg: '--text', bg, min: 4.5 })),
   ...['--bg', '--panel', '--panel-2'].map((bg) => ({ fg: '--muted', bg, min: 4.5 })),
   ...['--bg', '--panel', '--panel-2'].map((bg) => ({ fg: '--accent', bg, min: 4.5 })),
   { fg: '--on-accent', bg: '--accent', min: 4.5 },
@@ -25,11 +25,39 @@ export const PAIRS = [
     { fg: '--delta-' + d, bg: '--panel', min: 4.5 },
     { fg: '--delta-' + d, bg: '--panel-2', min: 4.5 },
   ]),
-  // Linien und Marker (≥ 3:1): aktiver Unterstrich, Diagrammreihen, Achsenbeschriftung
+  // Bedienelemente und Linien (≥ 3:1, WCAG 2.1 SC 1.4.11): aktiver Unterstrich, Fokusrahmen, Feldrahmen,
+  // Diagrammreihen, Achsenbeschriftung. Ein Eingabefeld hat dieselbe Füllfarbe wie seine Umgebung und ist allein
+  // durch seinen Rahmen erkennbar – deshalb --field-border statt des dezenten --border (Paket A, A4).
   { fg: '--accent', bg: '--panel', min: 3 },
+  ...['--bg', '--panel', '--panel-2'].map((bg) => ({ fg: '--field-border', bg, min: 3, note: 'Rahmen der Eingabefelder, einzige Abgrenzung zur Umgebung' })),
+  ...['--bg', '--panel'].map((bg) => ({ fg: '--accent-dark', bg, min: 3, note: 'Fokusrahmen der Schaltflächen' })),
   ...['--series-1', '--series-2', '--series-3'].map((fg) => ({ fg, bg: '--panel', min: 3 })),
   { fg: '--viz-tick', bg: '--panel', min: 3, note: 'Achsenbeschriftung im Diagramm (Datenviz-Konvention 3:1, bestehende Palette)' },
 ];
+
+// Paare, die aus gestalterischen Gründen unter 3:1 bleiben. Sie werden nicht aus der Prüfung genommen, sondern mit Wert
+// und Fundstelle gemeldet (Paket A, A4): Jeder CI-Lauf zeigt sie, eine Verschlechterung fällt auf. Sie sind erlaubt, weil
+// sie nach WCAG 2.1 SC 1.4.11 rein dekorativ sind – der Inhalt ist ohne sie vollständig erkennbar und bedienbar. Sobald
+// ein Token hier ein Bedienelement abgrenzt, gehört es in PAIRS (so entstand --field-border).
+export const DECOR = [
+  { fg: '--border', bg: '--panel', use: 'Rahmen von Tabellen, Karten, Kacheln und Kopfzeilen (styles.css: table.data, .kpi, .view, .app-header) – Struktur, keine Bedienung; Eingabefelder tragen --field-border' },
+  { fg: '--viz-grid', bg: '--panel', use: 'Gitterlinien im Diagramm (views/chart.js) – die Werte stehen zusätzlich in der Zwillingstabelle' },
+  { fg: '--viz-axis', bg: '--panel', use: 'Achsenlinie im Diagramm (views/chart.js) – Beschriftung trägt --viz-tick mit 3:1' },
+  { fg: '--danger-border', bg: '--danger-bg', use: 'Rahmen der Fehlermeldung (styles.css: .error) – Text und Titel tragen --danger mit 4.5:1' },
+];
+
+// [{ fg, bg, use, ratios: { light, dark, print } }] – reine Meldung, nie ein Fehler
+export function decorRatios(cssText) {
+  const themes = parseThemes(cssText);
+  return DECOR.map((d) => ({
+    ...d,
+    ratios: Object.fromEntries(Object.entries(themes).map(([theme, tokens]) => {
+      const fg = resolveColor(tokens, tokens[d.fg]);
+      const bg = resolveColor(tokens, tokens[d.bg]);
+      return [theme, fg && bg ? contrastRatio(fg, bg) : null];
+    })),
+  }));
+}
 
 function channel(c) {
   const v = c / 255;
@@ -74,13 +102,24 @@ function fromQuery(text, query) {
   return start < 0 ? '' : text.slice(start);
 }
 
-// Themes: Light = erster :root; Dark und Druck = Light plus die Überschreibungen im jeweiligen @media-Block. Kommentare vorher entfernt.
+// Themes: Light = erster :root; Dark = Light plus dunkler Block. Druck = hell → dunkel → Druck (Paket A, A4):
+// Beim Drucken mit dunkler Systemeinstellung gilt der Dark-Block weiter, der Druck-Block überschreibt ihn nur teilweise.
+// Wer Druck als «hell + Druck» modelliert, prüft eine Kaskade, die es im Browser nicht gibt.
+// Kommentare vorher entfernt.
 export function parseThemes(cssText) {
   const clean = cssText.replace(/\/\*[\s\S]*?\*\//g, '');
   const light = declarations(rootBlock(clean));
-  const dark = { ...light, ...declarations(rootBlock(fromQuery(clean, '@media (prefers-color-scheme: dark)'))) };
-  const print = { ...light, ...declarations(rootBlock(fromQuery(clean, '@media print'))) };
-  return { light, dark, print };
+  const darkOnly = declarations(rootBlock(fromQuery(clean, '@media (prefers-color-scheme: dark)')));
+  const printOnly = declarations(rootBlock(fromQuery(clean, '@media print')));
+  return { light, dark: { ...light, ...darkOnly }, print: { ...light, ...darkOnly, ...printOnly } };
+}
+
+// Tokens, die der Dark-Block setzt, der Druck-Block aber nicht zurücksetzt – jedes davon bleibt beim Drucken dunkel.
+export function darkLeftovers(cssText) {
+  const clean = cssText.replace(/\/\*[\s\S]*?\*\//g, '');
+  const darkOnly = declarations(rootBlock(fromQuery(clean, '@media (prefers-color-scheme: dark)')));
+  const printOnly = declarations(rootBlock(fromQuery(clean, '@media print')));
+  return Object.keys(darkOnly).filter((k) => !(k in printOnly));
 }
 
 // Wert → #rrggbb (var()-Ketten aufgelöst); color-mix, transparente und unbekannte Werte → null (nicht prüfbar)
@@ -120,10 +159,24 @@ const isMain = typeof process !== 'undefined' && Array.isArray(process.argv) && 
 if (isMain) {
   const { readFileSync } = await import('node:fs');
   const path = process.argv[2] || new URL('../styles.css', import.meta.url);
-  const { results, failures } = checkContrast(readFileSync(path, 'utf8'));
+  const css = readFileSync(path, 'utf8');
+  const { results, failures } = checkContrast(css);
   for (const r of results) {
     console.log((r.ok ? '  ok   ' : '  FAIL ') + r.theme.padEnd(5) + ' ' + r.fg + ' auf ' + r.bg + ': ' + (r.ratio ? r.ratio.toFixed(2) + ':1' : '–') + ' (min ' + r.min + ')' + (r.note ? ' – ' + r.note : ''));
   }
+  // Dokumentierte Deko-Paare unter 3:1: mit Wert und Fundstelle gemeldet, nie ein Fehler (Paket A, A4)
+  console.log('');
+  console.log('Dekorative Paare unter 3:1 (SC 1.4.11 nicht anwendbar) – mit Wert gemeldet, kein Fehler:');
+  for (const d of decorRatios(css)) {
+    const werte = ['light', 'dark', 'print'].map((t) => t + ' ' + (d.ratios[t] ? d.ratios[t].toFixed(2) : '–')).join(' · ');
+    console.log('  info  ' + d.fg + ' auf ' + d.bg + ': ' + werte + ' – ' + d.use);
+  }
+  console.log('');
+  // Der Druck-Block muss jedes Token zurücksetzen, das der Dark-Block setzt – sonst druckt eine dunkle Systemeinstellung
+  // dunkle Farben auf weisses Papier. Die Paare oben finden das nur, wo ein Token in einem geprüften Paar vorkommt.
+  const leftovers = darkLeftovers(css);
+  console.log((leftovers.length ? '  FAIL ' : '  ok   ') + 'print  setzt jedes Token des Dark-Blocks zurück'
+    + (leftovers.length ? ': ' + leftovers.join(', ') + ' fehlen im Druck-Block' : ''));
   console.log('\n' + (results.length - failures.length) + '/' + results.length + ' Paare erfüllen das Minimum.');
-  process.exit(failures.length ? 1 : 0);
+  process.exit(failures.length || leftovers.length ? 1 : 0);
 }

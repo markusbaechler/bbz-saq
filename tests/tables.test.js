@@ -164,7 +164,7 @@ test('tables.overviewModel: KPIs mit n und Kennzeichnung, Tabelle je Profil', ()
   const byLabel = Object.fromEntries(m.kpis.map((k) => [k.label, k]));
   assertEqual(byLabel['Vorgänge'].value, '4');
   assertEqual(byLabel['Personen'].value, '4', 'vier verschiedene Menschen');
-  assertEqual([byLabel['Vorgänge offen'].value, byLabel['Vorgänge passiv (> 365 Tage)'].value, byLabel['Vorgänge nicht erfasst'].value, byLabel['Personen mit mehreren Profilen'].value], ['0', '0', '0', '0']);
+  assertEqual([byLabel['Zertifizierung offen'].value, byLabel['Vorgänge passiv (> 365 Tage)'].value, byLabel['Vorgänge nicht erfasst'].value, byLabel['Personen mit mehreren Profilen'].value], ['0', '0', '0', '0']);
   const k = byLabel['Schriftlich: im 1. Versuch bestanden'];
   assertEqual([k.value, k.n, k.small, k.count], ['50.0 %', 4, true, 2], 'Prozent und absolute Zahl');
   assert(typeof k.hint === 'string' && k.hint.length > 20, 'jede Kachel hat eine Beschreibung');
@@ -192,7 +192,7 @@ test('tables.overviewModel: KPIs mit n und Kennzeichnung, Tabelle je Profil', ()
   assertEqual(byLabel['Mündlich: Ø Resultat bestandener Run'].value, '90.0 %');
   assertEqual(byLabel['VSS / VSM'].value, '1 / 0');
   assertEqual(byLabel['Ausgestellte Zertifikate'].value, '0');
-  assertEqual(m.byProfil.columns.map((c) => c.label), ['Profil', 'n (Vorgänge)', 'Personen', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich im 1. Versuch durchgefallen', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden', 'Offen', 'davon passiv']);
+  assertEqual(m.byProfil.columns.map((c) => c.label), ['Profil', 'n (Vorgänge)', 'Personen', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich im 1. Versuch durchgefallen', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden', 'Schriftlich offen', 'davon passiv']);
   assertEqual(m.byProfil.rows.map((r) => r.gruppe), ['PK *', 'IK *', 'unbekannt *']);
   assertEqual(m.byProfil.rows.map((r) => [r.n, r.personen, r.offen]), [[2, 2, 0], [1, 1, 0], [1, 1, 0]]);
   assertEqual(m.multi.title, 'Personen mit mehreren Profilen');
@@ -500,13 +500,13 @@ test('tables.historyTables: Stichtage chronologisch neben «Heute», Anteile mit
   assertEqual([vorg.s0, vorg.s1, vorg.heute, vorg.differenz], [2, 4, 5, '+1']);
   const ges = row(t.kennzahlen, 'Schriftlich: insgesamt bestanden', 'kennzahl');
   assertEqual([ges.s0, ges.s1, ges.heute, ges.differenz], ['100.0 % * (n 2)', '75.0 % * (n 4)', '75.0 % * (n 4)', '0.0 pp'], 'offener Vorgang nicht im Nenner');
-  const offen = row(t.kennzahlen, 'Vorgänge offen', 'kennzahl');
+  const offen = row(t.kennzahlen, 'Zertifizierung offen', 'kennzahl');
   assertEqual([offen.s0, offen.heute, offen.differenz], [0, 1, '+1']);
   const zeilen = row(t.zaehler, 'Zeilen (beide Sheets)', 'zaehler');
   assertEqual([zeilen.s0, zeilen.s1, zeilen.heute, zeilen.differenz], [2, 4, 5, '+1']);
   assertEqual(row(t.zaehler, 'Data-Quality: Fehler', 'zaehler').differenz, '−1');
   assertEqual(row(t.zaehler, 'Duplikate zusammengeführt', 'zaehler').heute, '–', 'fehlender Zähler → Strich');
-  assertEqual(t.jeProfil.map((x) => x.title), ['Je Profil: Schriftlich: insgesamt bestanden', 'Je Profil: Mündlich: bestanden', 'Je Profil: Vorgänge', 'Je Profil: Vorgänge offen']);
+  assertEqual(t.jeProfil.map((x) => x.title), ['Je Profil: Schriftlich: insgesamt bestanden', 'Je Profil: Mündlich: bestanden', 'Je Profil: Vorgänge', 'Je Profil: Zertifizierung offen']);
   const pk = row(t.jeProfil[2], 'PK', 'profil');
   assertEqual([pk.s0, pk.s1, pk.heute, pk.differenz], [2, 2, 3, '+1']);
   const ik = row(t.jeProfil[2], 'IK', 'profil');
