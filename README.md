@@ -350,6 +350,15 @@ der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
 aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
 
+**Y-Achse der Liniendiagramme (Paket B):** Die Achse folgt dem Wertebereich der Daten, nicht dem Nullpunkt: Beginn auf
+der nächsten 5-%-Stufe unter dem kleinsten Wert, mindestens 10 Prozentpunkte Spanne. Von null zu rechnen drängte
+Quoten, die real zwischen 66 % und 100 % liegen, ins obere Drittel und verdeckte jede Bewegung – etwa den Rückgang der
+schriftlichen Erstversuchsquote. Beginnt die Achse nicht bei null, steht das sichtbar über dem Diagramm («Achse
+beginnt bei 65 % – der Wertebereich der Daten. Kein Nullpunkt.»), nicht in der eingeklappten Legende. Der unterste
+Tick trägt die Achsenlinie und nennt den Beginn; darüber liegen runde Vielfache, höchstens sechs Abschnitte.
+**Balkendiagramme rechnen weiter von null** – bei Balken trägt die Länge die Aussage, eine gekappte Achse verzerrt die
+Verhältnisse.
+
 **Druck bei dunkler Systemeinstellung:** Der Druck-Block überschreibt den Dark-Block, er ersetzt ihn nicht. Die reale
 Kaskade ist `hell → dunkel → Druck`, und jedes Token, das `@media (prefers-color-scheme: dark)` setzt, muss `@media print`
 zurücksetzen – sonst druckt ein Gerät mit dunkler Einstellung dunkle Farben auf weisses Papier. Das Werkzeug bildet diese

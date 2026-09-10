@@ -332,6 +332,31 @@ try {
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
+  // Paket B (B1): Die Y-Achse der Liniendiagramme folgt dem Wertebereich. Beginnt sie nicht bei null, steht das
+  // sichtbar über dem Diagramm – nicht in der eingeklappten Legende. Der unterste Y-Tick ist der Achsenbeginn.
+  await page.goto(server.url + '#zeitverlauf');
+  await page.waitForSelector('#view figure.viz svg');
+  const achsen = await page.$$eval('#view figure.viz', (figs) => figs
+    .filter((f) => !f.querySelector('svg.viz-bars'))
+    .map((f) => {
+      const untertitel = f.querySelector('.viz-subtitle');
+      const ticks = [...f.querySelectorAll('svg text.viz-tick[text-anchor="end"]')].map((t) => t.textContent.trim());
+      return {
+        titel: (f.querySelector('figcaption') || {}).textContent.split(' · ')[0],
+        untertitel: untertitel ? untertitel.textContent.trim() : '',
+        sichtbar: untertitel ? untertitel.getClientRects().length > 0 : false,
+        beginn: ticks[0] || '',
+        ticks: ticks.length,
+      };
+    }));
+  check(achsen.length >= 2 && achsen.every((a) => {
+    const beiNull = /^0\s*%$/.test(a.beginn);
+    if (beiNull) return a.untertitel === '';
+    return a.sichtbar && a.untertitel.includes(a.beginn) && /Kein Nullpunkt/.test(a.untertitel) && a.ticks >= 3 && a.ticks <= 7;
+  }), 'B1 Zeitverlauf: Achse folgt dem Wertebereich, Hinweis genau dann sichtbar, wenn sie nicht bei null beginnt (' + achsen.map((a) => a.titel + ': ab ' + a.beginn + (a.untertitel ? ' + Hinweis' : ' ohne Hinweis')).join(' · ') + ')');
+  check((await page.locator('#view figure.viz .viz-legend').count()) >= 1, 'B1 Zeitverlauf: Legende bleibt neben der Achsenänderung erhalten');
+  await shot(page, 'zeitverlauf-achse');
+
   // Offene Vorgänge (A.5): Statuszellen als Badge (Spalte «Passiv» = ja)
   await page.goto(server.url + '#offene-vorgaenge');
   await page.waitForSelector('#view h2');

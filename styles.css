@@ -448,6 +448,8 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .viz-legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .8rem; color: var(--muted); margin-top: .25rem; }
 .viz-legend-item { display: inline-flex; align-items: center; gap: .35rem; }
 .viz-key-box { display: inline-block; width: 14px; height: 2px; border-radius: 1px; }
+/* B1: Achsenhinweis über dem Diagramm – wer die Kurve sieht, muss zugleich sehen, dass die Fläche unter ihr fehlt */
+.viz-subtitle { color: var(--muted); font-size: var(--fs-sm); margin: 0 0 .35rem; }
 .viz figcaption { color: var(--muted); font-size: .75rem; margin-top: .25rem; }
 .viz.compact .viz-tip { position: static; margin-top: var(--space-2); min-width: 0; } /* Phone (B.3): Tooltip unter dem Diagramm */
 
