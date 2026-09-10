@@ -200,6 +200,7 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--bo
 .filter-hinweis { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--muted); }
 .summary-inactive { font-style: italic; }
 .filter-note { margin: 0 0 var(--space-2); font-size: var(--fs-sm); color: var(--muted); }
+.filter-note .reset { padding: .1rem .5rem; line-height: 1.4; font-size: var(--fs-sm); } /* Reset im Satz, wo keine Leiste steht */
 .filterbar .reset { padding: .1rem .5rem; line-height: 1.4; font-size: var(--fs-sm); margin-left: auto; } /* rechts in der Zusammenfassungszeile (A.9, F.3) */
 .count-phone { display: none; } /* Phone: Zähler in der Drawer-Kopfzeile (F.3, F4) */
 .filterbar .check { flex-direction: row; align-items: center; gap: .4rem; font-size: var(--fs-sm); color: var(--text); }

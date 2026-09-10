@@ -13,6 +13,12 @@ export const group = 'Daten'; // Navigationsgruppe (PROMPT-2 A.2)
 export const intro = 'Snapshots der Aggregate erzeugen, laden und Stichtage vergleichen; ohne Namen, ohne Filter, nichts im Browser gespeichert.';
 export const glossar = 'Snapshot (Historisierung)';
 export const noPersonExport = true; // Snapshots und Vergleich enthalten keine Namen
+// Wirksamkeit der globalen Filterleiste (Paket A, A1): die Ansicht arbeitet auf ctx.allPersons – kein Feld der Leiste
+// wirkt, deshalb entfällt die Leiste ganz (wie auf «Datenqualität») und ein Satz sagt, warum.
+export const filters = {
+  hidden: true,
+  satz: 'Ohne Filterleiste: Ein Snapshot hält immer den Stand der ganzen Datei fest – nur so bleiben zwei Stichtage vergleichbar.',
+};
 
 function dayLabel(stichtag) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(stichtag || '');

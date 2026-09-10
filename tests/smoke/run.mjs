@@ -200,9 +200,11 @@ try {
   // Paket A (A1): Felder, die eine Ansicht nicht auswertet, sind deaktiviert und abgesetzt statt in der Kurzbeschreibung erklärt.
   // Erwartete Zahl abgeschalteter Felder je Ansicht; auf «Datenqualität» verschwindet die Leiste ganz.
   const OFF = {
-    uebersicht: 0, schriftlich: 0, muendlich: 0, 'vss-vsm': 0, bestenlisten: 0, 'bank-report': 0, historie: 0, glossar: 0,
+    uebersicht: 0, schriftlich: 0, muendlich: 0, 'vss-vsm': 0, bestenlisten: 0, 'bank-report': 0,
     zeitverlauf: 3, 'offene-vorgaenge': 3, 'geplante-pruefungen': 3, personen: 4, experten: 1,
   };
+  // Ganz ohne Leiste: Datenqualität (voller Bestand), Historie (Snapshot der ganzen Datei), Glossar (statisch)
+  const OHNE_LEISTE = ['datenqualitaet', 'historie', 'glossar'];
   for (const [view, expected] of Object.entries(OFF)) {
     await page.goto(server.url + '#' + view);
     await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), view, { timeout: 5000 });
@@ -221,10 +223,27 @@ try {
   check((await page.locator('#filterbar label:has-text("Versuche")').getAttribute('title')) !== null, 'A1 Experten: Grund am abgeschalteten Feld «Versuche»');
   check((await page.locator('#filterbar .filter-hinweis').isVisible()) && /Run-Datum/.test(await page.textContent('#filterbar .filter-hinweis')), 'A1 Experten: Zeitraum bleibt aktiv, mit sichtbarem Hinweis auf das Run-Datum');
   await shot(page, 'filter-abgeschaltet');
-  await page.goto(server.url + '#datenqualitaet');
-  await page.waitForSelector('#view h2');
-  check(await page.locator('#filterbar').isHidden(), 'A1 Datenqualität: Filterleiste ganz ausgeblendet');
-  check(/vollen Bestand/.test(await page.textContent('#view p.filter-note')), 'A1 Datenqualität: Satz statt Leiste – das Log zeigt den vollen Bestand');
+  for (const view of OHNE_LEISTE) {
+    await page.goto(server.url + '#' + view);
+    await page.waitForSelector('#view h2');
+    const satz = await page.textContent('#view p.filter-note');
+    check((await page.locator('#filterbar').isHidden()) && /^Ohne Filterleiste: /.test(satz) && (await page.locator('#view p.filter-note button.reset').count()) === 0,
+      'A1 ' + view + ': keine Filterleiste, dafür ein Satz («' + satz.slice(0, 60) + '…»), ohne Filter kein Reset');
+  }
+  // Gesetzter Filter bleibt erhalten, auch wo keine Leiste steht: der Satz nennt ihn und bietet «Filter zurücksetzen» an
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
+  await page.selectOption('#filterbar label:has-text("Profil") select', 'PK');
+  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 1, null, { timeout: 5000 });
+  for (const view of OHNE_LEISTE) {
+    await page.goto(server.url + '#' + view + hashQuery(page.url()));
+    await page.waitForSelector('#view p.filter-note button.reset');
+    check(/1 gesetzter Filter wirkt hier nicht/.test(await page.textContent('#view p.filter-note')) && /profil=PK/.test(page.url()),
+      'A1 ' + view + ': gesetzter Filter bleibt in der URL, der Satz nennt ihn und trägt «Filter zurücksetzen»');
+  }
+  await page.locator('#view p.filter-note button.reset').click();
+  await page.waitForFunction(() => !/profil=/.test(location.hash), null, { timeout: 5000 });
+  check((await page.locator('#view p.filter-note button.reset').count()) === 0, 'A1 Glossar: Reset im Satz räumt den Filter weg und verschwindet danach');
   // Der gesetzte Wert bleibt erhalten: Jahr auf der Übersicht setzen, auf dem Zeitverlauf ist er stumm, danach wirkt er wieder
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');

@@ -35,13 +35,13 @@ const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, 
       id: 'datenqualitaet', label: 'Datenqualität', group: 'Daten', glossar: 'Data-Quality-Stufen',
       intro: 'Jede nicht interpretierbare oder auffällige Zelle mit Wirkung, Stufe, Fundstelle und Grund; unabhängig vom Filter.',
       // Das Log prüft immer den vollen Bestand; die Filterleiste wird deshalb ganz ausgeblendet (Paket A, A1)
-      filters: { hidden: true },
+      filters: { hidden: true, satz: 'Ohne Filterleiste: Das Log prüft immer den vollen Bestand beider Sheets – auch die Zeilen, die ein gesetzter Filter ausblenden würde.' },
       hints: [
         'Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit ihrer Wirkung auf die Kennzahlen, Stufe, Sheet, Excel-Zeile, Header, Rohwert und Grund – Wichtigstes zuerst. Unabhängig vom Filter.',
         'Nicht in den Kennzahlen – Zeilen: Zeilen ohne absolvierten, datierten schriftlichen Run sowie zusammengeführte Duplikate. Zeilen ohne Namen erscheinen nur im Log (Fehler «Name fehlt»).',
       ],
     },
-    { id: glossar.id, label: glossar.label, group: glossar.group, intro: glossar.intro, build: glossar.build, isStatic: true },
+    { id: glossar.id, label: glossar.label, group: glossar.group, intro: glossar.intro, build: glossar.build, isStatic: true, filters: glossar.filters },
   ]);
 // Navigationsgruppen (PROMPT-2 A.2, Entscheid 06.09.2026); Gruppen ohne Ansicht (Experten bis Paket D) werden nicht gerendert.
 // Die Gruppe «Daten» steht als Sekundärnavigation rechts im Kopf (PROMPT-2 F.1, Option b, Entscheid 07.09.2026): 14 Links
@@ -221,7 +221,7 @@ function filterSpec(viewId) {
   const spec = (view && view.filters) || {};
   const active = {};
   for (const key of FILTER_FIELDS) active[key] = spec[key] !== false;
-  return { active, grund: spec.grund || {}, hidden: spec.hidden === true, hinweis: spec.hinweis || null };
+  return { active, grund: spec.grund || {}, hidden: spec.hidden === true, satz: spec.satz || null, hinweis: spec.hinweis || null };
 }
 
 // Filterzustand ohne die Einschränkungen, die die Ansicht nicht auswertet – Grundlage für Zähler und Chips der Leiste.
@@ -450,6 +450,18 @@ function renderView() {
     actions,
   ]));
   const definitionen = view.glossar ? el('a', { class: 'link-definitionen', href: hashWithParam('glossar', 'begriff', glossarySlug(view.glossar)), text: 'Definitionen' }) : null;
+  // A1: Ansichten ohne wirksames Feld tragen keine Filterleiste, sondern einen Satz, warum hier nichts zu filtern ist.
+  // Gesetzte Filter bleiben erhalten; damit sie nicht ohne Bedienelement stehen bleiben, hängt hier «Filter zurücksetzen» an.
+  const barSpec = filterSpec(current);
+  if (barSpec.hidden && barSpec.satz && hasData()) {
+    const gesetzt = filterChips(store.getState().filter).length;
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    container.appendChild(el('p', { class: 'filter-note' }, [
+      barSpec.satz,
+      gesetzt ? ' ' + plural(gesetzt, 'gesetzter Filter wirkt', 'gesetzte Filter wirken') + ' hier nicht. ' : null,
+      gesetzt ? el('button', { type: 'button', class: 'secondary reset', text: 'Filter zurücksetzen', onclick: () => store.resetFilter() }) : null,
+    ]));
+  }
 
   const state = store.getState();
   if (view.isStatic) {
@@ -468,8 +480,6 @@ function renderView() {
 
   if (current === 'datenqualitaet') {
     if (definitionen) actions.append(definitionen);
-    // A1: Statt einer Leiste ohne Wirkung ein Satz, warum hier keine Filter stehen
-    container.appendChild(el('p', { class: 'filter-note', text: 'Ohne Filterleiste: Das Log prüft immer den vollen Bestand beider Sheets – auch die Zeilen, die ein gesetzter Filter ausblenden würde.' }));
     const table = el('div');
     container.appendChild(table);
     renderDq(table);

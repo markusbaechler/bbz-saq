@@ -52,7 +52,7 @@ test('views: filters nennt je Steuerelement die Wirksamkeit, jedes abgeschaltete
     if (v.filters === undefined) continue;
     const f = v.filters;
     for (const key of Object.keys(f)) {
-      if (key === 'grund' || key === 'hinweis') continue;
+      if (['grund', 'hinweis', 'hidden', 'satz'].includes(key)) continue;
       assert(FILTER_KEYS.includes(key), name + ': unbekanntes Filterfeld «' + key + '»');
       assertEqual(typeof f[key], 'boolean', name + ': ' + key + ' muss true oder false sein');
     }
@@ -63,6 +63,9 @@ test('views: filters nennt je Steuerelement die Wirksamkeit, jedes abgeschaltete
       assert(!/ß/.test(grund), name + ': ss statt ß in der Begründung für «' + key + '»');
     }
     if (f.hinweis !== undefined) assert(typeof f.hinweis === 'string' && f.hinweis.length >= 10 && !/ß/.test(f.hinweis), name + ': hinweis');
+    // Ansichten ohne wirksames Feld tragen keine Leiste, sondern einen Satz mit der Begründung
+    if (f.hidden) assert(typeof f.satz === 'string' && f.satz.length >= 20 && !/ß/.test(f.satz), name + ': Satz statt Leiste fehlt');
+    assert(f.satz === undefined || f.hidden === true, name + ': satz nur zusammen mit hidden');
   }
 });
 
@@ -75,4 +78,6 @@ test('views: die abgeschalteten Felder je Ansicht (A1, Abnahme)', () => {
   assertEqual(off(experten).join(','), 'versuche,wertung', 'Experten: Versuche und Wertung ohne Wirkung, Zeitraum bleibt aktiv');
   assert(experten.filters.hinweis.includes('Run-Datum'), 'Experten: sichtbarer Hinweis zum Zeitraum');
   for (const v of [overview, written, oral, vssVsm, ranking, bankReport]) assertEqual(off(v).length, 0, v.id + ': alle Felder wirksam');
+  // Ganz ohne Leiste: Historie rechnet auf allen Vorgängen ohne Filter, das Glossar braucht gar keine Daten
+  for (const v of [historie, glossar]) assert(v.filters.hidden === true && /Ohne Filterleiste/.test(v.filters.satz), v.id + ': Leiste entfällt, Satz vorhanden');
 });

@@ -101,8 +101,12 @@ gilt alles als wirksam. **Der gesetzte Wert bleibt erhalten** – er steht weite
 sobald eine Ansicht ihn auswertet; solange er stumm ist, fehlt sein Chip und die Zusammenfassung zählt ihn als
 «n gesetzte Filter wirken hier nicht». Abgeschaltet sind: Zeitraum auf «Zeitverlauf», «Offene Vorgänge» und «Geplante
 Prüfungen»; Zeitraum, Versuche und Wertung auf «Personen»; Versuche und Wertung auf «Experten» – dort bleibt der Zeitraum
-aktiv, mit sichtbarem Hinweis, dass er auf das Run-Datum des Einsatzes wirkt. Auf «Datenqualität» entfällt die Leiste ganz:
-Das Log prüft immer den vollen Bestand.
+aktiv, mit sichtbarem Hinweis, dass er auf das Run-Datum des Einsatzes wirkt.
+
+Wo **kein** Feld wirkt, entfällt die Leiste ganz (`filters.hidden`) und ein Satz sagt, warum: «Datenqualität» (das Log prüft
+immer den vollen Bestand beider Sheets), «Historie» (ein Snapshot hält den Stand der ganzen Datei fest) und «Glossar»
+(statisch, ohne Daten). Ein trotzdem gesetzter Filter geht auch dort nicht verloren: Der Satz nennt ihn («1 gesetzter Filter
+wirkt hier nicht») und trägt «Filter zurücksetzen», damit kein Wert ohne Bedienelement stehen bleibt.
 
 **Benchmark (Übersicht):** Die Kacheln und eine Vergleichstabelle stellen die Auswahl einem Benchmark gegenüber, der
 dieselben Filter verwendet, nur ohne die gewählte Einschränkung: Alle Banken (Standard), Alle Profile, Alle Sprachen
