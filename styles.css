@@ -193,6 +193,13 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--bo
 .filterbar label > input, .filterbar label > select { font-size: var(--fs-sm); color: var(--text); }
 /* F.3 (F5): Auswahlfelder mit Mindestbreite statt Inhaltsbreite; Bank höchstens 12rem, langer Name abgeschnitten (voller Name als title) */
 .filterbar label > select { min-width: 5rem; max-width: 12rem; text-overflow: ellipsis; }
+/* Paket A (A1): Felder, die die aktive Ansicht nicht auswertet – gestrichelter Rahmen, gedämpfte Farbe, Grund als title.
+   Der gesetzte Wert bleibt erhalten und wirkt wieder, sobald eine Ansicht ihn auswertet. */
+.filterbar label.inactive { color: var(--muted); opacity: .65; border: 1px dashed var(--border); border-radius: var(--radius); padding: .1rem .3rem; margin: -1px -.3rem; }
+.filterbar label.inactive > input, .filterbar label.inactive > select { color: var(--muted); background: var(--panel); cursor: not-allowed; }
+.filter-hinweis { margin: var(--space-1) 0 0; font-size: var(--fs-sm); color: var(--muted); }
+.summary-inactive { font-style: italic; }
+.filter-note { margin: 0 0 var(--space-2); font-size: var(--fs-sm); color: var(--muted); }
 .filterbar .reset { padding: .1rem .5rem; line-height: 1.4; font-size: var(--fs-sm); margin-left: auto; } /* rechts in der Zusammenfassungszeile (A.9, F.3) */
 .count-phone { display: none; } /* Phone: Zähler in der Drawer-Kopfzeile (F.3, F4) */
 .filterbar .check { flex-direction: row; align-items: center; gap: .4rem; font-size: var(--fs-sm); color: var(--text); }

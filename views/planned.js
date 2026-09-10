@@ -10,6 +10,16 @@ export const label = 'Geplante Prüfungen';
 export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
 export const intro = 'Termine in der Zukunft ohne Ergebnis, schriftlich und mündlich, je Tag und Ort mit Teilnehmenden; mit Namen.';
 export const glossar = 'Geplante Prüfung';
+// Wirksamkeit der globalen Filterleiste (Paket A, A1): die Ansicht arbeitet auf ctx.plannedPersons (period: false);
+// der Zeitraum bleibt ohne Wirkung – geplant heisst immer «in der Zukunft, ohne Ergebnis».
+export const filters = {
+  jahr: false, von: false, bis: false,
+  grund: {
+    jahr: 'Geplant heisst immer «Termin in der Zukunft» – ein Zeitraum ändert die Liste nicht',
+    von: 'Geplant heisst immer «Termin in der Zukunft» – ein Zeitraum ändert die Liste nicht',
+    bis: 'Geplant heisst immer «Termin in der Zukunft» – ein Zeitraum ändert die Liste nicht',
+  },
+};
 
 function kpi(label, value, hint) {
   return { label, value: String(value), n: value, small: false, hint };
@@ -40,7 +50,7 @@ function kindSection(title, part, artWort) {
 export function build(ctx) {
   const t = plannedTables(ctx.plannedPersons || []);
   const hints = [
-    'Geplant = Prüfungsdatum in der Zukunft ohne Passed-Wert. Zuerst schriftliche (WE), dann mündliche (OE) Prüfungen. Die Filter Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» gelten; Zeitraum und Versuchsmodus wirken hier nicht.',
+    'Geplant = Prüfungsdatum in der Zukunft ohne Passed-Wert. Zuerst schriftliche (WE), dann mündliche (OE) Prüfungen. Die Filter Profil, Sprache, Bank, VSS/VSM, Versuche und «nur ausgestellte Zertifikate» gelten; der Zeitraum wirkt hier nicht.',
     'Prüfungsereignisse: Zeile anklicken (oder Enter) zeigt die zugeteilten Personen des Ereignisses.',
   ];
   return {

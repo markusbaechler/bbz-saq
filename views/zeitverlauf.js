@@ -9,12 +9,22 @@ import { formatPct, yearsOf } from '../metrics.js';
 export const id = 'zeitverlauf';
 export const label = 'Zeitverlauf';
 export const group = 'Kennzahlen'; // Navigationsgruppe (PROMPT-2 A.2)
-export const intro = 'Kennzahlen je Jahr des Referenzdatums, zwei Jahre im Vergleich, Schwierigkeit je Teilprüfung; der Zeitraumfilter wirkt hier nicht.';
+export const intro = 'Kennzahlen je Jahr des Referenzdatums, zwei Jahre im Vergleich, Schwierigkeit je Teilprüfung.';
 export const glossar = 'Zeitverlauf (Ansicht)';
+// Wirksamkeit der globalen Filterleiste (Paket A, A1): der Zeitverlauf arbeitet auf ctx.timePersons (period: false),
+// der Zeitraum bleibt deshalb ohne Wirkung. Nicht ausgewertete Felder werden in der Leiste deaktiviert statt erklärt.
+export const filters = {
+  jahr: false, von: false, bis: false,
+  grund: {
+    jahr: 'Der Zeitverlauf zeigt immer alle Jahre',
+    von: 'Der Zeitverlauf zeigt immer alle Jahre',
+    bis: 'Der Zeitverlauf zeigt immer alle Jahre',
+  },
+};
 
 export function build(ctx) {
   const hints = [
-    'Entwicklung der Kennzahlen je Jahr des Referenzdatums (bestandene mündliche Prüfung, sonst letzte Prüfung). Die Filter Profil, Sprache, Bank, VSS/VSM, Versuche und «nur ausgestellte Zertifikate» gelten; der Zeitraumfilter wirkt hier nicht, damit alle Jahre sichtbar bleiben. Jahre mit weniger als 5 Vorgängen sind mit * markiert (hohle Marker).',
+    'Entwicklung der Kennzahlen je Jahr des Referenzdatums (bestandene mündliche Prüfung, sonst letzte Prüfung). Die Filter Profil, Sprache, Bank, VSS/VSM, Versuche und «nur ausgestellte Zertifikate» gelten. Jahre mit weniger als 5 Vorgängen sind mit * markiert (hohle Marker).',
   ];
   const sec = hinted(hints);
   const persons = ctx.timePersons || [];

@@ -5,7 +5,7 @@ import { GraphError, AuthExpiredError } from './graph.js';
 import { load, loadFromFile, loadAudit, write } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
-import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount, isVorgang, expertRuns } from './metrics.js';
+import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, personCount, isVorgang, expertRuns, DEFAULT_FILTER } from './metrics.js';
 import { CONFIG, headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay, isAuthResponseHash } from './urlState.js';
@@ -29,11 +29,13 @@ import * as bankReport from './views/bankReport.js';
 import * as glossar from './views/glossar.js';
 
 const KPI_VIEWS = [overview, written, oral, vssVsm, zeitverlauf, bankReport, personen, offen, planned, ranking, experten, historie];
-const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, intro: v.intro, glossar: v.glossar, build: v.build, noPersonExport: !!v.noPersonExport }))
+const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, intro: v.intro, glossar: v.glossar, build: v.build, noPersonExport: !!v.noPersonExport, filters: v.filters }))
   .concat([
     {
       id: 'datenqualitaet', label: 'Datenqualität', group: 'Daten', glossar: 'Data-Quality-Stufen',
       intro: 'Jede nicht interpretierbare oder auffällige Zelle mit Wirkung, Stufe, Fundstelle und Grund; unabhängig vom Filter.',
+      // Das Log prüft immer den vollen Bestand; die Filterleiste wird deshalb ganz ausgeblendet (Paket A, A1)
+      filters: { hidden: true },
       hints: [
         'Jede Zelle, die nicht interpretierbar ist (Fehler) oder von der Erwartung abweicht bzw. abgeleitet wurde (Hinweis), erscheint hier mit ihrer Wirkung auf die Kennzahlen, Stufe, Sheet, Excel-Zeile, Header, Rohwert und Grund – Wichtigstes zuerst. Unabhängig vom Filter.',
         'Nicht in den Kennzahlen – Zeilen: Zeilen ohne absolvierten, datierten schriftlichen Run sowie zusammengeführte Duplikate. Zeilen ohne Namen erscheinen nur im Log (Fehler «Name fehlt»).',
@@ -209,6 +211,34 @@ function renderDatastand(visible) {
 
 const filterBar = { dataKey: null, controls: null };
 
+// Wirksamkeit der Steuerelemente je Ansicht (Paket A, A1): Eine View exportiert `filters` und sagt darin je Feld, ob sie es
+// auswertet; `grund` liefert die Begründung für ein abgeschaltetes Feld, `hinweis` einen sichtbaren Hinweis zu einem
+// Feld, das zwar wirkt, aber anders als erwartet. Fehlt `filters`, gilt alles als wirksam (Rückwärtskompatibilität).
+const FILTER_FIELDS = ['jahr', 'von', 'bis', 'profil', 'sprache', 'bank', 'vssVsm', 'versuche', 'zertifikate'];
+
+function filterSpec(viewId) {
+  const view = VIEWS.find((v) => v.id === viewId);
+  const spec = (view && view.filters) || {};
+  const active = {};
+  for (const key of FILTER_FIELDS) active[key] = spec[key] !== false;
+  return { active, grund: spec.grund || {}, hidden: spec.hidden === true, hinweis: spec.hinweis || null };
+}
+
+// Filterzustand ohne die Einschränkungen, die die Ansicht nicht auswertet – Grundlage für Zähler und Chips der Leiste.
+// Der Zustand im Store bleibt unangetastet: der Wert wirkt wieder, sobald eine Ansicht ihn auswertet.
+function effectiveFilter(filter, active) {
+  const f = { ...filter };
+  if (!active.von) f.from = null;
+  if (!active.bis) f.to = null;
+  if (!active.profil) f.profil = [];
+  if (!active.sprache) f.sprache = [];
+  if (!active.bank) f.bank = [];
+  if (!active.vssVsm) f.vssVsm = DEFAULT_FILTER.vssVsm;
+  if (!active.versuche) f.versuche = DEFAULT_FILTER.versuche;
+  if (!active.zertifikate) f.onlyIssued = false;
+  return f;
+}
+
 function selectControl(labelText, options, onChange) {
   const select = el('select', { onchange: (ev) => onChange(ev.target.value) }, options.map((o) => el('option', { value: o.value, text: o.label })));
   return { node: el('label', {}, [labelText, select]), select };
@@ -252,20 +282,27 @@ function buildFilterBar() {
   c.count = el('span', { class: 'summary-count' });
   c.chips = el('span', { class: 'chips' });
   // Reset rechts in der Zusammenfassungszeile (Wireframe A.9; F.3: die Steuerelementzeile bleibt bei 1280 px auch mit aktivem Filter einzeilig)
-  c.summary = el('div', { class: 'summary' }, [c.count, c.chips, c.reset]);
+  c.inactive = el('span', { class: 'summary-inactive' }); // «n Filter wirken hier nicht» – die Chips dieser Felder fehlen
+  c.summary = el('div', { class: 'summary' }, [c.count, c.chips, c.inactive, c.reset]);
   // Phone (B.2): Steuerelemente in einem Drawer (details), auf Phone zu; auf Desktop/Tablet offen mit unsichtbarer Kopfzeile
   c.drawerLabel = el('span', { text: 'Filter' });
   c.countPhone = el('span', { class: 'count-phone' }); // Phone (F.3, F4): Zähler in der Drawer-Kopfzeile statt als eigene Zeile
+  const von = el('label', {}, ['Von', c.from]);
+  const bis = el('label', {}, ['Bis', c.to]);
+  const zertifikate = el('label', { class: 'check' }, [c.onlyIssued, 'Nur ausgestellte Zertifikate']);
+  // Feld → Bedienelement und Beschriftung (A1): die Leiste schaltet Felder ab, die die aktive Ansicht nicht auswertet
+  c.fields = {
+    jahr: { control: c.jahr, label: jahr.node }, von: { control: c.from, label: von }, bis: { control: c.to, label: bis },
+    profil: { control: c.profil, label: profil.node }, sprache: { control: c.sprache, label: sprache.node },
+    bank: { control: c.bank, label: bank.node }, vssVsm: { control: c.vssVsm, label: vssVsm.node },
+    versuche: { control: c.versuche, label: versuche.node }, zertifikate: { control: c.onlyIssued, label: zertifikate },
+  };
+  c.hinweis = el('p', { class: 'filter-hinweis' }); // sichtbarer Hinweis zu einem Feld, das anders wirkt als erwartet (Experten)
   c.drawer = el('details', { class: 'filter-drawer', open: isPhone() ? null : '' }, [
     el('summary', { class: 'filter-summary' }, [c.drawerLabel, c.countPhone]),
     // Reihenfolge (PROMPT-2 F.3, F5): Jahr · Von · Bis · Profil · Sprache · Bank · VSS/VSM · Versuche · Zertifikate · Reset
-    el('div', { class: 'filter-controls' }, [
-      jahr.node,
-      el('label', {}, ['Von', c.from]),
-      el('label', {}, ['Bis', c.to]),
-      profil.node, sprache.node, bank.node, vssVsm.node, versuche.node,
-      el('label', { class: 'check' }, [c.onlyIssued, 'Nur ausgestellte Zertifikate']),
-    ]),
+    el('div', { class: 'filter-controls' }, [jahr.node, von, bis, profil.node, sprache.node, bank.node, vssVsm.node, versuche.node, zertifikate]),
+    c.hinweis,
   ]);
   bar.append(c.drawer, c.summary);
   filterBar.controls = c;
@@ -273,14 +310,15 @@ function buildFilterBar() {
 
 function updateFilterBar() {
   const bar = ui.filterbar;
-  bar.hidden = !hasData();
+  const spec = filterSpec(viewFromHash());
+  bar.hidden = !hasData() || spec.hidden; // Datenqualität (A1): das Log zeigt immer den vollen Bestand – keine Leiste
   if (!hasData()) {
     filterBar.dataKey = null;
     filterBar.controls = null;
     bar.replaceChildren();
     return;
   }
-  const { meta, filter } = store.getState();
+  const { meta, filter, persons } = store.getState();
   const dataKey = meta.loadedAt instanceof Date ? meta.loadedAt.getTime() : meta.fileName;
   if (!filterBar.controls || filterBar.dataKey !== dataKey) {
     buildFilterBar();
@@ -305,16 +343,41 @@ function updateFilterBar() {
   c.vssVsm.value = filter.vssVsm;
   c.versuche.value = filter.versuche;
   c.onlyIssued.checked = !!filter.onlyIssued;
-  const filtered = store.getFilteredPersons();
+  // Felder, die die aktive Ansicht nicht auswertet, werden deaktiviert und mit dem Grund als title abgesetzt (A1);
+  // der gesetzte Wert bleibt im Store und wirkt wieder, sobald eine Ansicht ihn auswertet
+  for (const key of FILTER_FIELDS) {
+    const field = c.fields[key];
+    const off = !spec.active[key];
+    const grund = off ? (spec.grund[key] || 'Diese Ansicht wertet dieses Feld nicht aus') : '';
+    field.control.disabled = off;
+    field.label.classList.toggle('inactive', off);
+    if (off) {
+      field.label.title = grund;
+      field.control.title = grund;
+    } else {
+      field.label.removeAttribute('title');
+      if (key !== 'bank') field.control.removeAttribute('title'); // Bank behält den vollen Namen als title (F5)
+    }
+  }
+  c.hinweis.textContent = spec.hinweis || '';
+  c.hinweis.hidden = !spec.hinweis;
+  const effective = effectiveFilter(filter, spec.active);
+  const filtered = filterPersons(persons, effective);
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
   c.count.textContent = plural(filtered.length, 'Vorgang', 'Vorgänge') + ' · ' + plural(personCount(filtered), 'Person', 'Personen');
   c.countPhone.textContent = ' · ' + c.count.textContent;
-  // Chips werden in ihrem eigenen Container ersetzt; die Steuerelemente bleiben stehen (Fokusregel)
-  const chips = filterChips(filter);
+  // Chips werden in ihrem eigenen Container ersetzt; die Steuerelemente bleiben stehen (Fokusregel).
+  // Ein Chip erscheint nur, wenn die Ansicht die Einschränkung auswertet; sonst zählt ihn die Notiz «… wirkt hier nicht».
+  const all = filterChips(filter);
+  const chips = filterChips(effective);
   c.chips.replaceChildren(...chips.map((ch) => el('button', { type: 'button', class: 'chip', 'aria-label': ch.ariaLabel, onclick: () => store.setFilter(ch.reset) }, [
     ch.label, el('span', { class: 'chip-x', 'aria-hidden': 'true', text: '✕' }),
   ])));
-  c.reset.hidden = chips.length === 0;
+  const stumm = all.length - chips.length;
+  c.inactive.textContent = stumm ? plural(stumm, 'gesetzter Filter wirkt', 'gesetzte Filter wirken') + ' hier nicht' : '';
+  c.inactive.hidden = !stumm;
+  // Reset räumt auch die hier stummen Filter weg – sonst bliebe ein gesetzter Wert ohne Bedienelement stehen
+  c.reset.hidden = all.length === 0;
   c.drawerLabel.textContent = chips.length ? 'Filter (' + chips.length + ' aktiv)' : 'Filter';
 }
 
@@ -405,6 +468,8 @@ function renderView() {
 
   if (current === 'datenqualitaet') {
     if (definitionen) actions.append(definitionen);
+    // A1: Statt einer Leiste ohne Wirkung ein Satz, warum hier keine Filter stehen
+    container.appendChild(el('p', { class: 'filter-note', text: 'Ohne Filterleiste: Das Log prüft immer den vollen Bestand beider Sheets – auch die Zeilen, die ein gesetzter Filter ausblenden würde.' }));
     const table = el('div');
     container.appendChild(table);
     renderDq(table);

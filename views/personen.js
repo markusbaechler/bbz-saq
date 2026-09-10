@@ -1,6 +1,7 @@
 // views/personen.js – Ansicht «Personen» (PROMPT-2 Paket C): Suche, Trefferliste, Detail je Person (Kopf, Pfad, Karten je Vorgang mit
 // Stammdaten, Status, Prüfungsraster, Zeitachse, Datenqualität, Export). Namen erscheinen hier (E7). Suchtext und gewählte Person
-// liegen nur im Memory (store.ui.personen), nie in der URL. Zeitraum, Versuche und Wertung wirken nicht (Entscheid 06.09.2026).
+// liegen nur im Memory (store.ui.personen), nie in der URL. Zeitraum, Versuche und Wertung wirken nicht (Entscheid 06.09.2026);
+// die Filterleiste deaktiviert diese Felder auf dieser Ansicht (Paket A, A1).
 
 import { CONFIG } from '../config.js';
 import { personSearchIndex, searchPersons, personPath, openCaseState, earlyWarnings, durationDays, certificateDays, exclusionReason, PASSIVE_DAYS, examGrid } from '../metrics.js';
@@ -17,6 +18,18 @@ export const glossar = 'Pfad einer Person';
 export const noPersonExport = true; // eigener Export «Diese Person» je Detail (Entscheid 4)
 export const SEARCH_DEBOUNCE_MS = 150;
 export const RESULT_LIMIT = 50;
+// Wirksamkeit der globalen Filterleiste (Paket A, A1): die Trefferliste arbeitet auf ctx.personVorgaenge
+// (period: false, versuche: 'alle'); Zeitraum, Versuche und Wertung bleiben ohne Wirkung.
+export const filters = {
+  jahr: false, von: false, bis: false, versuche: false, wertung: false,
+  grund: {
+    jahr: 'Die Suche findet Personen unabhängig vom Zeitraum; das Detail zeigt immer alle Vorgänge',
+    von: 'Die Suche findet Personen unabhängig vom Zeitraum; das Detail zeigt immer alle Vorgänge',
+    bis: 'Die Suche findet Personen unabhängig vom Zeitraum; das Detail zeigt immer alle Vorgänge',
+    versuche: 'Die Trefferliste zeigt jede Person mit allen ihren Versuchen',
+    wertung: 'Die Wertung gilt nur für die Bestenlisten',
+  },
+};
 
 // Anhängiger Neuaufbau der Trefferliste (Debounce); ein Neuaufbau der ganzen Ansicht (Filterwechsel) verwirft ihn.
 // Der Suchtext selbst wird bei jeder Eingabe sofort in den Store geschrieben (silent), damit ein Neuaufbau ihn kennt.
@@ -150,7 +163,7 @@ export function build(ctx) {
   const byKey = new Map(index.map((e) => [e.key, e]));
   const hints = [
     'Suche ab 2 Zeichen in Nachname, Vorname, Bank, Profil, Sprache, Zertifikatsnummer und Status (bestanden, offen, passiv, nicht bestanden); mehrere Begriffe müssen alle zutreffen. Ohne Suchtext bleibt die Liste leer, ausser in der Filterleiste ist eine Bank gewählt: dann erscheinen alle Personen dieser Bank. Höchstens ' + RESULT_LIMIT + ' Treffer.',
-    'Die Filter Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» schränken die Trefferliste ein; Zeitraum, Versuche und Wertung wirken nicht. Das Detail zeigt immer alle Vorgänge der Person. Suchtext und gewählte Person stehen nie in der URL und werden beim Neuladen der Daten geleert.',
+    'Die Filter Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» schränken die Trefferliste ein. Das Detail zeigt immer alle Vorgänge der Person. Suchtext und gewählte Person stehen nie in der URL und werden beim Neuladen der Daten geleert.',
   ];
   const sec = hinted(hints);
   const results = el('div', { class: 'person-results' });
@@ -185,7 +198,7 @@ export function build(ctx) {
   return {
     nodes: [sec('Suche', [
       input,
-      el('p', { class: 'person-hint', text: 'Ab 2 Zeichen: Name, Bank, Profil, Sprache, Zertifikat-Nr., Status. Filter: Profil, Sprache, Bank, VSS/VSM, Zertifikate – nicht Zeitraum, Versuche, Wertung.' }),
+      el('p', { class: 'person-hint', text: 'Ab 2 Zeichen: Name, Bank, Profil, Sprache, Zertifikat-Nr., Status. Es filtern Profil, Sprache, Bank, VSS/VSM und Zertifikate.' }),
       results,
     ])],
     tables,

@@ -8,8 +8,18 @@ import { PASSIVE_DAYS } from '../metrics.js';
 export const id = 'offene-vorgaenge';
 export const label = 'Offene Vorgänge';
 export const group = 'Personen'; // Navigationsgruppe (PROMPT-2 A.2)
-export const intro = 'Laufende Zertifizierungsprozesse mit fehlenden Teilen, Frühwarnung und passiven Vorgängen; Zeitraum und Versuche wirken nicht.';
+export const intro = 'Laufende Zertifizierungsprozesse mit fehlenden Teilen, Frühwarnung und passiven Vorgängen; auch ohne absolvierte Prüfung.';
 export const glossar = 'Offene Vorgänge (Ansicht)';
+// Wirksamkeit der globalen Filterleiste (Paket A, A1): die Ansicht arbeitet auf ctx.plannedPersons (period: false);
+// der Zeitraum bleibt ohne Wirkung, der Versuchsmodus wirkt (er schränkt die Vorgänge über die Wiederholungen ein).
+export const filters = {
+  jahr: false, von: false, bis: false,
+  grund: {
+    jahr: 'Offene Vorgänge sind noch nicht datiert abgeschlossen – die Liste zeigt immer den aktuellen Stand',
+    von: 'Offene Vorgänge sind noch nicht datiert abgeschlossen – die Liste zeigt immer den aktuellen Stand',
+    bis: 'Offene Vorgänge sind noch nicht datiert abgeschlossen – die Liste zeigt immer den aktuellen Stand',
+  },
+};
 
 export function build(ctx) {
   const today = ctx.today || new Date();
@@ -18,7 +28,7 @@ export function build(ctx) {
   const drop = passiveTable(ctx.plannedPersons || [], today);
   const parts = profilePartsTable(ctx.allPersons || ctx.plannedPersons || []);
   const hints = [
-    'Offen = Gesamtergebnis (schriftlich und/oder mündlich) leer, der Zertifizierungsprozess läuft noch (E4). Kein «no» und kein unlesbarer Wert. Passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen und kein geplanter Termin. Weder offen noch passiv stehen im Nenner der Bestehensquoten. Die Filter Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» gelten; Zeitraum und Versuchsmodus wirken hier nicht. Auch Vorgänge ohne absolvierte Prüfung (nicht kennzahlrelevant) sind aufgeführt.',
+    'Offen = Gesamtergebnis (schriftlich und/oder mündlich) leer, der Zertifizierungsprozess läuft noch (E4). Kein «no» und kein unlesbarer Wert. Passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen und kein geplanter Termin. Weder offen noch passiv stehen im Nenner der Bestehensquoten. Die Filter Profil, Sprache, Bank, VSS/VSM, Versuche und «nur ausgestellte Zertifikate» gelten; der Zeitraum wirkt hier nicht. Auch Vorgänge ohne absolvierte Prüfung (nicht kennzahlrelevant) sind aufgeführt.',
   ];
   const sec = hinted(hints);
   return {
