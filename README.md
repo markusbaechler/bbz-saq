@@ -112,6 +112,14 @@ wirkt hier nicht») und trägt «Filter zurücksetzen», damit kein Wert ohne Be
 dieselben Filter verwendet, nur ohne die gewählte Einschränkung: Alle Banken (Standard), Alle Profile, Alle Sprachen
 oder Gesamt (nur Zeitraum). Differenzen in Prozentpunkten.
 
+Ist die weggenommene Einschränkung gar nicht gesetzt, sind Auswahl und Benchmark dieselbe Menge – jede Kachel trüge dann
+«● 0.0 pp» und sagte damit nur, dass kein Filter aktiv ist. In diesem Zustand entfällt die Delta-Zeile ganz (Paket A), die
+Vergleichstabelle wird eingeklappt und davor steht der Satz «Kein Filter aktiv – die Auswahl entspricht dem Benchmark …»
+mit dem Link «Bank wählen», der den Bank-Filter in den Fokus holt. Massgeblich ist der Filterzustand, nicht die Zahl der
+Vorgänge: `benchmarkRelevant()` vergleicht den Filter der Auswahl mit dem des Benchmarks. Der Zeitraum zählt nie mit, weil
+der Benchmark denselben verwendet. Die Kacheln behalten über `min-height` ihre Höhe, damit die Reihe beim Setzen eines
+Filters nicht springt.
+
 In der Ansicht «Personen» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» auf die Trefferliste; Zeitraum,
 Versuche und Wertung wirken nicht. Das Detail zeigt immer alle Vorgänge der Person. Suchtext und gewählte Person stehen nie in der
 URL (nur im Memory) und werden beim Neuladen der Daten geleert.

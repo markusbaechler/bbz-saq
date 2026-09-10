@@ -112,8 +112,27 @@ try {
   check(spreads.length === 4 && spreads.every((t) => /^σ \d+\.\d pp · Median \d+\.\d % \(P25 \d+\.\d · P75 \d+\.\d\)$/.test(t)) && spreadShortHidden, 'Übersicht: Streuungszeile auf den vier Ø-Kacheln, Kurzform ausgeblendet (' + spreads.length + ', z. B. «' + (spreads[0] || '') + '»)');
   const einordnung = await page.$$eval('#view td.tone', (t) => t.map((x) => x.textContent.trim()));
   check(einordnung.length >= 8 && einordnung.some((t) => /^d [+−]?\d\.\d · (gering|mittel|deutlich|gross)$/.test(t)) && einordnung.some((t) => /^±\d+\.\d pp · Benchmark im Intervall: (ja|nein)$/.test(t)) && (await page.$$eval('#view thead th', (th) => th.map((x) => x.textContent))).includes('Einordnung') && (await page.locator('#view td.tone.neutral, #view td.tone.pos, #view td.tone.neg').count()) === einordnung.length, 'Übersicht: Spalte «Einordnung» mit Effektstärke und Wilson-Intervall, Ton je Zelle (' + einordnung.length + ' Zellen, z. B. «' + (einordnung[0] || '') + '»)');
+  // Paket A (A2): Ohne benchmarkrelevanten Filter ist die Auswahl der Benchmark – keine «● 0.0 pp»-Zeile auf zehn Kacheln,
+  // die Vergleichstabelle bleibt eingeklappt und nennt den Grund samt Weg zum Bank-Filter
+  const vergleich = () => page.evaluate(() => {
+    const s = [...document.querySelectorAll('#view section.block, #view details.block')].find((x) => (x.querySelector('h3, summary') || {}).textContent.startsWith('Auswahl im Vergleich'));
+    const satz = document.querySelector('#view .benchmark-gleichstand');
+    // Der Satz steht sichtbar vor der Tabelle, nicht im Aufklapper
+    return s ? { tag: s.tagName, open: s.tagName === 'DETAILS' ? s.open : true, satz: satz ? satz.textContent : '', sichtbar: satz ? satz.getClientRects().length > 0 : false } : null;
+  });
+  const kachelHoehe = () => page.$$eval('#view .kpi:not(.count)', (k) => [...new Set(k.map((x) => Math.round(x.getBoundingClientRect().height)))].sort((a, b) => a - b));
+  const zu = await vergleich();
+  const hoheOhne = await kachelHoehe();
+  check((await page.locator('#view .kpi-delta').count()) === 0 && zu && zu.tag === 'DETAILS' && !zu.open && zu.sichtbar && /Kein Filter aktiv/.test(zu.satz) && /Bank wählen/.test(zu.satz),
+    'A2 Übersicht ohne Filter: keine Delta-Zeile, Vergleichstabelle eingeklappt mit Satz «' + zu.satz.trim().slice(0, 70) + '»');
+  check((await page.locator('#view .benchmark-gleichstand button.linklike').count()) === 1, 'A2 Übersicht ohne Filter: Link «Bank wählen» im Satz');
+  await shot(page, 'uebersicht-ohne-filter');
   await page.locator('#filterbar label:has-text("Bank") select').selectOption({ label: 'Testbank AG' });
   await page.waitForSelector('#view .kpi-delta');
+  const offen = await vergleich();
+  const hoheMit = await kachelHoehe();
+  check(offen && offen.tag === 'SECTION' && !offen.satz, 'A2 Übersicht mit Bank-Filter: Vergleichstabelle offen, kein Gleichstand-Satz');
+  check(hoheOhne.join(',') === hoheMit.join(','), 'A2 Übersicht: Kachelhöhe mit und ohne Delta-Zeile gleich (ohne ' + hoheOhne.join('/') + ' px, mit ' + hoheMit.join('/') + ' px)');
   const deltas = await page.$$eval('#view .kpi-delta', (d) => d.map((x) => x.textContent.trim()));
   check(deltas.length >= 5 && deltas.every((t) => /^[▲▼●] [+−]?\d+\.\d pp vs\. /.test(t)), 'Benchmark-Delta je Quoten-Kachel mit Symbol und Vorzeichen (' + deltas.length + ', z. B. «' + deltas[0] + '»)');
   const deltaCells = await page.$$eval('#view td.delta', (t) => t.map((x) => x.textContent.trim()));
@@ -540,9 +559,12 @@ try {
   const phoneSpread = await phone.evaluate(() => { const full = document.querySelector('#view details.kpi-group[open] .kpi-spread-full'); const short = document.querySelector('#view details.kpi-group[open] .kpi-spread-short'); return { full: full ? full.getClientRects().length : -1, short: short ? short.getClientRects().length : -1, text: short ? short.textContent.trim() : '' }; });
   check(phoneSpread.full === 0 && phoneSpread.short > 0 && /^σ \d+\.\d pp$/.test(phoneSpread.text), 'Phone: Streuung nur als Kurzform «σ x pp» (' + phoneSpread.text + ')');
   check(kpiGroups.join(',') === 'Mengen:zu,Schriftlich:offen,Mündlich:offen' && kpiCols === 2, 'Phone: Kachel-Blöcke als details (' + kpiGroups.join(', ') + '), zwei Spalten');
+  await phone.screenshot({ path: join(outDir, 'phone-uebersicht-kacheln.png'), fullPage: true });
+  // Delta erscheint erst mit einem benchmarkrelevanten Filter (A2), deshalb mit Bank im Hash
+  await phone.goto(server.url + '#uebersicht?bank=' + encodeURIComponent('Testbank AG'));
+  await phone.waitForSelector('#view .kpi-delta');
   const deltaVs = await phone.evaluate(() => { const s = [...document.querySelectorAll('#view .kpi-delta-vs')]; return { n: s.length, hidden: s.every((x) => getComputedStyle(x).display === 'none') }; });
   check(deltaVs.n >= 5 && deltaVs.hidden, 'Phone: Delta nur mit Symbol und Wert, «vs. Benchmark» ausgeblendet (' + deltaVs.n + ')');
-  await phone.screenshot({ path: join(outDir, 'phone-uebersicht-kacheln.png'), fullPage: true });
   await phone.goto(server.url + '#zeitverlauf');
   await phone.waitForSelector('#view svg');
   const compactSvg = await phone.evaluate(() => ({ viewBox: document.querySelector('#view svg').getAttribute('viewBox'), labels: document.querySelectorAll('#view .viz-label').length, tip: (() => { const t = document.querySelector('#view .viz.compact .viz-tip'); return t ? getComputedStyle(t).position : 'fehlt'; })() }));

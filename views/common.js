@@ -252,8 +252,9 @@ export function infoIcon(text, prefix = 'Hinweis: ') {
 // Abschnitt (PROMPT-2 A.3): h3 mit optionalem ⓘ (info = Erklärung als Tooltip; der Text steht zusätzlich in der Legende
 // der View) und optionalem Kurzwert (meta, z. B. «5 Termine an 3 Prüfungstagen»). Keine Erklärungsabsätze mehr im Fluss.
 // phoneCollapsed (B.4): auf Phone als eingeklappter Block (details), im Druck geöffnet; auf Desktop/Tablet normaler Abschnitt
-export function section(title, nodes, { info = null, meta = null, phoneCollapsed = false, phone = isPhone() } = {}) {
-  const collapsed = phone && phoneCollapsed;
+// collapsed: unabhängig von der Geräteklasse eingeklappt (Paket A, A2: Vergleichstabelle ohne aktiven Filter)
+export function section(title, nodes, { info = null, meta = null, collapsed: alwaysCollapsed = false, phoneCollapsed = false, phone = isPhone() } = {}) {
+  const collapsed = alwaysCollapsed || (phone && phoneCollapsed);
   const head = el(collapsed ? 'summary' : 'h3', {}, [title, info ? infoIcon(info) : null, meta ? el('span', { class: 'section-meta', text: meta }) : null]);
   const node = collapsed
     ? el('details', { class: 'fold print-open block' }, [head].concat(nodes))

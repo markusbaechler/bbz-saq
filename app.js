@@ -308,6 +308,17 @@ function buildFilterBar() {
   filterBar.controls = c;
 }
 
+// Ein Feld der Filterleiste in den Fokus holen (A2): Views verweisen darauf, statt selbst in die Leiste zu greifen.
+// Auf dem Phone liegt die Leiste in einem geschlossenen Drawer – der wird dafür geöffnet.
+function focusFilterField(field) {
+  const c = filterBar.controls;
+  const target = c && c.fields[field];
+  if (!target || target.control.disabled) return;
+  if (c.drawer && !c.drawer.open) c.drawer.open = true;
+  target.control.scrollIntoView({ block: 'nearest' });
+  target.control.focus();
+}
+
 function updateFilterBar() {
   const bar = ui.filterbar;
   const spec = filterSpec(viewFromHash());
@@ -468,7 +479,7 @@ function renderView() {
     // Statische Ansicht (Glossar): unabhängig von Daten und Filter
     const built = view.build({});
     actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines: [] }));
-    for (const node of built.nodes) container.appendChild(node);
+    for (const node of built.nodes) if (node) container.appendChild(node); // null = Abschnitt entfällt (z. B. Gleichstand-Satz, A2)
     appendLegend(container, legendHints(built));
     jumpToGlossaryTerm();
     return;
@@ -511,6 +522,7 @@ function renderView() {
     audit: state.audit || [], // Historie der App-Änderungen (Ansicht Historie, Personen-Karten)
     allRows: state.persons, // alle Zeilen inklusive Duplikate: Name zur Fundstelle im Änderungsprotokoll
     glossaryHref: (term) => hashWithParam('glossar', 'begriff', glossarySlug(term)), // Kachel-Label → Glossar, Filter bleibt
+    focusFilter: (field) => focusFilterField(field), // A2: Weg von der Ansicht zum Bedienelement der Leiste («Bank wählen»)
     compare: state.ui.compare,
     onCompareChange: (compare) => store.setUi({ compare }),
     snapshots: state.ui.snapshots || [],
@@ -545,7 +557,7 @@ function renderView() {
   actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines, extra }));
   if (definitionen) actions.append(definitionen);
   container.appendChild(el('div', { class: 'print-filter', text: headerLines.join(' · ') }));
-  for (const node of built.nodes) container.appendChild(node);
+  for (const node of built.nodes) if (node) container.appendChild(node); // null = Abschnitt entfällt (z. B. Gleichstand-Satz, A2)
   appendLegend(container, legendHints(built));
 }
 
