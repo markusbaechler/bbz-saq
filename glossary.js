@@ -111,6 +111,12 @@ export const GLOSSARY = [
     nenner: '–', grenzfaelle: 'Die Kachel «Zertifizierung offen» in der Übersicht zählt nur kennzahlrelevante offene Vorgänge im Filter (inkl. Zeitraum) und kann deshalb kleiner sein.',
   },
   {
+    kind: 'Begriff', term: 'Bestehensgrenze',
+    definition: 'Ein Run gilt ab 70 % der erreichbaren Punkte als bestanden (Auftraggeber, bestätigt 10.09.2026). Als PASS_THRESHOLD in config.js geführt.',
+    nenner: '–',
+    grenzfaelle: 'Die App leitet daraus keine Kennzahl ab: bestanden oder nicht bestanden kommt immer aus dem Passed-Feld. Die Grenze dient allein der Prüfung «Passed-Wert und Resultat widersprechen sich» – «yes» unter 70 % oder «no» ab 70 % ergibt einen Hinweis im Data-Quality-Log (Wirkung «verändert Kennzahl»), weil die Quoten den Passed-Wert lesen und die Ø-Resultate das Resultat. Beide Werte bleiben unverändert.',
+  },
+  {
     kind: 'Begriff', term: 'Zeitverlauf (Ansicht)',
     definition: 'Kennzahlen je Jahr des Referenzdatums als Liniendiagramm und Tabelle (gesamt und je Profil), Vergleich zweier Jahre in Prozentpunkten sowie Schwierigkeit je Teilprüfung (Durchfallquote und Ø Resultat des ersten Versuchs je WE1–WE6, OE1–OE2 und Jahr des ersten Versuchs).',
     nenner: '–', grenzfaelle: 'Der Zeitraumfilter wirkt nicht (alle Jahre sichtbar); die übrigen Filter gelten. Jahre mit n < 5 sind markiert (hohle Marker, *). Vorgänge ohne Referenzdatum tragen kein Jahr bei. Ein Diagramm hat immer eine Tabelle als Zwilling.',

@@ -45,8 +45,9 @@ export function buildSynthWorkbook() {
     base({ lastName: 'Beispiel', firstName: 'Ben', profil: 'CWMA', birthDate: '01.01.1990', ...runValues('we', { 1: [{ passed: 'yes', date: d(2026, 3, 1), score: 'x', result: 0.7 }] }), ...runValues('oe', { 1: [{ passed: 'yes', date: d(2026, 5, 1), score: 5, result: 0.8, expert1: 'Prüfer Pia', expert2: 'Beisitz Bruno' }] }) }),
     // KMU offen, WE1 bestanden, mündlich noch nichts → passiv
     base({ lastName: 'Offen', firstName: 'Olga', profil: 'KMU', birthDate: '02.02.1992', weAllPassed: '', oeAllPassed: '', ...leerOe }),
-    // PK offen, WE1 nicht bestanden 2024, kein Termin → passiv
-    base({ lastName: 'Passiv', firstName: 'Paul', profil: 'PK', birthDate: '05.05.1995', weAllPassed: '', oeAllPassed: '', ...runValues('we', { 1: [{ passed: 'no', date: d(2024, 1, 10), score: 20, result: 0.4 }] }), ...leerOe }),
+    // PK offen, WE1 nicht bestanden 2024, kein Termin → passiv.
+    // Zugleich der Widerspruch für Paket A (A6): «no», aber Resultat 78 % über der Bestehensgrenze von 70 % → Hinweis im Log
+    base({ lastName: 'Passiv', firstName: 'Paul', profil: 'PK', birthDate: '05.05.1995', weAllPassed: '', oeAllPassed: '', ...runValues('we', { 1: [{ passed: 'no', date: d(2024, 1, 10), score: 20, result: 0.78 }] }), ...leerOe }),
     // PK offen: WE1 RUN1 nicht bestanden, RUN2 geplant (Wiederholung), WE2 geplant, OE1 geplant
     base({ lastName: 'Plan', firstName: 'Petra', employer: 'Musterbank', profil: 'PK', birthDate: '06.06.1996', weAllPassed: '', oeAllPassed: '',
       ...runValues('we', { 1: [{ passed: 'no', date: d(2026, 1, 10), score: 20, result: 0.4 }, { passed: '', date: d(2026, 10, 1, 9, 0), score: '', result: '', location: 'Bern' }], 2: [{ passed: '', date: d(2026, 10, 1, 9, 0), score: '', result: '', location: 'Bern' }] }),

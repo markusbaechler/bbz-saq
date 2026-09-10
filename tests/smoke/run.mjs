@@ -371,6 +371,22 @@ try {
   const counter = (await page.textContent('#view .dq-count')).trim();
   check(filtered > 0 && filtered < allRows && counter.startsWith(filtered + ' von ' + allRows), 'DQ-Suche «Score» filtert (' + filtered + ' von ' + allRows + ' Einträgen; Zähler: «' + counter.slice(0, 40) + '…»)');
   check(await page.evaluate(() => !!document.activeElement && document.activeElement.classList.contains('dq-text')), 'DQ-Suche behält den Fokus');
+  // Paket A (A6): Passed-Wert und Resultat widersprechen sich (synthetische Zeile: «no» bei 78 %, Bestehensgrenze 70 %)
+  await page.fill('#view .dq-text', 'Bestehensgrenze');
+  await page.waitForTimeout(500);
+  const grenze = await page.evaluate(() => {
+    const tr = document.querySelector('#view table.dq-table tbody tr');
+    if (!tr) return null;
+    const zellen = [...tr.children].map((td) => td.textContent.trim());
+    // Die sortierte Spalte trägt einen Pfeil im Kopf – für den Schlüssel abschneiden
+    const kopf = [...document.querySelectorAll('#view table.dq-table thead th')].map((th) => th.textContent.trim().replace(/\s*[▲▼]$/, ''));
+    return Object.fromEntries(kopf.map((k, i) => [k, zellen[i]]));
+  });
+  check(grenze && grenze.Stufe === 'Hinweis' && grenze.Wirkung === 'verändert Kennzahl' && /RUN1 Result$/.test(grenze.Header) && Number(grenze.Zeile) > 10
+    && /78\.0 %/.test(grenze.Grund) && /70\.0 %/.test(grenze.Grund) && grenze.Rohwert !== '',
+    'A6 Datenqualität: Widerspruch zur Bestehensgrenze als Hinweis mit Sheet, Zeile, Header, Rohwert und Grund (' + (grenze ? grenze.Sheet + ' Zeile ' + grenze.Zeile + ', ' + grenze.Header + ' = ' + grenze.Rohwert + ': ' + grenze.Grund : 'kein Eintrag') + ')');
+  await page.fill('#view .dq-text', '');
+  await page.waitForTimeout(500);
   // Bereinigung: Sprung vom Eintrag zur Person und zur betroffenen Zelle (Schreibpfad-Arbeitsablauf)
   await page.fill('#view .dq-text', 'RUN1 Result');
   await page.waitForTimeout(400);

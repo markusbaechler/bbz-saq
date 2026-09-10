@@ -79,6 +79,12 @@ export const PROFILE_PARTS = {
 // darum nur Kennzeichnung «Passerelle möglich» (Vorgängerprofil derselben Person bestanden), keine reduzierte Teileliste.
 export const PASSERELLE = { IK: 'PK', CWMA: 'AFFL', CCoB: 'KMU' };
 
+// Bestehensgrenze (Auftraggeber, bestätigt 10.09.2026): Ein Run gilt ab 70 % der erreichbaren Punkte als bestanden.
+// Als Anteil geführt, weil parseResult() Resultate als Anteil 0–1 liefert. Die App leitet daraus keine Kennzahl ab –
+// bestanden/nicht bestanden kommt immer aus dem Passed-Feld. Die Grenze dient allein der Data-Quality-Regel «Passed-Wert
+// und Resultat widersprechen sich» (store.js, Paket A A6); nie als Literal verstreuen.
+export const PASS_THRESHOLD = 0.70;
+
 // Passed-Felder: Schreibweisen nach trim, Vergleich ohne Gross-/Kleinschreibung. Alles andere → null + Data-Quality-Log.
 export const PASSED_TRUE = ['yes', 'YES', 'Yes', 'PASSED', 'fulfilled', 'FULFILLED'];
 export const PASSED_FALSE = ['no', 'No', 'FAILED'];
