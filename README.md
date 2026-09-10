@@ -343,6 +343,30 @@ identisch mit der Ansicht «Glossar» in der App.
 - Schreibvarianten werden zugelassen, wenn die Zuordnung eindeutig ist (Gross-/Kleinschreibung, Leerzeichen,
   Aliase wie Affluent/Affl/AFF → AFFL, CCOB → CCoB, Bank-Kürzel wie BKB, GKB, LUKB, TKB, UKB, D/F/I/E als Sprache).
 
+## Signale (Paket D)
+
+Sechs Regeln über den vorhandenen Kennzahlen, als reine Funktionen in `metrics.js` (`signals(persons, { dq })`).
+Sie definieren **keine neue Kennzahl**, sondern lesen `writtenPassRates`, `timeSeries`, `statusCounts` und
+`earlyWarnings`. Ein Signal ist ein Datensatz – keine Farbe, kein Markup, kein Rückruf; die Ansicht übersetzt ihn.
+
+| Regel | Stufe | feuert | Gewicht |
+|---|---|---|---|
+| Jahrestrend der schriftlichen Erstversuchsquote | kritisch | Abfall vom ersten zum letzten Jahr ≥ 8 pp, bei ≥ 4 Jahren mit je n ≥ 20 | Abfall in pp × auswertbare Vorgänge / 100 |
+| Profil unter dem Gesamtwert | kritisch | 95-%-Wilson-Intervall des Profils enthält den Gesamtwert nicht, Differenz negativ | \|Differenz in pp\| × n / 100 |
+| Fehler im Data-Quality-Log | beachten | mehr als 0 Fehler | 0.6 |
+| Passive offene Vorgänge | beachten | passiv / offen > 10 % | 0.9 |
+| Vor dem letzten Versuch | beachten | mehr als 0 Vorgänge mit zwei mündlichen Fehlversuchen | 0.8 |
+| Profil über dem Gesamtwert | günstig | wie oben, Differenz positiv | −1 (steht immer zuletzt) |
+
+**Sortiert wird nach Gewicht, nicht nach Stufe.** Das Gewicht hat überall dieselbe Einheit – betroffene Vorgänge –,
+damit die Reihenfolge die Wirkung zeigt: Ein Abstand von 9 pp bei n = 302 wiegt schwerer als 10.6 pp bei n = 80.
+**Jedes Signal nennt seine eigene Schwelle** («Schwelle: über 10 %»); ein Signal, das nicht sagt, warum es da ist, ist
+eine Behauptung, und die Liste bleibt so prüfbar, ohne in den Code zu sehen. **Jedes Signal trägt eine Zahl und einen
+Weg**, und die Wege sind Daten: `{ kind: 'view', view: 'zeitverlauf' }` oder
+`{ kind: 'filter', patch: { profil: ['KMU'] } }`. Gerechnet wird auf der **gefilterten** Menge – ein Signal über KMU,
+während KMU herausgefiltert ist, wäre falsch. Unter der Mindestgruppengrösse (n < 5) feuert nichts; je Profil gilt
+dieselbe Grenze. Auch wenn nichts feuert, nennt `signals()` in `geprueft`, was geprüft wurde.
+
 ## Normalisierung und Data-Quality-Log
 
 Spalten werden ausschliesslich über die Header-Namen in Zeile 10 gemappt (Varianten «… Passed» | «… yes»).
