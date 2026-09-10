@@ -339,7 +339,17 @@ MSAL.js 3.30.0 (MIT), SheetJS 0.20.3 (Apache-2.0), fflate 0.8.3 (MIT). Diagramme
 (`views/chart.js`), Farben nach validierter Palette. Dark Mode folgt der Systemeinstellung (`prefers-color-scheme`);
 der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die Gestaltung läuft über CSS-Tokens in
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
-aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Linien ≥ 3:1) und läuft in der CI.
+aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
+
+**Druck bei dunkler Systemeinstellung:** Der Druck-Block überschreibt den Dark-Block, er ersetzt ihn nicht. Die reale
+Kaskade ist `hell → dunkel → Druck`, und jedes Token, das `@media (prefers-color-scheme: dark)` setzt, muss `@media print`
+zurücksetzen – sonst druckt ein Gerät mit dunkler Einstellung dunkle Farben auf weisses Papier. Das Werkzeug bildet diese
+Kaskade ab und meldet über `darkLeftovers()` zusätzlich jedes Token, das der Druck-Block vergisst; der Smoke-Test prüft
+dieselbe Lage im Browser (`media: 'print'` bei `colorScheme: 'dark'`).
+
+**Feldrahmen:** Eingabefelder haben dieselbe Füllfarbe wie ihre Umgebung und sind allein durch ihren Rahmen erkennbar;
+der braucht 3:1 (WCAG 2.1 SC 1.4.11). Dafür gibt es `--field-border` – `--border` trägt daneben reine Deko-Rahmen
+(Tabellen, Karten) und bleibt dezent, statt global angehoben zu werden.
 
 ```
 index.html / app.js / styles.css   Shell, Filterleiste, Navigation, View-Kopf, Legende, Fehleranzeige

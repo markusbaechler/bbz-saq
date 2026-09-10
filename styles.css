@@ -8,11 +8,13 @@
   --text: #1f2933;
   --muted: #5f6b7a;
   --border: #d9dee5;
+  /* A4: Eingabefelder haben dieselbe Füllfarbe wie ihre Umgebung und sind allein durch ihren Rahmen erkennbar –
+     der braucht 3:1 (WCAG 2.1 SC 1.4.11). --border trägt daneben reine Deko-Rahmen und bleibt dezent. */
+  --field-border: #7d8896;
   --accent: #0b5fa5;
   --accent-dark: #084a80;
   --on-accent: #ffffff;
   --hover: #eef4fa;
-  --nav-bg: #e9edf2;
   --th-bg: #f0f3f6;
   --danger-bg: #fdecea;
   --danger: #b3261e;
@@ -58,11 +60,11 @@
     --text: #e6e8eb;
     --muted: #9aa3ad;
     --border: #343a42;
+    --field-border: #79838f;
     --accent: #6aa6e6;
     --accent-dark: #8dbcee;
     --on-accent: #0f1418;
     --hover: #2b3440;
-    --nav-bg: #2a2f36;
     --th-bg: #262b31;
     --danger-bg: #3a1f1d;
     --danger: #ff8a80;
@@ -120,7 +122,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 button.secondary { background: var(--panel); color: var(--accent); }
 button.secondary:hover:not(:disabled) { background: var(--hover); }
 button.link { background: none; border: none; color: var(--accent); padding: 0; text-decoration: underline; }
-input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); color: var(--text); }
+input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--field-border); border-radius: var(--radius); background: var(--panel); color: var(--text); }
 
 /* Kopfzeile */
 .app-header {
@@ -252,7 +254,6 @@ table.data td.num { white-space: nowrap; } /* Zahlen brechen nie um; Kopfzellen 
 table.data th.num { white-space: normal; }
 table.data tr.small td { color: var(--muted); font-style: italic; }
 .note { color: var(--muted); font-size: .8rem; margin: .25rem 0 .5rem; }
-.export-bar { justify-content: flex-end; }
 .ranking-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr)); gap: 1rem; }
 
 /* Personen (PROMPT-2 Paket C): Suche, Pfad-Leiste, Karten je Vorgang */
@@ -495,7 +496,6 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .views a { display: inline-flex; align-items: center; min-height: 44px; }
   .filterbar .check, .datastand summary { min-height: 44px; display: flex; align-items: center; }
   input, select, .filterbar label > input, .filterbar label > select { font-size: 1rem; }
-  .filterbar label { min-width: 45%; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .ranking-grid { grid-template-columns: 1fr; }
   .view { margin: var(--space-2) 0 var(--space-4); border-left: none; border-right: none; border-radius: 0; }
@@ -555,7 +555,14 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   :root {
     color-scheme: light;
     --bg: #ffffff; --panel: #ffffff; --panel-2: #ffffff; --text: #1f2933; --muted: #5f6b7a; --border: #d9dee5;
-    --accent: #0b5fa5; --accent-dark: #084a80; --on-accent: #ffffff; --nav-bg: #e9edf2; --th-bg: #f0f3f6; --warn: #8a5a00; --danger: #b3261e;
+    --accent: #0b5fa5; --accent-dark: #084a80; --on-accent: #ffffff; --th-bg: #f0f3f6; --warn: #8a5a00; --danger: #b3261e;
+    --field-border: #7d8896;
+    /* A4: Beim Drucken mit dunkler Systemeinstellung gilt der Dark-Block weiter – jedes dort gesetzte Token muss hier
+       zurück auf den hellen Wert, sonst landet z. B. --ok (#5ad07a) mit 1.96:1 auf weissem Papier.
+       tests/contrast.test.js prüft, dass diese Liste vollständig bleibt. */
+    --hover: #eef4fa; --shadow: rgba(0, 0, 0, .08);
+    --ok: #1a7f37; --warn-bg: #fff4e0; --danger-bg: #fdecea; --danger-border: #f1b8b3;
+    --status-bestanden-bg: #edf8f0; --status-offen-bg: #e6f0fa; --status-geplant: #5b4bc4; --status-geplant-bg: #eeebfb;
     --series-1: #2a78d6; --series-2: #eb6834; --series-3: #189e70; --viz-grid: #e1e0d9; --viz-axis: #c3c2b7; --viz-tick: #898781;
     --bar: rgba(0, 0, 0, .12); /* Druck: Datenbalken hell und grau */
   }
