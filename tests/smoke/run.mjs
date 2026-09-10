@@ -120,9 +120,20 @@ try {
     // Der Satz steht sichtbar vor der Tabelle, nicht im Aufklapper
     return s ? { tag: s.tagName, open: s.tagName === 'DETAILS' ? s.open : true, satz: satz ? satz.textContent : '', sichtbar: satz ? satz.getClientRects().length > 0 : false } : null;
   });
-  const kachelHoehe = () => page.$$eval('#view .kpi:not(.count)', (k) => [...new Set(k.map((x) => Math.round(x.getBoundingClientRect().height)))].sort((a, b) => a - b));
+  // Keine Kachel ist höher, als ihr Inhalt verlangt: je Reihe füllt mindestens eine Kachel ihre Höhe ganz aus (kein Platz auf Vorrat)
+  const kachelFuellung = () => page.$$eval('#view .kpi:not(.count)', (tiles) => {
+    const rows = new Map();
+    for (const t of tiles) {
+      const box = t.getBoundingClientRect();
+      const last = t.lastElementChild.getBoundingClientRect();
+      const rest = Math.round(box.bottom - last.bottom - parseFloat(getComputedStyle(t).paddingBottom));
+      const key = Math.round(box.top);
+      rows.set(key, Math.min(rows.has(key) ? rows.get(key) : 1e9, rest));
+    }
+    return [...rows.values()];
+  });
   const zu = await vergleich();
-  const hoheOhne = await kachelHoehe();
+  const restOhne = await kachelFuellung();
   check((await page.locator('#view .kpi-delta').count()) === 0 && zu && zu.tag === 'DETAILS' && !zu.open && zu.sichtbar && /Kein Filter aktiv/.test(zu.satz) && /Bank wählen/.test(zu.satz),
     'A2 Übersicht ohne Filter: keine Delta-Zeile, Vergleichstabelle eingeklappt mit Satz «' + zu.satz.trim().slice(0, 70) + '»');
   check((await page.locator('#view .benchmark-gleichstand button.linklike').count()) === 1, 'A2 Übersicht ohne Filter: Link «Bank wählen» im Satz');
@@ -130,9 +141,8 @@ try {
   await page.locator('#filterbar label:has-text("Bank") select').selectOption({ label: 'Testbank AG' });
   await page.waitForSelector('#view .kpi-delta');
   const offen = await vergleich();
-  const hoheMit = await kachelHoehe();
   check(offen && offen.tag === 'SECTION' && !offen.satz, 'A2 Übersicht mit Bank-Filter: Vergleichstabelle offen, kein Gleichstand-Satz');
-  check(hoheOhne.join(',') === hoheMit.join(','), 'A2 Übersicht: Kachelhöhe mit und ohne Delta-Zeile gleich (ohne ' + hoheOhne.join('/') + ' px, mit ' + hoheMit.join('/') + ' px)');
+  check(restOhne.length >= 2 && restOhne.every((r) => r <= 1), 'A3 Übersicht ohne Filter: keine Kachel höher als ihr Inhalt verlangt (Rest je Reihe ' + restOhne.join('/') + ' px)');
   const deltas = await page.$$eval('#view .kpi-delta', (d) => d.map((x) => x.textContent.trim()));
   check(deltas.length >= 5 && deltas.every((t) => /^[▲▼●] [+−]?\d+\.\d pp vs\. /.test(t)), 'Benchmark-Delta je Quoten-Kachel mit Symbol und Vorzeichen (' + deltas.length + ', z. B. «' + deltas[0] + '»)');
   const deltaCells = await page.$$eval('#view td.delta', (t) => t.map((x) => x.textContent.trim()));

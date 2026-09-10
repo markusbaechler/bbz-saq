@@ -117,8 +117,8 @@ Ist die weggenommene Einschränkung gar nicht gesetzt, sind Auswahl und Benchmar
 Vergleichstabelle wird eingeklappt und davor steht der Satz «Kein Filter aktiv – die Auswahl entspricht dem Benchmark …»
 mit dem Link «Bank wählen», der den Bank-Filter in den Fokus holt. Massgeblich ist der Filterzustand, nicht die Zahl der
 Vorgänge: `benchmarkRelevant()` vergleicht den Filter der Auswahl mit dem des Benchmarks. Der Zeitraum zählt nie mit, weil
-der Benchmark denselben verwendet. Die Kacheln behalten über `min-height` ihre Höhe, damit die Reihe beim Setzen eines
-Filters nicht springt.
+der Benchmark denselben verwendet. Die Kachel reserviert für die Delta-Zeile keinen Platz auf Vorrat: Die Reihe wächst
+einmalig, wenn ein Filter gesetzt wird – eine dauerhaft leere Zeile unter zehn Kacheln kostet mehr, als der Sprung wert ist.
 
 In der Ansicht «Personen» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» auf die Trefferliste; Zeitraum,
 Versuche und Wertung wirken nicht. Das Detail zeigt immer alle Vorgänge der Person. Suchtext und gewählte Person stehen nie in der

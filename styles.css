@@ -230,8 +230,8 @@ details.kpi-group > summary { list-style: none; }
 .kpi-value { font-size: var(--fs-xl); font-weight: 600; margin: .15rem 0; font-variant-numeric: tabular-nums; }
 .kpi.count .kpi-value { font-size: var(--fs-lg); }
 .kpi-n { font-size: var(--fs-xs); color: var(--muted); }
-/* A2: Ohne benchmarkrelevanten Filter entfällt die Delta-Zeile; die Mindesthöhe hält die Reihe ruhig, wenn sie erscheint */
-.kpi:not(.count) { min-height: 13rem; }
+/* A2/A3: Ohne benchmarkrelevanten Filter entfällt die Delta-Zeile. Kein Platz auf Vorrat – die Reihe wächst einmalig,
+   wenn ein Filter gesetzt wird; eine dauerhaft leere Zeile unter zehn Kacheln kostet mehr, als der Sprung wert ist. */
 .kpi-delta { font-size: var(--fs-sm); margin-top: var(--space-1); font-variant-numeric: tabular-nums; }
 .kpi-delta.pos { color: var(--delta-pos); }
 .kpi-delta.neg { color: var(--delta-neg); }
