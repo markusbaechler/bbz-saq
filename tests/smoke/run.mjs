@@ -50,6 +50,10 @@ try {
   check((await page.locator('#nav a').count()) >= 8, 'Navigation gerendert');
   check((await page.locator('#nav .nav-group').count()) === 3 && (await page.locator('#nav .nav-group[aria-label="Kennzahlen"] a').count()) === 6 && (await page.locator('#nav-secondary a').count()) === 3, 'Navigation in drei Gruppen (Kennzahlen · Personen · Experten), Daten-Links als Sekundärnavigation im Kopf');
   check((await page.locator('#view .empty-card .actions button').count()) === 2 && (await page.locator('#view .empty-card h3').textContent()).startsWith('Noch keine Daten'), 'Leerzustand: Karte mit zwei Aktionen statt Fliesstext');
+  // Paket C (C1): Im Leerzustand steht die Datenleiste als Zeile; mit geladenen Daten fällt sie weg und der Datenstand
+  // steht als Einzeiler im Kopf. Der Volltext in #status bleibt in beiden Zuständen für Screenreader erhalten.
+  check(await page.locator('#databar').isVisible() && (await page.locator('#databar #btn-load').count()) === 1 && (await page.locator('#databar .file-label').count()) === 1,
+    'C1 Leerzustand: Datenleiste als Zeile mit beiden Aktionen');
   await page.setInputFiles('#file-input', xlsx);
   await page.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
   const status = (await page.textContent('#status')).replace(/\s+/g, ' ').trim();
@@ -57,6 +61,25 @@ try {
   // Datenstand (A.2): sichtbarer Einzeiler mit aufklappbaren Zählern; der Volltext in #status bleibt (nur für Screenreader)
   const datastand = (await page.textContent('#datastand summary')).replace(/\s+/g, ' ').trim();
   check(datastand.startsWith('Datenstand: synth.xlsx') && /DQ \d+ Fehler$/.test(datastand) && (await page.locator('#datastand dt').count()) >= 6 && (await page.locator('#status.visually-hidden').count()) === 1, 'Datenstand: «' + datastand.slice(0, 90) + '» mit Details, Volltext nur für Screenreader');
+  // C1: Kopfbereich verdichtet – vier gestapelte Bänder (293 px, erster Zahlenwert bei y = 495) auf zwei plus
+  // Navigation. Zielmarken des Auftrags: statisches Chrome höchstens 170 px, erster Zahlenwert über y = 360.
+  const kopf = await page.evaluate(() => {
+    const hoehe = (sel) => { const e = document.querySelector(sel); return e && e.getClientRects().length ? Math.round(e.getBoundingClientRect().height) : 0; };
+    const wert = document.querySelector('#view .kpi-value');
+    const st = document.getElementById('status');
+    return {
+      header: hoehe('.app-header'), databar: hoehe('#databar'), nav: hoehe('.views'), filterbar: hoehe('#filterbar'),
+      ersterWert: wert ? Math.round(wert.getBoundingClientRect().top + window.scrollY) : null,
+      statusImDom: !!st && st.textContent.includes('Vorgänge') && st.classList.contains('visually-hidden'),
+      datastandImKopf: !!document.querySelector('.app-header > #datastand'),
+      neuLaden: document.querySelectorAll('#datastand .datastand-actions button').length,
+    };
+  });
+  const chrome = kopf.header + kopf.databar + kopf.nav + kopf.filterbar;
+  check(chrome <= 170 && kopf.databar === 0 && kopf.ersterWert < 360 && kopf.statusImDom && kopf.datastandImKopf && kopf.neuLaden === 2,
+    'C1 geladen: Chrome ' + chrome + ' px (≤ 170; vorher 293) = Kopf ' + kopf.header + ' + Navigation ' + kopf.nav + ' + Filter ' + kopf.filterbar
+      + ', keine Datenleiste, erster Zahlenwert y = ' + kopf.ersterWert + ' (< 360; vorher 495), Datenstand im Kopf, Volltext für Screenreader, '
+      + kopf.neuLaden + ' Lade-Aktionen erreichbar');
 
   // Jede Ansicht rendert Titel und mindestens eine Tabelle, ohne Fehler
   const views = await page.$$eval('#nav a, #nav-secondary a', (as) => as.map((a) => a.getAttribute('href').replace(/^#/, '')));

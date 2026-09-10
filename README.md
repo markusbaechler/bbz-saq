@@ -32,8 +32,15 @@ Bank-Report), **Personen** (Personen, Offene Vorgänge, Geplante Prüfungen, Bes
 Zeile bleibt (Paket F). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
 Menü «Export» und der Link «Definitionen», der die passende Zeile im Glossar fokussiert. Erklärungen und Fussnoten der
 Tabellen stehen gesammelt in der Legende «Hinweise und Definitionen» am Ende jeder Ansicht (im Druck geöffnet) und als ⓘ
-am jeweiligen Titel. Der Datenstand (Datei, Änderungs- und Ladezeit, Zeilen, Data-Quality-Fehler) steht als Einzeiler über
-der Navigation und lässt sich zu allen Zählern aufklappen.
+am jeweiligen Titel. Der Datenstand (Datei, Änderungs- und Ladezeit, Zeilen, Data-Quality-Fehler) steht als Einzeiler in
+der Kopfzeile und lässt sich zu allen Zählern aufklappen.
+
+**Kopfbereich (Paket C):** Über dem Inhalt stehen zwei Bänder plus Navigation – Kopfzeile (Marke, Datenstand, Konto) und
+Filterleiste. Die **Datenleiste erscheint nur im Leerzustand**: Sie trägt zwei Aktionen, keine Dauerinformation, und die
+Leerzustandskarte bietet dieselben zwei Aktionen ohnehin. Mit geladenen Daten fällt sie weg; «Neu laden» und «Lokale
+Datei» liegen im aufgeklappten Datenstand. Gemessen bei 1400 × 900: **293 px statisches Chrome auf 170 px**, der erste
+Zahlenwert von y = 495 auf **y = 356** (von 55 % auf 40 % der Viewporthöhe). Der Volltext des Datenstands bleibt in
+`#status` (`aria-live`) und ist bei geladenen Daten nur für Screenreader sichtbar.
 
 | Ansicht | Inhalt |
 |---|---|

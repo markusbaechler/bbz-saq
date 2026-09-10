@@ -140,6 +140,9 @@ function renderSession() {
 
 function renderStatus(text) {
   ui.status.classList.toggle('busy', busy);
+  // C1: Die Datenleiste trägt nur noch die zwei Aktionen und erscheint nur im Leerzustand. Mit geladenen Daten steht
+  // der Datenstand als Einzeiler im Kopf; «Neu laden» und «Lokale Datei» liegen im aufgeklappten Datenstand.
+  ui.databar.hidden = hasData();
   if (text) {
     ui.status.textContent = text;
     renderDatastand(false);
@@ -734,6 +737,7 @@ async function init() {
   ui.file = $('file-input');
   ui.status = $('status');
   ui.datastand = $('datastand');
+  ui.databar = $('databar');
   ui.error = $('error');
   ui.nav = $('nav');
   ui.navSecondary = $('nav-secondary');

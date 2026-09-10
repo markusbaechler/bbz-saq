@@ -87,6 +87,10 @@
 }
 
 * { box-sizing: border-box; }
+/* [hidden] gewinnt gegen jede display-Regel. Ohne das überschreibt jedes «display: flex» am Element das Attribut, und
+   ein versteckter Knoten bleibt sichtbar – in Paket B beim Schalter «Sortierung zurücksetzen» passiert, in C1 bei der
+   Datenleiste. Wer ein Element trotz [hidden] zeigen will, sagt es ausdrücklich (siehe .account-menu, Druck). */
+[hidden] { display: none !important; }
 
 /* Tastaturfokus sichtbar (Befund 9); Maus-Fokus bleibt dezent */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -126,12 +130,25 @@ button.link { background: none; border: none; color: var(--accent); padding: 0; 
 input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--field-border); border-radius: var(--radius); background: var(--panel); color: var(--text); }
 
 /* Kopfzeile */
+/* C1: Der Kopfbereich trug vier gestapelte Bänder – Kopfzeile, Datenleiste, Navigation, Filterleiste, zusammen 293 px,
+   der erste Zahlenwert lag bei y = 495 (55 % der Viewporthöhe bei 900 px, 62 % bei 800 px). Jetzt: Marke einzeilig,
+   Datenstand und Status in derselben Zeile, Datenleiste nur im Leerzustand. */
 .app-header {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-  padding: .7rem 1.25rem; background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-1) 1.25rem; background: var(--panel); border-bottom: 1px solid var(--border);
 }
-.brand { display: flex; flex-direction: column; }
-.subtitle { color: var(--muted); font-size: .85rem; }
+.brand { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.app-header h1 { font-size: 1.05rem; }
+.subtitle { color: var(--muted); font-size: .85rem; white-space: nowrap; }
+/* Datenstand und Status teilen sich die Mitte der Kopfzeile und dürfen sie nicht verbreitern */
+.app-header .datastand, .app-header .status { flex: 1 1 8rem; min-width: 0; font-size: var(--fs-sm); }
+.app-header .datastand > summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Aufgeklappt legt sich der Datenstand über den Inhalt, statt die Kopfzeile aufzublähen */
+.app-header .datastand[open] { position: relative; }
+.app-header .datastand[open] > :not(summary) {
+  position: absolute; left: 0; top: 100%; z-index: 4; min-width: 22rem; margin-top: var(--space-2);
+  padding: var(--space-3); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 12px var(--shadow);
+}
 .session { display: flex; align-items: center; gap: .6rem; }
 .account { color: var(--muted); font-size: .9rem; }
 
@@ -154,7 +171,9 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .datastand-list { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0 0; font-size: var(--fs-sm); }
 .datastand-list dt { color: var(--muted); }
 .datastand-list dd { margin: 0; color: var(--text); }
-.datastand-actions { display: none; } /* Phone (F.3, F4): Lade-Aktionen im Datenstand statt in der Datenleiste */
+/* C1: Die Lade-Aktionen liegen im aufgeklappten Datenstand – auf jedem Gerät, seit die Datenleiste im geladenen
+   Zustand entfällt. Im Leerzustand stehen sie zusätzlich als Zeile und in der Leerzustandskarte. */
+.datastand-actions { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
 
 /* Fehler */
 .error {
@@ -169,13 +188,18 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 /* Navigation (PROMPT-2 A.2, F.1): drei Gruppen nebeneinander mit Beschriftung über den Links, ab 1100 px in einer Zeile;
    darunter horizontal scrollbar, nie umbrechend. Die Gruppe «Daten» steht als Sekundärnavigation im Kopf (.nav-secondary). */
 .views {
-  display: flex; gap: var(--space-3); flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity;
-  padding: var(--space-2) var(--space-3) 0; background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: var(--space-4); flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity;
+  padding: 0 var(--space-3); background: var(--panel); border-bottom: 1px solid var(--border);
 }
-.nav-group { display: flex; flex-direction: column; gap: var(--space-1); flex: 0 0 auto; scroll-snap-align: start; }
-.nav-group-label { font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding-left: var(--space-1); }
+.nav-group { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; scroll-snap-align: start; }
+/* C1: Die Gruppenbeschriftung stand über den Links und machte das Band 68 px hoch; sie steht jetzt davor. */
+.nav-group-label { font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+/* C1: Die Beschriftung steht jetzt neben den Links und kostet dadurch Breite statt Höhe. Unter 1200 px passen die
+   Links sonst nicht mehr in eine Reihe (F.1). Sie ist rein dekorativ (aria-hidden); die Gruppe bleibt über
+   role="group" mit aria-label angesagt, und der Abstand zwischen den Gruppen trennt sie weiterhin sichtbar. */
+@media (max-width: 1199px) { .nav-group-label { display: none; } }
 .nav-links { display: flex; gap: var(--space-1); }
-.views a { padding: var(--space-2) var(--space-1); font-size: var(--fs-sm); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
+.views a { padding: var(--space-1) var(--space-1); font-size: var(--fs-sm); border-bottom: 2px solid transparent; color: var(--text); text-decoration: none; white-space: nowrap; }
 .views a:hover { background: var(--hover); }
 .views a.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
 /* Sekundärnavigation «Daten» im Kopf (F.1): Optik der Hauptnavigation, kompakter; auf dem Phone ausgeblendet (Auswahlfeld) */
@@ -207,7 +231,7 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .filterbar .reset { padding: .1rem .5rem; line-height: 1.4; font-size: var(--fs-sm); margin-left: auto; } /* rechts in der Zusammenfassungszeile (A.9, F.3) */
 .count-phone { display: none; } /* Phone: Zähler in der Drawer-Kopfzeile (F.3, F4) */
 .filterbar .check { flex-direction: row; align-items: center; gap: .4rem; font-size: var(--fs-sm); color: var(--text); }
-.filterbar .summary { margin-top: var(--space-2); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--fs-sm); }
+.filterbar .summary { margin-top: var(--space-1); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--fs-sm); }
 .filterbar .chips { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
 .chip {
   display: inline-flex; align-items: center; gap: .3rem; padding: .1rem var(--space-2); line-height: 1.4;
@@ -405,7 +429,7 @@ th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--
 th { background: var(--th-bg); }
 th.sortable button { background: none; border: none; color: inherit; padding: 0; font-weight: 600; cursor: pointer; text-align: inherit; }
 /* B4: «Sortierung zurücksetzen» – nur sichtbar, solange eine Sortierung aktiv ist; das Modell trägt die fachliche Reihenfolge */
-.table-wrap .reset-sort:not([hidden]) { display: inline-block; margin: var(--space-1) var(--space-3) var(--space-2) 0; font-size: var(--fs-sm); }
+.table-wrap .reset-sort { display: inline-block; margin: var(--space-1) var(--space-3) var(--space-2) 0; font-size: var(--fs-sm); }
 th.active button { color: var(--accent); }
 td.col-row { text-align: right; white-space: nowrap; }
 .dq-summary-box { margin: .25rem 0 1rem; }
@@ -548,7 +572,7 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   .app-header h1 { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .app-header .session { flex-shrink: 0; }
   .subtitle, #account, #btn-signout, .edit-mode, .edit-mode-hint { display: none; } /* Bearbeitungsmodus auf Phone im Konto-Menü */
-  .account-menu:not([hidden]) { display: block; }
+  .account-menu:not([hidden]) { display: block !important; }
   .account-menu > summary { width: 44px; height: 44px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; }
   .account-menu > summary::after { content: none; }
   .datastand summary { display: block; min-height: 0; line-height: 2.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -598,6 +622,6 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   tr { page-break-inside: avoid; }
   .view { border: none; margin: 0; padding: 0; }
   a { color: inherit; text-decoration: none; }
-  tr.event-detail[hidden] { display: table-row; } /* Druck: zugeteilte Personen je Ereignis immer sichtbar */
+  tr.event-detail[hidden] { display: table-row !important; } /* Druck: zugeteilte Personen je Ereignis immer sichtbar */
   tr.expandable td.toggle::before { content: ''; }
 }
