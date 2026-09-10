@@ -335,7 +335,23 @@ try {
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
 
-  // Paket B (B5): Datenbalken. Der Balken füllt von rechts – dieselbe Richtung wie die rechtsbündige Zahl – und liegt
+  // Paket B (B6): Kein toter sticky Tabellenkopf. «position: sticky; top: 0» am th wirkte nie – der nächste
+  // Scroll-Container ist .table-wrap, und der scrollt nur horizontal. Die Regel ist entfernt statt repariert; ein
+  // fixierter Kopf ergibt erst Sinn, wenn feststeht, wie viel Kopfbereich über ihm klebt (Paket C, Filterleiste).
+  // Die horizontale Fixierung der ersten Spalte (sticky, left: 0) bleibt und wird hier mitgeprüft.
+  await page.goto(server.url + '#datenqualitaet');
+  await page.waitForSelector('#view table.dq-table');
+  const kopfFix = await page.evaluate(() => {
+    const ths = [...document.querySelectorAll('#view table th')];
+    const vertikal = ths.filter((th) => { const cs = getComputedStyle(th); return cs.position === 'sticky' && cs.top !== 'auto'; });
+    const ersteSpalte = [...document.querySelectorAll('#view .table-wrap table.data th:first-child')]
+      .filter((th) => { const cs = getComputedStyle(th); return cs.position === 'sticky' && cs.left !== 'auto'; });
+    return { alle: ths.length, vertikal: vertikal.length, ersteSpalte: ersteSpalte.length };
+  });
+  check(kopfFix.vertikal === 0 && kopfFix.ersteSpalte >= 1,
+    'B6: keine der ' + kopfFix.alle + ' Kopfzellen klebt vertikal; die erste Spalte bleibt horizontal fixiert (' + kopfFix.ersteSpalte + ' Tabellen)');
+
+  // Paket B (B5): Datenbalken.  // Paket B (B5): Datenbalken. Der Balken füllt von rechts – dieselbe Richtung wie die rechtsbündige Zahl – und liegt
   // auf einer festen Spur: Derselbe Prozentwert hat in jeder Spalte und in jeder Tabelle dieselbe Länge, unabhängig
   // von der Spaltenbreite (gemessen wurden vorher 93 px gegen 221 px für dieselbe Kennzahl in einer Tabelle).
   await page.goto(server.url + '#uebersicht?bank=' + encodeURIComponent('Testbank AG'));

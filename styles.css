@@ -397,7 +397,12 @@ td.status-cell { white-space: nowrap; } /* Raster-Zellen mit Badge und Datum (Pa
 }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-th { background: var(--th-bg); position: sticky; top: 0; }
+/* B6: Kein sticky Tabellenkopf. «position: sticky; top: 0» stand hier, wirkte aber nie: Der nächste Scroll-Container
+   ist .table-wrap, und der scrollt nur horizontal (overflow-x: auto, keine Höhenbegrenzung – scrollHeight gleich
+   clientHeight). Gemessen: bei 1766 px Seitenscroll wanderte der Kopf von y = 439 auf y = −1327, also vollständig mit.
+   Eine tote Regel liest sich wie eine Zusage; ein fixierter Kopf ergibt erst Sinn, wenn feststeht, wie viel Kopfbereich
+   über ihm klebt – das entscheidet Paket C (die Filterleiste ist sticky mit z-index 3). Dort erneut prüfen. */
+th { background: var(--th-bg); }
 th.sortable button { background: none; border: none; color: inherit; padding: 0; font-weight: 600; cursor: pointer; text-align: inherit; }
 /* B4: «Sortierung zurücksetzen» – nur sichtbar, solange eine Sortierung aktiv ist; das Modell trägt die fachliche Reihenfolge */
 .table-wrap .reset-sort:not([hidden]) { display: inline-block; margin: var(--space-1) var(--space-3) var(--space-2) 0; font-size: var(--fs-sm); }
@@ -592,7 +597,6 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   table.data { page-break-inside: auto; }
   tr { page-break-inside: avoid; }
   .view { border: none; margin: 0; padding: 0; }
-  th { position: static; }
   a { color: inherit; text-decoration: none; }
   tr.event-detail[hidden] { display: table-row; } /* Druck: zugeteilte Personen je Ereignis immer sichtbar */
   tr.expandable td.toggle::before { content: ''; }

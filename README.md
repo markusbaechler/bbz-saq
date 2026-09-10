@@ -64,7 +64,9 @@ Definition steckt im ⓘ, das Label verlinkt auf das Glossar. Bei aktivem Benchm
 Vorzeichen und Farbe nach Richtung der Kennzahl (▲ +2.1 pp; höher ist besser bei Bestehensquoten und Ø Resultat, tiefer
 ist besser bei Durchfallquoten und passiven Vorgängen; unter 0.5 pp neutral ●). In Tabellen tragen Prozentspalten einen
 Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die erste Spalte bleibt beim horizontalen
-Scrollen stehen. Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
+Scrollen stehen. Der **Tabellenkopf ist nicht fixiert**: Er war es dem CSS nach, wirkte aber nie – der nächste
+Scroll-Container ist `.table-wrap`, und der scrollt nur horizontal. Die Regel ist in Paket B entfernt statt repariert;
+ein fixierter Kopf ergibt erst Sinn, wenn feststeht, wie viel Kopfbereich über ihm klebt (Paket C, Filterleiste). Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
 1200 px) für schmale Bildschirme; unter 1200 px blendet «Alle Spalten» die Prio-3-Spalten ein; breite Tabellen (Experten, Ø-Tabellen mit Streuung) zeigen Prio 3
 erst ab 1900 px (Full HD). Kopfzellen brechen um, Zahlen nicht (Paket F).
 
