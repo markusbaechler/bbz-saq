@@ -361,6 +361,33 @@ try {
   await page.waitForSelector('#view .kpi-delta');
   const offen = await vergleich();
   check(offen && offen.tag === 'SECTION' && !offen.satz, 'A2 Übersicht mit Bank-Filter: Vergleichstabelle offen, kein Gleichstand-Satz');
+  // Vergleichstabelle: «Anzahl» statt «n». Die alte Spalte trug die Grundmenge der Auswahl, nicht den Nenner der
+  // Zelle daneben – bei Mengenzeilen las sich «3 · n 9» als «3 von 9» und war es nicht.
+  const anzahl = await page.evaluate(() => {
+    const abschnitt = [...document.querySelectorAll('#view section.block, #view details.block')]
+      .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Auswahl im Vergleich'));
+    const tabelle = abschnitt.querySelector('table.data');
+    const wrap = abschnitt.querySelector('.table-wrap');
+    const zelle = (zeile, i) => (zeile.querySelectorAll('td')[i] || {}).textContent || '';
+    const zeilen = [...tabelle.querySelectorAll('tbody tr')];
+    const finde = (name) => zeilen.find((tr) => zelle(tr, 0).trim() === name);
+    return {
+      kopf: [...tabelle.querySelectorAll('thead th')].map((th) => th.textContent.trim()),
+      quote: [zelle(finde('Schriftlich: im 1. Versuch bestanden'), 2).trim(), zelle(finde('Schriftlich: im 1. Versuch bestanden'), 4).trim()],
+      mittel: zelle(finde('Schriftlich: Ø Resultat 1. Versuch'), 2).trim(),
+      menge: [zelle(finde('Vorgänge'), 2).trim(), zelle(finde('Personen'), 2).trim(), zelle(finde('Zertifizierung offen'), 2).trim()],
+      scrollt: wrap.classList.contains('scrolls-x'),
+      balkenAufAnzahl: !!tabelle.querySelector('tbody tr td:nth-child(3)[style*="--v"]'),
+      // Die Fussnote steht als ⓘ am Tabellentitel und zusätzlich in der Legende der Ansicht (B9)
+      fussnote: (tabelle.querySelector('caption .info') || { title: '' }).title,
+    };
+  });
+  check(anzahl.kopf.includes('Anzahl (Auswahl)') && anzahl.kopf.includes('Anzahl (Benchmark)') && !anzahl.kopf.some((t) => /^n \(/.test(t))
+    && /^\d+ von \d+ Vorgängen$/.test(anzahl.quote[0]) && /^\d+ von \d+ Vorgängen$/.test(anzahl.quote[1])
+    && /^n = \d+$/.test(anzahl.mittel) && anzahl.menge.every((t) => t === '') && !anzahl.scrollt && !anzahl.balkenAufAnzahl,
+    'Vergleichstabelle: Anzahl je Art – Quote «' + anzahl.quote[0] + '», Ø «' + anzahl.mittel + '», Mengen leer; kein Scroll-Container, Balken bleiben auf den Prozentzellen');
+  check(/Anzahl: bei Quoten/.test(anzahl.fussnote) && !/n \(Auswahl\)/.test(anzahl.fussnote),
+    'Vergleichstabelle: Fussnote erklärt die neue Spalte');
   const benchMit = await page.evaluate(() => ({
     werte: [...document.querySelectorAll('#view .messzeile .mz-bench')].map((x) => x.textContent.trim()),
     marken: document.querySelectorAll('#view .messzeile .mz-referenz').length,

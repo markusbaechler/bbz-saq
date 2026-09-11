@@ -219,6 +219,12 @@ export const GLOSSARY = [
     nenner: 'Nenner der Quote', grenzfaelle: 'Für Bestehensquoten statt einer Standardabweichung (die wäre nur eine Funktion des Anteils). n = 0 → «–»; bei n < 5 bleibt die Markierung «*».',
   },
   {
+    kind: 'Begriff', term: 'Anzahl (Auswahl / Benchmark)',
+    definition: 'Spalten in «Auswahl im Vergleich zum Benchmark» (Übersicht, Jahresvergleich) und im Bank-Report: bei Quoten «Zähler von Nenner Einheit» («8 von 9 Vorgängen»), bei Ø-Kennzahlen nur der Nenner («n = 9»), bei Mengen leer – dort ist der Wert selbst die Anzahl.',
+    nenner: 'je Zeile die Grundmenge der Kennzahl, nicht die der ganzen Auswahl',
+    grenzfaelle: 'Ersetzt die frühere Spalte «n», die die Grundmenge der Auswahl trug und bei Mengenzeilen etwas anderes meinte als daneben stand («Personen 8 · n 9» zählte Vorgänge). Die Einheit kommt aus der Kennzahl (Vorgänge, bei Experten Einsätze).',
+  },
+  {
     kind: 'Begriff', term: 'Einordnung (Differenz)',
     definition: 'Spalte in «Auswahl im Vergleich zum Benchmark» (Übersicht, Jahresvergleich) und im Bank-Report: Ø-Kennzahlen mit Effektstärke («d +0.3 · mittel»), Quoten mit Wilson-Intervall («±4.1 pp · Benchmark im Intervall: ja»), Mengen ohne («–»).',
     nenner: '–', grenzfaelle: 'Farbe wie die Differenz, die Bedeutung steht im Text. Verhindert, dass wenige Prozentpunkte Differenz als Rangfolge gelesen werden.',
