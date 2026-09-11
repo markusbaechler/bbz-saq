@@ -19,6 +19,25 @@
 3. Aufruf mit Schrägstrich: https://markusbaechler.github.io/bbz-saq/
 4. Jeder Push auf `main` veröffentlicht automatisch; es gibt keinen Build-Schritt.
 
+**Fassungsmarke vor jedem Commit erneuern:**
+
+```bash
+node tools/version.js --write
+```
+
+Das schreibt `version.js` und den erzeugten Bereich in `index.html` neu (Import-Map mit `?v=…` an jeder Datei).
+Ohne das liefert Pages nach dem Deploy bis zu zehn Minuten alte Module aus dem Browser-Cache, teils gemischt mit
+neuen. Die CI bricht ab, wenn die Marke veraltet ist. Details im README unter «Fassungsmarke».
+
+**Nach dem Deploy prüfen, was wirklich ausgeliefert wird** – nicht nur, dass der Merge durch ist:
+
+```bash
+curl -s https://markusbaechler.github.io/bbz-saq/version.js
+```
+
+Dieselbe Fassung steht in der Fusszeile der Seite und im Datenstand. Stimmen sie nicht überein, zeigt die Seite
+selbst einen Hinweis mit Knopf «Neu laden».
+
 ## Lokal
 
 ```bash

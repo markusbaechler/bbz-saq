@@ -13,6 +13,7 @@ import { filterChips, yearOf } from './filterChips.js';
 import { el, renderExportMenu, renderCollapsible, renderEmptyState, isPhone, onViewportChange, initials, setSortContext, markScrollingTables } from './views/common.js';
 import { glossarySlug } from './glossary.js';
 import { vorgangExportTables, expertRunExportTable, auditTable } from './views/tables.js';
+import { VERSION } from './version.js';
 import { renderDataQuality, DEFAULT_DQ_STATE, DQ_SORT_ID } from './views/dataQuality.js';
 import * as overview from './views/overview.js';
 import * as written from './views/written.js';
@@ -235,6 +236,7 @@ function renderDatastand(visible) {
     el('span', { class: 'datastand-dq' + (fehler ? ' warn' : ''), text: 'DQ ' + fehler + ' Fehler' }),
   ]);
   const rows = [
+    ['Fassung der App', VERSION],
     ['Quelle', meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint'],
     ['Zeilen je Sheet', (c.first || 0) + ' First Certification · ' + (c.issued || 0) + ' Ausgestellte Zertifikate'],
     ['Vorgänge / Personen / Duplikate', (c.vorgaenge || 0) + ' / ' + (c.personen || 0) + ' / ' + (c.duplikate || 0)],
@@ -938,4 +940,47 @@ async function init() {
   if (!hasData()) renderView(); // Leerzustand-Karte kennt jetzt den Anmeldestatus («Anmelden und laden» aktiv)
 }
 
-init();
+// ---------------------------------------------------------------------------
+// Fassung: sichtbar machen und melden, wenn der Browser eine alte aus dem Cache zeigt.
+//
+// Jede Modul-URL trägt seit tools/version.js eine Marke, Fassungen lassen sich also nicht mehr mischen.
+// index.html selbst kommt aber weiterhin mit «max-age=600» und kann bis zu zehn Minuten alt sein – dann läuft die
+// ganze App EINHEITLICH auf dem alten Stand. Genau das ist passiert und sah aus wie ein Fehler in der App.
+// Deshalb wird die veröffentlichte Fassung einmal ohne Cache geholt und verglichen; weicht sie ab, sagt es die
+// Seite, statt alte Zahlen als aktuelle auszugeben.
+// ---------------------------------------------------------------------------
+
+function zeigeFassung() {
+  const fuss = document.querySelector('.app-footer');
+  if (fuss && !fuss.querySelector('.app-version')) fuss.appendChild(el('span', { class: 'app-version', text: 'Fassung ' + VERSION }));
+}
+
+// Gibt die veröffentlichte Fassung zurück, wenn sie von der geladenen abweicht – sonst null.
+// Der Zeitstempel in der URL ist die zweite Sicherung neben «no-store»: Manche Zwischenspeicher ignorieren den Kopf.
+export async function veroeffentlichteFassung(holen = fetch, jetzt = Date.now()) {
+  try {
+    const antwort = await holen('./version.js?stand=' + jetzt, { cache: 'no-store' });
+    if (!antwort || !antwort.ok) return null;
+    const treffer = /export const VERSION = '([^']+)'/.exec(await antwort.text());
+    return treffer && treffer[1] !== VERSION ? treffer[1] : null;
+  } catch (e) {
+    return null; // offline oder blockiert: kein Grund, etwas zu melden
+  }
+}
+
+function meldeVeralteteFassung(neu) {
+  const box = document.getElementById('version-hinweis');
+  if (!box) return;
+  box.replaceChildren(
+    el('strong', { text: 'Diese Seite zeigt eine alte Fassung.' }),
+    el('span', { text: 'Geladen ' + VERSION + ', veröffentlicht ' + neu + '. Die Zahlen können von der aktuellen Auswertung abweichen.' }),
+    el('button', { type: 'button', class: 'link', text: 'Neu laden', onclick: () => location.reload() }),
+  );
+  box.hidden = false;
+}
+
+init().then(async () => {
+  zeigeFassung();
+  const neu = await veroeffentlichteFassung();
+  if (neu) meldeVeralteteFassung(neu);
+});

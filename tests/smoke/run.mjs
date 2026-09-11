@@ -11,6 +11,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { startServer } from './server.mjs';
 import { writeSynthWorkbook } from './synth.mjs';
 import { SECHS_SIGNALE } from './signale-sechs.mjs';
+import { versionAusModul } from '../../tools/version.js';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -33,9 +34,14 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 // Feature-Flag des Schreibpfads im Test steuern (unabhängig vom Wert in config.js): Hauptseite, Phone und Tablet ohne Flag (nur lesen),
 // Schreibpfad-Seite mit Flag – config.js wird per Route mit dem gewünschten Wert ausgeliefert, im Repo ändert sich nichts
 const configText = readFileSync(join(root, 'config.js'), 'utf8');
-const routeConfig = (p, on) => p.route('**/config.js', async (route) => route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: configText.replace(/features: \{ write: (true|false) \}/, 'features: { write: ' + (on ? 'true' : 'false') + ' }') }));
+// Seit dem Cache-Busting tragen alle Modul-URLs ein «?v=…» – das Muster muss die Query zulassen, sonst greift
+// die Route nicht mehr und der Test läuft still gegen die echte config.js (gefunden, weil genau das passierte).
+const routeConfig = (p, on) => p.route('**/config.js*', async (route) => route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: configText.replace(/features: \{ write: (true|false) \}/, 'features: { write: ' + (on ? 'true' : 'false') + ' }') }));
 await routeConfig(page, false);
 const errors = [];
+// Jede geladene js/css-Datei mitschreiben: Sie alle müssen die Fassungsmarke tragen (tools/version.js)
+const geladeneDateien = [];
+page.on('response', (r) => { if (r.url().startsWith(server.url) && /\.(js|css)(\?|$)/.test(r.url())) geladeneDateien.push(r.url().slice(server.url.length)); });
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('requestfailed', (r) => { if (r.url().startsWith(server.url)) errors.push('request failed: ' + r.url() + ' ' + ((r.failure() || {}).errorText || '')); });
@@ -99,6 +105,18 @@ try {
     && navAufbau.zweiteLeiste === 0 && navAufbau.beschriftungen === 0,
     'E Navigation: ' + navAufbau.band.length + ' Primärziele im Band (' + navAufbau.band.join(' · ') + '), '
       + navAufbau.optionen + ' Ansichten im Auswahlfeld (' + navAufbau.optgroups.join(' · ') + '), keine zweite Leiste, keine Gruppenbeschriftung');
+  // Cache-Busting: Nach einem Deploy holte der Browser bis zu zehn Minuten alte Module aus dem Cache, teils
+  // gemischt mit neuen – die App zeigte den Stand von vorher, ohne es zu sagen. Jede Modul-URL, jede Bibliothek
+  // und das Stylesheet tragen deshalb eine Fassungsmarke aus dem Inhalt der Dateien.
+  const fassung = versionAusModul(readFileSync(join(root, 'version.js'), 'utf8'));
+  const ohneMarke = geladeneDateien.filter((u) => !u.includes('?v=') && !u.includes('?stand='));
+  check(!!fassung && geladeneDateien.length > 20 && ohneMarke.length === 0,
+    'Fassung ' + fassung + ': ' + geladeneDateien.length + ' js/css-Dateien geladen, alle mit Marke'
+      + (ohneMarke.length ? ' – OHNE: ' + ohneMarke.join(', ') : ''));
+  check((await page.textContent('.app-footer .app-version')) === 'Fassung ' + fassung
+    && !(await page.locator('#version-hinweis').isVisible()),
+    'Fassung steht in der Fusszeile, kein Hinweis auf eine alte Fassung');
+
   check((await page.locator('#view .empty-card .actions button').count()) === 2 && (await page.locator('#view .empty-card h3').textContent()).startsWith('Noch keine Daten'), 'Leerzustand: Karte mit zwei Aktionen statt Fliesstext');
   // Paket C (C1): Im Leerzustand steht die Datenleiste als Zeile; mit geladenen Daten fällt sie weg und der Datenstand
   // steht als Einzeiler im Kopf. Der Volltext in #status bleibt in beiden Zuständen für Screenreader erhalten.

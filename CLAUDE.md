@@ -21,6 +21,9 @@ Vollständige Spezifikation: `PROMPT.md`. Bei Widerspruch gilt diese Datei.
 
 ## Architektur
 - Vanilla JS ES-Module, kein Framework, kein Build-Step, GitHub Pages. Bibliotheken lokal (kein CDN).
+  Jede ausgelieferte Datei trägt eine Fassungsmarke (`?v=…`) aus einer erzeugten Import-Map in `index.html`;
+  erzeugt von `tools/version.js --write`, mitversioniert wie das README-Glossar. Nach jeder Änderung an einer
+  ausgelieferten Datei ausführen und mitcommitten – sonst zeigt der Browser nach dem Deploy alte Module.
 - Schichten strikt trennen: `datasource/` (I/O) → `store.js` (Normalisierung, State) → `metrics.js`
   (reine Funktionen, kein DOM, kein Graph) → `views/` (Rendering).
 - `datasource/index.js` ist das einzige Interface nach aussen. Phase 1 = fileAdapter (Download + Parse).

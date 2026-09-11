@@ -19,6 +19,7 @@ import './signals.test.js';
 import './chart.test.js';
 import './dotchart.test.js';
 import './regeln.test.js';
+import './version.test.js';
 import './overview.test.js';
 import './filterChips.test.js';
 import './common.test.js';
