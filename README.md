@@ -115,25 +115,29 @@ Jede Kennzahl-Ansicht bietet im Menü «Export» CSV (alle Tabellen in einer Dat
 eine Druckansicht. Zusätzlich exportiert jede Kennzahl-Ansicht die Vorgangsebene (eine Zeile je Vorgang, eine Zeile je
 Run, mit Namen, nur intern). Der Filterzustand steht im Kopf jedes Exports.
 
-**Messzeile statt Kachel für Quoten (Paket MESSZEILE):** Die fünf Quoten der Übersicht stehen als **Messzeilen auf
-einer gemeinsamen Skala von 50 bis 100 %** – erst dadurch sind sie untereinander vergleichbar; zwei Kacheln sind es
+**Messzeile statt Kachel für Quoten (Paket MESSZEILE):** Die drei **Bestehensquoten** der Übersicht stehen als
+**Messzeilen auf einer gemeinsamen Skala von 50 bis 100 %** – erst dadurch sind sie untereinander vergleichbar; zwei Kacheln sind es
 nicht. Je Zeile: Beschriftung · Skala · Wert · n · Verlauf · Wert letztes Jahr · Δ Vorjahr · Δ Benchmark. Die Kopfzeile
 benennt die Spalten, weil zwei Abstände nebeneinander sonst dasselbe Zeichen für Verschiedenes tragen. Auf der Skala liegen das
 **95-%-Wilson-Intervall** als Balken, der Wert als Punkt und, bei aktivem Benchmark, dessen Marke; der Abstand steht
 als Zahl in der letzten Spalte (Symbol, Vorzeichen, Farbe nach Richtung; unter 0.5 pp neutral – dieselbe Schwelle wie
 auf den Kacheln und in der Vergleichstabelle). **Ohne benchmarkrelevanten Filter** entfallen Marke, Spalte und Zahl:
 Dann ist die Auswahl der Benchmark, und «● 0.0 pp» auf jeder Zeile sagte nur das. Werte unter 50 % stehen am linken Anschlag und sagen es; abgeschnitten wird
-nichts. Der Verlauf ist eine Sparkline über die Jahre mit n ≥ 5 (unter drei Jahren keine); das Δ Vorjahr gilt gegen das
+nichts. Der Verlauf ist eine Sparkline über die Jahre mit n ≥ 5 (unter drei Jahren keine); das **laufende Jahr** erscheint
+darin als offener Punkt, zählt aber nicht als Vergleichsjahr – ihm fehlen Wiederholungen und Nachträge, und gegen ein
+volles Jahr gerechnet ergäbe es einen Abfall, den es nicht gibt. «Letztes Jahr» ist deshalb das jüngste
+**abgeschlossene** Jahr; das Δ Vorjahr gilt gegen das
 Jahr davor und färbt sich erst ab 2 pp, darunter bleibt es neutral – sonst färbt sich Rauschen ein. Die beiden
 Schwellen unterscheiden sich bewusst: Der Jahresabstand ist ein Trendsignal (2 pp), der Benchmark-Abstand folgt der
 Regel, die dieselbe Zahl auf den Kacheln und in der Vergleichstabelle schon trägt (0.5 pp).
 
-**Mengen bleiben Kacheln.** Eine Anzahl hat keine Skala von 50 bis 100 %, und eine erfundene wäre schlimmer als keine.
+**Mengen bleiben Kacheln** – ohne n-Zeile: Ihr Wert ist die Anzahl, und die Grundmenge der Auswahl daneben meinte
+etwas anderes als die Kachel («Personen 970 · n = 977» zählte Vorgänge). Eine Anzahl hat keine Skala von 50 bis 100 %, und eine erfundene wäre schlimmer als keine.
 Die vier Ø-Kennzahlen bleiben ebenfalls Kacheln, weil sie die Streuungszeile (σ, Median, Quartile) tragen.
 Reihenfolge der Übersicht: Signale · Quoten · Mengen · Ø Resultat · Kennzahlen je Profil.
-Nicht als Messzeile erscheint «Schriftlich: im 1. Versuch durchgefallen»: Die Quote ist das exakte Komplement der
-Zeile darüber und stünde dauerhaft am linken Anschlag. Als Kennzahl bleibt sie in der Vergleichstabelle, im Export
-und in der Ansicht «Schriftlich».
+Die drei **Durchfallquoten** erscheinen nicht als Messzeile: Die schriftliche ist das exakte Komplement der Zeile
+darüber, und alle drei lägen auf der 50–100-%-Skala am linken Anschlag (gemessen 20.7 % und 3.5 % mündlich). Als
+Kennzahlen bleiben sie in der Vergleichstabelle, im Export und in den Ansichten «Schriftlich» und «Mündlich».
 
 **Höhenbudget, gemessen bei 1400 × 900 mit sechs Signalen:** Die letzte Messzeile endet bei y = 791, die erste
 Mengen-Kachel beginnt bei y = 846 – beides über der Falz. Vorher endete die letzte Quoten-Kachel bei y = 1119.

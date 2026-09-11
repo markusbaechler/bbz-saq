@@ -304,6 +304,9 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .mz-verlauf { width: 4rem; height: 1.25rem; }
 .mz-verlauf-linie { fill: none; stroke: var(--viz-tick); stroke-width: 1.5; }
 .mz-verlauf-ende { fill: var(--accent); }
+/* Laufendes Jahr: hohler Endpunkt – der Punkt steht, aber er ist noch nicht fertig (wie der hohle Marker für
+   kleine Gruppen in den Diagrammen). Der title der Sparkline sagt es in Worten. */
+.mz-verlauf-ende.laufend { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
 .mz-delta { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--fs-sm); white-space: nowrap; }
 .mz-delta.ton-pos { color: var(--delta-pos); }
 .mz-delta.ton-neg { color: var(--delta-neg); }

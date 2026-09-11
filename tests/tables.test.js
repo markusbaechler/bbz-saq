@@ -2,7 +2,7 @@ import { test, assert, assertEqual, assertClose } from './runner.js';
 import { MODE, personSearchIndex, expertRuns } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
-  rankingTables, plannedTables, overviewModel, comparisonTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
+  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
@@ -256,6 +256,22 @@ test('tables.comparisonTable: Anzahl nennt die Einheit der Kennzahl, nicht immer
   assertEqual(byLabel['Mit Einheit'].n2, '3 von 6 Einsätzen');
   assertEqual(byLabel['Ohne Einheit'].n, '2 von 4 Vorgängen');
   assertEqual(byLabel['Ohne Zähler'].n, 'n = 4', 'ohne Zähler bleibt nur der Nenner – erfunden wird nichts');
+});
+
+test('tables.kennzahlenExportTable: Anzahl und Nenner je Art – Zahlen für die Tabellenkalkulation, nichts Erfundenes', () => {
+  const t = kennzahlenExportTable(overviewModel(cohort()).kpis);
+  const byLabel = Object.fromEntries(t.rows.map((r) => [r.label, r]));
+  assertEqual(t.columns.map((c) => c.label), ['Kennzahl', 'Wert', 'Anzahl', 'n (Nenner)', 'Einheit', 'Beschreibung']);
+  // Quote: Zähler und Nenner als Zahlen (nicht «2 von 4 Vorgängen» – eine Tabellenkalkulation rechnet damit nicht)
+  assertEqual([byLabel['Schriftlich: im 1. Versuch bestanden'].count, byLabel['Schriftlich: im 1. Versuch bestanden'].n], [2, 4]);
+  assertEqual(byLabel['Schriftlich: im 1. Versuch bestanden'].einheit, 'Vorgänge');
+  // Mittelwert: kein Zähler, aber der Nenner
+  assertEqual([byLabel['Schriftlich: Ø Resultat 1. Versuch'].count, byLabel['Schriftlich: Ø Resultat 1. Versuch'].n], ['', 4]);
+  // Menge: der Wert ist die Anzahl – daneben steht nichts, auch nicht die Grundmenge der Auswahl
+  for (const label of ['Vorgänge', 'Personen', 'Zertifizierung offen']) {
+    assertEqual([byLabel[label].count, byLabel[label].n, byLabel[label].einheit], ['', '', ''], label);
+  }
+  assertEqual(byLabel['Personen'].value, '4');
 });
 
 test('tables.comparisonTable: fehlender Wert → Strich statt Differenz', () => {

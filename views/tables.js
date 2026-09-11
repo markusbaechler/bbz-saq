@@ -511,15 +511,15 @@ export function overviewModel(persons, allPersons = persons) {
 // M3: Die sechs Quoten der Blöcke «Schriftlich» und «Mündlich» als Eingaben für die Messzeile. Keine neue Kennzahl –
 // Label, Zähler, Nenner und Richtung kommen aus denselben Kacheln wie bisher; dazu die Jahresreihe derselben Quote
 // für den Verlauf und der Benchmark als Referenzmarke. Die Reihenfolge ist die der Kacheln.
-// «Schriftlich: im 1. Versuch durchgefallen» steht hier bewusst nicht: Die Quote ist das exakte Komplement der
-// Zeile darüber (100 % minus Erstversuchsquote) und stünde auf der 50–100-%-Skala dauerhaft am linken Anschlag.
-// Als Kennzahl bleibt sie erhalten – in der Vergleichstabelle, im Export und in der Ansicht «Schriftlich».
+// Hier stehen nur Bestehensquoten. Die drei Durchfallquoten fehlen mit Absicht: «Schriftlich: im 1. Versuch
+// durchgefallen» ist das exakte Komplement der Zeile darüber, und alle drei liegen auf der 50–100-%-Skala am linken
+// Anschlag – gemessen an echten Daten 20.7 % und 3.5 % mündlich, also zwei von fünf Zeilen ohne Aussage auf der Spur.
+// Eine eigene Skala ab 0 % für sie hiesse, den Sinn der gemeinsamen Spur aufzugeben. Als Kennzahlen bleiben sie
+// vollständig erhalten: in der Vergleichstabelle, im Export und in den Ansichten «Schriftlich» und «Mündlich».
 const MESSZEILEN_QUOTEN = [
   { label: 'Schriftlich: im 1. Versuch bestanden', gruppe: 'Schriftlich', jahr: (t) => t.written.erstversuch },
   { label: 'Schriftlich: insgesamt bestanden', gruppe: 'Schriftlich', jahr: (t) => t.written.gesamt },
   { label: 'Mündlich: bestanden', gruppe: 'Mündlich', jahr: (t) => t.oral.bestanden },
-  { label: 'Mündlich: im 1. Versuch durchgefallen', gruppe: 'Mündlich', jahr: (t) => t.oral.failed1 },
-  { label: 'Mündlich: 2× durchgefallen', gruppe: 'Mündlich', jahr: (t) => t.oral.failed2 },
 ];
 
 export function messzeilenEingaben(persons, kpis, { benchmarkLabel = null } = {}) {
@@ -606,6 +606,27 @@ function anzahlText(k) {
     return k.count === null || k.count === undefined ? 'n = ' + k.n : k.count + ' von ' + k.n + ' ' + (k.unit || 'Vorgängen');
   }
   return k.kind === 'mean' ? 'n = ' + k.n : '';
+}
+
+// Export der Kacheln («Kennzahlen gesamt»). Dieselbe Regel wie in der Vergleichstabelle, nur in zwei Spalten statt
+// in einem Satz: Eine Tabellenkalkulation rechnet mit Zahlen, nicht mit «8 von 9 Vorgängen». Mengenzeilen tragen
+// deshalb weder Zähler noch Nenner – ihr Wert IST die Anzahl, und die Grundmenge der Auswahl daneben hiesse etwas
+// anderes als die Zeile («Personen 8 · n 9» zählte Vorgänge).
+export function kennzahlenExportTable(kpis) {
+  return {
+    title: 'Kennzahlen gesamt',
+    columns: [col('label', 'Kennzahl', 1), col('value', 'Wert', 1), col('count', 'Anzahl', 2), col('n', 'n (Nenner)', 2), col('einheit', 'Einheit', 3), col('hint', 'Beschreibung', 3)],
+    rows: (kpis || []).map((k) => ({
+      label: k.label,
+      value: k.value,
+      count: k.kind === 'ratio' && k.count !== null && k.count !== undefined ? k.count : '',
+      n: k.kind === 'ratio' || k.kind === 'mean' ? k.n : '',
+      einheit: k.kind === 'ratio' || k.kind === 'mean' ? (k.unit || 'Vorgänge') : '',
+      hint: k.hint,
+      small: k.small,
+    })),
+    note: 'Anzahl und Nenner nur bei Quoten und Ø-Kennzahlen; bei Mengen ist der Wert selbst die Anzahl. ' + SMALL_NOTE,
+  };
 }
 
 export function comparisonTable(selectionKpis, benchmarkKpis, benchmarkLabel) {

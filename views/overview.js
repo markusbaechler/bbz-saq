@@ -1,6 +1,6 @@
 // views/overview.js – View 1 «Übersicht»: KPIs gesamt für den aktiven Filter, Kennzahlen je Profil.
 
-import { overviewModel, plannedTables, comparisonTable, messzeilenEingaben } from './tables.js';
+import { overviewModel, plannedTables, comparisonTable, messzeilenEingaben, kennzahlenExportTable } from './tables.js';
 import { renderKpis, renderTable, section, hinted, el, signalBlock, isPhone, messzeileModell, messzeilenBlock } from './common.js';
 import { renderDotChart } from './chart.js';
 import { BENCHMARKS, benchmarkFilter, DEFAULT_FILTER, formatPct } from '../metrics.js';
@@ -63,9 +63,10 @@ export function build(ctx) {
   // läge sie bei 1056 – die Reihenfolge ist der einzige Weg zum Zielmass, ohne etwas einzuklappen.
   const messzeilen = messzeilenEingaben(ctx.persons, kpis, { benchmarkLabel: bench ? bench.label : null });
   const quotenLabels = new Set(messzeilen.map((z) => z.label));
-  // Das Komplement der Erstversuchsquote erscheint auf der Übersicht gar nicht mehr: Es sagt dasselbe wie die Zeile
-  // darüber, nur andersherum. Als Kennzahl bleibt es in der Vergleichstabelle, im Export und in «Schriftlich».
-  const NICHT_AUF_DER_UEBERSICHT = ['Schriftlich: im 1. Versuch durchgefallen'];
+  // Die drei Durchfallquoten erscheinen auf der Übersicht nicht: Die schriftliche sagt dasselbe wie die Zeile darüber,
+  // nur andersherum, und alle drei lägen auf der 50–100-%-Skala am Anschlag. Als Kennzahlen bleiben sie in der
+  // Vergleichstabelle, im Export und in den Ansichten «Schriftlich» und «Mündlich».
+  const NICHT_AUF_DER_UEBERSICHT = ['Schriftlich: im 1. Versuch durchgefallen', 'Mündlich: im 1. Versuch durchgefallen', 'Mündlich: 2× durchgefallen'];
   const kachelKpis = kpis
     .filter((k) => !quotenLabels.has(k.label) && !NICHT_AUF_DER_UEBERSICHT.includes(k.label))
     // Die Ø-Kennzahlen tragen die Streuungszeile aus Paket G; sie bleiben Kacheln und stehen zusammen in einem Block
@@ -75,7 +76,7 @@ export function build(ctx) {
   // genau die fehlen im echten Fall am Zielmass (922 statt 840 px bei sechs Signalen).
   const quotenModelle = messzeilen.map((z) => messzeileModell(z.eingabe));
   const quotenBlock = quotenModelle.length ? el('section', { class: 'kpi-group' }, [
-    messzeilenBlock('Quoten', quotenModelle, { referenzLabel: relevant && bench ? bench.label : null }),
+    messzeilenBlock('Bestehensquoten', quotenModelle, { referenzLabel: relevant && bench ? bench.label : null }),
   ]) : null;
   let benchmarkBar = null;
   if (bench) {
@@ -91,11 +92,7 @@ export function build(ctx) {
     ctx.focusFilter ? ' ' : null,
     ctx.focusFilter ? el('button', { type: 'button', class: 'linklike', text: 'Bank wählen', onclick: () => ctx.focusFilter('bank') }) : null,
   ]);
-  const kpiTable = {
-    title: 'Kennzahlen gesamt',
-    columns: [{ key: 'label', label: 'Kennzahl' }, { key: 'value', label: 'Wert' }, { key: 'count', label: 'Anzahl' }, { key: 'n', label: 'n' }, { key: 'hint', label: 'Beschreibung' }],
-    rows: kpis.map((k) => ({ label: k.label, value: k.value, count: k.count === null || k.count === undefined ? '' : k.count, n: k.n, hint: k.hint, small: k.small })),
-  };
+  const kpiTable = kennzahlenExportTable(kpis);
   return {
     nodes: [
       // D2: Signale zuerst – sie beantworten «worauf schaue ich heute», und das gehört nicht unter zwölf Kacheln

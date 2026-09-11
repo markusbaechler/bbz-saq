@@ -6,9 +6,12 @@ import { messzeileModell, MESSZEILE_MIN, MESSZEILE_DELTA_TON_PP, MESSZEILE_JAHRE
 import { SMALL_N, wilsonInterval } from '../metrics.js';
 
 const jahr = (year, pct, n = 20) => ({ year, pct, n });
+// Das laufende Jahr steht in den Tests ausdrücklich: Ein Test, der vom Datum des Laufs abhängt, ist keiner.
+const JETZT = 2026;
+const modell = (eingabe) => messzeileModell({ laufendesJahr: JETZT, ...eingabe });
 
 test('messzeile: Normalfall – Wert, Intervall aus metrics, Verlauf, letztes Jahr, Delta gegen das Jahr davor', () => {
-  const m = messzeileModell({
+  const m = modell({
     label: 'Schriftlich, 1. Versuch bestanden',
     count: 847, n: 1000,
     jahre: [jahr(2021, 0.9), jahr(2022, 0.88), jahr(2023, 0.86), jahr(2024, 0.822)],
@@ -36,7 +39,7 @@ test('messzeile: Normalfall – Wert, Intervall aus metrics, Verlauf, letztes Ja
 });
 
 test('messzeile: n = 0 – kein Wert, kein Intervall, kein Punkt auf der Skala, aria-label sagt es', () => {
-  const m = messzeileModell({ label: 'Mündlich, 1. Versuch bestanden', count: 0, n: 0 });
+  const m = modell({ label: 'Mündlich, 1. Versuch bestanden', count: 0, n: 0 });
   assertEqual(m.wert.text, '–');
   assertEqual(m.wert.pct, null);
   assertEqual(m.intervall, null);
@@ -49,71 +52,90 @@ test('messzeile: n = 0 – kein Wert, kein Intervall, kein Punkt auf der Skala, 
 });
 
 test('messzeile: ein einziges Jahr – keine Sparkline, kein Delta, aber der Wert bleibt', () => {
-  const m = messzeileModell({ label: 'Nur ein Jahr', count: 9, n: 12, jahre: [jahr(2024, 0.75)] });
+  const m = modell({ label: 'Nur ein Jahr', count: 9, n: 12, jahre: [jahr(2024, 0.75)] });
   assertEqual(m.wert.text, '75.0 %');
   assertEqual(m.verlauf, null, 'unter ' + MESSZEILE_JAHRE_MIN + ' Jahren keine Sparkline');
   assertEqual(m.delta, null, 'ein Jahr hat kein Vorjahr');
   assertEqual(m.letztesJahr.year, 2024);
   // Zwei Jahre ergeben ein Delta, aber weiterhin keine Sparkline
-  const zwei = messzeileModell({ label: 'Zwei Jahre', count: 9, n: 12, jahre: [jahr(2023, 0.8), jahr(2024, 0.75)] });
+  const zwei = modell({ label: 'Zwei Jahre', count: 9, n: 12, jahre: [jahr(2023, 0.8), jahr(2024, 0.75)] });
   assertEqual(zwei.verlauf, null);
   assertEqual(zwei.delta.pp, -5);
   // Jahre unter der Mindestgruppengrösse zählen nicht mit
-  const klein = messzeileModell({ label: 'Kleine Jahre', count: 9, n: 12, jahre: [jahr(2022, 0.9, SMALL_N - 1), jahr(2023, 0.8), jahr(2024, 0.75)] });
+  const klein = modell({ label: 'Kleine Jahre', count: 9, n: 12, jahre: [jahr(2022, 0.9, SMALL_N - 1), jahr(2023, 0.8), jahr(2024, 0.75)] });
   assertEqual(klein.verlauf, null, 'zwei auswertbare Jahre reichen nicht für den Verlauf');
   assertEqual(klein.delta.gegen, 2023);
 });
 
 test('messzeile: Wert unter dem Skalenbeginn – am Anschlag statt abgeschnitten, und die Zeile sagt es', () => {
-  const m = messzeileModell({ label: 'Unter der Skala', count: 12, n: 40 }); // 30 %
+  const m = modell({ label: 'Unter der Skala', count: 12, n: 40 }); // 30 %
   assertEqual(m.wert.text, '30.0 %', 'der Wert selbst wird nie beschnitten');
   assertEqual(m.skala.pos, 0);
   assertEqual(m.skala.anschlag, true);
   assert(m.intervall.von >= 0 && m.intervall.bis <= 100, 'auch der Balken bleibt in der Spur');
   assert(/am linken Anschlag/.test(m.ariaLabel), m.ariaLabel);
   // Genau auf der Grenze ist kein Anschlag
-  const grenze = messzeileModell({ label: 'Genau 50 %', count: 20, n: 40 });
+  const grenze = modell({ label: 'Genau 50 %', count: 20, n: 40 });
   assertEqual(grenze.wert.pct, MESSZEILE_MIN);
   assertEqual(grenze.skala.anschlag, false);
   assertEqual(grenze.skala.pos, 0);
 });
 
 test('messzeile: Quote ohne Zähler – Punkt ja, Intervall nein; Referenzmarke und Ton nach Richtung', () => {
-  const m = messzeileModell({ label: 'Ø Resultat', pct: 0.78, n: 120, referenz: { pct: 0.82, label: 'Benchmark: alle Banken' } });
+  const m = modell({ label: 'Ø Resultat', pct: 0.78, n: 120, referenz: { pct: 0.82, label: 'Benchmark: alle Banken' } });
   assertEqual(m.wert.text, '78.0 %');
   assertEqual(m.intervall, null, 'ohne Zähler kein Wilson-Intervall');
   assertEqual(Math.round(m.skala.pos), 56);
   assertEqual(Math.round(m.referenz.pos), 64);
   assert(/kein Intervall/.test(m.ariaLabel) && /Benchmark: alle Banken/.test(m.ariaLabel), m.ariaLabel);
   // Ton erst ab der Schwelle, und die Richtung dreht ihn um
-  const leise = messzeileModell({ label: 'Rauschen', count: 50, n: 100, jahre: [jahr(2023, 0.8), jahr(2024, 0.819)] });
+  const leise = modell({ label: 'Rauschen', count: 50, n: 100, jahre: [jahr(2023, 0.8), jahr(2024, 0.819)] });
   assertEqual(leise.delta.pp, 1.9);
   assertEqual(leise.delta.ton, 'neutral', 'unter ' + MESSZEILE_DELTA_TON_PP + ' pp bleibt es neutral');
-  const runter = messzeileModell({ label: 'Tiefer ist besser', richtung: 'down', count: 50, n: 100, jahre: [jahr(2023, 0.8), jahr(2024, 0.75)] });
+  const runter = modell({ label: 'Tiefer ist besser', richtung: 'down', count: 50, n: 100, jahre: [jahr(2023, 0.8), jahr(2024, 0.75)] });
   assertEqual(runter.delta.ton, 'pos');
-  const ohne = messzeileModell({ label: 'Ohne Richtung', richtung: 'neutral', count: 50, n: 100, jahre: [jahr(2023, 0.8), jahr(2024, 0.75)] });
+  const ohne = modell({ label: 'Ohne Richtung', richtung: 'neutral', count: 50, n: 100, jahre: [jahr(2023, 0.8), jahr(2024, 0.75)] });
   assertEqual(ohne.delta.ton, 'neutral');
 });
 
 test('messzeile: Abstand zum Benchmark als eigenes Feld, Ton nach der Regel der Kacheln (0.5 pp)', () => {
-  const m = messzeileModell({ label: 'Mit Benchmark', count: 847, n: 1000, referenz: { pct: 0.81, label: 'Benchmark: Testbank' } });
+  const m = modell({ label: 'Mit Benchmark', count: 847, n: 1000, referenz: { pct: 0.81, label: 'Benchmark: Testbank' } });
   assertEqual(m.benchmark.pp, 3.7);
   assertEqual(m.benchmark.text, '▲ +3.7 pp');
   assertEqual(m.benchmark.ton, 'pos');
   assert(/Abstand plus 3\.7 Prozentpunkte/.test(m.ariaLabel), m.ariaLabel);
   // Unter 0.5 pp neutral – dieselbe Schwelle wie auf den Kacheln und in der Vergleichstabelle
-  const knapp = messzeileModell({ label: 'Knapp', count: 812, n: 1000, referenz: { pct: 0.81, label: 'Benchmark' } });
+  const knapp = modell({ label: 'Knapp', count: 812, n: 1000, referenz: { pct: 0.81, label: 'Benchmark' } });
   assertEqual(knapp.benchmark.pp, 0.2);
   assertEqual(knapp.benchmark.ton, 'neutral');
   assertEqual(knapp.benchmark.text, '● +0.2 pp'); // formatPp setzt das Vorzeichen, das Symbol trägt die Wertung
   // «Tiefer ist besser» dreht den Ton; ohne Referenz gibt es das Feld nicht
-  const runter = messzeileModell({ label: 'Durchfall', count: 847, n: 1000, richtung: 'down', referenz: { pct: 0.81, label: 'Benchmark' } });
+  const runter = modell({ label: 'Durchfall', count: 847, n: 1000, richtung: 'down', referenz: { pct: 0.81, label: 'Benchmark' } });
   assertEqual(runter.benchmark.ton, 'neg');
-  assertEqual(messzeileModell({ label: 'Ohne', count: 5, n: 10 }).benchmark, null);
+  assertEqual(modell({ label: 'Ohne', count: 5, n: 10 }).benchmark, null);
+});
+
+test('messzeile: das laufende Jahr ist kein Vergleichsjahr – es ist unfertig', () => {
+  const reihe = [jahr(2023, 0.90), jahr(2024, 0.88), jahr(2025, 0.86), jahr(2026, 0.69)];
+  const m = modell({ label: 'Mit laufendem Jahr', count: 847, n: 1000, jahre: reihe });
+  // «Letztes Jahr» ist das jüngste abgeschlossene Jahr, nicht das angefangene
+  assertEqual(m.letztesJahr.year, 2025);
+  assertEqual(m.letztesJahr.text, '86.0 %');
+  assertEqual(m.delta.gegen, 2024, 'das Delta rechnet 2025 gegen 2024');
+  assertEqual(m.delta.pp, -2, 'nicht −17 pp gegen das unfertige 2026');
+  // Im Verlauf bleibt das laufende Jahr sichtbar, aber als offener Punkt
+  assertEqual(m.verlauf.jahre, 4);
+  assertEqual(m.verlauf.laufend, true);
+  assertEqual(m.verlauf.punkte.map((p) => p.laufend), [false, false, false, true]);
+  assert(/laufende Jahr 2026 ist unvollständig/.test(m.ariaLabel), m.ariaLabel);
+  // Ohne abgeschlossenes Jahr gibt es weder letztes Jahr noch Delta – erfunden wird nichts
+  const nurLaufend = modell({ label: 'Nur laufendes Jahr', count: 8, n: 10, jahre: [jahr(2026, 0.8)] });
+  assertEqual(nurLaufend.letztesJahr, null);
+  assertEqual(nurLaufend.delta, null);
 });
 
 test('messzeile: kleine Gruppe wird gekennzeichnet, nicht verschwiegen', () => {
-  const m = messzeileModell({ label: 'Kleine Gruppe', count: 3, n: SMALL_N - 1 });
+  const m = modell({ label: 'Kleine Gruppe', count: 3, n: SMALL_N - 1 });
   assertEqual(m.klein, true);
   assert(/kleine Gruppe/.test(m.ariaLabel), m.ariaLabel);
   assert(m.intervall !== null, 'das Intervall wird gerade dann gezeigt, wenn n klein ist');
