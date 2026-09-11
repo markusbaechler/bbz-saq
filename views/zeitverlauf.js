@@ -1,7 +1,7 @@
 // views/zeitverlauf.js – Ansicht «Zeitverlauf» (P6): Kennzahlen je Jahr (a1), zwei Jahre vergleichen (a6),
 // Schwierigkeit je Teilprüfung über die Jahre (b6). Der Zeitraumfilter wirkt hier nicht (alle Jahre), die übrigen Filter schon.
 
-import { timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables, throughputTables } from './tables.js';
+import { timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables, throughputTables, jahrLabel } from './tables.js';
 import { renderTable, section, hinted, el, isPhone } from './common.js';
 import { renderLineChart } from './chart.js';
 import { formatPct, yearsOf } from '../metrics.js';
@@ -37,7 +37,7 @@ export function build(ctx) {
   const compare = (ctx.compare && years.includes(ctx.compare.a) && years.includes(ctx.compare.b)) ? ctx.compare : defaultCompareYears(persons);
   const comparison = compare ? yearComparisonTable(persons, compare.a, compare.b) : null;
   const yearSelect = (value, onChange) => {
-    const sel = el('select', { onchange: (ev) => onChange(Number(ev.target.value)) }, years.map((y) => el('option', { value: String(y), text: String(y) })));
+    const sel = el('select', { onchange: (ev) => onChange(Number(ev.target.value)) }, years.map((y) => el('option', { value: String(y), text: jahrLabel(y) })));
     sel.value = String(value);
     return sel;
   };
@@ -55,7 +55,7 @@ export function build(ctx) {
         renderTable(perYear),
       ]) : el('p', { class: 'empty', text: 'Keine Vorgänge mit Referenzdatum im aktiven Filter.' }),
       section('Kennzahlen je Profil und Jahr', [renderTable(perProfile)]),
-      comparison ? sec('Zwei Jahre vergleichen', [compareBar, renderTable(comparison)], 'Dieselben Kennzahlen wie in der Übersicht für zwei Jahre nebeneinander. Differenz = Jahr A minus Jahr B in Prozentpunkten. Standard: die zwei jüngsten Jahre mit Daten.') : null,
+      comparison ? sec('Zwei Jahre vergleichen', [compareBar, renderTable(comparison)], 'Dieselben Kennzahlen wie in der Übersicht für zwei Jahre nebeneinander. Differenz = Jahr A minus Jahr B in Prozentpunkten. Standard: die zwei jüngsten ABGESCHLOSSENEN Jahre – das laufende Jahr ist wählbar, aber nicht voreingestellt, weil ein angefangenes gegen ein volles Jahr die Unvollständigkeit misst statt der Entwicklung.') : null,
       sec('Schwierigkeit je Teilprüfung', [renderTable(diff.pivot), renderTable(diff.long)],
         'Wie streng oder leicht war eine Teilprüfung in einem Jahr? Durchfallquote und Ø Resultat des ersten Versuchs je WE1–WE6 und OE1–OE2, Jahr = Datum des ersten Versuchs. Hohe Durchfallquoten bei gleichbleibenden Kandidatinnen und Kandidaten deuten auf die Prüfung, nicht auf die Teilnehmenden.'),
       sec('Durchlaufzeit', [renderTable(through.byProfil), renderTable(through.byYear)],

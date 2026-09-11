@@ -135,6 +135,11 @@ Jahr davor und färbt sich erst ab 2 pp, darunter bleibt es neutral – sonst f�
 Schwellen unterscheiden sich bewusst: Der Jahresabstand ist ein Trendsignal (2 pp), der Benchmark-Abstand folgt der
 Regel, die dieselbe Zahl auf den Kacheln und in der Vergleichstabelle schon trägt (0.5 pp).
 
+**Im Druck** weichen Verlauf und «letztes Jahr»: Auf A4 blieben der Spur sonst 84 px, und ein Wilson-Balken von
+84 px sagt nichts – gemessen bleiben so 192 px. Die Jahreswerte stehen im Bank-Report in der Tabelle «Verlauf je
+Jahr» derselben Seite. Spur, Balken, Punkt und Marke tragen `print-color-adjust: exact`, sonst druckt der Browser
+die Flächen nicht und übrig bliebe eine Zahlenreihe ohne Bezug.
+
 **Mengen bleiben Kacheln** – ohne n-Zeile: Ihr Wert ist die Anzahl, und die Grundmenge der Auswahl daneben meinte
 etwas anderes als die Kachel («Personen 970 · n = 977» zählte Vorgänge). Eine Anzahl hat keine Spur von 0 bis 50 %, und eine erfundene wäre schlimmer als keine.
 Die vier Ø-Kennzahlen bleiben ebenfalls Kacheln, weil sie die Streuungszeile (σ, Median, Quartile) tragen.
@@ -513,12 +518,33 @@ der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
 aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
 
-**Punktdiagramm je Profil (Paket MESSZEILE):** In «Kennzahlen je Profil» steht über der Tabelle ein Punktdiagramm:
-je Profil ein Punkt auf der Quote «Schriftlich im 1. Versuch bestanden», dazu sein 95-%-Wilson-Intervall als Balken
-und eine senkrechte Linie auf dem Gesamtwert. **Berührt der Balken die Linie nicht, ist der Abstand gesichert** – das
+**Punktdiagramm je Gruppierung (Pakete MESSZEILE und H):** Über jeder Bestehensquoten-Tabelle steht ein
+Punktdiagramm: je Gruppe ein Punkt auf der **Durchfallquote im 1. Versuch** – dieselbe Wahl wie in der Übersicht,
+weil bei 96 % bestanden die Aussage in der Gegenzahl steckt –, dazu sein 95-%-Wilson-Intervall als Balken und eine
+senkrechte Linie auf dem Gesamtwert. Es steht in der Übersicht («Kennzahlen je Profil»), in «Schriftlich» dreimal
+(Profil, Sprache, Bank) und in «Mündlich» einmal (Profil). **Berührt der Balken die Linie nicht, ist der Abstand gesichert** – das
 ist die ganze Ablesung, ohne p-Wert; sie steht zusätzlich als Wort in der Direktbeschriftung («n = 302 · −8.9 pp ·
-gesichert»). Die achtspaltige Tabelle bleibt als Tabellen-Zwilling darunter und im Export. Kleine Gruppen (n < 5)
+gesichert»). Die Tabelle bleibt als Tabellen-Zwilling darunter und im Export; sie trägt Spalten, die das Diagramm nicht zeigt
+(insgesamt bestanden, offen, passiv, nicht erfasst), und ist deshalb nicht eingeklappt. Gemessen kostet ein Diagramm
+etwa so viel Höhe wie die Tabelle darunter, eine Zeile je Gruppe: «Schriftlich» wächst von 2939 auf 3573 px,
+«Mündlich» von 2378 auf 2622 px.
+
+**Gegenzahlen in den Tabellen:** «Im 1. Versuch bestanden» und «Im 1. Versuch durchgefallen» stehen dort weiterhin
+nebeneinander, obwohl sie zusammen 100 % ergeben. Auf der Übersicht ist dieses Paar entfernt worden, weil dort jede
+Zahl eine eigene Zeile mit Skala, Verlauf und zwei Differenzen kostete – fünf Felder für dieselbe Aussage. In der
+Tabelle sind es zwei Spalten derselben Zeile mit demselben Nenner daneben, und die Tabelle ist zugleich der Export:
+Wer sie weiterverarbeitet, soll die gesuchte Zahl lesen können, statt sie auszurechnen. Die Fussnote sagt, dass es
+Gegenzahlen sind, damit niemand sie für zwei Kennzahlen hält. Kleine Gruppen (n < 5)
 tragen einen hohlen Marker und «*», sie werden nicht weggelassen.
+
+**Das laufende Jahr (Paket H):** Ein angefangenes Jahr ist nicht mit einem abgeschlossenen vergleichbar – ihm fehlen
+Wiederholungen und Nachträge. Es wird deshalb überall gekennzeichnet, mit **einem** Zeichen: **Raute und
+gestrichelte Linie** im Liniendiagramm und in der Sparkline der Messzeile, Spalte **«Stand» = «läuft»** in den
+Jahrestabellen, und im Zwei-Jahres-Vergleich eine Warnung in der Fussnote, wenn ein laufendes Jahr gewählt ist.
+Der **hohle Marker** bleibt für «n < 5» reserviert: Form sagt, ob das Jahr fertig ist, Füllung sagt, ob die Gruppe
+gross genug ist – beides zusammen ist lesbar (hohle Raute). Vorgewählt sind im Vergleich die zwei jüngsten
+**abgeschlossenen** Jahre; das laufende bleibt wählbar. Gibt es weniger als zwei abgeschlossene Jahre, entfällt der
+Vergleich. Verschwiegen wird das laufende Jahr nirgends – ein fehlender Punkt wäre die andere Lüge.
 
 **Y-Achse der Liniendiagramme (Paket DIAGRAMME):** Die Achse folgt dem Wertebereich der Daten, nicht dem Nullpunkt: Beginn auf
 der nächsten 5-%-Stufe unter dem kleinsten Wert, mindestens 10 Prozentpunkte Spanne. Von null zu rechnen drängte

@@ -959,7 +959,35 @@ meinen, nennen deshalb den Namen; ein blosser Buchstabe meint immer Runde 1.
 | **KOPFBEREICH** | Kopfzeile, Steuerung, Gitter: Datenleiste aufgelöst, Filterleiste beim Scrollen geschrumpft, Navigation aus einer Deklaration, `.ranking-grid` nach Inhaltsbreite, Wertung und Benchmark in die Filterleiste | C (C1–C5) | #25 | `a1433e4` |
 | **SIGNALE** | Sechs Regeln über den vorhandenen Kennzahlen als reine Funktionen (`signals()`), Signalliste als erster Inhalt der Übersicht, Höhenbudget gemessen | D (D0–D2) | #26 | `af1d62e` |
 | **NAVIGATION** | Zwei Ebenen statt vierzehn gleichrangiger Ziele: neun Primärziele im Band (661 statt 1165 px), Geschwister als Reiter im Kopf der Ansicht, Reihenfolge in drei Blöcken, Überschrift nennt das Ziel | E | #27, #28, #30 | `dda749e` |
-| **MESSZEILE** | Messzeile als Grundbaustein (gemeinsame Skala, Wilson-Balken, Verlauf, Delta), Profil-Punktdiagramm, Einbau in die Übersicht | – (M0–M3) | offen | – |
+| **MESSZEILE** | Messzeile als Grundbaustein (gemeinsame Spur, Wilson-Balken, Verlauf, Delta), Profil-Punktdiagramm, Einbau in die Übersicht | – (M0–M3) | #31–#33, #36–#38 | `0abdca8` |
+| **H** | Das laufende Jahr im Zeitverlauf, Punktdiagramme in «Schriftlich»/«Mündlich», Messzeilen im Bank-Report, Deckungsprüfung | H (H1–H4, Runde 2 – nicht das Paket H aus Runde 1, das es dort nicht gibt) | offen | – |
+
+### Deckung der Bausteine je Ansicht (Paket H, H4, Stand 11.09.2026)
+
+Gemessen bei 1400 px mit der synthetischen Datei, nach H1–H3. «Baustein» heisst: Messzeile, Punktdiagramm, Linien-
+oder Balkendiagramm. Grundsatz: Eine Ansicht bekommt nur dann einen Baustein, wenn die Kennzahl dafür **bereits
+gerechnet wird** – und nur, wenn sie eine Frage beantwortet, die die Tabelle nicht schon beantwortet.
+
+| Ansicht | Bestand (Tabellen · Diagramme · Messzeilen · Kacheln · Höhe) | Entscheid |
+|---|---|---|
+| Übersicht | 3 · 1 Punkt · 5 · 13 · 1818 px | **versorgt.** Signale, Durchfallquoten als Messzeilen, Punktdiagramm je Profil, Mengen und Ø als Kacheln. |
+| Schriftlich | 8 · 1 Balken + 3 Punkt · 0 · 0 · 3573 px | **versorgt (H2)**, mit einer Lücke: «Je Teilprüfung WE1–WE6» ist eine Quote je Gruppe mit Nenner (`partFirstAttempt`) – derselbe Fall wie die drei neuen Diagramme. *Offen, nicht gebaut.* |
+| Mündlich | 6 · 1 Balken + 1 Punkt · 0 · 0 · 2622 px | **versorgt (H2).** «Je Teilprüfung OE1–OE2» sind zwei Gruppen – für zwei Punkte lohnt kein Diagramm, die Tabelle ist die richtige Form. Getrennt davon: Sprache und Bank fehlen hier als Gruppierung ganz (nur Profil), anders als in «Schriftlich». |
+| VSS/VSM | 1 · 0 · 0 · 0 · 757 px | **Baustein fehlt.** Drei Gruppen (VSS, VSM, ohne) mit Bestehensquote und Nenner (`vssVsmBreakdown`), die Frage ist «unterscheiden sie sich gesichert» – genau der Punktdiagramm-Fall. *Offen, nicht gebaut.* |
+| Zeitverlauf | 7 · 2 Linien · 0 · 0 · 3731 px | **versorgt (H1).** «Schwierigkeit je Teilprüfung» bleibt Tabelle: acht Reihen (WE1–WE6, OE1–OE2) bei drei Reihenfarben wären unlesbar. «Durchlaufzeit» bleibt Tabelle: Mediane in Tagen sind keine Anteile, und einen Baustein für Zeitspannen gibt es nicht – erfunden wird keiner. |
+| Bank-Report | 3 · 0 · 5 · 0 · 1966 px | **versorgt (H3).** Messzeilen mit Benchmarkmarke, druckfest. |
+| Offene Vorgänge | 4 · 0 · 0 · 5 · 1485 px | **Tabelle ist richtig.** Arbeitsliste ohne Quoten (0 Prozentzellen): Gezeigt wird, welche Vorgänge etwas brauchen, nicht wie viel Prozent. Der Anteil passiver Vorgänge steht als Signal auf der Übersicht. |
+| Geplante Prüfungen | 3 · 0 · 0 · 5 · 750 px | **Tabelle ist richtig.** Termine je Tag und Ort – Zeitpunkte, keine Anteile. |
+| Personen | 31 · 0 · 0 · 0 · 750 px | **Tabelle ist richtig.** Einzelfall: Der Weg einer Person durch die Zertifizierung. Eine Quote über einen Vorgang hat keinen Nenner; ein Baustein wäre hier erfunden. |
+| Bestenlisten | 4 · 0 · 0 · 0 · 1220 px | **Tabelle ist richtig.** Ränge tragen Scores, keine Anteile mit Nenner – ohne Nenner kein Wilson-Intervall, ohne Intervall kein Punktdiagramm. |
+| Experten | 14 · 0 · 0 · 6 · 756 px | **Baustein fehlt, der stärkste Fall.** Je Experte eine Durchfallquote mit Nenner (Einsätze) und ein Benchmark aller Experten (`expertStats`, `expertBenchmark`) – und hier werden Menschen verglichen, weshalb «gesichert oder nicht» die entscheidende Frage ist. Einheit «Einsätzen» trägt das Modell bereits. *Offen, nicht gebaut.* |
+| Historie | 0 · 0 · 0 · 4 · 853 px | **Tabelle ist richtig.** Stichtagsvergleich aus Snapshots; ohne geladenen Snapshot gibt es nichts zu zeigen. |
+| Datenqualität | 2 · 0 · 0 · 0 · 2510 px | **Tabelle ist richtig.** Das Log ist eine Fundstellenliste (Sheet, Zeile, Header, Rohwert, Grund) – kein Aggregat. |
+| Glossar | 2 · 0 · 0 · 0 · 6368 px | **Tabelle ist richtig.** Definitionen; ein Diagramm hätte nichts zu zeigen. |
+
+**Ergebnis:** 6 von 14 Ansichten tragen einen Baustein (vor Paket H: 1), 5 sind mit Begründung Tabellen-Ansichten,
+3 Lücken sind benannt und nicht gebaut: Experten, VSS/VSM und «Je Teilprüfung» in «Schriftlich». Alle drei sind
+derselbe Fall (Quote je Gruppe mit Nenner gegen eine Referenz) und brauchen keine neue Kennzahl.
 
 Ohne Paketnamen liefen zwei Unterhaltsarbeiten derselben Runde: `AGENTS.md` gegen Drift zu `CLAUDE.md` abgesichert
 (#23, `2701057`) und der Stand der Runde-1-Pakete in diesem Dokument nachgeführt (#29, `05ad32b`).

@@ -1,9 +1,10 @@
 // views/written.js – View 2 «Schriftlich»: Bestehensquoten und Ø Performance nach Profil, Sprache, Bank, Teilprüfung;
 // Verteilung der Resultate als Histogramm (PROMPT-2 Paket G, Stufe 4).
 
-import { passRateTable, performanceTable, partTable, histogramModel } from './tables.js';
+import { passRateTable, performanceTable, partTable, histogramModel, quotenPunkte, GROUP_LABELS } from './tables.js';
 import { renderTable, hinted, el, isPhone } from './common.js';
-import { renderBarChart } from './chart.js';
+
+import { renderBarChart, punktDiagramm } from './chart.js';
 import { formatPct, SMALL_N } from '../metrics.js';
 
 export const id = 'schriftlich';
@@ -37,6 +38,10 @@ export function histogramSection(ctx, kind, sec) {
 
 export function build(ctx) {
   const rates = KEYS.map((k) => passRateTable(ctx.persons, k));
+  // H2: Drei strukturgleiche Tabellen, die sich nur in der Gruppierung unterscheiden – genau der Fall für das
+  // Punktdiagramm: eine Quote je Gruppe mit Intervall gegen den Gesamtwert. Gezeigt wird die Durchfallquote im
+  // ersten Versuch, wie in der Übersicht. Die Tabelle bleibt darunter stehen und im Export.
+  const punkte = KEYS.map((k) => quotenPunkte(ctx.persons, k, { titel: 'Im 1. Versuch durchgefallen nach ' + GROUP_LABELS[k] }));
   const parts = partTable(ctx.persons, 'we');
   const perf = KEYS.map((k) => performanceTable(ctx.persons, k, 'written'));
   const hints = [];
@@ -44,7 +49,7 @@ export function build(ctx) {
   const hist = histogramSection(ctx, 'written', sec);
   return {
     nodes: [
-      sec('Bestehensquoten (Anteil Vorgänge)', rates.map((t) => renderTable(t)),
+      sec('Bestehensquoten (Anteil Vorgänge)', rates.flatMap((t, i) => [punktDiagramm(punkte[i]), renderTable(t)]).filter(Boolean),
         'Im 1. Versuch bestanden: alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden. Im 1. Versuch durchgefallen: mindestens eine Teilprüfung im ersten Versuch nicht bestanden (Nenner: Vorgänge mit absolviertem RUN1). Insgesamt bestanden: «WE All Passed» = yes, unabhängig von der Anzahl Versuche (Nenner: abgeschlossene Vorgänge, d. h. bestanden oder nicht bestanden). Offen = Gesamtergebnis leer, der Prozess läuft noch; nicht erfasst = Gesamtergebnis unlesbar (Data-Quality-Log).'),
       sec('Je Teilprüfung WE1–WE6', [renderTable(parts)], 'Anteile und Ø Resultat je Teilprüfung; n = Vorgänge mit absolviertem ersten Versuch der Teilprüfung.'),
       sec('Ø Resultat (erreichte Punkte in Prozent)', perf.map((t) => renderTable(t)),

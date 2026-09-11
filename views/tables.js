@@ -106,6 +106,28 @@ export function statusTone(text, label = '') {
 // Schriftlich
 // ---------------------------------------------------------------------------
 
+// Punkte für ein Punktdiagramm (Paket MESSZEILE M2, verallgemeinert in Paket H): eine Quote je Gruppe mit ihrem
+// 95-%-Wilson-Intervall, dazu der Gesamtwert als Bezugslinie. Dieselben Zahlen wie die Tabelle daneben – keine neue
+// Kennzahl. Sortiert nach Wert, damit die Reihenfolge selbst schon eine Aussage ist; kleine Gruppen bleiben drin
+// und tragen «*», sie werden nicht weggelassen.
+// Gezeigt wird die DURCHFALLQUOTE, nicht die Bestehensquote: dieselbe Wahl wie in der Übersicht – bei 96 %
+// bestanden steckt die Aussage in der Gegenzahl, und gefragt wird nach denen, die nicht bestanden haben.
+export function quotenPunkte(persons, key, { rates = writtenPassRates, wert = (r) => r.erstversuchFailed, titel = '' } = {}) {
+  const gesamt = wert(rates(persons));
+  return {
+    titel,
+    punkte: byGroup(persons, key, rates)
+      .filter((g) => isNum(wert(g.value).pct))
+      .map((g) => {
+        const r = wert(g.value);
+        const iv = wilsonInterval(r.count, r.n);
+        return { label: groupLabel(g.key), pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+      })
+      .sort((a, b) => b.pct - a.pct),
+    referenz: isNum(gesamt.pct) ? { pct: gesamt.pct, label: 'Gesamt' } : null,
+  };
+}
+
 export function passRateTable(persons, key) {
   const total = writtenPassRates(persons);
   const smallTotal = persons.length < SMALL_N;
@@ -123,7 +145,12 @@ export function passRateTable(persons, key) {
       col('gesamt', 'Insgesamt bestanden', 1), col('abgeschlossen', 'n (abgeschlossen)', 2), col('offen', 'Offen', 2), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)', 3), col('nichtErfasst', 'Nicht erfasst', 3),
     ],
     rows,
-    note: SMALL_NOTE + '; 1. Versuch: Nenner sind Vorgänge mit absolviertem RUN1; insgesamt bestanden: Nenner sind abgeschlossene Vorgänge (bestanden + nicht bestanden); offen = Gesamtergebnis leer (läuft noch), passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen und kein Termin; nicht erfasst = Gesamtergebnis unlesbar',
+    // «Im 1. Versuch bestanden» und «durchgefallen» sind Gegenzahlen. Auf der Übersicht ist das Paar entfernt worden
+    // (PR #32): Dort kostete jede Zahl eine eigene Zeile mit Skala, Verlauf und zwei Differenzen – fünf Felder für
+    // dieselbe Aussage. Hier stehen beide als Spalten DERSELBEN Zeile, mit demselben Nenner daneben; die Tabelle ist
+    // zugleich der Export, und wer sie weiterverarbeitet, soll die Zahl lesen können, die er braucht, statt sie
+    // auszurechnen. Der Grund steht in der Fussnote, damit niemand sie für zwei Kennzahlen hält.
+    note: SMALL_NOTE + '; 1. Versuch: Nenner sind Vorgänge mit absolviertem RUN1; «im 1. Versuch bestanden» und «durchgefallen» sind Gegenzahlen derselben Grundmenge (zusammen 100 %) – beide stehen da, damit die gesuchte Zahl nicht ausgerechnet werden muss; insgesamt bestanden: Nenner sind abgeschlossene Vorgänge (bestanden + nicht bestanden); offen = Gesamtergebnis leer (läuft noch), passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen und kein Termin; nicht erfasst = Gesamtergebnis unlesbar',
   };
 }
 
@@ -490,21 +517,8 @@ export function overviewModel(persons, allPersons = persons) {
     // A5: Zwei Prozessstufen, zwei Namen – die schriftliche Prüfung ist das Gate zur mündlichen
     note: SMALL_NOTE + '; schriftlich offen = Vorgänge ohne schriftliches Gesamtergebnis (frühere Stufe als die Kachel «Zertifizierung offen», die das Gesamtergebnis überhaupt meint), passiv = davon ohne Prüfung seit mehr als ' + PASSIVE_DAYS + ' Tagen und ohne Termin; Nenner der Quoten wie in den Kacheln',
   };
-  // M2: Punkte für das Profil-Diagramm – dieselben Zahlen wie die Spalte «Schriftlich im 1. Versuch bestanden»
-  // daneben, dazu ihr 95-%-Wilson-Intervall und der Gesamtwert als Bezugslinie. Keine neue Kennzahl.
-  // Sortiert nach Quote, damit die Reihenfolge selbst schon eine Aussage ist; kleine Gruppen bleiben drin und tragen «*».
-  const profilPunkte = {
-    titel: 'Schriftlich im 1. Versuch bestanden, je Profil',
-    punkte: o.byProfil
-      .filter((g) => isNum(g.value.written.erstversuch.pct))
-      .map((g) => {
-        const r = g.value.written.erstversuch;
-        const iv = wilsonInterval(r.count, r.n);
-        return { label: groupLabel(g.key), pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
-      })
-      .sort((a, b) => b.pct - a.pct),
-    referenz: isNum(o.written.erstversuch.pct) ? { pct: o.written.erstversuch.pct, label: 'Gesamt' } : null,
-  };
+  // Punkte für das Profil-Diagramm der Übersicht – derselbe Bauer wie in «Schriftlich» und «Mündlich» (Paket H)
+  const profilPunkte = quotenPunkte(persons, 'profil', { titel: 'Schriftlich im 1. Versuch durchgefallen, je Profil' });
   return { kpis, byProfil, multi, profilPunkte };
 }
 
@@ -812,6 +826,20 @@ export function profilePartsTable(persons) {
 // Zeit (P6): Zeitverlauf je Kennzahl (a1), Zeitraumvergleich (a6), Schwierigkeit je Teilprüfung (b6)
 // ---------------------------------------------------------------------------
 
+// Das laufende Jahr ist unfertig: Ihm fehlen Wiederholungen und Nachträge. Wer es wie ein volles Jahr liest, misst
+// die Unvollständigkeit, nicht die Entwicklung – derselbe Grund wie in der Messzeile (Paket MESSZEILE). Es wird
+// deshalb überall, wo ein Jahr steht, als «läuft» gekennzeichnet; das Jahr kommt als Parameter, damit Tests nicht
+// vom Datum des Laufs abhängen.
+export const LAUFEND_MARK = '(läuft)';
+export const laufendesJahr = () => new Date().getFullYear();
+// Für Titel und Auswahlfelder: «2026 (läuft)». NICHT für Tabellenzellen – dort bliebe die Jahresspalte sonst als
+// Text hängen und sortierte alphabetisch statt numerisch. In Tabellen steht der Stand in einer eigenen Spalte.
+export function jahrLabel(year, jetzt = laufendesJahr()) {
+  return year >= jetzt ? year + ' ' + LAUFEND_MARK : String(year);
+}
+export const jahrStand = (year, jetzt = laufendesJahr()) => (year >= jetzt ? 'läuft' : '');
+export const LAUFEND_NOTE = 'Ein Jahr mit «' + LAUFEND_MARK + '» läuft noch: Wiederholungen und Nachträge fehlen, seine Quoten sind mit abgeschlossenen Jahren nicht vergleichbar.';
+
 function seriesRow(label, r) {
   return {
     gruppe: mark(label, r.small), n: r.n, small: r.small, personen: r.personen,
@@ -828,34 +856,35 @@ const TIME_COLUMNS = [
 ];
 
 // persons: kennzahlrelevante Vorgänge ohne Zeitraumfilter
-export function timeSeriesTable(persons) {
-  const rows = timeSeries(persons).map((r) => seriesRow(String(r.year), r));
+export function timeSeriesTable(persons, jetzt = laufendesJahr()) {
+  const rows = timeSeries(persons).map((r) => ({ ...seriesRow(String(r.year), r), stand: jahrStand(r.year, jetzt) }));
   return {
     title: 'Kennzahlen je Jahr',
-    columns: [col('gruppe', 'Jahr', 1)].concat(TIME_COLUMNS),
+    columns: [col('gruppe', 'Jahr', 1), col('stand', 'Stand', 2)].concat(TIME_COLUMNS),
     rows,
-    note: SMALL_NOTE + '; Jahr = Jahr des Referenzdatums (bestandene mündliche Prüfung, sonst letzte Prüfung); Nenner wie in der Übersicht',
+    note: SMALL_NOTE + '; Jahr = Jahr des Referenzdatums (bestandene mündliche Prüfung, sonst letzte Prüfung); Nenner wie in der Übersicht. ' + LAUFEND_NOTE,
   };
 }
 
-export function timeSeriesByProfileTable(persons) {
+export function timeSeriesByProfileTable(persons, jetzt = laufendesJahr()) {
   const rows = [];
   for (const g of timeSeriesBy(persons, 'profil')) {
-    for (const r of g.series) rows.push({ profil: groupLabel(g.key), ...seriesRow(String(r.year), r) });
+    for (const r of g.series) rows.push({ profil: groupLabel(g.key), ...seriesRow(String(r.year), r), stand: jahrStand(r.year, jetzt) });
   }
   return {
     title: 'Kennzahlen je Profil und Jahr',
-    columns: [col('profil', 'Profil', 1), col('gruppe', 'Jahr', 1)].concat(TIME_COLUMNS),
+    columns: [col('profil', 'Profil', 1), col('gruppe', 'Jahr', 1), col('stand', 'Stand', 2)].concat(TIME_COLUMNS),
     rows,
-    note: SMALL_NOTE,
+    note: SMALL_NOTE + '. ' + LAUFEND_NOTE,
   };
 }
 
 // Reihen für das Liniendiagramm: [{ label, points: [{ x, y, n, small }] }]
 // Kein «short» mehr (Paket B, B2): Die Endbeschriftung trägt nur noch den Wert, den Reihennamen nennt die Legende.
-export function timeSeriesChartSeries(persons) {
+export function timeSeriesChartSeries(persons, jetzt = laufendesJahr()) {
   const ts = timeSeries(persons);
-  const pick = (label, fn) => ({ label, points: ts.map((r) => ({ x: String(r.year), y: fn(r), n: r.n, small: r.small })) });
+  // laufend: Das Diagramm kann das unvollständige Jahr nur kennzeichnen, wenn es im Modell steht
+  const pick = (label, fn) => ({ label, points: ts.map((r) => ({ x: String(r.year), y: fn(r), n: r.n, small: r.small, laufend: r.year >= jetzt })) });
   return {
     quoten: [
       pick('Schriftlich im 1. Versuch bestanden', (r) => r.written.erstversuch.pct),
@@ -870,22 +899,27 @@ export function timeSeriesChartSeries(persons) {
 }
 
 // Zwei Jahre vergleichen (a6): Kennzahlen des Jahres A gegen Jahr B, Differenz in Prozentpunkten
-export function yearComparisonTable(persons, yearA, yearB) {
+export function yearComparisonTable(persons, yearA, yearB, jetzt = laufendesJahr()) {
   const ofYear = (y) => persons.filter((p) => refYear(p) === y);
   const a = overviewModel(ofYear(yearA), persons);
   const b = overviewModel(ofYear(yearB), persons);
   const t = comparisonTable(a.kpis, b.kpis, String(yearB));
   t.title = 'Vergleich ' + yearA + ' gegenüber ' + yearB;
   t.columns = t.columns.map((c) => (c.key === 'auswahl' ? col('auswahl', String(yearA), c.prio) : c.key === 'n' ? col('n', 'n ' + yearA, c.prio) : c.key === 'n2' ? col('n2', 'n ' + yearB, c.prio) : c));
-  t.note = 'Differenz in Prozentpunkten (' + yearA + ' minus ' + yearB + '); Jahr = Jahr des Referenzdatums; ' + SMALL_NOTE;
+  const laufende = [yearA, yearB].filter((y) => y >= jetzt);
+  t.title = 'Vergleich ' + jahrLabel(yearA, jetzt) + ' gegenüber ' + jahrLabel(yearB, jetzt);
+  t.note = 'Differenz in Prozentpunkten (' + yearA + ' minus ' + yearB + '); Jahr = Jahr des Referenzdatums; ' + SMALL_NOTE
+    + (laufende.length ? '. ACHTUNG: ' + (laufende.length === 1 ? 'Das Jahr ' + laufende[0] + ' läuft noch' : 'Beide Jahre laufen noch') + ' – die Differenz misst dann auch die Unvollständigkeit, nicht nur die Entwicklung.' : '');
   return t;
 }
 
-// Standardwahl für den Vergleich: die zwei jüngsten Jahre mit Daten
-export function defaultCompareYears(persons) {
-  const years = yearsOf(persons);
-  if (years.length < 2) return years.length === 1 ? { a: years[0], b: years[0] } : null;
-  return { a: years[years.length - 1], b: years[years.length - 2] };
+// Standardwahl für den Vergleich: die zwei jüngsten ABGESCHLOSSENEN Jahre. Das laufende Jahr voreinzustellen hiesse,
+// ein angefangenes gegen ein volles zu rechnen – die Differenzspalte meldete dann die Unvollständigkeit als Einbruch.
+// Wählbar bleibt es; wer es wählt, liest es in der Fussnote. Weniger als zwei abgeschlossene Jahre → kein Vergleich.
+export function defaultCompareYears(persons, jetzt = laufendesJahr()) {
+  const fertig = yearsOf(persons).filter((y) => y < jetzt);
+  if (fertig.length < 2) return null;
+  return { a: fertig[fertig.length - 1], b: fertig[fertig.length - 2] };
 }
 
 // Schwierigkeit je Teilprüfung (b6): lange Tabelle und Pivot (Teil × Jahr, Durchfallquote im 1. Versuch)
@@ -1013,8 +1047,8 @@ export function throughputTables(persons) {
   };
   const byYear = {
     title: 'Durchlaufzeit je Jahr',
-    columns: columns('Jahr'),
-    rows: yearsOf(persons).map((y) => row(String(y), persons.filter((p) => refYear(p) === y))),
+    columns: [columns('Jahr')[0], col('stand', 'Stand', 2)].concat(columns('Jahr').slice(1)),
+    rows: yearsOf(persons).map((y) => ({ ...row(String(y), persons.filter((p) => refYear(p) === y)), stand: jahrStand(y) })),
     note,
   };
   return { byProfil, byYear };
@@ -1043,9 +1077,12 @@ export function bankReportTables(bankPersons, benchmarkPersons, bankLabel) {
     }),
     note: SMALL_NOTE + '; Benchmark = alle Banken mit denselben übrigen Filtern und demselben Zeitraum',
   };
+  // H3: Messzeilen für den Empfänger des Reports. Er kennt das Cockpit nicht – «79.2 %» kann er nur einordnen,
+  // wenn der Benchmark daneben steht. Dieselben Zeilen wie in der Übersicht, mit «alle Banken» als Referenzmarke.
+  const messzeilen = messzeilenEingaben(bankPersons, { benchmarkPersons, benchmarkLabel: 'Alle Banken' });
   const verlauf = timeSeriesTable(bankPersons);
   verlauf.title = 'Kennzahlen je Jahr: ' + bankLabel;
-  return { kpis, byProfil, verlauf };
+  return { kpis, byProfil, verlauf, messzeilen };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,8 +1,8 @@
 import { test, assert, assertEqual, assertClose } from './runner.js';
-import { MODE, personSearchIndex, expertRuns } from '../metrics.js';
+import { MODE, personSearchIndex, expertRuns, writtenPassRates, oralPassRates } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
-  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, messzeilenSkala, messzeilenEingaben, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
+  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, messzeilenSkala, messzeilenEingaben, quotenPunkte, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
@@ -274,6 +274,26 @@ test('tables.kennzahlenExportTable: Anzahl und Nenner je Art – Zahlen für die
   assertEqual(byLabel['Personen'].value, '4');
 });
 
+test('tables.quotenPunkte: eine Quote je Gruppe mit Intervall gegen den Gesamtwert – für jede Gruppierung', () => {
+  const ps = cohort();
+  const p = quotenPunkte(ps, 'profil', { titel: 'Probe' });
+  assertEqual(p.titel, 'Probe');
+  assert(p.punkte.length >= 2, 'je Gruppe ein Punkt');
+  assert(p.punkte.every((x) => typeof x.pct === 'number' && typeof x.n === 'number' && typeof x.low === 'number'), JSON.stringify(p.punkte[0]));
+  // Absteigend sortiert: die Reihenfolge ist selbst eine Aussage
+  assert(p.punkte.every((x, i) => i === 0 || p.punkte[i - 1].pct >= x.pct), 'sortiert');
+  // Referenz ist der Gesamtwert derselben Quote
+  assertEqual(p.referenz.pct, writtenPassRates(ps).erstversuchFailed.pct);
+  assertEqual(p.referenz.label, 'Gesamt');
+  // Andere Gruppierung, andere Punkte – gleiche Form
+  assert(quotenPunkte(ps, 'employerCanon', {}).punkte.length >= 1);
+  // Mündlich: andere Ratenfunktion, andere Quote
+  const o = quotenPunkte(ps, 'profil', { rates: oralPassRates, wert: (r) => r.failed1, titel: 'Mündlich' });
+  assertEqual(o.referenz.pct, oralPassRates(ps).failed1.pct);
+  // Kleine Gruppen bleiben drin und sind markiert
+  assert(p.punkte.some((x) => x.small === true) || p.punkte.every((x) => x.n >= 5));
+});
+
 test('tables.messzeilenSkala: die Spur endet auf der nächsten 5-%-Stufe über dem grössten Wert, mindestens 10 pp', () => {
   // Echte Lage: fünf Durchfallquoten zwischen 0.4 und 20.7 % – eine feste Spur bis 50 % verschenkte die halbe Breite
   assertEqual(messzeilenSkala([0.195, 0.007, 0.207, 0.035, 0.004]), { min: 0, max: 0.25 });
@@ -424,7 +444,7 @@ function yearCohort() {
 
 test('tables.timeSeriesTable / timeSeriesByProfileTable: Kennzahlen je Jahr des Referenzdatums', () => {
   const t = timeSeriesTable(yearCohort());
-  assertEqual(t.columns.map((c) => c.label), ['Jahr', 'n (Vorgänge)', 'Personen', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden', 'Ø schriftlich 1. Versuch', 'Ø schriftlich bestandener Run', 'Ø mündlich 1. Versuch', 'Ø mündlich bestandener Run', 'Offen', 'Passiv', 'Nicht erfasst']);
+  assertEqual(t.columns.map((c) => c.label), ['Jahr', 'Stand', 'n (Vorgänge)', 'Personen', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden', 'Ø schriftlich 1. Versuch', 'Ø schriftlich bestandener Run', 'Ø mündlich 1. Versuch', 'Ø mündlich bestandener Run', 'Offen', 'Passiv', 'Nicht erfasst']);
   assertEqual(t.rows.map((r) => [r.gruppe, r.n, r.gesamt, r.muendlich, r.offen]), [['2023 *', 2, '50.0 %', '100.0 %', 0], ['2024 *', 1, '100.0 %', '100.0 %', 0], ['2025 *', 2, '100.0 %', '100.0 %', 0]]);
   assertEqual([t.rows[2].wp1, t.rows[2].op1, t.rows[2].op2], ['70.0 %', '50.0 %', '60.0 %']);
   const byProfil = timeSeriesByProfileTable(yearCohort());
@@ -443,17 +463,46 @@ test('tables.timeSeriesChartSeries: Reihen für das Liniendiagramm mit n und Ken
 
 test('tables.yearComparisonTable / defaultCompareYears: zwei Jahre nebeneinander, Differenz in Prozentpunkten', () => {
   const ps = yearCohort();
-  assertEqual(defaultCompareYears(ps), { a: 2025, b: 2024 });
-  assertEqual(defaultCompareYears([ps[0]]), { a: 2023, b: 2023 });
-  assertEqual(defaultCompareYears([]), null);
-  const t = yearComparisonTable(ps, 2025, 2023);
+  const JETZT = 2026; // ausdrücklich, damit der Test nicht vom Datum des Laufs abhängt
+  assertEqual(defaultCompareYears(ps, JETZT), { a: 2025, b: 2024 });
+  // Das laufende Jahr ist nie voreingestellt: ein angefangenes gegen ein volles zu rechnen misst die Unvollständigkeit
+  assertEqual(defaultCompareYears(ps, 2025), { a: 2024, b: 2023 });
+  assertEqual(defaultCompareYears(ps, 2024), null, 'weniger als zwei abgeschlossene Jahre → kein Vergleich');
+  assertEqual(defaultCompareYears([ps[0]], JETZT), null, 'ein Jahr ist kein Vergleich');
+  assertEqual(defaultCompareYears([], JETZT), null);
+  const t = yearComparisonTable(ps, 2025, 2023, JETZT);
   assertEqual(t.title, 'Vergleich 2025 gegenüber 2023');
+  assert(!/ACHTUNG/.test(t.note), 'zwei abgeschlossene Jahre: kein Hinweis nötig');
+  // Wer das laufende Jahr wählt, darf es wählen – aber die Tabelle sagt es
+  const mitLaufendem = yearComparisonTable(ps, 2025, 2024, 2025);
+  assertEqual(mitLaufendem.title, 'Vergleich 2025 (läuft) gegenüber 2024');
+  assert(/ACHTUNG: Das Jahr 2025 läuft noch/.test(mitLaufendem.note), mitLaufendem.note);
   assertEqual(t.columns.map((c) => c.label), ['Kennzahl', '2025', 'n 2025', 'Benchmark: 2023', 'n 2023', 'Differenz', 'Einordnung']);
   const byLabel = Object.fromEntries(t.rows.map((r) => [r.kennzahl, r]));
   assertEqual([byLabel['Vorgänge'].auswahl, byLabel['Vorgänge'].benchmark], ['2', '2']);
   assertEqual(byLabel['Schriftlich: insgesamt bestanden'].differenz, '+50.0 pp');
   assertEqual(byLabel['Mündlich: im 1. Versuch durchgefallen'].differenz, '+50.0 pp');
   assert(t.note.includes('2025 minus 2023'));
+});
+
+test('tables: das laufende Jahr ist überall als «läuft» gekennzeichnet, Diagrammpunkte tragen es im Modell', () => {
+  const ps = yearCohort();
+  const JETZT = 2025;
+  // Die Marke für kleine Gruppen («*») hängt weiterhin hinten an – sie sagt etwas anderes und bleibt bestehen
+  // Der Stand steht in einer eigenen Spalte: In der Jahresspalte würde «2025 (läuft)» die Spalte zu Text machen,
+  // und sie sortierte alphabetisch statt numerisch.
+  const t = timeSeriesTable(ps, JETZT);
+  assert(t.columns.some((c) => c.key === 'stand' && c.label === 'Stand'), 'eigene Spalte «Stand»');
+  const stand = Object.fromEntries(t.rows.map((r) => [r.gruppe.replace(' *', ''), r.stand]));
+  assertEqual(stand['2025'], 'läuft');
+  assertEqual(stand['2024'], '', 'abgeschlossene Jahre bleiben leer');
+  assert(/läuft noch/.test(t.note), 'die Fussnote erklärt das Zeichen');
+  const jeProfil = timeSeriesByProfileTable(ps, JETZT).rows.filter((r) => r.gruppe.startsWith('2025'));
+  assert(jeProfil.length > 0 && jeProfil.every((r) => r.stand === 'läuft'), 'auch je Profil und Jahr');
+  // Das Diagramm kann nur kennzeichnen, was im Modell steht
+  const punkte = timeSeriesChartSeries(ps, JETZT).quoten[0].points;
+  assertEqual(punkte.filter((p) => p.laufend).map((p) => p.x), ['2025']);
+  assert(punkte.every((p) => typeof p.laufend === 'boolean'), 'jeder Punkt sagt, ob sein Jahr noch läuft');
 });
 
 test('tables.difficultyTables: lange Tabelle und Pivot Teil × Jahr (Durchfallquote 1. Versuch)', () => {

@@ -313,9 +313,10 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .mz-verlauf { width: 4rem; height: 1.25rem; }
 .mz-verlauf-linie { fill: none; stroke: var(--viz-tick); stroke-width: 1.5; }
 .mz-verlauf-ende { fill: var(--accent); }
-/* Laufendes Jahr: hohler Endpunkt – der Punkt steht, aber er ist noch nicht fertig (wie der hohle Marker für
-   kleine Gruppen in den Diagrammen). Der title der Sparkline sagt es in Worten. */
-.mz-verlauf-ende.laufend { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
+/* Laufendes Jahr: dieselbe Raute wie im Liniendiagramm (Paket H) – der hohle Marker bedeutet dort «n < 5», und
+   zwei Bedeutungen auf einem Zeichen waren der Befund. Der title der Sparkline sagt es zusätzlich in Worten. */
+.mz-verlauf-laufend { fill: var(--accent); }
+.mz-verlauf-linie-laufend { fill: none; stroke: var(--viz-tick); stroke-width: 1.5; stroke-dasharray: 3 2; }
 .mz-delta { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--fs-sm); white-space: nowrap; }
 .mz-delta.ton-pos { color: var(--delta-pos); }
 .mz-delta.ton-neg { color: var(--delta-neg); }
@@ -561,6 +562,15 @@ td.status-cell { white-space: nowrap; } /* Raster-Zellen mit Badge und Datum (Pa
 .table-wrap .all-columns { display: none; } /* Desktop zeigt alle Spalten; Paket B blendet Prio 2/3 per Breakpoint aus und zeigt den Schalter */
 @media print {
   td.pct { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* H3: Der Bank-Report wird gedruckt und weitergegeben. Ohne diese Zeile druckt der Browser die Flächen der
+     Messzeile nicht – Spur, Wilson-Balken, Punkt und Benchmarkmarke verschwänden, und übrig bliebe eine Zahlenreihe
+     ohne Bezug. Genau dafür steht die Zeile dort. */
+  .mz-spur, .mz-intervall, .mz-punkt, .mz-referenz, .mz-verlauf-ende { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Auf A4 bleiben für die Spur nur 84 px, wenn alle acht Felder mitdrucken – ein Wilson-Balken von 84 px sagt
+     nichts, und genau er ist der Grund für die Messzeile im Report. Verlauf und «letztes Jahr» weichen deshalb im
+     Druck; die Jahreswerte stehen in der Tabelle «Verlauf je Jahr» derselben Seite. Gemessen: Spur 84 → 244 px. */
+  .messzeilen { grid-template-columns: minmax(8rem, max-content) minmax(9rem, 1fr) 4.5rem max-content 5.5rem 6.5rem; }
+  .mz-verlauf-zelle, .mz-vorjahr { display: none !important; }
   .table-wrap table.data td:first-child, .table-wrap table.data th:first-child { position: static !important; }
   th { position: static !important; } /* Druck: kein klebender Kopf, jede Seite trägt ihre eigene Kopfzeile */
 }
@@ -627,6 +637,9 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .viz-tick { fill: var(--viz-tick); font-variant-numeric: tabular-nums; }
 .viz-label { fill: var(--text); }
 .viz-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+/* Paket H: Das Stück ins laufende Jahr ist gestrichelt, der Punkt dort eine Raute – beides sagt «noch nicht fertig».
+   Der hohle Marker bleibt für «n < 5» reserviert; zwei Bedeutungen auf einem Zeichen waren der Befund. */
+.viz-line-laufend { stroke-dasharray: 5 4; }
 .viz-ring { fill: var(--panel); }
 .viz-dot.small { fill: var(--panel); stroke-width: 2; }
 .viz-leader { stroke: var(--viz-grid); stroke-width: 1; }

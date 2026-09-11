@@ -169,6 +169,45 @@ try {
   check(bankTables.length >= 3 && bankTables.every((t) => /Testbank AG/.test(t)), 'Bank-Report mit Bank: ' + bankTables.length + ' Tabellen (' + bankTables.join(' | ') + ')');
   check(!(await page.textContent('#view')).includes('Muster Anna'), 'Bank-Report ohne Namen');
   check((await page.$$eval('#view thead th', (th) => th.map((x) => x.textContent))).includes('Einordnung') && (await page.locator('#view td.tone').count()) >= 5, 'Bank-Report: Spalte «Einordnung» mit Ton je Kennzahlzeile (' + (await page.locator('#view td.tone').count()) + ')');
+  // H3: Messzeilen für den Empfänger – er kennt das Cockpit nicht und braucht den Bezug neben der Zahl. Geprüft
+  // wird auch der Druck: Diese Ansicht wird gedruckt und weitergegeben, und ohne print-color-adjust verschwänden
+  // Spur, Balken, Punkt und Benchmarkmarke.
+  const report = await page.evaluate(() => {
+    const zeilen = [...document.querySelectorAll('#view .messzeile')];
+    return {
+      zeilen: zeilen.length,
+      marken: document.querySelectorAll('#view .messzeile .mz-referenz').length,
+      benchmark: [...document.querySelectorAll('#view .messzeile .mz-bench')].map((x) => x.textContent.trim()).filter(Boolean).length,
+      anzahl: [...document.querySelectorAll('#view .messzeile .mz-n')].map((x) => x.textContent.trim()),
+      kopf: (document.querySelector('#view .mz-kopf .mz-titel') || {}).textContent,
+      namen: /Muster|Anna/.test((document.querySelector('#view .messzeilen') || { textContent: '' }).textContent),
+    };
+  });
+  check(report.zeilen === 5 && report.marken === 5 && report.benchmark === 5 && !report.namen
+    && report.anzahl.every((t) => /^\d+ von \d+$/.test(t)) && report.kopf === 'Durchfallquoten',
+    'H3 Bank-Report: ' + report.zeilen + ' Messzeilen mit Benchmarkmarke und Abstand (' + report.anzahl.join(' | ') + '), ohne Namen');
+  await page.emulateMedia({ media: 'print' });
+  const druck = await page.evaluate(() => {
+    const sichtbar = (sel) => [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0).length;
+    const farbe = (sel) => { const e = document.querySelector(sel); return e ? getComputedStyle(e).printColorAdjust || getComputedStyle(e).webkitPrintColorAdjust : ''; };
+    return {
+      zeilen: sichtbar('#view .messzeile'), spur: sichtbar('#view .mz-spur'), marke: sichtbar('#view .mz-referenz'),
+      punkt: sichtbar('#view .mz-punkt'), intervall: sichtbar('#view .mz-intervall'),
+      adjust: [farbe('#view .mz-spur'), farbe('#view .mz-punkt'), farbe('#view .mz-referenz')],
+      // Verlauf und «letztes Jahr» weichen im Druck, damit die Spur breit genug bleibt (die Jahreswerte stehen in
+      // der Tabelle «Verlauf je Jahr» derselben Seite)
+      verlauf: sichtbar('#view .mz-verlauf-zelle'), vorjahr: sichtbar('#view .mz-vorjahr'),
+      benchmarkSpalte: sichtbar('#view .messzeile .mz-bench'),
+      spurBreite: Math.round((document.querySelector('#view .messzeile .mz-skala') || { getBoundingClientRect: () => ({ width: 0 }) }).getBoundingClientRect().width),
+      ueberlauf: Math.round(document.querySelector('#view .messzeilen').scrollWidth - document.querySelector('#view .messzeilen').clientWidth),
+    };
+  });
+  check(druck.zeilen === 5 && druck.spur === 5 && druck.marke === 5 && druck.punkt === 5 && druck.intervall >= 1
+    && druck.adjust.every((a) => a === 'exact') && druck.verlauf === 0 && druck.vorjahr === 0
+    && druck.benchmarkSpalte === 5 && druck.ueberlauf <= 0,
+    'H3 Bank-Report im Druck: Spur ' + druck.spurBreite + ' px mit Punkt, Intervall und Marke (Farbe ' + druck.adjust[0] + '), Verlauf und letztes Jahr weichen, kein Überlauf');
+  await page.screenshot({ path: join(outDir, 'print-bank-report.png'), fullPage: true });
+  await page.emulateMedia({ media: null });
   await shot(page, 'bank-report-mit-bank');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
@@ -327,6 +366,30 @@ try {
   check(spur.marken[0] === '0 %' && /^\d+(\.\d)? %$/.test(spur.marken[2]) && spur.maxPos >= 60
     && spur.anzahl.every((t) => /^\d+ von \d+$/.test(t)) && spur.kopf.includes('Anzahl'),
     'M3 Spur ' + spur.marken.join(' · ') + ', grösster Wert bei ' + spur.maxPos + ' % der Spur, Anzahl als Zähler von Grundgesamtheit (' + spur.anzahl.join(' | ') + ')');
+  // H1: Dasselbe Zeichen in beiden Darstellungen – die Sparkline der Messzeile trägt für das laufende Jahr eine
+  // Raute und ein gestricheltes Stück, genau wie das Liniendiagramm.
+  // Die synthetische Datei hat zu wenige Jahre für eine Sparkline; geprüft wird deshalb am Baustein selbst, mit
+  // einer Reihe, deren letztes Jahr noch läuft – und einer zweiten, die abgeschlossen endet.
+  const sparkline = await page.evaluate(async () => {
+    const mod = await import('/views/common.js');
+    const jahre = (bis) => [2022, 2023, 2024, bis].map((year, i) => ({ year, pct: 0.2 - i * 0.01, n: 40 }));
+    const bau = (bis) => {
+      const node = mod.messzeile(mod.messzeileModell({ label: 'Probe', count: 20, n: 100, jahre: jahre(bis), laufendesJahr: 2026, skala: { min: 0, max: 0.5 } }));
+      document.body.appendChild(node);
+      const out = {
+        rauten: node.querySelectorAll('polygon.mz-verlauf-laufend').length,
+        gestrichelt: node.querySelectorAll('.mz-verlauf-linie-laufend').length,
+        kreise: node.querySelectorAll('circle.mz-verlauf-ende').length,
+        titel: [...node.querySelectorAll('title')].some((t) => /unvollständig/.test(t.textContent)),
+      };
+      node.remove();
+      return out;
+    };
+    return { laufend: bau(2026), fertig: bau(2025) };
+  });
+  check(sparkline.laufend.rauten === 1 && sparkline.laufend.gestrichelt === 1 && sparkline.laufend.kreise === 0 && sparkline.laufend.titel
+    && sparkline.fertig.rauten === 0 && sparkline.fertig.gestrichelt === 0 && sparkline.fertig.kreise === 1 && !sparkline.fertig.titel,
+    'H1 Sparkline: laufendes Jahr als Raute mit gestricheltem Stück und Text, abgeschlossenes als gefüllter Punkt');
   check(spur.spurStart.length === 1,
     'M3 ein Nullpunkt für Achse und alle Zeilen (Spurbeginn bei ' + spur.spurStart.join('/') + ' px)');
   // Das Komplement der Erstversuchsquote steht nicht mehr auf der Übersicht – als Kennzahl bleibt es aber überall
@@ -483,6 +546,33 @@ try {
   check(stufen.kachel !== null && stufen.spalte === 'Schriftlich offen' && stufen.summe <= stufen.kachel && stufen.altNamen.length === 0 && /begriff=zertifizierung-offen/.test(stufen.glossar || ''),
     'A5 Übersicht: Kachel «Zertifizierung offen» = ' + stufen.kachel + ', Spalte «Schriftlich offen» Summe ' + stufen.summe + ' (frühere Stufe, also nicht grösser), kein «Offen» mehr, Kachel verlinkt ins Glossar');
 
+  // H2: Punktdiagramm je Gruppierung vor der Tabelle – in «Schriftlich» drei (Profil, Sprache, Bank), in «Mündlich»
+  // eines (Profil). Die Tabelle bleibt darunter stehen und im Export; die Zahl der Punkte entspricht ihren Zeilen
+  // ohne die Gesamtzeile.
+  for (const [ansicht, erwartet] of [['schriftlich', 3], ['muendlich', 1]]) {
+    await page.goto(server.url + '#' + ansicht);
+    await page.waitForSelector('#view table.data');
+    const h2 = await page.evaluate(() => {
+      const abschnitt = [...document.querySelectorAll('#view section.block, #view details.block')]
+        .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Bestehensquote'));
+      const figuren = [...abschnitt.querySelectorAll('figure.viz')].filter((f) => f.querySelector('.viz-dots'));
+      const tabellen = [...abschnitt.querySelectorAll('table.data')];
+      return {
+        diagramme: figuren.length,
+        tabellen: tabellen.length,
+        titel: figuren.map((f) => (f.querySelector('figcaption') || {}).textContent.split(' · ')[0]),
+        vorDerTabelle: figuren.every((f, i) => tabellen[i] && !!(f.compareDocumentPosition(tabellen[i]) & Node.DOCUMENT_POSITION_FOLLOWING)),
+        punkteZuZeilen: figuren.map((f, i) => f.querySelectorAll('.viz-dot').length + '/' + (tabellen[i] ? tabellen[i].querySelectorAll('tbody tr').length - 1 : -1)),
+        referenz: figuren.every((f) => f.querySelectorAll('.viz-ref').length === 1),
+      };
+    });
+    // Höchstens so viele Punkte wie Tabellenzeilen: Eine Gruppe ohne auswertbaren Wert (niemand angetreten) hat
+    // keinen Punkt – eine Position auf der Achse wäre dort eine Behauptung.
+    check(h2.diagramme === erwartet && h2.tabellen >= erwartet && h2.vorDerTabelle && h2.referenz
+      && h2.punkteZuZeilen.every((p) => Number(p.split('/')[0]) >= 1 && Number(p.split('/')[0]) <= Number(p.split('/')[1])),
+      'H2 ' + ansicht + ': ' + h2.diagramme + ' Punktdiagramm(e) vor der Tabelle (' + h2.titel.join(' | ') + '), Punkte zu Tabellenzeilen ' + h2.punkteZuZeilen.join(', '));
+  }
+
   // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
   // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
   for (const v of ['schriftlich', 'muendlich']) {
@@ -490,7 +580,9 @@ try {
     await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
     const bars = await page.evaluate(() => ({
       svg: document.querySelectorAll('#view svg.viz-bars').length, rects: document.querySelectorAll('#view svg.viz-bars rect.viz-bar').length,
-      legend: document.querySelectorAll('#view .viz-legend-item').length, twin: [...document.querySelectorAll('#view table caption')].some((c) => /Verteilung der Resultate/.test(c.textContent)),
+      // Legende des Histogramms, nicht die der Punktdiagramme daneben (seit H2 stehen mehrere Diagramme in der Ansicht)
+      legend: (() => { const f = (document.querySelector('#view svg.viz-bars') || {}).closest ? document.querySelector('#view svg.viz-bars').closest('figure') : null; return f ? f.querySelectorAll('.viz-legend-item').length : 0; })(),
+      twin: [...document.querySelectorAll('#view table caption')].some((c) => /Verteilung der Resultate/.test(c.textContent)),
       ticks: [...document.querySelectorAll('#view svg.viz-bars text.viz-tick')].map((t) => t.textContent),
     }));
     check(bars.svg === 1 && bars.rects >= 10 && bars.legend === 2 && bars.twin && bars.ticks.includes('90–100') && bars.ticks.some((t) => /%$/.test(t)), 'Ansicht ' + v + ': Histogramm der Resultate (' + bars.rects + ' Balken, 2 Reihen, Tabellen-Zwilling, Klassen bis 90–100)');
@@ -629,6 +721,40 @@ try {
   check((await page.locator('#filterbar .chip', { hasText: '2026' }).count()) === 1 && (await page.locator('#filterbar .summary-inactive').isHidden()), 'A1 Übersicht: zurück – der Jahresfilter wirkt wieder, Chip «2026» erscheint erneut');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
+  // Paket H (H1): Das laufende Jahr ist unvollständig und wird überall so gekennzeichnet – im Diagramm mit Raute und
+  // gestrichelter Linie (der hohle Marker bleibt «n < 5»), in den Tabellen mit der Spalte «Stand», im Vergleich als
+  // Warnung. Voreingestellt sind zwei abgeschlossene Jahre.
+  await page.goto(server.url + '#zeitverlauf');
+  await page.waitForSelector('#view table.data');
+  const laufend = await page.evaluate(() => {
+    const jahr = new Date().getFullYear();
+    const tabelle = [...document.querySelectorAll('#view table.data')].find((t) => (t.querySelector('caption') || {}).textContent.startsWith('Kennzahlen je Jahr'));
+    const kopf = [...tabelle.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+    const iStand = kopf.findIndex((t) => t.startsWith('Stand'));
+    const zeilen = [...tabelle.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent.trim()));
+    const figur = document.querySelector('#view .viz-svg');
+    const vergleich = [...document.querySelectorAll('#view section.block, #view details.block')]
+      .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Zwei Jahre vergleichen'));
+    const jahrWahl = vergleich ? [...vergleich.querySelectorAll('select')].map((sel) => sel.value) : [];
+    return {
+      jahr: String(jahr),
+      standSpalte: iStand >= 0,
+      laufendeZeilen: zeilen.filter((z) => z[iStand] === 'läuft').map((z) => z[0]),
+      abgeschlossen: zeilen.filter((z) => z[iStand] === '').length,
+      rauten: figur ? figur.querySelectorAll('polygon.viz-dot').length : -1,
+      gestrichelt: figur ? figur.querySelectorAll('.viz-line-laufend').length : -1,
+      legende: (document.querySelector('#view figcaption') || {}).textContent || '',
+      jahrWahl,
+      vergleichTitel: vergleich ? (vergleich.querySelector('table caption') || {}).textContent : '',
+    };
+  });
+  check(laufend.standSpalte && laufend.laufendeZeilen.length === 1 && laufend.laufendeZeilen[0].startsWith(laufend.jahr) && laufend.abgeschlossen >= 1,
+    'H1 Kennzahlen je Jahr: Spalte «Stand», ' + laufend.laufendeZeilen.join('/') + ' läuft, ' + laufend.abgeschlossen + ' abgeschlossene Jahre');
+  check(laufend.rauten >= 1 && laufend.gestrichelt >= 1 && /Raute und gestrichelte Linie/.test(laufend.legende) && /hohler Marker: n < 5/.test(laufend.legende),
+    'H1 Liniendiagramm: ' + laufend.rauten + ' Rauten und ' + laufend.gestrichelt + ' gestrichelte Stücke für das laufende Jahr, Legende nennt beide Zeichen');
+  check(laufend.jahrWahl.length === 2 && laufend.jahrWahl.every((y) => Number(y) < Number(laufend.jahr)) && !/ACHTUNG/.test(laufend.vergleichTitel),
+    'H1 Zwei Jahre vergleichen: voreingestellt ' + laufend.jahrWahl.join(' gegen ') + ' – beide abgeschlossen');
 
   // Paket C (C2): Die Filterleiste war das einzige klebende Element – 95 px, 11 % der Viewporthöhe, dauerhaft, für
   // Bedienelemente, die beim Lesen niemand anfasst. Gescrollt bleibt nur die Zusammenfassungszeile (Zähler und Chips);
