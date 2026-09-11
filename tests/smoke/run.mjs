@@ -546,6 +546,27 @@ try {
   check(stufen.kachel !== null && stufen.spalte === 'Schriftlich offen' && stufen.summe <= stufen.kachel && stufen.altNamen.length === 0 && /begriff=zertifizierung-offen/.test(stufen.glossar || ''),
     'A5 Übersicht: Kachel «Zertifizierung offen» = ' + stufen.kachel + ', Spalte «Schriftlich offen» Summe ' + stufen.summe + ' (frühere Stufe, also nicht grösser), kein «Offen» mehr, Kachel verlinkt ins Glossar');
 
+  // VSS/VSM (Lücke aus H4): drei Kennzeichnungen als Punkte gegen den Gesamtwert, in der Folge der Tabelle
+  await page.goto(server.url + '#vss-vsm');
+  await page.waitForSelector('#view table.data');
+  const vss = await page.evaluate(() => {
+    const svgEl = document.querySelector('#view .viz-dots');
+    if (!svgEl) return null;
+    const f = svgEl.closest('figure');
+    const tabelle = document.querySelector('#view table.data');
+    return {
+      punkte: [...f.querySelectorAll('text.viz-label')].map((t) => t.textContent).filter((t) => !/^n = /.test(t)).map((t) => t.replace(/ \*$/, '')),
+      referenz: f.querySelectorAll('.viz-ref').length,
+      gruppenInTabelle: [...new Set([...tabelle.querySelectorAll('tbody tr td:first-child')].map((td) => td.textContent.trim()))],
+      vorDerTabelle: !!(f.compareDocumentPosition(tabelle) & Node.DOCUMENT_POSITION_FOLLOWING),
+    };
+  });
+  // In der synthetischen Datei hat nur «ohne» einen auswertbaren Wert – eine Gruppe ohne Wert bekommt keinen Punkt
+  check(!!vss && vss.referenz === 1 && vss.vorDerTabelle && vss.punkte.length >= 1
+    && vss.punkte.every((p) => vss.gruppenInTabelle.includes(p))
+    && vss.punkte.join('|') === vss.gruppenInTabelle.filter((g) => vss.punkte.includes(g)).join('|'),
+    'VSS/VSM: Punktdiagramm vor der Tabelle (' + (vss ? vss.punkte.join(' · ') : '') + '), Folge wie die Tabelle, Linie auf dem Gesamtwert');
+
   // H2: Punktdiagramm je Gruppierung vor der Tabelle – in «Schriftlich» drei (Profil, Sprache, Bank), in «Mündlich»
   // eines (Profil). Die Tabelle bleibt darunter stehen und im Export; die Zahl der Punkte entspricht ihren Zeilen
   // ohne die Gesamtzeile.

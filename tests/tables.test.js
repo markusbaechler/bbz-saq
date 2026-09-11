@@ -2,7 +2,7 @@ import { test, assert, assertEqual, assertClose } from './runner.js';
 import { MODE, personSearchIndex, expertRuns, writtenPassRates, oralPassRates } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
-  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, messzeilenSkala, messzeilenEingaben, quotenPunkte, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
+  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, messzeilenSkala, messzeilenEingaben, quotenPunkte, vssVsmPunkte, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
@@ -104,6 +104,12 @@ test('tables.vssVsmTable: VSS / VSM / ohne, je Profil, mit beiden Quoten', () =>
     ['ohne', 'alle', 3], ['ohne', 'PK', 2], ['ohne', 'IK', 1],
   ]);
   assertEqual(t.rows[0].muendlich, '100.0 %');
+  // Punktdiagramm: dieselben Gruppen in derselben Folge; VSM ohne auswertbaren Wert bekommt keinen Punkt
+  const p = vssVsmPunkte(cohort());
+  assertEqual(p.punkte.map((x) => x.label), ['VSS', 'ohne'], 'Reihenfolge wie die Tabelle, VSM ohne Wert fällt weg');
+  assertEqual(p.referenz.pct, writtenPassRates(cohort()).erstversuchFailed.pct);
+  assert(p.punkte.every((x) => typeof x.low === 'number' && typeof x.high === 'number'), 'Wilson-Intervall je Punkt');
+  assert(p.punkte.every((x) => x.small === (x.n < 5)), 'kleine Gruppen markiert');
   assertEqual(t.rows[2].erstversuch, '–');
 });
 

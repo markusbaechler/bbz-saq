@@ -220,6 +220,27 @@ export function oralRateTable(persons, key) {
 // VSS / VSM
 // ---------------------------------------------------------------------------
 
+// Punkte für die drei Kennzeichnungen (Lücke aus H4): Durchfallquote im 1. Versuch je Gruppe mit Wilson-Intervall
+// gegen den Gesamtwert. Die Reihenfolge bleibt VSS · VSM · ohne wie in der Tabelle – drei feste Kategorien in ihrer
+// natürlichen Folge lesen sich besser als nach Wert sortiert, und die Tabelle darunter zeigt dieselbe Folge.
+// Zu beachten und im Hinweis gesagt: Die Gruppen überschneiden sich (ein Vorgang mit VSS UND VSM zählt in beiden),
+// sie sind also keine Aufteilung des Gesamtwerts. Keine neue Kennzahl.
+export function vssVsmPunkte(persons) {
+  const b = vssVsmBreakdown(persons);
+  const gesamt = writtenPassRates(persons).erstversuchFailed;
+  return {
+    titel: 'Schriftlich im 1. Versuch durchgefallen nach Kennzeichnung',
+    punkte: [['VSS', b.vss], ['VSM', b.vsm], ['ohne', b.ohne]]
+      .filter(([, block]) => isNum(block.written.erstversuchFailed.pct))
+      .map(([label, block]) => {
+        const r = block.written.erstversuchFailed;
+        const iv = wilsonInterval(r.count, r.n);
+        return { label, pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+      }),
+    referenz: isNum(gesamt.pct) ? { pct: gesamt.pct, label: 'Gesamt' } : null,
+  };
+}
+
 export function vssVsmTable(persons) {
   const b = vssVsmBreakdown(persons);
   const rows = [];

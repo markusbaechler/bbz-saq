@@ -522,7 +522,9 @@ aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und L
 Punktdiagramm: je Gruppe ein Punkt auf der **Durchfallquote im 1. Versuch** – dieselbe Wahl wie in der Übersicht,
 weil bei 96 % bestanden die Aussage in der Gegenzahl steckt –, dazu sein 95-%-Wilson-Intervall als Balken und eine
 senkrechte Linie auf dem Gesamtwert. Es steht in der Übersicht («Kennzahlen je Profil»), in «Schriftlich» dreimal
-(Profil, Sprache, Bank), in «Mündlich» einmal (Profil) und in «Experten» je Experte.
+(Profil, Sprache, Bank), in «Mündlich» einmal (Profil), in «Experten» je Experte und in «VSS/VSM» je Kennzeichnung.
+Bei VSS/VSM überschneiden sich die Gruppen: Ein Vorgang mit VSS **und** VSM zählt in beiden, die drei Punkte teilen
+den Gesamtwert also nicht auf – der Hinweis über der Ansicht sagt es.
 
 **In «Experten» gilt eine Besonderheit:** Dort werden Menschen verglichen, deshalb steht das Diagramm in der
 Reihenfolge der Tabelle (Einsätze absteigend) und **nicht nach Quote sortiert** – nach Quote sortiert wäre das Bild
