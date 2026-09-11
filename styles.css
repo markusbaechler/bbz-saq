@@ -277,7 +277,7 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
   /* Die Beschriftungsspalte trägt die längste Kennzahl einzeilig: max-content statt eines festen Masses. Ein festes
      Mass hielt lokal (260 px für «Schriftlich: im 1. Versuch durchgefallen»), brach aber in der breiteren
      CI-Schrift um – sechs umbrechende Zeilen kosteten 84 px Höhe und damit das Höhenbudget der Übersicht. */
-  grid-template-columns: minmax(8rem, max-content) minmax(6rem, 1fr) 4.5rem 3.5rem 4rem 6rem 5.5rem 6.5rem;
+  grid-template-columns: minmax(8rem, max-content) minmax(6rem, 1fr) 4.5rem max-content 4rem 6rem 5.5rem 6.5rem;
 }
 .mz-kopf { color: var(--muted); font-size: var(--fs-xs); padding-bottom: var(--space-1); }
 .mz-kopf-hinweis { grid-column: 3 / -1; }
@@ -292,7 +292,9 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .mz-referenz { position: absolute; top: 10%; height: 80%; width: 2px; background: var(--viz-axis); }
 .mz-punkt { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--accent); }
 .mz-punkt.am-anschlag { border-radius: 2px 50% 50% 2px; margin-left: 0; }
+.mz-n { white-space: nowrap; }
 .mz-anschlag { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); padding: 0 .2rem; background: var(--panel); font-size: var(--fs-xs); color: var(--muted); }
+.mz-anschlag.oben { left: auto; right: 14px; }
 .mz-achse { height: 1rem; }
 .mz-marke { position: absolute; bottom: 0; transform: translateX(-50%); font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
 .mz-marke:first-child { transform: none; }

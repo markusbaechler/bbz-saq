@@ -305,15 +305,25 @@ try {
       quotenKacheln: [...document.querySelectorAll('#view .kpi .kpi-label')].filter((l) => /^(Schriftlich|Mündlich): (im 1\. Versuch|insgesamt|bestanden|2×)/.test(l.textContent)).length,
     };
   });
-  check(bloecke.h3.join(',') === 'Bestehensquoten,Mengen,Ø Resultat' && bloecke.quoten.length === 3 && bloecke.spuren === 1 && bloecke.skalenkopf === 'Bestehensquoten'
+  check(bloecke.h3.join(',') === 'Durchfallquoten,Mengen,Ø Resultat' && bloecke.quoten.length === 5 && bloecke.spuren === 1 && bloecke.skalenkopf === 'Durchfallquoten'
     && bloecke.quotenKacheln === 0 && bloecke.oKacheln === 4,
     'M3 Übersicht: ' + bloecke.quoten.length + ' Quoten als Messzeilen auf einer Spur («' + bloecke.skalenkopf + '»), Kacheln nur noch in ' + bloecke.h3.join(' · ') + ' (' + bloecke.oKacheln + ' Ø-Kacheln mit Streuung)');
-  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch bestanden | Schriftlich: insgesamt bestanden | Mündlich: bestanden',
+  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch durchgefallen | Schriftlich: insgesamt nicht bestanden | Mündlich: im 1. Versuch durchgefallen | Mündlich: 2× durchgefallen | Mündlich: nicht bestanden',
     'M3 Reihenfolge und Benennung der Messzeilen: ' + bloecke.quoten.join(' | '));
+  // Die Spur läuft von 0 bis 50 %, und jede Zeile nennt Zähler und Grundgesamtheit («191 von 977»)
+  const spur = await page.evaluate(() => ({
+    marken: [...document.querySelectorAll('#view .mz-achse .mz-marke')].map((m) => m.textContent),
+    anzahl: [...document.querySelectorAll('#view .messzeile .mz-n')].map((x) => x.textContent.trim()),
+    kopf: [...document.querySelectorAll('#view .mz-kopf > *')].map((x) => x.textContent.trim()),
+  }));
+  check(spur.marken.join(' ') === '0 % 25 % 50 %' && spur.anzahl.every((t) => /^\d+ von \d+$/.test(t)) && spur.kopf.includes('Anzahl'),
+    'M3 Spur 0–50 % (' + spur.marken.join(' · ') + '), Anzahl als Zähler von Grundgesamtheit (' + spur.anzahl.join(' | ') + ')');
   // Das Komplement der Erstversuchsquote steht nicht mehr auf der Übersicht – als Kennzahl bleibt es aber überall
   // dort, wo es hingehört: in der Vergleichstabelle, im Export und in der Ansicht «Schriftlich».
   const durchfall = await page.evaluate(() => {
-    const namen = ['Schriftlich: im 1. Versuch durchgefallen', 'Mündlich: im 1. Versuch durchgefallen', 'Mündlich: 2× durchgefallen'];
+    // Die Bestehensquoten sind die Gegenzahl der Messzeilen; auf der Übersicht stehen sie nicht mehr, in der
+    // Vergleichstabelle und im Export bleiben sie vollständig.
+    const namen = ['Schriftlich: im 1. Versuch bestanden', 'Schriftlich: insgesamt bestanden', 'Mündlich: bestanden'];
     const kacheln = [...document.querySelectorAll('#view .kpi .kpi-label')].map((l) => l.textContent.trim());
     const zeilen = [...document.querySelectorAll('#view .mz-label')].map((l) => l.textContent.trim());
     const tabelle = [...document.querySelectorAll('#view table.data td')].map((td) => td.textContent.trim());
@@ -324,7 +334,7 @@ try {
     };
   });
   check(durchfall.alsKachel === 0 && durchfall.alsMesszeile === 0 && durchfall.inVergleichstabelle === 3,
-    'Durchfallquoten: nicht als Zeile und nicht als Kachel der Übersicht, aber alle drei in der Vergleichstabelle (und im Export)');
+    'Bestehensquoten: nicht als Zeile und nicht als Kachel der Übersicht (sie sind die Gegenzahl), aber alle drei in der Vergleichstabelle (und im Export)');
   check((await page.locator('#view .kpi-hint').count()) === 0 && (await page.locator('#view .kpi .info').count()) >= 10 && (await page.locator('#view .kpi-label a[href*="begriff="]').count()) >= 10, 'Kacheln ohne Definitionsabsatz, mit ⓘ und Glossar-Link');
   check((await page.locator('#view td.pct[style*="--v"]').count()) >= 4, 'Datenbalken in Prozentspalten (Kennzahlen je Profil)');
   // Streuung (PROMPT-2 Paket G, G.3): Zweitzeile «σ … · Median … (P25 … · P75 …)» auf den vier Ø-Kacheln (Kurzform nur auf Phone);
