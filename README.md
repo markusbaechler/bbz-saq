@@ -16,6 +16,9 @@ ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikat
 - Spike Schreibpfad (Paket E): Bericht `docs/SPIKE-mutation.md`; die lokale Testseite `spike/mutation.html` wurde mit Paket F entfernt (07.09.2026), der Ablauf ist durch `datasource/workbookAdapter.js` und die Tests mit Graph-Mock abgedeckt
 - Snapshot der synthetischen Testdatei als Regressionsschutz bei Umbauten ohne fachliche Änderung: `node tools/snapshot-synth.js basis.json`, später `node tools/snapshot-synth.js --vergleich basis.json` (identisch = keine Zahl hat sich geändert)
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
+- Auftragsdokumente: `PROMPT.md` (Phase 1), `PROMPT-2.md` (Ausbau). **Ein Paket mit Buchstaben** (A–G) stammt aus
+  `PROMPT-2.md`, **ein Paket mit Namen** (BEFUNDE, DIAGRAMME, KOPFBEREICH, SIGNALE, NAVIGATION, MESSZEILE) aus der
+  zweiten Runde ab dem 10.09.2026; die Namen stehen dort im Abschnitt «Runde 2 – benannte Pakete»
 
 **Anmeldung (Betrieb):** MSAL (Popup, auf dem Phone Redirect) mit der App-URL als Redirect-URI. Entra schreibt die Antwort als
 `#code=…&state=…` in diese URL; die App liest den Hash nie selbst und überschreibt ihn nicht (`isAuthResponseHash()` in `urlState.js`):
@@ -26,7 +29,7 @@ die Ausgangs-URL (`navigateToLoginRequestUrl: false`). Hotfix vom 07.09.2026, Fe
 
 ## Ansichten
 
-Die Navigation hat **zwei Ebenen** (Paket E). Das Band trägt **neun Primärziele** in drei Blöcken: erst die
+Die Navigation hat **zwei Ebenen** (Paket NAVIGATION). Das Band trägt **neun Primärziele** in drei Blöcken: erst die
 anonymen Auswertungen Übersicht · **Prüfungen** · Zeitverlauf · Bank-Report, dann die Ansichten mit Namen
 (bbz-intern) **Vorgänge** · Personen · Bestenlisten · Experten, zuletzt **Daten**. Drei davon fassen
 Geschwister zusammen, die dieselbe Frage in Teilen beantworten – Prüfungen (Schriftlich, Mündlich, VSS/VSM),
@@ -45,13 +48,13 @@ ihre 1500-px-Schwelle sind ersatzlos entfallen. Alle drei Erscheinungsformen –
 Phone (weiterhin alle vierzehn Ansichten, gefasste Ziele als `optgroup`) – entstehen aus **einer Deklaration**
 (`NAV_PRIMAER` in `app.js` und der `group`-Export je Ansicht: der Name des Primärziels oder `null` für ein eigenes
 Ziel). Eine Umgruppierung bleibt damit eine Datenänderung. Die frühere Sekundärnavigation im Kopf ist
-entfallen (Paket C). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
+entfallen (Paket KOPFBEREICH). Jede Ansicht beginnt mit Titel und einem Satz Kurzbeschreibung; rechts stehen das
 Menü «Export» und der Link «Definitionen», der die passende Zeile im Glossar fokussiert. Erklärungen und Fussnoten der
 Tabellen stehen gesammelt in der Legende «Hinweise und Definitionen» am Ende jeder Ansicht (im Druck geöffnet) und als ⓘ
 am jeweiligen Titel. Der Datenstand (Datei, Änderungs- und Ladezeit, Zeilen, Data-Quality-Fehler) steht als Einzeiler in
 der Kopfzeile und lässt sich zu allen Zählern aufklappen.
 
-**Spaltenpriorität und Ranglisten-Raster (Paket C):** Eine Spalte wird ausgeblendet, wenn **das Fenster oder die
+**Spaltenpriorität und Ranglisten-Raster (Paket KOPFBEREICH):** Eine Spalte wird ausgeblendet, wenn **das Fenster oder die
 Tabelle** zu schmal ist. Prio 3 hing nur am Viewport – deshalb zeigte eine 429 px breite Rasterzelle bei 1400 px
 Fensterbreite alle Prio-3-Spalten. Dazu kommt jetzt eine Container-Abfrage auf `.table-wrap`; ihre Grenzen bilden die
 bisherigen Viewport-Grenzen ab (Viewport 1199 px entspricht Container 1117 px, 1899 px entspricht 1817 px), sodass
@@ -66,7 +69,7 @@ gab: 1280 px → 2 Spalten à 591 px (28 % abgeschnitten), 1400 px → 3 à 429 
 Jetzt steht lieber eine ganze Liste als zwei halb abgeschnittene; gemessen wird bei 1280–1920 px nichts mehr
 abgeschnitten.
 
-**Klebender Kopfbereich und Tabellenkopf (Paket C):** Beim Scrollen schrumpft die Filterleiste auf ihre
+**Klebender Kopfbereich und Tabellenkopf (Paket KOPFBEREICH):** Beim Scrollen schrumpft die Filterleiste auf ihre
 Zusammenfassungszeile – **99 auf 29 px**. Zähler und Chips bleiben stehen, weil sie der Qualifier jeder Zahl auf dem
 Schirm sind; die Steuerelemente verschwinden, weil man sie beim Lesen nicht bedient. Der Weg zurück ist das Scrollen
 nach oben, für Maus und Tastatur gleich. Darunter klebt der **Tabellenkopf** auf `--sticky-top`, das aus der
@@ -74,7 +77,7 @@ tatsächlichen Leistenhöhe kommt (`ResizeObserver`), damit es in jeder Breite u
 
 Möglich ist das nur, weil `.table-wrap` **nur noch dort ein Scroll-Container ist, wo die Tabelle wirklich horizontal
 überläuft** (Klasse `scrolls-x`, in `app.js` gemessen). Ein Scroll-Container im Vorfahren verhindert seitenweites
-Kleben – gemessen in Paket B (B6) und dort belegt. Die Zahlen dahinter: bei 1400 px laufen 3 von 60 Tabellen
+Kleben – gemessen in Paket DIAGRAMME (B6) und dort belegt. Die Zahlen dahinter: bei 1400 px laufen 3 von 60 Tabellen
 horizontal über, und **keine** der 7 Tabellen über 500 px Höhe gehört dazu; die langen Tabellen brauchen den
 Scroll-Container also gar nicht. In den drei breiten Tabellen bleibt der Kopf ungeklebt, dafür bleibt dort die erste
 Spalte beim horizontalen Scrollen stehen. Auf dem Phone schrumpft nichts: Dort klebt die Leiste ohnehin nicht.
@@ -84,7 +87,7 @@ Ladezeit) und dem **nicht schrumpfenden Fehlerzähler**. Vorher wurde am Ende ge
 Fehler» verdeckt – bei 1280 px 26 % des Einzeilers. Unter 1500 px entfällt zuerst die Ladezeit, unter 1200 px das
 Änderungsdatum; der Zähler bleibt in jeder Breite vollständig stehen.
 
-**Kopfbereich (Paket C):** Über dem Inhalt stehen zwei Bänder plus Navigation – Kopfzeile (Marke, Datenstand, Konto) und
+**Kopfbereich (Paket KOPFBEREICH):** Über dem Inhalt stehen zwei Bänder plus Navigation – Kopfzeile (Marke, Datenstand, Konto) und
 Filterleiste. Die **Datenleiste erscheint nur im Leerzustand**: Sie trägt zwei Aktionen, keine Dauerinformation, und die
 Leerzustandskarte bietet dieselben zwei Aktionen ohnehin. Mit geladenen Daten fällt sie weg; «Neu laden» und «Lokale
 Datei» liegen im aufgeklappten Datenstand. Gemessen bei 1400 × 900: **293 px statisches Chrome auf 170 px**, der erste
@@ -112,17 +115,32 @@ Jede Kennzahl-Ansicht bietet im Menü «Export» CSV (alle Tabellen in einer Dat
 eine Druckansicht. Zusätzlich exportiert jede Kennzahl-Ansicht die Vorgangsebene (eine Zeile je Vorgang, eine Zeile je
 Run, mit Namen, nur intern). Der Filterzustand steht im Kopf jedes Exports.
 
-**Darstellung:** Die Kacheln der Übersicht stehen in den Blöcken Mengen, Schriftlich und Mündlich. Auf jeder Kachel steht
-der **Wert zuoberst**, darunter die Beschriftung, darunter n und zuletzt die Differenz zum Benchmark (Paket A): So liegen die
+**Messzeile statt Kachel für Quoten (Paket MESSZEILE):** Die sechs Quoten der Übersicht stehen als **Messzeilen auf
+einer gemeinsamen Skala von 50 bis 100 %** – erst dadurch sind sie untereinander vergleichbar; zwei Kacheln sind es
+nicht. Je Zeile: Beschriftung · Skala · Wert · n · Verlauf · Wert letztes Jahr · Delta. Auf der Skala liegen das
+**95-%-Wilson-Intervall** als Balken, der Wert als Punkt und, bei aktivem Benchmark, dessen Marke (Abstand in pp im
+`title` und im Text für Screenreader). Werte unter 50 % stehen am linken Anschlag und sagen es; abgeschnitten wird
+nichts. Der Verlauf ist eine Sparkline über die Jahre mit n ≥ 5 (unter drei Jahren keine); das Delta gilt gegen das
+Jahr davor und färbt sich erst ab 2 pp, darunter bleibt es neutral – sonst färbt sich Rauschen ein.
+
+**Mengen bleiben Kacheln.** Eine Anzahl hat keine Skala von 50 bis 100 %, und eine erfundene wäre schlimmer als keine.
+Die vier Ø-Kennzahlen bleiben ebenfalls Kacheln, weil sie die Streuungszeile (σ, Median, Quartile) tragen.
+Reihenfolge der Übersicht: Signale · Quoten · Mengen · Ø Resultat · Kennzahlen je Profil.
+
+**Höhenbudget, gemessen bei 1400 × 900 mit sechs Signalen:** Die letzte Messzeile endet bei y = 820, die erste
+Mengen-Kachel beginnt bei y = 875 – beides über der Falz. Vorher endete die letzte Quoten-Kachel bei y = 1119.
+
+**Darstellung:** Die Kacheln der Übersicht stehen in den Blöcken Mengen und Ø Resultat. Auf jeder Kachel steht
+der **Wert zuoberst**, darunter die Beschriftung, darunter n und zuletzt die Differenz zum Benchmark (Paket BEFUNDE): So liegen die
 Werte einer Reihe unabhängig vom Umbruch der Beschriftung auf einer Linie. Die Beschriftung hält zwei Zeilen frei, damit auch
 n und Differenz auf einer Linie liegen – der Preis ist eine Zeilenhöhe bei den wenigen einzeiligen Beschriftungen. Die
-Definition steckt im ⓘ, das Label verlinkt auf das Glossar. Bei aktivem Benchmark zeigt jede Quoten-Kachel die Differenz mit Symbol,
+Definition steckt im ⓘ, das Label verlinkt auf das Glossar. Bei aktivem Benchmark zeigt jede Ø-Kachel die Differenz mit Symbol,
 Vorzeichen und Farbe nach Richtung der Kennzahl (▲ +2.1 pp; höher ist besser bei Bestehensquoten und Ø Resultat, tiefer
 ist besser bei Durchfallquoten und passiven Vorgängen; unter 0.5 pp neutral ●). In Tabellen tragen Prozentspalten einen
 Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die erste Spalte bleibt beim horizontalen
 Scrollen stehen. Der **Tabellenkopf ist nicht fixiert**: Er war es dem CSS nach, wirkte aber nie – der nächste
-Scroll-Container ist `.table-wrap`, und der scrollt nur horizontal. Die Regel ist in Paket B entfernt statt repariert;
-ein fixierter Kopf ergibt erst Sinn, wenn feststeht, wie viel Kopfbereich über ihm klebt (Paket C, Filterleiste). Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
+Scroll-Container ist `.table-wrap`, und der scrollt nur horizontal. Die Regel ist in Paket DIAGRAMME entfernt statt repariert;
+ein fixierter Kopf ergibt erst Sinn, wenn feststeht, wie viel Kopfbereich über ihm klebt (Paket KOPFBEREICH, Filterleiste). Farbe trägt nie allein Bedeutung. Jede Spalte hat eine Priorität (1 = immer, 2 = ab Tablet, 3 = ab
 1200 px) für schmale Bildschirme; unter 1200 px blendet «Alle Spalten» die Prio-3-Spalten ein; breite Tabellen (Experten, Ø-Tabellen mit Streuung) zeigen Prio 3
 erst ab 1900 px (Full HD). Kopfzellen brechen um, Zahlen nicht (Paket F).
 
@@ -157,7 +175,7 @@ bei Filteränderungen nur aktualisiert, nicht neu aufgebaut; der Tastaturfokus b
 Die Wertung (Resultat 1. Versuch | Resultat bestandener Run) wird nur in der Ansicht «Bestenlisten» gewählt; alle anderen
 Ansichten zeigen beide Wertungen nebeneinander. In der Ansicht «Geplante Prüfungen» wirkt der Zeitraum nicht.
 
-**Wertung und Benchmark in der Filterleiste (Paket C):** Beide schrieben schon immer **globalen, in der URL
+**Wertung und Benchmark in der Filterleiste (Paket KOPFBEREICH):** Beide schrieben schon immer **globalen, in der URL
 serialisierten Zustand** – «Wertung» in `filter.mode`, «Benchmark» in `ui.benchmark` –, standen aber in
 Werkzeugleisten einzelner Ansichten. Wer die Wertung in den Bestenlisten umstellte, änderte sie damit auch für die
 Übersicht, ohne dass es dort sichtbar war. Sie stehen jetzt in der Filterleiste, mit derselben Abschaltlogik wie die
@@ -166,7 +184,7 @@ Ansichten gelten: «Wertung» auf «Bestenlisten», «Benchmark» auf «Übersic
 Ansichts-Werkzeugleisten sind entfallen; in der Übersicht bleibt stehen, was der Benchmark bewirkt (seine Grösse).
 
 Damit trägt die Leiste elf statt neun Steuerelemente. Gemessen passt sie bei 1400 px in **eine Zeile** (97 px,
-statisches Chrome 172 px, erster Zahlenwert bei y = 343) und seit Paket D auch bei **1280 px** (101 px, Chrome 176 px
+statisches Chrome 172 px, erster Zahlenwert bei y = 343) und seit Paket SIGNALE auch bei **1280 px** (101 px, Chrome 176 px
 statt 225). Möglich wurde das durch Entdopplung der Optionstexte: Das Substantiv steht in der Feldbeschriftung, der
 Wert in der Option – «VSS/VSM: Ohne» statt «VSS/VSM: Ohne VSS/VSM». Die **Chips** behalten die ausgeschriebene Form,
 weil sie ohne Feldbeschriftung stehen.
@@ -174,7 +192,7 @@ Die Beschriftung des Zertifikat-Filters ist dafür auf «Zertifikate» gekürzt 
 188 von 1384 px die längste und entschied allein darüber, ob die Reihe umbricht. Jedes Steuerelement trägt ein
 `data-field`, weil sich «Bank» und «Benchmark» über den Beschriftungstext nicht unterscheiden lassen.
 
-**Wirksamkeit der Filterleiste je Ansicht (Paket A):** Nicht jede Ansicht wertet jedes Steuerelement aus. Statt das im
+**Wirksamkeit der Filterleiste je Ansicht (Paket BEFUNDE):** Nicht jede Ansicht wertet jedes Steuerelement aus. Statt das im
 Text zu erklären, schaltet die Leiste ab, was hier nichts tut: Das Feld ist `disabled`, gestrichelt umrandet und gedämpft,
 der Grund steht als Tooltip darauf. Jede Ansicht sagt das selbst über den Export `filters` (`views/<ansicht>.js`); fehlt er,
 gilt alles als wirksam. **Der gesetzte Wert bleibt erhalten** – er steht weiter im Feld und in der URL und wirkt wieder,
@@ -188,7 +206,7 @@ immer den vollen Bestand beider Sheets), «Historie» (ein Snapshot hält den St
 (statisch, ohne Daten). Ein trotzdem gesetzter Filter geht auch dort nicht verloren: Der Satz nennt ihn («1 gesetzter Filter
 wirkt hier nicht») und trägt «Filter zurücksetzen», damit kein Wert ohne Bedienelement stehen bleibt.
 
-**Zwei Prozessstufen, zwei Namen (Paket A):** Die schriftliche Prüfung ist das Gate zur mündlichen. Entsprechend gibt es zwei
+**Zwei Prozessstufen, zwei Namen (Paket BEFUNDE):** Die schriftliche Prüfung ist das Gate zur mündlichen. Entsprechend gibt es zwei
 verschiedene «offen»-Zahlen, die früher beide «Offen» hiessen: **«Schriftlich offen»** (Spalte in «Kennzahlen je Profil») zählt
 Vorgänge ohne *schriftliches* Gesamtergebnis, **«Zertifizierung offen»** (Kachel im Block «Mengen») Vorgänge ohne Gesamtergebnis
 überhaupt. Wer schriftlich offen ist, ist immer auch in der Zertifizierung offen – umgekehrt nicht; die Spaltensumme ist deshalb
@@ -199,7 +217,7 @@ dieselben Filter verwendet, nur ohne die gewählte Einschränkung: Alle Banken (
 oder Gesamt (nur Zeitraum). Differenzen in Prozentpunkten.
 
 Ist die weggenommene Einschränkung gar nicht gesetzt, sind Auswahl und Benchmark dieselbe Menge – jede Kachel trüge dann
-«● 0.0 pp» und sagte damit nur, dass kein Filter aktiv ist. In diesem Zustand entfällt die Delta-Zeile ganz (Paket A), die
+«● 0.0 pp» und sagte damit nur, dass kein Filter aktiv ist. In diesem Zustand entfällt die Delta-Zeile ganz (Paket BEFUNDE), die
 Vergleichstabelle wird eingeklappt und davor steht der Satz «Kein Filter aktiv – die Auswahl entspricht dem Benchmark …»
 mit dem Link «Bank wählen», der den Bank-Filter in den Fokus holt. Massgeblich ist der Filterzustand, nicht die Zahl der
 Vorgänge: `benchmarkRelevant()` vergleicht den Filter der Auswahl mit dem des Benchmarks. Der Zeitraum zählt nie mit, weil
@@ -212,7 +230,7 @@ URL (nur im Memory) und werden beim Neuladen der Daten geleert.
 
 In der Ansicht «Experten» wirken Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» über die Vorgänge; der Zeitraum wirkt auf
 das Run-Datum des Einsatzes, nicht auf das Referenzdatum des Vorgangs («2025» zeigt die Einsätze des Jahres 2025). Versuche und Wertung
-wirken nicht. Die Haupttabelle wird wie jede andere Tabelle sortiert (Paket B); der Sortierzustand steht in der URL.
+wirken nicht. Die Haupttabelle wird wie jede andere Tabelle sortiert (Paket DIAGRAMME); der Sortierzustand steht in der URL.
 
 ## Modell: Vorgänge, Personen, Duplikate, Status (Entscheid-Log E1–E14)
 
@@ -356,7 +374,7 @@ identisch mit der Ansicht «Glossar» in der App.
 - Schreibvarianten werden zugelassen, wenn die Zuordnung eindeutig ist (Gross-/Kleinschreibung, Leerzeichen,
   Aliase wie Affluent/Affl/AFF → AFFL, CCOB → CCoB, Bank-Kürzel wie BKB, GKB, LUKB, TKB, UKB, D/F/I/E als Sprache).
 
-## Signale (Paket D)
+## Signale (Paket SIGNALE)
 
 Sechs Regeln über den vorhandenen Kennzahlen, als reine Funktionen in `metrics.js` (`signals(persons, { dq })`).
 Sie definieren **keine neue Kennzahl**, sondern lesen `writtenPassRates`, `timeSeries`, `statusCounts` und
@@ -467,7 +485,14 @@ der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
 aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
 
-**Y-Achse der Liniendiagramme (Paket B):** Die Achse folgt dem Wertebereich der Daten, nicht dem Nullpunkt: Beginn auf
+**Punktdiagramm je Profil (Paket MESSZEILE):** In «Kennzahlen je Profil» steht über der Tabelle ein Punktdiagramm:
+je Profil ein Punkt auf der Quote «Schriftlich im 1. Versuch bestanden», dazu sein 95-%-Wilson-Intervall als Balken
+und eine senkrechte Linie auf dem Gesamtwert. **Berührt der Balken die Linie nicht, ist der Abstand gesichert** – das
+ist die ganze Ablesung, ohne p-Wert; sie steht zusätzlich als Wort in der Direktbeschriftung («n = 302 · −8.9 pp ·
+gesichert»). Die achtspaltige Tabelle bleibt als Tabellen-Zwilling darunter und im Export. Kleine Gruppen (n < 5)
+tragen einen hohlen Marker und «*», sie werden nicht weggelassen.
+
+**Y-Achse der Liniendiagramme (Paket DIAGRAMME):** Die Achse folgt dem Wertebereich der Daten, nicht dem Nullpunkt: Beginn auf
 der nächsten 5-%-Stufe unter dem kleinsten Wert, mindestens 10 Prozentpunkte Spanne. Von null zu rechnen drängte
 Quoten, die real zwischen 66 % und 100 % liegen, ins obere Drittel und verdeckte jede Bewegung – etwa den Rückgang der
 schriftlichen Erstversuchsquote. Beginnt die Achse nicht bei null, steht das sichtbar über dem Diagramm («Achse
@@ -476,7 +501,7 @@ Tick trägt die Achsenlinie und nennt den Beginn; darüber liegen runde Vielfach
 **Balkendiagramme rechnen weiter von null** – bei Balken trägt die Länge die Aussage, eine gekappte Achse verzerrt die
 Verhältnisse.
 
-**Datenbalken in Prozentspalten (Paket B):** Der Balken füllt **von rechts** – dieselbe Richtung wie die rechtsbündige
+**Datenbalken in Prozentspalten (Paket DIAGRAMME):** Der Balken füllt **von rechts** – dieselbe Richtung wie die rechtsbündige
 Zahl – und liegt auf einer **festen Spur** (`--bar-track`, 3.5 rem): 100 % sind überall gleich breit, in jeder Spalte
 und in jeder Tabelle. Vorher lief er über die ganze Zellbreite; da benachbarte Prozentspalten verschieden breit sind
 (gemessen: «Auswahl» 93 px gegen «Benchmark» 221 px in derselben Tabelle, «Ø Resultat 1. Versuch» 286 px gegen
@@ -484,7 +509,7 @@ und in jeder Tabelle. Vorher lief er über die ganze Zellbreite; da benachbarte 
 Vergleich, den er nicht einlöste. Die Spur ist schmaler als die schmalste Prozentspalte, damit kein Balken
 abgeschnitten wird.
 
-**Sortierung (Paket B):** Jede Tabelle ist sortierbar, mit einer Implementierung: Die Kopfzelle trägt einen Button mit
+**Sortierung (Paket DIAGRAMME):** Jede Tabelle ist sortierbar, mit einer Implementierung: Die Kopfzelle trägt einen Button mit
 `aria-label` «Sortieren nach …», das `th` ein `aria-sort`, und der erste Klick sortiert Text aufsteigend, Zahlen
 absteigend; ein weiterer Klick kehrt um. **Die fachliche Ausgangssortierung bleibt der Standard** – Teilprüfungen,
 Profile und Jahre haben eine Reihenfolge, die Bedeutung trägt, und die darf eine alphabetische Sortierung nicht
@@ -495,14 +520,14 @@ Das Data-Quality-Log behält seine eigene Vergleichsfunktion – «Wirkung» und
 die eine alphabetische Sortierung zerstören würde –, aber dieselbe Bedienung; seine **Filter** (darunter der Suchtext,
 der ein Name sein kann) bleiben im Memory und stehen nie in der URL.
 
-**Leere Tabellen (Paket B):** Bei null Zeilen wird gar keine Tabelle gerendert – nur die Meldung, mit dem Titel davor,
+**Leere Tabellen (Paket DIAGRAMME):** Bei null Zeilen wird gar keine Tabelle gerendert – nur die Meldung, mit dem Titel davor,
 solange er sich vom Abschnittstitel unterscheidet. Vorher stand die Meldung hinter der vollständig gerenderten
 Kopfzeile: auf «Bestenlisten» mit einem Institut-Filter zwölf von sechzehn Tabellen leer, zusammen über 2000 px
 Spaltenüberschriften ohne einen einzigen Wert. Auf «Bestenlisten» stehen die Gruppen unter der Mindestgrösse
 zusätzlich zusammen in einer Zeile («Keine Bestenliste für IK, CWMA, KMU, AFFL – Gruppen unter n = 5 im aktiven
 Filter.») statt in je einer eigenen leeren Tabelle. Der Export enthält weiterhin alle Tabellenmodelle.
 
-**Direktbeschriftung am Linienende (Paket B):** Sie trägt nur den Wert («75 %»). Den Reihennamen dort zu wiederholen
+**Direktbeschriftung am Linienende (Paket DIAGRAMME):** Sie trägt nur den Wert («75 %»). Den Reihennamen dort zu wiederholen
 kostete 250 von 820 Einheiten Rand – 30 % der Zeichenfläche – für eine Angabe, die die Legende zwei Zeilen darunter
 ohnehin macht. Der Rand richtet sich jetzt nach der Länge der Werte (`endLabelGutter`); die Zeichenfläche wächst damit
 von 522 auf rund 700 Einheiten. **Die Legende bleibt**: Sie ist der verlässliche Identitätskanal, gerade für
@@ -548,5 +573,6 @@ Suchtext, gewählte Person und Sortierung stehen nie in der URL. Das Änderungsp
 bearbeitenden Person und die Fundstelle, keinen Kandidatennamen.
 Das Repository enthält keine Personendaten; `*.xlsx` und `local/` sind ausgeschlossen.
 
-Phase 2 (Schreibpfad, Paket E) ist nur vorbereitet: `CONFIG.features.write` (Standard `false`) und die dokumentierte Signatur
-`write({ sheet, row, header, value, expected, reason })` in `datasource/index.js`; ohne Flag rendert die App keine Bearbeiten-Elemente.
+Phase 2 (Schreibpfad, Paket E) ist seit dem 06.09.2026 **produktiv freigeschaltet** (Entscheid E13): `CONFIG.features.write = true`
+(`config.js`, Abschalten über `false`) und die dokumentierte Signatur `write({ sheet, row, header, value, expected, reason })` in
+`datasource/index.js`; ohne Flag rendert die App keine Bearbeiten-Elemente.

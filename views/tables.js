@@ -490,7 +490,54 @@ export function overviewModel(persons, allPersons = persons) {
     // A5: Zwei Prozessstufen, zwei Namen – die schriftliche Prüfung ist das Gate zur mündlichen
     note: SMALL_NOTE + '; schriftlich offen = Vorgänge ohne schriftliches Gesamtergebnis (frühere Stufe als die Kachel «Zertifizierung offen», die das Gesamtergebnis überhaupt meint), passiv = davon ohne Prüfung seit mehr als ' + PASSIVE_DAYS + ' Tagen und ohne Termin; Nenner der Quoten wie in den Kacheln',
   };
-  return { kpis, byProfil, multi };
+  // M2: Punkte für das Profil-Diagramm – dieselben Zahlen wie die Spalte «Schriftlich im 1. Versuch bestanden»
+  // daneben, dazu ihr 95-%-Wilson-Intervall und der Gesamtwert als Bezugslinie. Keine neue Kennzahl.
+  // Sortiert nach Quote, damit die Reihenfolge selbst schon eine Aussage ist; kleine Gruppen bleiben drin und tragen «*».
+  const profilPunkte = {
+    titel: 'Schriftlich im 1. Versuch bestanden, je Profil',
+    punkte: o.byProfil
+      .filter((g) => isNum(g.value.written.erstversuch.pct))
+      .map((g) => {
+        const r = g.value.written.erstversuch;
+        const iv = wilsonInterval(r.count, r.n);
+        return { label: groupLabel(g.key), pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+      })
+      .sort((a, b) => b.pct - a.pct),
+    referenz: isNum(o.written.erstversuch.pct) ? { pct: o.written.erstversuch.pct, label: 'Gesamt' } : null,
+  };
+  return { kpis, byProfil, multi, profilPunkte };
+}
+
+// M3: Die sechs Quoten der Blöcke «Schriftlich» und «Mündlich» als Eingaben für die Messzeile. Keine neue Kennzahl –
+// Label, Zähler, Nenner und Richtung kommen aus denselben Kacheln wie bisher; dazu die Jahresreihe derselben Quote
+// für den Verlauf und der Benchmark als Referenzmarke. Die Reihenfolge ist die der Kacheln.
+const MESSZEILEN_QUOTEN = [
+  { label: 'Schriftlich: im 1. Versuch bestanden', gruppe: 'Schriftlich', jahr: (t) => t.written.erstversuch },
+  { label: 'Schriftlich: im 1. Versuch durchgefallen', gruppe: 'Schriftlich', jahr: (t) => t.written.erstversuchFailed },
+  { label: 'Schriftlich: insgesamt bestanden', gruppe: 'Schriftlich', jahr: (t) => t.written.gesamt },
+  { label: 'Mündlich: bestanden', gruppe: 'Mündlich', jahr: (t) => t.oral.bestanden },
+  { label: 'Mündlich: im 1. Versuch durchgefallen', gruppe: 'Mündlich', jahr: (t) => t.oral.failed1 },
+  { label: 'Mündlich: 2× durchgefallen', gruppe: 'Mündlich', jahr: (t) => t.oral.failed2 },
+];
+
+export function messzeilenEingaben(persons, kpis, { benchmarkLabel = null } = {}) {
+  const reihen = timeSeries(persons);
+  const byLabel = new Map((kpis || []).map((k) => [k.label, k]));
+  return MESSZEILEN_QUOTEN.map((q) => {
+    const k = byLabel.get(q.label);
+    if (!k) return null;
+    return {
+      gruppe: q.gruppe,
+      label: q.label,
+      eingabe: {
+        // Alle sechs Quoten stehen auf EINER Skala – deshalb trägt jede Zeile ihren vollen Namen samt Prüfungsart
+        label: q.label,
+        count: k.count, n: k.n, pct: k.raw, richtung: k.direction,
+        referenz: isNum(k.benchmarkRaw) ? { pct: k.benchmarkRaw, label: 'Benchmark: ' + (benchmarkLabel || '–') } : null,
+        jahre: reihen.map((j) => ({ year: j.year, pct: q.jahr(j).pct, n: q.jahr(j).n })),
+      },
+    };
+  }).filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------

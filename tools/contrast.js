@@ -41,8 +41,9 @@ export const PAIRS = [
 // ein Token hier ein Bedienelement abgrenzt, gehört es in PAIRS (so entstand --field-border).
 export const DECOR = [
   { fg: '--border', bg: '--panel', use: 'Rahmen von Tabellen, Karten, Kacheln und Kopfzeilen (styles.css: table.data, .kpi, .view, .app-header) – Struktur, keine Bedienung; Eingabefelder tragen --field-border' },
-  { fg: '--viz-grid', bg: '--panel', use: 'Gitterlinien im Diagramm (views/chart.js) – die Werte stehen zusätzlich in der Zwillingstabelle' },
-  { fg: '--viz-axis', bg: '--panel', use: 'Achsenlinie im Diagramm (views/chart.js) – Beschriftung trägt --viz-tick mit 3:1' },
+  { fg: '--viz-grid', bg: '--panel', use: 'Gitterlinien im Diagramm (views/chart.js) und Spur der Messzeile (styles.css: .mz-spur) – die Werte stehen als Text in derselben Zeile bzw. in der Zwillingstabelle' },
+  { fg: '--viz-axis', bg: '--panel', use: 'Achsenlinie im Diagramm (views/chart.js) und Referenzmarke der Messzeile (styles.css: .mz-referenz) – die Marke trägt einen title, der aria-label der Zeile nennt sie in Worten' },
+  { fg: '--bar', bg: '--panel', use: 'Datenbalken in Prozentspalten (B5) und Wilson-Balken der Messzeile (styles.css: .mz-intervall) – beide liegen hinter bzw. neben dem Zahlenwert, das Intervall steht zusätzlich im aria-label der Zeile. Halbtransparent (18 % Deckung), deshalb ohne berechenbares Verhältnis' },
   { fg: '--danger-border', bg: '--danger-bg', use: 'Rahmen der Fehlermeldung (styles.css: .error) – Text und Titel tragen --danger mit 4.5:1' },
 ];
 

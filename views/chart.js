@@ -5,6 +5,8 @@
 // (auch per Tastatur: Pfeiltasten), Tabellen-Zwilling in der Ansicht. Reihenfarben: CSS-Variablen --series-1 … --series-3.
 
 import { el } from './common.js';
+import { SMALL_MARK } from './tables.js';
+import { SMALL_N } from '../metrics.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -252,5 +254,116 @@ export function renderBarChart(series, { title = '', yFormat = (v) => String(v),
   const leg = legend(series);
   if (leg) figure.appendChild(leg);
   if (title) figure.appendChild(el('figcaption', { text: title + ' · Anteil der Vorgänge je Klasse à 10 Prozentpunkte' }));
+  return figure;
+}
+
+// ---------------------------------------------------------------------------
+// Punktdiagramm (Paket MESSZEILE, M2): eine Quote je Gruppe als Punkt mit 95-%-Wilson-Balken, dazu eine senkrechte
+// Linie auf dem Gesamtwert. Überlappt der Balken die Linie nicht, ist die Abweichung gesichert – das ist die ganze
+// Ablesung, ohne Tabelle und ohne p-Wert. Sechs Zeilen ersetzen damit die achtspaltige Profiltabelle; die Tabelle
+// bleibt als Zwilling darunter und im Export stehen.
+// Konventionen wie bei Linie und Balken: eine Achse, Direktbeschriftung an jedem Punkt (n und Differenz in pp),
+// Legende, Text nie in der Datenfarbe, kleine Gruppen markiert statt weggelassen.
+// ---------------------------------------------------------------------------
+
+const dcNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const dcPp = (v) => Math.round(v * 10) / 10;
+
+// Reines Modell: Positionen in Prozent der Plotbreite, Beschriftungen als Text. Ohne DOM prüfbar.
+// points: [{ label, pct, n, low, high, small }] – low/high aus wilsonInterval(); referenz: { pct, label }
+export function dotChartModel(points, { referenz = null, xMax = 1 } = {}) {
+  const liste = (points || []).filter((p) => p && dcNum(p.pct));
+  const werte = liste.flatMap((p) => [p.pct, p.low, p.high]).filter(dcNum);
+  if (referenz && dcNum(referenz.pct)) werte.push(referenz.pct);
+  const xMin = autoYMin([{ points: werte.map((v) => ({ y: v })) }], xMax);
+  const span = Math.max(xMax - xMin, 1e-9);
+  const pos = (v) => Math.max(0, Math.min(100, ((v - xMin) / span) * 100));
+  const ref = referenz && dcNum(referenz.pct) ? { pct: referenz.pct, label: referenz.label || 'Gesamt', x: pos(referenz.pct) } : null;
+  return {
+    xMin,
+    xMax,
+    ticks: yTicks(xMin, xMax),
+    referenz: ref,
+    zeilen: liste.map((p) => {
+      const hatIv = dcNum(p.low) && dcNum(p.high);
+      const diff = ref ? dcPp((p.pct - ref.pct) * 100) : null;
+      // Gesichert heisst: Das Intervall enthält den Gesamtwert nicht – dieselbe Lesart wie in den Signalen
+      const gesichert = !!(ref && hatIv && (p.high < ref.pct || p.low > ref.pct));
+      return {
+        label: p.label,
+        n: p.n || 0,
+        small: !!p.small,
+        pct: p.pct,
+        x: pos(p.pct),
+        intervall: hatIv ? { low: p.low, high: p.high, von: pos(p.low), bis: pos(p.high) } : null,
+        diffPp: diff,
+        gesichert,
+        text: ['n = ' + (p.n || 0), diff === null ? null : (diff > 0 ? '+' : diff < 0 ? '−' : '±') + Math.abs(diff).toFixed(1) + ' pp', gesichert ? 'gesichert' : null]
+          .filter(Boolean).join(' · ') + (p.small ? ' ' + SMALL_MARK : ''),
+      };
+    }),
+  };
+}
+
+// Punktdiagramm rendern. points/referenz wie oben; yFormat formatiert die Achse.
+export function renderDotChart(points, { title = '', yFormat = (v) => String(v), xMax = 1, referenz = null, ariaLabel = '', compact = false } = {}) {
+  const modell = dotChartModel(points, { referenz, xMax });
+  const width = compact ? 360 : 820;
+  const zeileH = compact ? 26 : 30;
+  const pad = compact
+    ? { top: 22, right: 12, bottom: 30, left: 70 }
+    : { top: 24, right: 150, bottom: 32, left: 104 };
+  const height = pad.top + pad.bottom + Math.max(1, modell.zeilen.length) * zeileH;
+  const plotW = width - pad.left - pad.right;
+  const xPx = (prozent) => pad.left + (plotW * prozent) / 100;
+  const yPx = (i) => pad.top + zeileH * i + zeileH / 2;
+  const root = svg('svg', {
+    viewBox: '0 0 ' + width + ' ' + height, class: 'viz-svg viz-dots', role: 'img', tabindex: 0,
+    'aria-label': ariaLabel || title,
+  });
+  if (title) root.appendChild(svg('title', {}, [document.createTextNode(title)]));
+
+  // Eine Achse unten, Gitterlinien senkrecht auf den Ticks
+  for (const tv of modell.ticks) {
+    const x = xPx(((tv - modell.xMin) / Math.max(modell.xMax - modell.xMin, 1e-9)) * 100);
+    root.appendChild(svg('line', { x1: x, x2: x, y1: pad.top - 6, y2: height - pad.bottom, class: 'viz-grid' }));
+    root.appendChild(text(x, height - pad.bottom + 16, yFormat(tv), 'viz-tick', 'middle'));
+  }
+  root.appendChild(svg('line', { x1: pad.left, x2: width - pad.right, y1: height - pad.bottom, y2: height - pad.bottom, class: 'viz-axis' }));
+
+  // Senkrechte auf dem Gesamtwert – die Bezugslinie, gegen die jeder Balken gelesen wird
+  if (modell.referenz) {
+    const x = xPx(modell.referenz.x);
+    root.appendChild(svg('line', { x1: x, x2: x, y1: pad.top - 10, y2: height - pad.bottom, class: 'viz-ref' }));
+    root.appendChild(text(x, pad.top - 14, modell.referenz.label + ' ' + yFormat(modell.referenz.pct), 'viz-tick', 'middle'));
+  }
+
+  modell.zeilen.forEach((z, i) => {
+    const y = yPx(i);
+    root.appendChild(text(pad.left - 10, y + 4, z.label + (z.small ? ' ' + SMALL_MARK : ''), 'viz-label', 'end'));
+    if (z.intervall) {
+      root.appendChild(svg('line', { x1: xPx(z.intervall.von), x2: xPx(z.intervall.bis), y1: y, y2: y, class: 'viz-ci' }));
+      for (const p of [z.intervall.von, z.intervall.bis]) {
+        root.appendChild(svg('line', { x1: xPx(p), x2: xPx(p), y1: y - 4, y2: y + 4, class: 'viz-ci-cap' }));
+      }
+    }
+    root.appendChild(svg('circle', { cx: xPx(z.x), cy: y, r: 6, class: 'viz-ring' }));
+    root.appendChild(svg('circle', { cx: xPx(z.x), cy: y, r: 4, class: 'viz-dot' + (z.small ? ' small' : ''), style: z.small ? 'stroke:var(--series-1)' : 'fill:var(--series-1)' }));
+    if (!compact) root.appendChild(text(width - pad.right + 10, y + 4, z.text, 'viz-label'));
+  });
+
+  const figure = el('figure', { class: 'viz' + (compact ? ' compact' : '') }, [root]);
+  // Legende: was Punkt, Balken und Linie bedeuten. Text trägt nie die Datenfarbe.
+  figure.appendChild(el('div', { class: 'viz-legend' }, [
+    el('span', { class: 'viz-legend-item' }, [el('span', { class: 'viz-key-box', style: 'background:var(--series-1)' }), 'Quote der Gruppe']),
+    el('span', { class: 'viz-legend-item' }, [el('span', { class: 'viz-key-ci' }), '95-%-Wilson-Intervall']),
+    el('span', { class: 'viz-legend-item' }, [el('span', { class: 'viz-key-ref' }), modell.referenz ? modell.referenz.label : 'Gesamtwert']),
+  ]));
+  if (title) {
+    figure.appendChild(el('figcaption', {
+      text: title + ' · Balken ohne Berührung der Linie = gesicherter Abstand zum Gesamtwert · ' + SMALL_MARK + ' Gruppe mit n < ' + SMALL_N,
+    }));
+  }
+  if (compact) figure.appendChild(el('p', { class: 'viz-subtitle', text: 'Zahlen je Gruppe in der Tabelle darunter.' }));
   return figure;
 }
