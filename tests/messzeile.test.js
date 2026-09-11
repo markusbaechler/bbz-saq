@@ -95,6 +95,23 @@ test('messzeile: Quote ohne Zähler – Punkt ja, Intervall nein; Referenzmarke 
   assertEqual(ohne.delta.ton, 'neutral');
 });
 
+test('messzeile: Abstand zum Benchmark als eigenes Feld, Ton nach der Regel der Kacheln (0.5 pp)', () => {
+  const m = messzeileModell({ label: 'Mit Benchmark', count: 847, n: 1000, referenz: { pct: 0.81, label: 'Benchmark: Testbank' } });
+  assertEqual(m.benchmark.pp, 3.7);
+  assertEqual(m.benchmark.text, '▲ +3.7 pp');
+  assertEqual(m.benchmark.ton, 'pos');
+  assert(/Abstand plus 3\.7 Prozentpunkte/.test(m.ariaLabel), m.ariaLabel);
+  // Unter 0.5 pp neutral – dieselbe Schwelle wie auf den Kacheln und in der Vergleichstabelle
+  const knapp = messzeileModell({ label: 'Knapp', count: 812, n: 1000, referenz: { pct: 0.81, label: 'Benchmark' } });
+  assertEqual(knapp.benchmark.pp, 0.2);
+  assertEqual(knapp.benchmark.ton, 'neutral');
+  assertEqual(knapp.benchmark.text, '● +0.2 pp'); // formatPp setzt das Vorzeichen, das Symbol trägt die Wertung
+  // «Tiefer ist besser» dreht den Ton; ohne Referenz gibt es das Feld nicht
+  const runter = messzeileModell({ label: 'Durchfall', count: 847, n: 1000, richtung: 'down', referenz: { pct: 0.81, label: 'Benchmark' } });
+  assertEqual(runter.benchmark.ton, 'neg');
+  assertEqual(messzeileModell({ label: 'Ohne', count: 5, n: 10 }).benchmark, null);
+});
+
 test('messzeile: kleine Gruppe wird gekennzeichnet, nicht verschwiegen', () => {
   const m = messzeileModell({ label: 'Kleine Gruppe', count: 3, n: SMALL_N - 1 });
   assertEqual(m.klein, true);

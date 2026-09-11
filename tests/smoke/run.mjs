@@ -347,11 +347,31 @@ try {
   check((await page.locator('#view .kpi-delta').count()) === 0 && zu && zu.tag === 'DETAILS' && !zu.open && zu.sichtbar && /Kein Filter aktiv/.test(zu.satz) && /Bank wählen/.test(zu.satz),
     'A2 Übersicht ohne Filter: keine Delta-Zeile, Vergleichstabelle eingeklappt mit Satz «' + zu.satz.trim().slice(0, 70) + '»');
   check((await page.locator('#view .benchmark-gleichstand button.linklike').count()) === 1, 'A2 Übersicht ohne Filter: Link «Bank wählen» im Satz');
+  // Messzeile ohne benchmarkrelevanten Filter: keine Marke, keine Spalte «Δ Benchmark» – dieselbe Regel wie für die
+  // Delta-Zeile der Kacheln (Paket BEFUNDE, A2). «● 0.0 pp» auf jeder Zeile sagte nur, dass kein Filter aktiv ist.
+  const benchOhne = await page.evaluate(() => ({
+    werte: [...document.querySelectorAll('#view .messzeile .mz-bench')].map((x) => x.textContent.trim()).filter(Boolean).length,
+    marken: document.querySelectorAll('#view .messzeile .mz-referenz').length,
+    kopf: [...document.querySelectorAll('#view .mz-kopf > *')].map((x) => x.textContent.trim()).filter(Boolean),
+  }));
+  check(benchOhne.werte === 0 && benchOhne.marken === 0 && !benchOhne.kopf.includes('Δ Benchmark'),
+    'M-Benchmark ohne Filter: keine Marke, keine Zahl, keine Spalte (Kopf: ' + benchOhne.kopf.join(' · ') + ')');
   await shot(page, 'uebersicht-ohne-filter');
   await filterWaehlen(page, 'bank', { label: 'Testbank AG' });
   await page.waitForSelector('#view .kpi-delta');
   const offen = await vergleich();
   check(offen && offen.tag === 'SECTION' && !offen.satz, 'A2 Übersicht mit Bank-Filter: Vergleichstabelle offen, kein Gleichstand-Satz');
+  const benchMit = await page.evaluate(() => ({
+    werte: [...document.querySelectorAll('#view .messzeile .mz-bench')].map((x) => x.textContent.trim()),
+    marken: document.querySelectorAll('#view .messzeile .mz-referenz').length,
+    kopf: [...document.querySelectorAll('#view .mz-kopf > *')].map((x) => x.textContent.trim()).filter(Boolean),
+    toene: [...document.querySelectorAll('#view .messzeile .mz-bench')].map((x) => [...x.classList].find((c) => /^ton-/.test(c))),
+    zeilen: document.querySelectorAll('#view .messzeile').length,
+  }));
+  check(benchMit.werte.length === benchMit.zeilen && benchMit.werte.every((t) => /^[▲▼●] [+−]?\d+\.\d pp$/.test(t))
+    && benchMit.marken === benchMit.zeilen && benchMit.kopf.includes('Δ Vorjahr') && benchMit.kopf.includes('Δ Benchmark')
+    && benchMit.toene.every(Boolean),
+    'M-Benchmark mit Bank-Filter: je Zeile Marke und Zahl (' + benchMit.werte.join(' | ') + '), Kopf benennt beide Abstände');
   // Seit M3 sind nur noch die vier Ø-Kacheln keine Zählkacheln – eine Reihe genügt für die Prüfung
   check(restOhne.length >= 1 && restOhne.every((r) => r <= 1), 'A3 Übersicht ohne Filter: keine Kachel höher als ihr Inhalt verlangt (Rest je Reihe ' + restOhne.join('/') + ' px)');
   // A3: Wert zuerst, Beschriftung darunter, n darunter, Delta zuletzt – Wert und n liegen je Kachelreihe auf einer Linie

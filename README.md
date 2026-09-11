@@ -117,11 +117,16 @@ Run, mit Namen, nur intern). Der Filterzustand steht im Kopf jedes Exports.
 
 **Messzeile statt Kachel für Quoten (Paket MESSZEILE):** Die fünf Quoten der Übersicht stehen als **Messzeilen auf
 einer gemeinsamen Skala von 50 bis 100 %** – erst dadurch sind sie untereinander vergleichbar; zwei Kacheln sind es
-nicht. Je Zeile: Beschriftung · Skala · Wert · n · Verlauf · Wert letztes Jahr · Delta. Auf der Skala liegen das
-**95-%-Wilson-Intervall** als Balken, der Wert als Punkt und, bei aktivem Benchmark, dessen Marke (Abstand in pp im
-`title` und im Text für Screenreader). Werte unter 50 % stehen am linken Anschlag und sagen es; abgeschnitten wird
-nichts. Der Verlauf ist eine Sparkline über die Jahre mit n ≥ 5 (unter drei Jahren keine); das Delta gilt gegen das
-Jahr davor und färbt sich erst ab 2 pp, darunter bleibt es neutral – sonst färbt sich Rauschen ein.
+nicht. Je Zeile: Beschriftung · Skala · Wert · n · Verlauf · Wert letztes Jahr · Δ Vorjahr · Δ Benchmark. Die Kopfzeile
+benennt die Spalten, weil zwei Abstände nebeneinander sonst dasselbe Zeichen für Verschiedenes tragen. Auf der Skala liegen das
+**95-%-Wilson-Intervall** als Balken, der Wert als Punkt und, bei aktivem Benchmark, dessen Marke; der Abstand steht
+als Zahl in der letzten Spalte (Symbol, Vorzeichen, Farbe nach Richtung; unter 0.5 pp neutral – dieselbe Schwelle wie
+auf den Kacheln und in der Vergleichstabelle). **Ohne benchmarkrelevanten Filter** entfallen Marke, Spalte und Zahl:
+Dann ist die Auswahl der Benchmark, und «● 0.0 pp» auf jeder Zeile sagte nur das. Werte unter 50 % stehen am linken Anschlag und sagen es; abgeschnitten wird
+nichts. Der Verlauf ist eine Sparkline über die Jahre mit n ≥ 5 (unter drei Jahren keine); das Δ Vorjahr gilt gegen das
+Jahr davor und färbt sich erst ab 2 pp, darunter bleibt es neutral – sonst färbt sich Rauschen ein. Die beiden
+Schwellen unterscheiden sich bewusst: Der Jahresabstand ist ein Trendsignal (2 pp), der Benchmark-Abstand folgt der
+Regel, die dieselbe Zahl auf den Kacheln und in der Vergleichstabelle schon trägt (0.5 pp).
 
 **Mengen bleiben Kacheln.** Eine Anzahl hat keine Skala von 50 bis 100 %, und eine erfundene wäre schlimmer als keine.
 Die vier Ø-Kennzahlen bleiben ebenfalls Kacheln, weil sie die Streuungszeile (σ, Median, Quartile) tragen.

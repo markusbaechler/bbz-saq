@@ -47,7 +47,9 @@ export function build(ctx) {
       if (b && k.kind !== 'count') {
         k.benchmark = b.value;
         k.benchmarkLabel = bench.label;
-        k.benchmarkRaw = b.raw; // M3: Rohwert für die Referenzmarke der Messzeile
+        // Rohwert für Marke und Abstand der Messzeile – wie die Delta-Zeile der Kachel nur mit benchmarkrelevantem
+        // Filter (Paket BEFUNDE, A2): Ohne ihn ist die Auswahl der Benchmark, und «● 0.0 pp» sagt nichts.
+        if (relevant) k.benchmarkRaw = b.raw;
         // Differenz in Prozentpunkten für die Kachel (A.4); null ohne Wert auf einer Seite.
         // Ohne benchmarkrelevanten Filter gar nicht setzen (A2): common.js rendert die Zeile dann nicht.
         if (relevant) k.delta = Number.isFinite(k.raw) && Number.isFinite(b.raw) ? (k.raw - b.raw) * 100 : null;
