@@ -2,7 +2,7 @@
 // Von null zu rechnen drängt Quoten, die real zwischen 66 % und 100 % liegen, ins obere Drittel und verdeckt jede
 // Bewegung. Für Balken gilt das Gegenteil – renderBarChart rechnet weiter von null (siehe Test unten).
 import { test, assert, assertEqual } from './runner.js';
-import { autoYMin, yTicks, endLabelGutter } from '../views/chart.js';
+import { autoYMin, yTicks, endLabelGutter, kuerzenAufBreite } from '../views/chart.js';
 
 const reihe = (values) => [{ label: 'Reihe', points: values.map((y, i) => ({ x: String(2018 + i), y, n: 10, small: false })) }];
 
@@ -50,6 +50,28 @@ test('chart.endLabelGutter: Rand rechts folgt der längsten Endbeschriftung (B2)
   assert(endLabelGutter(['100.0 %']) > g, 'eine Dezimale mehr braucht mehr Rand');
   assertEqual(endLabelGutter([]), 24, 'ohne Endbeschriftung nur der Rand gegen Überlauf');
   assertEqual(endLabelGutter(['', null, undefined]), 24, 'leere Werte zählen nicht');
+});
+
+// Paket I (P3): Das Punktdiagramm zeichnet keinen Linienschlüssel in Reihenfarbe – es zahlt jetzt auch nicht mehr
+// dafür. Im Browser wird die Textbreite gemessen (Canvas, dieselbe Schrift wie das SVG); hier ohne DOM greift der
+// grosszügigere Schätzwert von 7 px je Zeichen, damit ein Test nie zu schmal urteilt.
+test('chart.endLabelGutter: ohne Schlüssel schmaler, mit langem Text breiter (P3)', () => {
+  const mit = endLabelGutter(['100 %']);
+  const ohne = endLabelGutter(['100 %'], { key: false });
+  assertEqual(mit - ohne, 14, 'genau die Breite des Schlüssels');
+  const lang = endLabelGutter(['n = 132 · +26.0 pp · gesichert ungünstig'], { key: false });
+  assert(lang > 150, 'die Direktbeschriftung des Punktdiagramms braucht mehr als die früheren 150 Einheiten: ' + lang);
+  assertEqual(endLabelGutter([], { key: false }), 24, 'ohne Text nur der Rand gegen Überlauf');
+});
+
+test('chart.kuerzenAufBreite: kürzt nur, was nicht passt, und markiert es (P3)', () => {
+  assertEqual(kuerzenAufBreite('PK', 200), 'PK', 'was passt, bleibt unangetastet');
+  const k = kuerzenAufBreite('Firmenkunden KMU Deutschschweiz', 100);
+  assert(/…$/.test(k) && k.length < 'Firmenkunden KMU Deutschschweiz'.length, 'gekürzt und markiert: ' + k);
+  assert(k.length * 7 <= 100, 'das Ergebnis passt in die Vorgabe: ' + k);
+  assert(!/[\s·]…$/.test(k), 'kein Leerzeichen vor den Auslassungspunkten: ' + k);
+  assertEqual(kuerzenAufBreite('PK', 0), 'PK', 'ohne Platzangabe nicht kürzen – lieber ungekürzt als leer');
+  assertEqual(kuerzenAufBreite(null, 50), '', 'ohne Text nichts');
 });
 
 test('chart.endLabelGutter: die Plotbreite wächst messbar (B2)', () => {

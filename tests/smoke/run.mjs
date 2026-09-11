@@ -54,6 +54,29 @@ const filterWaehlen = async (p, feld, wert) => {
   await el.focus();
   await el.selectOption(wert);
 };
+// P3: Jede Beschriftung eines Punktdiagramms gegen die viewBox messen. Ein Text, der darüber hinausragt, wird vom
+// SVG abgeschnitten – ohne Seitenscroll, deshalb fängt ihn die Phone-Prüfung auf Überlauf nicht.
+const punktBeschriftungen = (p) => p.evaluate(() => [...document.querySelectorAll('#view figure.viz')]
+  .filter((f) => f.querySelector('.viz-dots')).map((f) => {
+    const svgEl = f.querySelector('svg');
+    const vb = Number(svgEl.getAttribute('viewBox').split(' ')[2]);
+    const achse = svgEl.querySelector('line.viz-axis');
+    const texte = [...svgEl.querySelectorAll('text')].map((t) => {
+      const b = t.getBBox();
+      return { t: t.textContent, l: b.x, r: b.x + b.width };
+    });
+    return {
+      titel: (f.querySelector('figcaption') || { textContent: '' }).textContent.split(' · ')[0],
+      vb,
+      plot: Math.round(Number(achse.getAttribute('x2')) - Number(achse.getAttribute('x1'))),
+      randLinks: Math.round(Number(achse.getAttribute('x1'))),
+      randRechts: Math.round(vb - Number(achse.getAttribute('x2'))),
+      ueber: texte.filter((t) => t.r > vb + 0.5 || t.l < -0.5)
+        .map((t) => '«' + t.t + '» ' + Math.round(t.l) + '…' + Math.round(t.r)),
+      gekuerzt: texte.filter((t) => /…$/.test(t.t)).length,
+    };
+  }));
+
 // Query-Teil des Hashs (#ansicht?von=…): beim Ansichtswechsel per goto muss der Filterzustand mitgenommen werden
 const hashQuery = (url) => { const h = url.split('#')[1] || ''; const q = h.indexOf('?'); return q >= 0 ? h.slice(q) : ''; };
 
@@ -679,6 +702,14 @@ try {
       'P2 ' + ansicht + ': ' + skalen.length + ' Achse(n) folgen den Daten ab 0 % – '
         + skalen.map((d) => d.titel.slice(0, 28) + ' bis ' + Math.round(d.achsEnde * 100) + ' % (grösster Wert ' + Math.round(d.groesster * 1000) / 10 + ' %, Füllung ' + d.fuellung + ' %)').join(' | ')
         + (falsch.length ? ' – FALSCH: ' + falsch.map((d) => d.titel + ': ' + grund(d)).join(' / ') : ''));
+    // P3: Nichts ragt über die viewBox – links die Gruppennamen, rechts die Direktbeschriftung. Beide Ränder
+    // wachsen mit ihrem Text; dem Plot bleibt mindestens die halbe Breite.
+    const b = await punktBeschriftungen(page);
+    check(b.length > 0 && b.every((d) => d.ueber.length === 0 && d.plot >= d.vb / 2 - 1),
+      'P3 ' + ansicht + ': Beschriftungen innerhalb der viewBox, Plot ≥ halbe Breite – '
+        + b.map((d) => d.titel.slice(0, 24) + ' ' + d.randLinks + '|' + d.plot + '|' + d.randRechts + ' von ' + d.vb).join(' · ')
+        + (b.some((d) => d.ueber.length) ? ' – ÜBER DEN RAND: ' + b.flatMap((d) => d.ueber).join(', ') : ''));
+
     // P1 für JEDES Punktdiagramm, nicht nur in «Schriftlich»/«Mündlich»: Ein gesicherter Abstand trägt seine
     // Wertung als Wort. Die Übersicht rief das Diagramm an der Prüfung vorbei direkt auf und reichte die Richtung
     // nicht weiter – gefunden hat das erst diese Prüfung. Ausgenommen ist «Experten»: dort ist die Richtung
@@ -1527,6 +1558,20 @@ try {
     check(overflow <= 0 && hiddenPrio, 'Phone ' + v + ': kein Seitenscroll (' + overflow + ' px' + (ueberRand.length ? ': ' + ueberRand.join(', ') : '') + '), nur Prio-1-Spalten');
     await phone.screenshot({ path: join(outDir, 'phone-' + v + '.png'), fullPage: true });
   }
+  // P3 an der engsten Stelle: 360 viewBox-Einheiten statt 820, und die Direktbeschriftung entfällt dort ganz
+  // (die Zahlen stehen in der Tabelle darunter). Geprüft wird, dass trotzdem nichts abgeschnitten wird – links die
+  // Gruppennamen, rechts die letzte Achsenbeschriftung, die vorher zur Hälfte über den Rand ragte.
+  for (const v of ['uebersicht', 'schriftlich', 'muendlich', 'vss-vsm', 'experten']) {
+    await phone.goto(server.url + '#' + v);
+    await phone.waitForSelector('#view figure.viz .viz-dots');
+    const b = await punktBeschriftungen(phone);
+    const direkt = await phone.evaluate(() => [...document.querySelectorAll('#view figure.viz .viz-dots text.viz-label')].filter((t) => /^n = /.test(t.textContent)).length);
+    check(b.length > 0 && b.every((d) => d.ueber.length === 0 && d.plot >= d.vb / 2 - 1) && direkt === 0,
+      'P3 Phone ' + v + ': nichts abgeschnitten, keine Direktbeschriftung (' + direkt + ') – '
+        + b.map((d) => d.titel.slice(0, 22) + ' ' + d.randLinks + '|' + d.plot + '|' + d.randRechts + ' von ' + d.vb + (d.gekuerzt ? ', ' + d.gekuerzt + ' gekürzt' : '')).join(' · ')
+        + (b.some((d) => d.ueber.length) ? ' – ÜBER DEN RAND: ' + b.flatMap((d) => d.ueber).join(', ') : ''));
+  }
+
   // Paket E auf dem Phone: Das Band ist ausgeblendet, das Auswahlfeld führt zu allen vierzehn Ansichten. Die Reiter
   // bleiben als Abkürzung zwischen den Geschwistern – mit 44-px-Tap-Ziel wie jedes andere Bedienelement, in einer Zeile.
   await phone.goto(server.url + '#schriftlich');

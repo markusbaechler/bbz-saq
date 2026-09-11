@@ -630,7 +630,10 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .meta-list { color: var(--muted); font-size: .9rem; }
 
 .viz { margin: .5rem 0 1rem; position: relative; max-width: 60rem; }
-.viz-svg { width: 100%; height: auto; display: block; background: var(--panel); font: 12px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+/* Eine Quelle für die Schrift der Diagramme: Der Renderer misst die Textbreite damit (Paket I, P3), statt sie je
+   Zeichen zu schätzen. Stünde sie zweimal da, driftete die Messung von der Darstellung weg. */
+:root { --viz-font: 12px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.viz-svg { width: 100%; height: auto; display: block; background: var(--panel); font: var(--viz-font); }
 .viz-svg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .viz-grid { stroke: var(--viz-grid); stroke-width: 1; shape-rendering: crispEdges; }
 .viz-axis { stroke: var(--viz-axis); stroke-width: 1; shape-rendering: crispEdges; }

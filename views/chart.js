@@ -70,14 +70,43 @@ export function yTicks(yMin, yMax) {
 // Der Rand rechts wird jetzt aus der Länge der Werte berechnet. Die Legende bleibt: Sie ist der verlässliche
 // Identitätskanal, gerade für Farbfehlsichtige; die Direktbeschriftung ergänzt sie, ersetzt sie nicht.
 const LABEL_KEY_W = 14;    // kurzer Linienschlüssel in Reihenfarbe
-const LABEL_CHAR_W = 7;    // Breite je Zeichen bei 12px System-Schrift (grosszügig, damit nichts aus der viewBox ragt)
+const LABEL_CHAR_W = 7;    // Rückfall ohne DOM (Node-Tests): Breite je Zeichen, bewusst grosszügig geschätzt
 const LABEL_PAD = 26;      // Abstand Plot → Schlüssel → Text → rechter Rand
 
-// Rand rechts für die Endbeschriftungen: so breit, wie der längste Wert ihn braucht. Ohne Werte bleibt nur der Rand,
-// den die letzte x-Beschriftung zum Nichtüberlaufen braucht.
-export function endLabelGutter(values) {
+// Textbreite messen statt schätzen (Paket I, P3). Der Schätzwert von 7 px je Zeichen stammt aus Paket B, wo die
+// Endbeschriftung sechs Zeichen lang war («81.4 %»); die Direktbeschriftung des Punktdiagramms ist bis zu vierzig
+// Zeichen lang, und dort summiert sich der Zuschlag: gemessen 212 px, geschätzt 280. Ein Canvas-Kontext misst mit
+// derselben Schrift wie das SVG (eine Quelle: --viz-font) und liefert exakt dieselbe Breite wie getBBox() – nur
+// ohne dass das Element im Dokument hängen muss. Ein festes Pixelmass für Text ist in diesem Repo dreimal schiefgegangen.
+let messer = null;
+function textBreite(s) {
+  const text = String(s || '');
+  if (typeof document === 'undefined') return text.length * LABEL_CHAR_W;
+  if (messer === null) {
+    const ctx = (document.createElement('canvas').getContext) ? document.createElement('canvas').getContext('2d') : null;
+    if (ctx) ctx.font = (getComputedStyle(document.documentElement).getPropertyValue('--viz-font') || '').trim()
+      || '12px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    messer = ctx || false;
+  }
+  return messer ? messer.measureText(text).width : text.length * LABEL_CHAR_W;
+}
+
+// Rand für Beschriftungen neben dem Plot: so breit, wie der längste Text ihn braucht. Ohne Texte bleibt der Rand,
+// den die letzte Achsenbeschriftung zum Nichtüberlaufen braucht. `key` = mit Linienschlüssel in Reihenfarbe (Linie);
+// das Punktdiagramm zeichnet keinen und zahlt deshalb auch nicht dafür.
+export function endLabelGutter(values, { key = true } = {}) {
   const list = (values || []).filter(Boolean);
-  return list.length ? LABEL_PAD + LABEL_KEY_W + Math.ceil(Math.max(...list.map((v) => v.length)) * LABEL_CHAR_W) : 24;
+  return list.length ? LABEL_PAD + (key ? LABEL_KEY_W : 0) + Math.ceil(Math.max(...list.map(textBreite))) : 24;
+}
+
+// Text auf eine Breite kürzen, wenn er sonst den Plot auffressen würde. Der volle Name steht in der Tabelle
+// darunter – das Diagramm ist ihr Zwilling, nicht ihr Ersatz.
+export function kuerzenAufBreite(text, max) {
+  const voll = String(text || '');
+  if (max <= 0 || textBreite(voll) <= max) return voll;
+  let t = voll;
+  while (t.length > 1 && textBreite(t + '…') > max) t = t.slice(0, -1);
+  return t.replace(/[\s·]+$/, '') + '…';
 }
 
 // series: [{ label, points: [{ x: string, y: number|null, n: number, small: boolean }] }] – gleiche x-Reihenfolge je Reihe
@@ -349,9 +378,23 @@ export function renderDotChart(points, { title = '', yFormat = (v) => String(v),
   const modell = dotChartModel(points, { referenz, richtung });
   const width = compact ? 360 : 820;
   const zeileH = compact ? 26 : 30;
+  // Beide Ränder wachsen mit ihrem Text (P3). Fest waren sie 150 rechts und 104 links – gemessen ragte die
+  // Direktbeschriftung bis zu 72 px über die viewBox («n = 132 · +26.0 pp · gesichert ungünstig», 212 px breit),
+  // und ein Gruppenname wie «Firmenkunden KMU Deutschschweiz» bis zu 98 px links darüber hinaus. Beide wurden
+  // abgeschnitten. Auf dem Phone steht keine Direktbeschriftung – dort bleibt rechts der Rand für die letzte
+  // Achsenbeschriftung, die sonst zur Hälfte über den Rand ragte.
+  const direktTexte = compact ? [] : modell.zeilen.map((z) => z.text);
+  const randRechts = endLabelGutter(direktTexte, { key: false });
+  const gruppenText = (z) => z.label + (z.small ? ' ' + SMALL_MARK : '');
+  // Dem Plot bleibt mindestens die halbe Breite: Sonst frisst ein langer Gruppenname die Fläche auf, auf der die
+  // Aussage steht. Was darüber hinausgeht, wird gekürzt – vollständig steht der Name in der Tabelle darunter.
+  const randLinksMax = Math.max(40, width / 2 - randRechts);
+  const randLinks = Math.min(endLabelGutter(modell.zeilen.map(gruppenText), { key: false }), randLinksMax);
+  const beschriftung = (z) => kuerzenAufBreite(z.label, randLinks - LABEL_PAD - (z.small ? textBreite(' ' + SMALL_MARK) : 0))
+    + (z.small ? ' ' + SMALL_MARK : '');
   const pad = compact
-    ? { top: 22, right: 12, bottom: 30, left: 70 }
-    : { top: 24, right: 150, bottom: 32, left: 104 };
+    ? { top: 22, right: randRechts, bottom: 30, left: randLinks }
+    : { top: 24, right: randRechts, bottom: 32, left: randLinks };
   const height = pad.top + pad.bottom + Math.max(1, modell.zeilen.length) * zeileH;
   const plotW = width - pad.left - pad.right;
   const xPx = (prozent) => pad.left + (plotW * prozent) / 100;
@@ -379,7 +422,7 @@ export function renderDotChart(points, { title = '', yFormat = (v) => String(v),
 
   modell.zeilen.forEach((z, i) => {
     const y = yPx(i);
-    root.appendChild(text(pad.left - 10, y + 4, z.label + (z.small ? ' ' + SMALL_MARK : ''), 'viz-label', 'end'));
+    root.appendChild(text(pad.left - 10, y + 4, beschriftung(z), 'viz-label', 'end'));
     if (z.intervall) {
       root.appendChild(svg('line', { x1: xPx(z.intervall.von), x2: xPx(z.intervall.bis), y1: y, y2: y, class: 'viz-ci' }));
       for (const p of [z.intervall.von, z.intervall.bis]) {

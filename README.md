@@ -543,6 +543,22 @@ abgeschnitten, was sich läse, als endete er genau dort. Vorher lief die Achse f
 kann die Regel nicht weiter – nur dort darf ein Wert auf dem Rand liegen. Alle Punktdiagramme teilen denselben
 Nullpunkt; einen abweichenden Achsenbeginn gibt es hier nicht.
 
+**Die Ränder wachsen mit ihrem Text (Paket I, P3).** Fest waren sie 150 Einheiten rechts und 104 links. Gemessen
+ragte die Direktbeschriftung «n = 132 · +26.0 pp · gesichert ungünstig» (212 px breit) **72 px** über die viewBox
+und wurde abgeschnitten – seit P1 trägt sie zusätzlich die Wertung und ist damit länger geworden. Links reichte ein
+Gruppenname wie «Firmenkunden KMU Deutschschweiz» **98 px** über den Rand hinaus. Beide Ränder kommen jetzt aus
+`endLabelGutter()`, derselben Funktion wie beim Liniendiagramm; das Punktdiagramm zeichnet keinen Linienschlüssel in
+Reihenfarbe und zahlt über `{ key: false }` auch nicht mehr dafür.
+
+Die Breite wird **gemessen, nicht geschätzt**: Ein Canvas-Kontext mit derselben Schrift wie das SVG (eine Quelle:
+`--viz-font` in `styles.css`) liefert exakt dieselbe Breite wie `getBBox()`, ohne dass das Element im Dokument
+hängen muss. Der alte Schätzwert von 7 px je Zeichen stammt aus Paket B, wo die Endbeschriftung sechs Zeichen lang
+war; bei vierzig Zeichen summiert sich der Zuschlag auf 68 px, also 12 % der Zeichenfläche. Ohne DOM (Node-Tests)
+bleibt der Schätzwert als bewusst grosszügiger Rückfall. **Dem Plot bleibt mindestens die halbe Breite** – ein
+längerer Gruppenname wird gekürzt und mit «…» markiert; vollständig steht er in der Tabelle darunter. Auf dem
+Phone entfällt die Direktbeschriftung ganz (die Zahlen stehen in der Tabelle), rechts bleibt nur der Rand für die
+letzte Achsenbeschriftung – die vorher zur Hälfte über den Rand ragte.
+
 **In «Experten» gilt eine Besonderheit:** Dort werden Menschen verglichen, deshalb steht das Diagramm in der
 Reihenfolge der Tabelle (Einsätze absteigend) und **nicht nach Quote sortiert** – nach Quote sortiert wäre das Bild
 eine Rangliste von Personen, und genau das ist die Ansicht laut ihrer eigenen Fussnote nicht (E9). Die Balken werden
