@@ -679,7 +679,7 @@ function mzSkala(m) {
 
 export function messzeile(m) {
   const wert = el('span', { class: 'mz-wert' }, [m.wert.text, m.klein ? el('span', { class: 'mz-klein', title: SMALL_NOTE, text: ' ' + SMALL_MARK }) : null]);
-  return el('li', { class: 'messzeile', 'aria-label': m.ariaLabel }, [
+  return el('li', { class: 'messzeile', role: 'listitem', 'aria-label': m.ariaLabel }, [
     el('span', { class: 'mz-label' }, [m.label, m.hint ? infoIcon(m.hint, 'Definition: ') : null]),
     mzSkala(m),
     wert,
@@ -713,6 +713,6 @@ export function messzeilenBlock(titel, modelle, { referenzLabel = null, skala = 
   ]);
   return el('section', { class: 'block messzeilen' }, [
     kopf,
-    el('ol', { class: 'messzeilen-liste' }, (modelle || []).map((m) => messzeile(m))),
+    el('ol', { class: 'messzeilen-liste', role: 'list' }, (modelle || []).map((m) => messzeile(m))),
   ]);
 }

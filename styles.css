@@ -270,14 +270,21 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 /* Messzeile (Paket MESSZEILE, M1): sieben Felder in einer Zeile, gemeinsame Skala 50–100 % für alle Quoten.
    Die Spur ist immer gleich lang und gleich skaliert – nur dadurch sind zwei Zeilen untereinander vergleichbar.
    Farbe trägt nie allein: Wert, n, Vorjahr und Delta stehen als Zahl da, die Richtung zusätzlich als Zeichen. */
-.messzeilen { margin-bottom: var(--space-4); }
-.messzeilen-liste { list-style: none; margin: 0; padding: 0; }
-.mz-kopf, .messzeile {
-  display: grid; align-items: center; gap: 0 var(--space-3);
-  /* Die Beschriftungsspalte trägt die längste Kennzahl einzeilig: max-content statt eines festen Masses. Ein festes
-     Mass hielt lokal (260 px für «Schriftlich: im 1. Versuch durchgefallen»), brach aber in der breiteren
-     CI-Schrift um – sechs umbrechende Zeilen kosteten 84 px Höhe und damit das Höhenbudget der Übersicht. */
+/* EIN Raster für den ganzen Block: Kopfzeile und Zeilen sind Subgrid. Vorher war jede Zeile ein eigenes Raster,
+   und «max-content» rechnete je Zeile neu – gemessen begann die Spur bei 316, 310, 313, 248 und 306 px, die
+   Achsenbeschriftung 130 px weiter links. Damit hatte jede Zeile ihren eigenen Nullpunkt, und die Balken waren
+   untereinander nicht vergleichbar – genau das, was die gemeinsame Spur leisten soll.
+   Die Beschriftungsspalte bleibt «max-content»: Ein festes Mass hielt lokal, brach aber in der breiteren CI-Schrift
+   um und kostete 14 px Höhe je Zeile. */
+.messzeilen {
+  margin-bottom: var(--space-4);
+  display: grid;
   grid-template-columns: minmax(8rem, max-content) minmax(6rem, 1fr) 4.5rem max-content 4rem 6rem 5.5rem 6.5rem;
+}
+.messzeilen-liste { list-style: none; margin: 0; padding: 0; display: contents; }
+.mz-kopf, .messzeile {
+  display: grid; grid-template-columns: subgrid; grid-column: 1 / -1;
+  align-items: center; gap: 0 var(--space-3);
 }
 .mz-kopf { color: var(--muted); font-size: var(--fs-xs); padding-bottom: var(--space-1); }
 .mz-kopf-hinweis { grid-column: 3 / -1; }
@@ -321,7 +328,8 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .mz-kopf .mz-wert, .mz-kopf .mz-delta, .mz-kopf .mz-bench, .mz-kopf .mz-n { font-weight: 400; color: var(--muted); }
 /* Phone: die sieben Felder brechen in zwei Zeilen – Beschriftung und Skala oben, die Zahlen darunter. */
 @media screen and (max-width: 600px) {
-  .mz-kopf, .messzeile { grid-template-columns: 1fr 4.5rem 3.5rem 5.5rem; }
+  .messzeilen { grid-template-columns: 1fr 4.5rem 3.5rem 5.5rem; }
+  .mz-kopf, .messzeile { grid-template-columns: subgrid; }
   .mz-label { grid-column: 1 / -1; }
   .mz-skala { grid-column: 1 / -1; }
   /* Auf dem Phone bleibt der Abstand zum Benchmark; Verlauf und Vorjahr weichen, sie brauchen Breite */

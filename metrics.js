@@ -472,13 +472,16 @@ function oe1Run(person, n) {
 }
 
 // bestanden / nichtBestanden: Nenner = abgeschlossene Vorgänge mündlich (oeStatus bestanden oder nicht bestanden, E4);
-// failed1 / failed2: Nenner = Vorgänge mit absolviertem, datiertem OE1 RUN1 (angetreten; geplante oder ausstehende
+// failed1 / failed2 / failed3: Nenner = Vorgänge mit absolviertem, datiertem OE1 RUN1 (angetreten; geplante oder ausstehende
 // Termine zählen nicht) – ein Fehlversuch ist unabhängig davon, ob der Vorgang schon abgeschlossen ist.
 export function oralPassRates(persons) {
   const base = persons.filter((p) => oe1Run(p, 1) && oe1Run(p, 1).taken && oe1Run(p, 1).date !== null);
   const n = base.length;
   const failed1 = base.filter((p) => oe1Run(p, 1).passed === false);
   const failed2 = failed1.filter((p) => oe1Run(p, 2) && oe1Run(p, 2).passed === false);
+  // failed3: alle drei Versuche nicht bestanden (RUN3 ist der letzte, den die Datei kennt) – das endgültige
+  // Scheitern, belegt statt erschlossen; Teilmenge von failed2, gleicher Nenner.
+  const failed3 = failed2.filter((p) => oe1Run(p, 3) && oe1Run(p, 3).passed === false);
   const st = statusCounts(persons, 'oeStatus');
   return {
     bestanden: ratio(st.bestanden, st.abgeschlossen),
@@ -489,6 +492,7 @@ export function oralPassRates(persons) {
     angetreten: n,
     failed1: ratio(failed1.length, n),
     failed2: ratio(failed2.length, n),
+    failed3: ratio(failed3.length, n),
   };
 }
 

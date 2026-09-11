@@ -289,7 +289,7 @@ test('tables.messzeilenEingaben: fünf Durchfallquoten mit Definition, gemeinsam
   const zeilen = messzeilenEingaben(alle.filter((p) => p.employerCanon === 'Testbank AG'), { benchmarkPersons: alle, benchmarkLabel: 'Alle Banken' });
   assertEqual(zeilen.map((z) => z.label), [
     'Schriftlich: im 1. Versuch durchgefallen', 'Schriftlich: endgültig nicht bestanden',
-    'Mündlich: im 1. Versuch durchgefallen', 'Mündlich: 2× durchgefallen', 'Mündlich: endgültig nicht bestanden',
+    'Mündlich: im 1. Versuch durchgefallen', 'Mündlich: 2× durchgefallen', 'Mündlich: 3× durchgefallen',
   ]);
   // Alle Zeilen teilen dieselbe Spur – sonst sind sie untereinander nicht vergleichbar
   const spuren = new Set(zeilen.map((z) => JSON.stringify(z.skala)));

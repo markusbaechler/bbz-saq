@@ -140,9 +140,15 @@ etwas anderes als die Kachel («Personen 970 · n = 977» zählte Vorgänge). Ei
 Die vier Ø-Kennzahlen bleiben ebenfalls Kacheln, weil sie die Streuungszeile (σ, Median, Quartile) tragen.
 Reihenfolge der Übersicht: Signale · Durchfallquoten · Mengen · Ø Resultat · Kennzahlen je Profil. Die fünf Zeilen
 folgen dem Prozess: je Prüfungsteil vom ersten Versuch zum Endstand (schriftlich 1. Versuch, schriftlich endgültig,
-mündlich 1. Versuch, mündlich 2×, mündlich endgültig). **«Endgültig nicht bestanden»** meint den abgeschlossenen
-Vorgang mit «All Passed» = no; die Datei sagt nicht, nach wie vielen Versuchen – der übliche Weg dorthin sind die
-aufgebrauchten Versuche, behaupten lässt es sich nicht.
+mündlich 1. Versuch, mündlich 2×, mündlich 3×). **«3× durchgefallen»** belegt das endgültige Scheitern über die
+Versuche (RUN1, RUN2 und RUN3 nicht bestanden), statt es aus «All Passed» = no zu erschliessen – diese Spalte sagt
+nicht, nach wie vielen Versuchen. Schriftlich bleibt es bei **«endgültig nicht bestanden»** (abgeschlossener Vorgang
+mit «WE All Passed» = no), weil sich die schriftliche Prüfung aus mehreren Teilprüfungen mit eigenen Versuchen
+zusammensetzt.
+
+**Ein Raster für den Block:** Kopfzeile und Zeilen teilen ein Subgrid – nur so beginnt die Spur in jeder Zeile am
+selben Punkt und die Achsenbeschriftung steht darüber. Vorher rechnete jede Zeile ihre Spaltenbreite selbst; gemessen
+begann die Spur bei 316, 310, 313, 248 und 306 px und die Achse 130 px weiter links.
 Die **Bestehensquoten** erscheinen nicht mehr auf der Übersicht: Jede ist die Gegenzahl einer Messzeile («80.5 %
 bestanden» = «19.5 % durchgefallen»), und zweimal dieselbe Aussage ist eine zu viel. Als Kennzahlen bleiben sie
 vollständig – in der Vergleichstabelle, im Export und in den Ansichten «Schriftlich» und «Mündlich».
@@ -374,6 +380,7 @@ identisch mit der Ansicht «Glossar» in der App.
 | **Mündlich: bestanden** | Anteil Vorgänge mit Status mündlich «bestanden» («OE All Passed» = yes). | Abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden). | Offen (auch: noch nicht angetreten) und nicht erfasst nicht im Nenner. In Sheet 2 gilt ein leeres «OE All yes» als bestanden (Hinweis). |
 | **Mündlich: im 1. Versuch durchgefallen** | OE1 RUN1 = no, unabhängig vom späteren Erfolg. | Angetretene Vorgänge: absolvierter, datierter OE1 RUN1 (geplante Termine zählen nicht). | Zählt auch Vorgänge, die noch offen sind. |
 | **Mündlich: 2× durchgefallen** | OE1 RUN1 = no und OE1 RUN2 = no. | Angetretene Vorgänge (wie oben). | – |
+| **Mündlich: 3× durchgefallen** | OE1 RUN1 = no, RUN2 = no und RUN3 = no – alle Versuche, die die Datei kennt, nicht bestanden. | Angetretene Vorgänge (wie oben). | Teilmenge von «2× durchgefallen». Wer den dritten Versuch besteht, zählt nicht mit. Belegt das endgültige Scheitern über die Versuche, statt es aus «OE All Passed» = no zu erschliessen – die Spalte sagt nicht, nach wie vielen Versuchen. |
 | **Mündlich: Ø Resultat 1. Versuch** | Erreichte Punkte in Prozent der mündlichen Prüfung, Result von RUN1, Mittel über die Vorgänge mit Wert. | Vorgänge mit Wert. | – |
 | **Mündlich: Ø Resultat bestandener Run** | Wie oben, Result des bestandenen Runs. | Vorgänge mit bestandener mündlicher Prüfung und Wert. | – |
 | **VSS / VSM** | Anzahl Vorgänge mit Kennzeichnung VSS bzw. VSM. | – | Beides möglich; dann in beiden Zahlen. |
