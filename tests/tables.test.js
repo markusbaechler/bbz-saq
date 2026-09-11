@@ -2,7 +2,7 @@ import { test, assert, assertEqual, assertClose } from './runner.js';
 import { MODE, personSearchIndex, expertRuns, writtenPassRates, oralPassRates } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
-  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, messzeilenSkala, messzeilenEingaben, quotenPunkte, vssVsmPunkte, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
+  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, messzeilenSkala, messzeilenEingaben, quotenPunkte, vssVsmPunkte, teilPunkte, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
@@ -298,6 +298,19 @@ test('tables.quotenPunkte: eine Quote je Gruppe mit Intervall gegen den Gesamtwe
   assertEqual(o.referenz.pct, oralPassRates(ps).failed1.pct);
   // Kleine Gruppen bleiben drin und sind markiert
   assert(p.punkte.some((x) => x.small === true) || p.punkte.every((x) => x.n >= 5));
+});
+
+test('tables.teilPunkte: je Teilprüfung ein Punkt in natürlicher Folge, ohne Bezugslinie', () => {
+  const p = teilPunkte(cohort(), 'we');
+  assertEqual(p.punkte.map((x) => x.label), ['WE1', 'WE2'], 'Folge WE1…WEn, nicht nach Wert sortiert');
+  assertEqual(p.referenz, null, 'kein Gesamtwert: er hätte einen anderen Nenner als die Zeilen');
+  assert(p.punkte.every((x) => typeof x.low === 'number' && x.n > 0), JSON.stringify(p.punkte));
+  // Dieselben Zahlen wie die Tabelle daneben; Teilprüfungen ohne absolvierten RUN1 (n = 0) haben keinen Punkt
+  const t = partTable(cohort(), 'we');
+  const mitWert = t.rows.filter((r) => r.n > 0);
+  assertEqual(p.punkte.map((x) => x.n), mitWert.map((r) => r.n));
+  assertEqual(p.punkte.map((x) => (x.pct * 100).toFixed(1) + ' %'), mitWert.map((r) => r.durchgefallen1));
+  assert(t.rows.length > mitWert.length, 'die Tabelle zeigt auch die Teilprüfungen ohne Versuch');
 });
 
 test('tables.messzeilenSkala: die Spur endet auf der nächsten 5-%-Stufe über dem grössten Wert, mindestens 10 pp', () => {
