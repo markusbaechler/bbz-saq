@@ -511,15 +511,15 @@ export function overviewModel(persons, allPersons = persons) {
 // M3: Die sechs Quoten der Blöcke «Schriftlich» und «Mündlich» als Eingaben für die Messzeile. Keine neue Kennzahl –
 // Label, Zähler, Nenner und Richtung kommen aus denselben Kacheln wie bisher; dazu die Jahresreihe derselben Quote
 // für den Verlauf und der Benchmark als Referenzmarke. Die Reihenfolge ist die der Kacheln.
-// «Schriftlich: im 1. Versuch durchgefallen» steht hier bewusst nicht: Die Quote ist das exakte Komplement der
-// Zeile darüber (100 % minus Erstversuchsquote) und stünde auf der 50–100-%-Skala dauerhaft am linken Anschlag.
-// Als Kennzahl bleibt sie erhalten – in der Vergleichstabelle, im Export und in der Ansicht «Schriftlich».
+// Hier stehen nur Bestehensquoten. Die drei Durchfallquoten fehlen mit Absicht: «Schriftlich: im 1. Versuch
+// durchgefallen» ist das exakte Komplement der Zeile darüber, und alle drei liegen auf der 50–100-%-Skala am linken
+// Anschlag – gemessen an echten Daten 20.7 % und 3.5 % mündlich, also zwei von fünf Zeilen ohne Aussage auf der Spur.
+// Eine eigene Skala ab 0 % für sie hiesse, den Sinn der gemeinsamen Spur aufzugeben. Als Kennzahlen bleiben sie
+// vollständig erhalten: in der Vergleichstabelle, im Export und in den Ansichten «Schriftlich» und «Mündlich».
 const MESSZEILEN_QUOTEN = [
   { label: 'Schriftlich: im 1. Versuch bestanden', gruppe: 'Schriftlich', jahr: (t) => t.written.erstversuch },
   { label: 'Schriftlich: insgesamt bestanden', gruppe: 'Schriftlich', jahr: (t) => t.written.gesamt },
   { label: 'Mündlich: bestanden', gruppe: 'Mündlich', jahr: (t) => t.oral.bestanden },
-  { label: 'Mündlich: im 1. Versuch durchgefallen', gruppe: 'Mündlich', jahr: (t) => t.oral.failed1 },
-  { label: 'Mündlich: 2× durchgefallen', gruppe: 'Mündlich', jahr: (t) => t.oral.failed2 },
 ];
 
 export function messzeilenEingaben(persons, kpis, { benchmarkLabel = null } = {}) {

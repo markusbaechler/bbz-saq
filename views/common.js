@@ -275,7 +275,10 @@ function kpiTile(k, glossaryHref) {
   return el('div', { class: 'kpi' + (k.small ? ' small' : '') + (isCount ? ' count' : '') }, [
     el('div', { class: 'kpi-value', text: k.value }),
     el('div', { class: 'kpi-label' }, [label, k.hint ? infoIcon(k.hint, 'Definition: ') : null]),
-    el('div', { class: 'kpi-n', text: (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' ' + (k.unit || 'Vorgängen') : 'n = ' + k.n) + (k.small ? ' *' : '') }),
+    // Mengen tragen keine zweite Zahl: Ihr Wert IST die Anzahl, und die Grundmenge der Auswahl daneben meint etwas
+    // anderes als die Kachel («Personen 970 · n = 977» zählt Vorgänge). Quoten nennen Zähler von Nenner mit Einheit,
+    // Mittelwerte nur den Nenner.
+    el('div', { class: 'kpi-n', text: (isCount ? '' : (k.count !== null && k.count !== undefined ? k.count + ' von ' + k.n + ' ' + (k.unit || 'Vorgängen') : 'n = ' + k.n)) + (k.small ? ' *' : '') }),
     // Streuung (PROMPT-2 Paket G): Zweitzeile der Ø-Kacheln «σ 9.8 pp · Median 76.0 % (P25 70.0 · P75 84.5)»; Phone nur «σ 9.8 pp» (Entscheid 6)
     k.spread ? el('div', { class: 'kpi-spread' }, [el('span', { class: 'kpi-spread-full', text: k.spread.text }), el('span', { class: 'kpi-spread-short', text: k.spread.short })]) : null,
     d ? el('div', { class: 'kpi-delta ' + d.tone }, [
@@ -530,7 +533,7 @@ const mzPos = (pct) => Math.max(0, Math.min(100, ((pct - MESSZEILE_MIN) / (1 - M
 const mzVorzeichen = (d) => (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(d).toFixed(1);
 const mzWorte = (pct) => (mzNum(pct) ? formatPct(pct).replace(' %', ' Prozent') : 'kein Wert');
 
-// Jahre, die für Verlauf und Delta zählen: auswertbar und mindestens SMALL_N Vorgänge, aufsteigend.
+// Jahre, die zählen: auswertbar und mindestens SMALL_N Vorgänge, aufsteigend.
 function mzJahre(jahre) {
   return (jahre || []).filter((j) => j && mzNum(j.pct) && (j.n || 0) >= SMALL_N).slice().sort((a, b) => a.year - b.year);
 }
@@ -539,12 +542,16 @@ function mzJahre(jahre) {
 // Eingabe: { label, glossar, count, n, pct, richtung: 'up'|'down'|'neutral', referenz: { pct, label }, jahre: [{ year, pct, n }] }
 // «Wert» ist die Lage im aktiven Filter (alle Jahre), «Wert letztes Jahr» das jüngste auswertbare Jahr und «Delta»
 // dessen Abstand zum Jahr davor. Den Gesamtwert gegen ein einzelnes Jahr zu rechnen, würde zwei Nenner vermischen.
-export function messzeileModell({ label = '', glossar = null, count = null, n = 0, pct = null, richtung = 'up', referenz = null, jahre = [] } = {}) {
+export function messzeileModell({ label = '', glossar = null, count = null, n = 0, pct = null, richtung = 'up', referenz = null, jahre = [], laufendesJahr = new Date().getFullYear() } = {}) {
   const wertPct = mzNum(pct) ? pct : (mzNum(count) && n > 0 ? count / n : null);
   const iv = mzNum(count) && n > 0 ? wilsonInterval(count, n) : { low: null, high: null, half: null };
   const reihe = mzJahre(jahre);
-  const letzte = reihe.length ? reihe[reihe.length - 1] : null;
-  const davor = reihe.length > 1 ? reihe[reihe.length - 2] : null;
+  // «Letztes Jahr» ist das jüngste ABGESCHLOSSENE Jahr. Das laufende Jahr ist unfertig – ihm fehlen Wiederholungen
+  // und Nachträge; es gegen ein volles Jahr zu rechnen ergibt einen Abfall, den es nicht gibt. Im Verlauf bleibt es
+  // sichtbar, aber als offener Punkt markiert: Verschweigen wäre die andere Lüge.
+  const fertig = reihe.filter((j) => j.year < laufendesJahr);
+  const letzte = fertig.length ? fertig[fertig.length - 1] : null;
+  const davor = fertig.length > 1 ? fertig[fertig.length - 2] : null;
   const dPp = letzte && davor ? mzPp((letzte.pct - davor.pct) * 100) : null;
   const guenstig = richtung === 'down' ? -1 : richtung === 'neutral' ? 0 : 1;
   const modell = {
@@ -570,7 +577,8 @@ export function messzeileModell({ label = '', glossar = null, count = null, n = 
     } : null,
     verlauf: reihe.length >= MESSZEILE_JAHRE_MIN ? {
       von: reihe[0].year, bis: letzte.year, jahre: reihe.length,
-      punkte: reihe.map((j, i) => ({ year: j.year, pct: j.pct, x: (i / (reihe.length - 1)) * 100, y: 100 - mzPos(j.pct) })),
+      laufend: reihe[reihe.length - 1].year >= laufendesJahr,
+      punkte: reihe.map((j, i) => ({ year: j.year, pct: j.pct, laufend: j.year >= laufendesJahr, x: (i / (reihe.length - 1)) * 100, y: 100 - mzPos(j.pct) })),
     } : null,
     letztesJahr: letzte ? { year: letzte.year, pct: letzte.pct, text: formatPct(letzte.pct) } : null,
     delta: dPp === null ? null : {
@@ -596,7 +604,8 @@ export function messzeileModell({ label = '', glossar = null, count = null, n = 
     modell.intervall ? '95-Prozent-Intervall ' + mzWorte(modell.intervall.low) + ' bis ' + mzWorte(modell.intervall.high) : 'kein Intervall',
     modell.skala.anschlag ? 'unter der Skala, am linken Anschlag' : null,
     modell.referenz ? modell.referenz.label + ' ' + mzWorte(modell.referenz.pct) + (modell.referenz.abstand === null ? '' : ', Abstand ' + (modell.referenz.abstand > 0 ? 'plus ' : modell.referenz.abstand < 0 ? 'minus ' : '') + Math.abs(modell.referenz.abstand).toFixed(1) + ' Prozentpunkte') : null,
-    modell.letztesJahr ? 'letztes Jahr ' + modell.letztesJahr.year + ' ' + mzWorte(modell.letztesJahr.pct) : null,
+    modell.letztesJahr ? 'letztes abgeschlossenes Jahr ' + modell.letztesJahr.year + ' ' + mzWorte(modell.letztesJahr.pct) : null,
+    modell.verlauf && modell.verlauf.laufend ? 'das laufende Jahr ' + modell.verlauf.punkte[modell.verlauf.punkte.length - 1].year + ' ist unvollständig und zählt nicht für den Vergleich' : null,
     modell.delta ? 'Veränderung gegen ' + modell.delta.gegen + ' ' + (modell.delta.pp > 0 ? 'plus ' : modell.delta.pp < 0 ? 'minus ' : '') + Math.abs(modell.delta.pp).toFixed(1) + ' Prozentpunkte' : null,
   ].filter(Boolean).join(', ') + '.';
   return modell;
@@ -619,7 +628,8 @@ function mzVerlauf(verlauf) {
   svg.setAttribute('focusable', 'false');
   const titel = document.createElementNS(NS, 'title');
   const ende = verlauf.punkte[verlauf.punkte.length - 1];
-  titel.textContent = 'Verlauf ' + verlauf.von + ' bis ' + verlauf.bis + ' (' + verlauf.jahre + ' Jahre mit n ≥ ' + SMALL_N + '), zuletzt ' + formatPct(ende.pct);
+  titel.textContent = 'Verlauf ' + verlauf.von + ' bis ' + verlauf.bis + ' (' + verlauf.jahre + ' Jahre mit n ≥ ' + SMALL_N + '), zuletzt '
+    + formatPct(ende.pct) + (ende.laufend ? ' – ' + ende.year + ' läuft noch und ist unvollständig' : '');
   const linie = document.createElementNS(NS, 'polyline');
   linie.setAttribute('points', punkte);
   linie.setAttribute('class', 'mz-verlauf-linie');
@@ -627,7 +637,7 @@ function mzVerlauf(verlauf) {
   punkt.setAttribute('cx', px(ende));
   punkt.setAttribute('cy', py(ende));
   punkt.setAttribute('r', 2.5);
-  punkt.setAttribute('class', 'mz-verlauf-ende');
+  punkt.setAttribute('class', 'mz-verlauf-ende' + (ende.laufend ? ' laufend' : ''));
   svg.append(titel, linie, punkt);
   return svg;
 }
