@@ -1295,6 +1295,23 @@ export function expertTables(runs, { deltaDirection = 'neutral' } = {}) {
     empty: 'Keine Einsätze im aktiven Filter.',
     note: 'Beobachtungswerte, keine Leistungsbeurteilung: ein Einsatz zählt für beide Experten voll; Δ = Wert des Experten minus Benchmark aller Experten derselben Versuchsart, in Prozentpunkten, neutral dargestellt (E9). ' + SMALL_NOTE,
   };
+  // Punktdiagramm je Experte (Paket H, H4-Lücke): Durchfallquote im 1. Versuch mit 95-%-Wilson-Intervall gegen den
+  // Benchmark aller Experten. Hier werden Menschen verglichen – deshalb ist «gesichert oder nicht» die Frage und
+  // nicht eine Rangfolge aus wenigen Prozentpunkten. Zwei Entscheide, die daraus folgen:
+  //  1. Die Reihenfolge bleibt die der Tabelle (Einsätze absteigend). Nach Quote sortiert wäre das Bild eine
+  //     Rangliste von Personen – genau das, was die Ansicht laut ihrer eigenen Fussnote nicht ist (E9).
+  //  2. Dadurch werden die Balken nach unten breiter: Wer wenige Einsätze hat, streut mehr. Das ist die Aussage.
+  // Keine neue Kennzahl: s.fail.erst und bench.fail.erst rechnet metrics.js längst.
+  const punkte = {
+    titel: 'Durchfallquote 1. Versuch je Experte',
+    punkte: stats
+      .filter((s) => isNum(s.fail.erst.pct))
+      .map((s) => {
+        const iv = wilsonInterval(s.fail.erst.count, s.fail.erst.n);
+        return { label: s.name, pct: s.fail.erst.pct, n: s.fail.erst.n, low: iv.low, high: iv.high, small: s.fail.erst.n < SMALL_N, unit: 'Einsätzen' };
+      }),
+    referenz: isNum(bench.fail.erst.pct) ? { pct: bench.fail.erst.pct, label: 'Alle Experten' } : null,
+  };
   const details = new Map(stats.map((s) => [s.key, {
     jahr: groupTable('Je Jahr', 'Jahr', s.byYear),
     profil: groupTable('Je Profil', 'Profil', s.byProfil),
@@ -1313,7 +1330,7 @@ export function expertTables(runs, { deltaDirection = 'neutral' } = {}) {
     empty: 'Keine Einsätze mit zwei verschiedenen Experten.',
     note: 'Einsätze mit zwei verschiedenen Experten, unabhängig von der Rollenreihenfolge; häufigste Paare zuerst (höchstens 30).',
   };
-  return { benchmark: bench, kpis, main, details, pairs };
+  return { benchmark: bench, kpis, main, details, pairs, punkte };
 }
 
 // Einsatzebene (Entscheid 06.09.2026, Frage 3): eine Zeile je Einsatz mit Kandidatenname – mit Namen, nur intern (E5, E8)

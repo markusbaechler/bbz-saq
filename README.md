@@ -522,7 +522,13 @@ aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und L
 Punktdiagramm: je Gruppe ein Punkt auf der **Durchfallquote im 1. Versuch** – dieselbe Wahl wie in der Übersicht,
 weil bei 96 % bestanden die Aussage in der Gegenzahl steckt –, dazu sein 95-%-Wilson-Intervall als Balken und eine
 senkrechte Linie auf dem Gesamtwert. Es steht in der Übersicht («Kennzahlen je Profil»), in «Schriftlich» dreimal
-(Profil, Sprache, Bank) und in «Mündlich» einmal (Profil). **Berührt der Balken die Linie nicht, ist der Abstand gesichert** – das
+(Profil, Sprache, Bank), in «Mündlich» einmal (Profil) und in «Experten» je Experte.
+
+**In «Experten» gilt eine Besonderheit:** Dort werden Menschen verglichen, deshalb steht das Diagramm in der
+Reihenfolge der Tabelle (Einsätze absteigend) und **nicht nach Quote sortiert** – nach Quote sortiert wäre das Bild
+eine Rangliste von Personen, und genau das ist die Ansicht laut ihrer eigenen Fussnote nicht (E9). Die Balken werden
+dadurch nach unten breiter: Wer wenige Einsätze hat, streut mehr. Berührt ein Balken die Linie, ist der Abstand zum
+Benchmark nicht gesichert – das ist die Ablesung, nicht die Reihenfolge. **Berührt der Balken die Linie nicht, ist der Abstand gesichert** – das
 ist die ganze Ablesung, ohne p-Wert; sie steht zusätzlich als Wort in der Direktbeschriftung («n = 302 · −8.9 pp ·
 gesichert»). Die Tabelle bleibt als Tabellen-Zwilling darunter und im Export; sie trägt Spalten, die das Diagramm nicht zeigt
 (insgesamt bestanden, offen, passiv, nicht erfasst), und ist deshalb nicht eingeklappt. Gemessen kostet ein Diagramm

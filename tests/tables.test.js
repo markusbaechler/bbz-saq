@@ -838,6 +838,16 @@ test('tables.expertTables: KPIs, Haupttabelle mit Prioritäten und neutralen Δ 
   assertEqual(t.pairs.columns.map((c) => c.label), ['Experte 1', 'Experte 2', 'Einsätze', 'Durchfallquote', 'Ø Resultat']);
   assertEqual(t.pairs.rows.map((r) => [r.expert1, r.expert2, r.einsaetze]), [['Beisitz Bruno', 'Experte Emil', 2], ['Beisitz Bruno', 'Prüfer Pia', 2], ['Experte Emil', 'Prüfer Pia', 2]]);
   assert(t.main.note.includes('Beobachtungswerte'));
+  // Punktdiagramm je Experte: dieselben Zahlen wie die Spalte «Durchfallquote 1. Versuch», Referenz = Benchmark
+  assertEqual(t.punkte.titel, 'Durchfallquote 1. Versuch je Experte');
+  assertEqual(t.punkte.referenz.label, 'Alle Experten');
+  assertEqual(t.punkte.referenz.pct, t.benchmark.fail.erst.pct);
+  // Reihenfolge wie die Tabelle (Einsätze absteigend), NICHT nach Quote – sonst wäre das Bild eine Rangliste von Personen
+  assertEqual(t.punkte.punkte.map((p) => p.label), t.main.rows.filter((r) => r.fail1 !== '–').map((r) => r.experte));
+  const piaPunkt = t.punkte.punkte.find((p) => p.label === 'Prüfer Pia');
+  assertEqual([piaPunkt.pct, piaPunkt.n, piaPunkt.unit], [0.5, 4, 'Einsätzen']);
+  assert(piaPunkt.low < piaPunkt.pct && piaPunkt.high > piaPunkt.pct, 'Wilson-Intervall um den Wert');
+  assert(t.punkte.punkte.some((p) => p.small), 'kleine Gruppen bleiben drin und sind markiert');
   assertEqual([t.main.wide, t.pairs.wide], [true, undefined], 'Haupttabelle mit 13 Spalten ist «wide»: Prio 3 erst ab 1400 px (PROMPT-2 F.2, Option 1); Paarungen nicht');
   const empty = expertTables([]);
   assertEqual([empty.main.rows, empty.pairs.rows, empty.kpis[0].value], [[], [], '0']);

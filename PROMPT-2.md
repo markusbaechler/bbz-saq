@@ -980,13 +980,13 @@ gerechnet wird** – und nur, wenn sie eine Frage beantwortet, die die Tabelle n
 | Geplante Prüfungen | 3 · 0 · 0 · 5 · 750 px | **Tabelle ist richtig.** Termine je Tag und Ort – Zeitpunkte, keine Anteile. |
 | Personen | 31 · 0 · 0 · 0 · 750 px | **Tabelle ist richtig.** Einzelfall: Der Weg einer Person durch die Zertifizierung. Eine Quote über einen Vorgang hat keinen Nenner; ein Baustein wäre hier erfunden. |
 | Bestenlisten | 4 · 0 · 0 · 0 · 1220 px | **Tabelle ist richtig.** Ränge tragen Scores, keine Anteile mit Nenner – ohne Nenner kein Wilson-Intervall, ohne Intervall kein Punktdiagramm. |
-| Experten | 14 · 0 · 0 · 6 · 756 px | **Baustein fehlt, der stärkste Fall.** Je Experte eine Durchfallquote mit Nenner (Einsätze) und ein Benchmark aller Experten (`expertStats`, `expertBenchmark`) – und hier werden Menschen verglichen, weshalb «gesichert oder nicht» die entscheidende Frage ist. Einheit «Einsätzen» trägt das Modell bereits. *Offen, nicht gebaut.* |
+| Experten | 14 · 1 Punkt · 0 · 6 · 756 px | **versorgt (11.09.2026).** Punktdiagramm je Experte, in der Reihenfolge der Tabelle statt nach Quote – eine Rangliste von Personen wäre die Ansicht nicht (E9). Ursprünglicher Befund: Je Experte eine Durchfallquote mit Nenner (Einsätze) und ein Benchmark aller Experten (`expertStats`, `expertBenchmark`) – und hier werden Menschen verglichen, weshalb «gesichert oder nicht» die entscheidende Frage ist. Einheit «Einsätzen» trägt das Modell bereits. |
 | Historie | 0 · 0 · 0 · 4 · 853 px | **Tabelle ist richtig.** Stichtagsvergleich aus Snapshots; ohne geladenen Snapshot gibt es nichts zu zeigen. |
 | Datenqualität | 2 · 0 · 0 · 0 · 2510 px | **Tabelle ist richtig.** Das Log ist eine Fundstellenliste (Sheet, Zeile, Header, Rohwert, Grund) – kein Aggregat. |
 | Glossar | 2 · 0 · 0 · 0 · 6368 px | **Tabelle ist richtig.** Definitionen; ein Diagramm hätte nichts zu zeigen. |
 
-**Ergebnis:** 6 von 14 Ansichten tragen einen Baustein (vor Paket H: 1), 5 sind mit Begründung Tabellen-Ansichten,
-3 Lücken sind benannt und nicht gebaut: Experten, VSS/VSM und «Je Teilprüfung» in «Schriftlich». Alle drei sind
+**Ergebnis:** 7 von 14 Ansichten tragen einen Baustein (vor Paket H: 1), 5 sind mit Begründung Tabellen-Ansichten,
+Von den drei benannten Lücken ist «Experten» am 11.09.2026 geschlossen; offen bleiben VSS/VSM und «Je Teilprüfung» in «Schriftlich». Alle drei sind
 derselbe Fall (Quote je Gruppe mit Nenner gegen eine Referenz) und brauchen keine neue Kennzahl.
 
 Ohne Paketnamen liefen zwei Unterhaltsarbeiten derselben Runde: `AGENTS.md` gegen Drift zu `CLAUDE.md` abgesichert
