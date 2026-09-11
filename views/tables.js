@@ -174,6 +174,24 @@ export function performanceTable(persons, key, kind = 'written') {
 }
 
 // Je Teilprüfung (kind 'we' | 'oe'): 1. Versuch bestanden/durchgefallen, insgesamt bestanden, Ø beider Wertungen
+// Punkte je Teilprüfung (letzte Lücke aus H4): Durchfallquote im 1. Versuch mit Wilson-Intervall, WE1…WE6 in
+// ihrer natürlichen Folge. OHNE Bezugslinie, und das ist der Punkt: Ein Gesamtwert über alle Teilprüfungen hätte
+// einen anderen Nenner als die Zeilen (Vorgänge mit RUN1 je Teilprüfung, nicht Vorgänge), und gepoolt wäre er eine
+// Kennzahl, die es nicht gibt – erfunden wird keine. Verglichen werden die Teilprüfungen untereinander:
+// überlappen zwei Intervalle nicht, ist der Unterschied gesichert.
+export function teilPunkte(persons, kind = 'we') {
+  return {
+    titel: (kind === 'oe' ? 'Mündlich' : 'Schriftlich') + ': im 1. Versuch durchgefallen je Teilprüfung',
+    punkte: partFirstAttempt(persons, kind)
+      .filter((p) => isNum(p.failed.pct))
+      .map((p) => {
+        const iv = wilsonInterval(p.failed.count, p.failed.n);
+        return { label: p.label, pct: p.failed.pct, n: p.failed.n, low: iv.low, high: iv.high, small: p.n < SMALL_N };
+      }),
+    referenz: null,
+  };
+}
+
 export function partTable(persons, kind = 'we') {
   const rows = partFirstAttempt(persons, kind).map((p) => ({
     gruppe: mark(p.label, p.n < SMALL_N), n: p.n, small: p.n < SMALL_N,
@@ -219,6 +237,27 @@ export function oralRateTable(persons, key) {
 // ---------------------------------------------------------------------------
 // VSS / VSM
 // ---------------------------------------------------------------------------
+
+// Punkte für die drei Kennzeichnungen (Lücke aus H4): Durchfallquote im 1. Versuch je Gruppe mit Wilson-Intervall
+// gegen den Gesamtwert. Die Reihenfolge bleibt VSS · VSM · ohne wie in der Tabelle – drei feste Kategorien in ihrer
+// natürlichen Folge lesen sich besser als nach Wert sortiert, und die Tabelle darunter zeigt dieselbe Folge.
+// Zu beachten und im Hinweis gesagt: Die Gruppen überschneiden sich (ein Vorgang mit VSS UND VSM zählt in beiden),
+// sie sind also keine Aufteilung des Gesamtwerts. Keine neue Kennzahl.
+export function vssVsmPunkte(persons) {
+  const b = vssVsmBreakdown(persons);
+  const gesamt = writtenPassRates(persons).erstversuchFailed;
+  return {
+    titel: 'Schriftlich im 1. Versuch durchgefallen nach Kennzeichnung',
+    punkte: [['VSS', b.vss], ['VSM', b.vsm], ['ohne', b.ohne]]
+      .filter(([, block]) => isNum(block.written.erstversuchFailed.pct))
+      .map(([label, block]) => {
+        const r = block.written.erstversuchFailed;
+        const iv = wilsonInterval(r.count, r.n);
+        return { label, pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+      }),
+    referenz: isNum(gesamt.pct) ? { pct: gesamt.pct, label: 'Gesamt' } : null,
+  };
+}
 
 export function vssVsmTable(persons) {
   const b = vssVsmBreakdown(persons);

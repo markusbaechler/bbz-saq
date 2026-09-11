@@ -971,9 +971,9 @@ gerechnet wird** – und nur, wenn sie eine Frage beantwortet, die die Tabelle n
 | Ansicht | Bestand (Tabellen · Diagramme · Messzeilen · Kacheln · Höhe) | Entscheid |
 |---|---|---|
 | Übersicht | 3 · 1 Punkt · 5 · 13 · 1818 px | **versorgt.** Signale, Durchfallquoten als Messzeilen, Punktdiagramm je Profil, Mengen und Ø als Kacheln. |
-| Schriftlich | 8 · 1 Balken + 3 Punkt · 0 · 0 · 3573 px | **versorgt (H2)**, mit einer Lücke: «Je Teilprüfung WE1–WE6» ist eine Quote je Gruppe mit Nenner (`partFirstAttempt`) – derselbe Fall wie die drei neuen Diagramme. *Offen, nicht gebaut.* |
+| Schriftlich | 8 · 1 Balken + 4 Punkt · 0 · 0 | **versorgt.** H2 brachte drei Punktdiagramme (Profil, Sprache, Bank), am 11.09.2026 kam «Je Teilprüfung WE1–WE6» dazu – ohne Bezugslinie, weil ein Gesamtwert über alle Teilprüfungen einen anderen Nenner hätte als die Zeilen. |
 | Mündlich | 6 · 1 Balken + 1 Punkt · 0 · 0 · 2622 px | **versorgt (H2).** «Je Teilprüfung OE1–OE2» sind zwei Gruppen – für zwei Punkte lohnt kein Diagramm, die Tabelle ist die richtige Form. Getrennt davon: Sprache und Bank fehlen hier als Gruppierung ganz (nur Profil), anders als in «Schriftlich». |
-| VSS/VSM | 1 · 0 · 0 · 0 · 757 px | **Baustein fehlt.** Drei Gruppen (VSS, VSM, ohne) mit Bestehensquote und Nenner (`vssVsmBreakdown`), die Frage ist «unterscheiden sie sich gesichert» – genau der Punktdiagramm-Fall. *Offen, nicht gebaut.* |
+| VSS/VSM | 1 · 1 Punkt · 0 · 0 · 757 px | **versorgt (11.09.2026).** Punktdiagramm je Kennzeichnung in der Folge der Tabelle; die Gruppen überschneiden sich und teilen den Gesamtwert nicht auf, das steht im Hinweis. Ursprünglicher Befund: Drei Gruppen (VSS, VSM, ohne) mit Bestehensquote und Nenner (`vssVsmBreakdown`), die Frage ist «unterscheiden sie sich gesichert» – genau der Punktdiagramm-Fall. |
 | Zeitverlauf | 7 · 2 Linien · 0 · 0 · 3731 px | **versorgt (H1).** «Schwierigkeit je Teilprüfung» bleibt Tabelle: acht Reihen (WE1–WE6, OE1–OE2) bei drei Reihenfarben wären unlesbar. «Durchlaufzeit» bleibt Tabelle: Mediane in Tagen sind keine Anteile, und einen Baustein für Zeitspannen gibt es nicht – erfunden wird keiner. |
 | Bank-Report | 3 · 0 · 5 · 0 · 1966 px | **versorgt (H3).** Messzeilen mit Benchmarkmarke, druckfest. |
 | Offene Vorgänge | 4 · 0 · 0 · 5 · 1485 px | **Tabelle ist richtig.** Arbeitsliste ohne Quoten (0 Prozentzellen): Gezeigt wird, welche Vorgänge etwas brauchen, nicht wie viel Prozent. Der Anteil passiver Vorgänge steht als Signal auf der Übersicht. |
@@ -985,8 +985,8 @@ gerechnet wird** – und nur, wenn sie eine Frage beantwortet, die die Tabelle n
 | Datenqualität | 2 · 0 · 0 · 0 · 2510 px | **Tabelle ist richtig.** Das Log ist eine Fundstellenliste (Sheet, Zeile, Header, Rohwert, Grund) – kein Aggregat. |
 | Glossar | 2 · 0 · 0 · 0 · 6368 px | **Tabelle ist richtig.** Definitionen; ein Diagramm hätte nichts zu zeigen. |
 
-**Ergebnis:** 7 von 14 Ansichten tragen einen Baustein (vor Paket H: 1), 5 sind mit Begründung Tabellen-Ansichten,
-Von den drei benannten Lücken ist «Experten» am 11.09.2026 geschlossen; offen bleiben VSS/VSM und «Je Teilprüfung» in «Schriftlich». Alle drei sind
+**Ergebnis:** 8 von 14 Ansichten tragen einen Baustein (vor Paket H: 1), 5 sind mit Begründung Tabellen-Ansichten,
+Alle drei benannten Lücken sind am 11.09.2026 geschlossen (Experten, VSS/VSM, «Je Teilprüfung» in «Schriftlich»). Alle drei sind
 derselbe Fall (Quote je Gruppe mit Nenner gegen eine Referenz) und brauchen keine neue Kennzahl.
 
 Ohne Paketnamen liefen zwei Unterhaltsarbeiten derselben Runde: `AGENTS.md` gegen Drift zu `CLAUDE.md` abgesichert

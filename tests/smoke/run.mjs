@@ -546,6 +546,27 @@ try {
   check(stufen.kachel !== null && stufen.spalte === 'Schriftlich offen' && stufen.summe <= stufen.kachel && stufen.altNamen.length === 0 && /begriff=zertifizierung-offen/.test(stufen.glossar || ''),
     'A5 Übersicht: Kachel «Zertifizierung offen» = ' + stufen.kachel + ', Spalte «Schriftlich offen» Summe ' + stufen.summe + ' (frühere Stufe, also nicht grösser), kein «Offen» mehr, Kachel verlinkt ins Glossar');
 
+  // VSS/VSM (Lücke aus H4): drei Kennzeichnungen als Punkte gegen den Gesamtwert, in der Folge der Tabelle
+  await page.goto(server.url + '#vss-vsm');
+  await page.waitForSelector('#view table.data');
+  const vss = await page.evaluate(() => {
+    const svgEl = document.querySelector('#view .viz-dots');
+    if (!svgEl) return null;
+    const f = svgEl.closest('figure');
+    const tabelle = document.querySelector('#view table.data');
+    return {
+      punkte: [...f.querySelectorAll('text.viz-label')].map((t) => t.textContent).filter((t) => !/^n = /.test(t)).map((t) => t.replace(/ \*$/, '')),
+      referenz: f.querySelectorAll('.viz-ref').length,
+      gruppenInTabelle: [...new Set([...tabelle.querySelectorAll('tbody tr td:first-child')].map((td) => td.textContent.trim()))],
+      vorDerTabelle: !!(f.compareDocumentPosition(tabelle) & Node.DOCUMENT_POSITION_FOLLOWING),
+    };
+  });
+  // In der synthetischen Datei hat nur «ohne» einen auswertbaren Wert – eine Gruppe ohne Wert bekommt keinen Punkt
+  check(!!vss && vss.referenz === 1 && vss.vorDerTabelle && vss.punkte.length >= 1
+    && vss.punkte.every((p) => vss.gruppenInTabelle.includes(p))
+    && vss.punkte.join('|') === vss.gruppenInTabelle.filter((g) => vss.punkte.includes(g)).join('|'),
+    'VSS/VSM: Punktdiagramm vor der Tabelle (' + (vss ? vss.punkte.join(' · ') : '') + '), Folge wie die Tabelle, Linie auf dem Gesamtwert');
+
   // H2: Punktdiagramm je Gruppierung vor der Tabelle – in «Schriftlich» drei (Profil, Sprache, Bank), in «Mündlich»
   // eines (Profil). Die Tabelle bleibt darunter stehen und im Export; die Zahl der Punkte entspricht ihren Zeilen
   // ohne die Gesamtzeile.
@@ -572,6 +593,29 @@ try {
       && h2.punkteZuZeilen.every((p) => Number(p.split('/')[0]) >= 1 && Number(p.split('/')[0]) <= Number(p.split('/')[1])),
       'H2 ' + ansicht + ': ' + h2.diagramme + ' Punktdiagramm(e) vor der Tabelle (' + h2.titel.join(' | ') + '), Punkte zu Tabellenzeilen ' + h2.punkteZuZeilen.join(', '));
   }
+
+  // Letzte Lücke aus H4: Punktdiagramm je Teilprüfung in «Schriftlich» – ohne Bezugslinie, weil ein Gesamtwert
+  // über alle Teilprüfungen einen anderen Nenner hätte als die Zeilen.
+  await page.goto(server.url + '#schriftlich');
+  await page.waitForSelector('#view table.data');
+  const teile = await page.evaluate(() => {
+    const abschnitt = [...document.querySelectorAll('#view section.block, #view details.block')]
+      .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Je Teilprüfung'));
+    const fig = abschnitt ? abschnitt.querySelector('figure.viz') : null;
+    if (!fig) return null;
+    const tabelle = abschnitt.querySelector('table.data');
+    return {
+      punkte: [...fig.querySelectorAll('text.viz-label')].map((t) => t.textContent).filter((t) => /^WE\d/.test(t)).map((t) => t.replace(/ \*$/, '')),
+      referenz: fig.querySelectorAll('.viz-ref').length,
+      balken: fig.querySelectorAll('.viz-ci').length,
+      zeilen: [...tabelle.querySelectorAll('tbody tr td:first-child')].map((td) => td.textContent.replace(/ \*$/, '').trim()),
+      vorDerTabelle: !!(fig.compareDocumentPosition(tabelle) & Node.DOCUMENT_POSITION_FOLLOWING),
+    };
+  });
+  // Teilprüfungen ohne absolvierten ersten Versuch haben keinen Punkt – in der synthetischen Datei bleibt einer übrig
+  check(!!teile && teile.punkte.length >= 1 && teile.referenz === 0 && teile.balken === teile.punkte.length
+    && teile.vorDerTabelle && teile.punkte.join('|') === teile.zeilen.filter((z) => teile.punkte.includes(z)).join('|'),
+    'Schriftlich: Punktdiagramm je Teilprüfung (' + (teile ? teile.punkte.join(' · ') : '') + ') ohne Bezugslinie, Folge wie die Tabelle');
 
   // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
   // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
