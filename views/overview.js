@@ -1,7 +1,7 @@
 // views/overview.js – View 1 «Übersicht»: KPIs gesamt für den aktiven Filter, Kennzahlen je Profil.
 
-import { overviewModel, plannedTables, comparisonTable } from './tables.js';
-import { renderKpis, renderTable, section, hinted, el, signalBlock, isPhone } from './common.js';
+import { overviewModel, plannedTables, comparisonTable, messzeilenEingaben } from './tables.js';
+import { renderKpis, renderTable, section, hinted, el, signalBlock, isPhone, messzeileModell, messzeilenBlock } from './common.js';
 import { renderDotChart } from './chart.js';
 import { BENCHMARKS, benchmarkFilter, DEFAULT_FILTER, formatPct } from '../metrics.js';
 
@@ -47,6 +47,7 @@ export function build(ctx) {
       if (b && k.kind !== 'count') {
         k.benchmark = b.value;
         k.benchmarkLabel = bench.label;
+        k.benchmarkRaw = b.raw; // M3: Rohwert für die Referenzmarke der Messzeile
         // Differenz in Prozentpunkten für die Kachel (A.4); null ohne Wert auf einer Seite.
         // Ohne benchmarkrelevanten Filter gar nicht setzen (A2): common.js rendert die Zeile dann nicht.
         if (relevant) k.delta = Number.isFinite(k.raw) && Number.isFinite(b.raw) ? (k.raw - b.raw) * 100 : null;
@@ -54,6 +55,23 @@ export function build(ctx) {
     }
   }
   const kpis = m.kpis.concat([{ label: 'Geplante Prüfungstermine', value: String(planned.total), n: planned.total, small: false, kind: 'count', group: 'Mengen', direction: 'neutral', hint: 'Termine in der Zukunft ohne Ergebnis (Filter Profil, Sprache, Bank, VSS/VSM)' }]);
+  // M3: Die sechs Quoten der Blöcke «Schriftlich» und «Mündlich» werden Messzeilen und stehen zuoberst; Mengen und
+  // die vier Ø-Kennzahlen bleiben Kacheln und folgen darunter. Gemessen bei 1400 × 900: So endet die letzte Messzeile
+  // bei y = 771 statt y = 1119 (letzte Quoten-Kachel vorher) und liegt damit über der Falz. Blieben die Kacheln oben,
+  // läge sie bei 1056 – die Reihenfolge ist der einzige Weg zum Zielmass, ohne etwas einzuklappen.
+  const messzeilen = messzeilenEingaben(ctx.persons, kpis, { benchmarkLabel: bench ? bench.label : null });
+  const quotenLabels = new Set(messzeilen.map((z) => z.label));
+  const kachelKpis = kpis
+    .filter((k) => !quotenLabels.has(k.label))
+    // Die Ø-Kennzahlen tragen die Streuungszeile aus Paket G; sie bleiben Kacheln und stehen zusammen in einem Block
+    .map((k) => (k.kind === 'mean' ? { ...k, group: 'Ø Resultat' } : k));
+  // Ein Block statt zwei: Die gemeinsame Skala ist der ganze Sinn der Messzeile – sechs Quoten auf einer Spur sind
+  // vergleichbar, zwei Spuren untereinander wären es nicht. Gemessen kostet ein zweiter Block ausserdem 82 px, und
+  // genau die fehlen im echten Fall am Zielmass (922 statt 840 px bei sechs Signalen).
+  const quotenModelle = messzeilen.map((z) => messzeileModell(z.eingabe));
+  const quotenBlock = quotenModelle.length ? el('section', { class: 'kpi-group' }, [
+    messzeilenBlock('Quoten', quotenModelle, { referenzLabel: relevant && bench ? bench.label : null }),
+  ]) : null;
   let benchmarkBar = null;
   if (bench) {
     const def = BENCHMARKS.find((b) => b.id === bench.kind) || {};
@@ -78,7 +96,10 @@ export function build(ctx) {
       // D2: Signale zuerst – sie beantworten «worauf schaue ich heute», und das gehört nicht unter zwölf Kacheln
       signalBlock(ctx.signale, { onWeg: ctx.onSignalWeg, filterKurz: ctx.filterKurz }),
       benchmarkBar,
-      renderKpis(kpis, { glossaryHref: ctx.glossaryHref }),
+      // M3: Die sechs Quoten der Blöcke «Schriftlich» und «Mündlich» stehen als Messzeilen auf einer gemeinsamen
+      // Skala; die Kacheln bleiben für die Mengen und für die vier Ø-Kennzahlen, die ihre Streuungszeile tragen.
+      quotenBlock ? el('div', { class: 'kpi-groups' }, [quotenBlock]) : null,
+      renderKpis(kachelKpis, { glossaryHref: ctx.glossaryHref, gruppen: ['Mengen', 'Ø Resultat'] }),
       // Phone (B.4): Benchmark-Tabelle und Mehrfachprofile eingeklappt, Kennzahlen je Profil offen
       gleichstand, // steht sichtbar vor der eingeklappten Tabelle – im Aufklapper würde die Begründung niemand lesen
       comparison ? sec('Auswahl im Vergleich zum Benchmark', [renderTable(comparison)],

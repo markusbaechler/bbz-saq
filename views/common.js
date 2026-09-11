@@ -289,16 +289,20 @@ function kpiTile(k, glossaryHref) {
 // KPI-Kacheln: [{ label, value, n, small, hint, kind, group, direction, delta, benchmark, benchmarkLabel }]
 // Mit group werden Blöcke Mengen · Schriftlich · Mündlich mit h3 gerendert; ohne group eine einzelne Reihe.
 // Auf Phone (B.3) sind die Blöcke aufklappbare details: Schriftlich und Mündlich offen, Mengen zu; im Druck alle offen.
-export function renderKpis(kpis, { glossaryHref = null, phone = isPhone() } = {}) {
+// vorne: je Block ein Knoten, der vor den Kacheln steht (M3: die Messzeilen der Quoten; die Kacheln bleiben für
+// Mengen und für die Ø-Kennzahlen, die ihre Streuungszeile tragen).
+export function renderKpis(kpis, { glossaryHref = null, phone = isPhone(), vorne = {}, gruppen = ['Mengen', 'Schriftlich', 'Mündlich'] } = {}) {
   const tile = (k) => kpiTile(k, glossaryHref);
-  const groups = ['Mengen', 'Schriftlich', 'Mündlich'].map((g) => ({ g, list: kpis.filter((k) => k.group === g) })).filter((x) => x.list.length);
+  const groups = gruppen.map((g) => ({ g, list: kpis.filter((k) => k.group === g) })).filter((x) => x.list.length || vorne[x.g]);
   if (!groups.length) return el('div', { class: 'kpis' }, kpis.map(tile));
   if (phone) {
-    return el('div', { class: 'kpi-groups' }, groups.map(({ g, list }) => el('details', { class: 'kpi-group print-open', open: g === 'Mengen' ? null : '' }, [
-      el('summary', { text: g }), el('div', { class: 'kpis' }, list.map(tile)),
-    ])));
+    return el('div', { class: 'kpi-groups' }, groups.map(({ g, list }) => el('details', { class: 'kpi-group print-open', open: g === gruppen[0] ? null : '' }, [
+      el('summary', { text: g }), vorne[g] || null, list.length ? el('div', { class: 'kpis' }, list.map(tile)) : null,
+    ].filter(Boolean))));
   }
-  return el('div', { class: 'kpi-groups' }, groups.map(({ g, list }) => el('section', { class: 'kpi-group' }, [el('h3', { text: g }), el('div', { class: 'kpis' }, list.map(tile))])));
+  return el('div', { class: 'kpi-groups' }, groups.map(({ g, list }) => el('section', { class: 'kpi-group' }, [
+    el('h3', { text: g }), vorne[g] || null, list.length ? el('div', { class: 'kpis' }, list.map(tile)) : null,
+  ].filter(Boolean))));
 }
 
 // ---------------------------------------------------------------------------
@@ -559,7 +563,11 @@ export function messzeileModell({ label = '', glossar = null, count = null, n = 
       von: mzPos(iv.low), bis: mzPos(iv.high),
       text: '±' + mzPp(iv.half * 100).toFixed(1) + ' pp',
     },
-    referenz: referenz && mzNum(referenz.pct) ? { pct: referenz.pct, pos: mzPos(referenz.pct), label: referenz.label || 'Referenz', text: formatPct(referenz.pct) } : null,
+    referenz: referenz && mzNum(referenz.pct) ? {
+      pct: referenz.pct, pos: mzPos(referenz.pct), label: referenz.label || 'Referenz', text: formatPct(referenz.pct),
+      // Abstand zur Referenz in pp: Die Kachel nannte ihn als Delta-Zeile; in der Messzeile steht er an der Marke
+      abstand: wertPct === null ? null : mzPp((wertPct - referenz.pct) * 100),
+    } : null,
     verlauf: reihe.length >= MESSZEILE_JAHRE_MIN ? {
       von: reihe[0].year, bis: letzte.year, jahre: reihe.length,
       punkte: reihe.map((j, i) => ({ year: j.year, pct: j.pct, x: (i / (reihe.length - 1)) * 100, y: 100 - mzPos(j.pct) })),
@@ -578,7 +586,7 @@ export function messzeileModell({ label = '', glossar = null, count = null, n = 
     'n gleich ' + (n || 0) + (modell.klein ? ', kleine Gruppe' : ''),
     modell.intervall ? '95-Prozent-Intervall ' + mzWorte(modell.intervall.low) + ' bis ' + mzWorte(modell.intervall.high) : 'kein Intervall',
     modell.skala.anschlag ? 'unter der Skala, am linken Anschlag' : null,
-    modell.referenz ? modell.referenz.label + ' ' + mzWorte(modell.referenz.pct) : null,
+    modell.referenz ? modell.referenz.label + ' ' + mzWorte(modell.referenz.pct) + (modell.referenz.abstand === null ? '' : ', Abstand ' + (modell.referenz.abstand > 0 ? 'plus ' : modell.referenz.abstand < 0 ? 'minus ' : '') + Math.abs(modell.referenz.abstand).toFixed(1) + ' Prozentpunkte') : null,
     modell.letztesJahr ? 'letztes Jahr ' + modell.letztesJahr.year + ' ' + mzWorte(modell.letztesJahr.pct) : null,
     modell.delta ? 'Veränderung gegen ' + modell.delta.gegen + ' ' + (modell.delta.pp > 0 ? 'plus ' : modell.delta.pp < 0 ? 'minus ' : '') + Math.abs(modell.delta.pp).toFixed(1) + ' Prozentpunkte' : null,
   ].filter(Boolean).join(', ') + '.';
@@ -619,7 +627,10 @@ function mzVerlauf(verlauf) {
 function mzSkala(m) {
   const kinder = [el('span', { class: 'mz-spur' })];
   if (m.intervall) kinder.push(el('span', { class: 'mz-intervall', style: 'left:' + m.intervall.von + '%;right:' + (100 - m.intervall.bis) + '%', title: '95-%-Intervall ' + m.intervall.text }));
-  if (m.referenz) kinder.push(el('span', { class: 'mz-referenz', style: 'left:' + m.referenz.pos + '%', title: m.referenz.label + ': ' + m.referenz.text }));
+  if (m.referenz) {
+    const abstand = m.referenz.abstand === null || m.referenz.abstand === undefined ? '' : ' (' + (m.referenz.abstand > 0 ? '+' : m.referenz.abstand < 0 ? '−' : '±') + Math.abs(m.referenz.abstand).toFixed(1) + ' pp)';
+    kinder.push(el('span', { class: 'mz-referenz', style: 'left:' + m.referenz.pos + '%', title: m.referenz.label + ': ' + m.referenz.text + abstand }));
+  }
   if (m.skala.pos !== null) kinder.push(el('span', { class: 'mz-punkt' + (m.skala.anschlag ? ' am-anschlag' : ''), style: 'left:' + m.skala.pos + '%' }));
   // Unter der Skala wird nichts abgeschnitten: Der Punkt steht am Anschlag, und daneben steht, dass er das tut.
   if (m.skala.anschlag) kinder.push(el('span', { class: 'mz-anschlag', text: 'unter 50 %' }));
@@ -627,7 +638,7 @@ function mzSkala(m) {
   // Hilfsmittel verlässlich an, der versteckte Satz schon.
   const worte = [
     m.intervall ? '95-Prozent-Intervall ' + formatPct(m.intervall.low) + ' bis ' + formatPct(m.intervall.high) : null,
-    m.referenz ? m.referenz.label + ' ' + m.referenz.text : null,
+    m.referenz ? m.referenz.label + ' ' + m.referenz.text + (m.referenz.abstand === null ? '' : ', Abstand ' + (m.referenz.abstand > 0 ? 'plus ' : m.referenz.abstand < 0 ? 'minus ' : '') + Math.abs(m.referenz.abstand).toFixed(1) + ' Prozentpunkte') : null,
     m.skala.anschlag ? 'Wert unter dem Beginn der Skala, am linken Anschlag' : null,
   ].filter(Boolean).join('; ');
   if (worte) kinder.push(el('span', { class: 'visually-hidden', text: worte + '.' }));
@@ -650,8 +661,10 @@ export function messzeile(m) {
 // Block mehrerer Messzeilen: die Skala steht einmal darüber, sie gilt für alle Zeilen darunter.
 export function messzeilenBlock(titel, modelle, { referenzLabel = null } = {}) {
   const marken = [0.5, 0.75, 1].map((v) => el('span', { class: 'mz-marke', style: 'left:' + mzPos(v) + '%', text: formatPct(v, 0) }));
+  // Der Titel ist eine echte Überschrift – jeder Block der Ansicht trägt eine, und sie steht in der Kopfzeile der
+  // Spur, kostet also keine eigene Zeile.
   const kopf = el('div', { class: 'mz-kopf' }, [
-    el('span', { class: 'mz-label', text: titel || '' }),
+    titel ? el('h3', { class: 'mz-label mz-titel', text: titel }) : el('span', { class: 'mz-label' }),
     el('div', { class: 'mz-skala mz-achse' }, marken),
     el('span', { class: 'mz-kopf-hinweis', text: referenzLabel ? 'Marke: ' + referenzLabel : '' }),
   ]);

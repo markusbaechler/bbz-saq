@@ -247,7 +247,9 @@ try {
     const b = document.querySelector('#view .signale');
     const mess = () => ({
       hoehe: Math.round(b.getBoundingClientRect().height),
-      kachelY: Math.round(document.querySelector('#view .kpi').getBoundingClientRect().top + window.scrollY),
+      // Seit M3 folgt auf die Signale der Quotenblock; gemessen wird, was direkt darunter beginnt
+      kachelY: Math.round((document.querySelector('#view .messzeile') || document.querySelector('#view .kpi')).getBoundingClientRect().top + window.scrollY),
+      letzteMesszeile: (() => { const z = [...document.querySelectorAll('#view .messzeile')]; return z.length ? Math.round(z[z.length - 1].getBoundingClientRect().bottom + window.scrollY) : null; })(),
       details: [...b.querySelectorAll('.signal-detail')].filter((p) => p.getClientRects().length > 0).length,
     });
     const zu = mess();
@@ -257,7 +259,10 @@ try {
     return { zu, auf, zeilen: b.querySelectorAll('.signal').length };
   }, SECHS_SIGNALE);
   check(budget.zeilen === 6 && budget.zu.hoehe <= 300, 'D2 Höhenbudget: sechs Signale in ' + budget.zu.hoehe + ' px (Grenze 300 px bei 1400 × 900)');
-  check(budget.zu.kachelY < 700, 'D2 erste Mengen-Kachel bei y = ' + budget.zu.kachelY + ' (über 700)');
+  check(budget.zu.kachelY < 700, 'D2 erster Inhalt unter den Signalen bei y = ' + budget.zu.kachelY + ' (über 700)');
+  // M3: Höhenbudget der Übersicht im echten Fall – die sechs Quoten-Messzeilen müssen ohne Scrollen lesbar sein
+  check(budget.zu.letzteMesszeile !== null && budget.zu.letzteMesszeile < 900,
+    'M3 Höhenbudget: letzte Quoten-Messzeile bei y = ' + budget.zu.letzteMesszeile + ' (über 900, mit sechs Signalen bei 1400 × 900)');
   check(budget.zu.details === 3 && budget.auf.details === 6, 'D2 drei Detailzeilen offen, alle sechs über den Schalter erreichbar (' + budget.zu.details + ' → ' + budget.auf.details + ')');
 
   // Leerzustand: Feuert keine Regel, verschwindet der Block nicht, sondern nennt, was geprüft wurde und ruhig blieb.
@@ -276,7 +281,25 @@ try {
   const kpiN = await page.$$eval('#view .kpi .kpi-n', (n) => n.filter((x) => /n = \d+|von \d+/.test(x.textContent)).length);
   check(kpiCount >= 10 && kpiN === kpiCount, 'Übersicht: ' + kpiCount + ' Kacheln, alle mit n');
   // Kacheln (A.4): drei Blöcke, Definition als ⓘ und Glossar-Link statt Absatz, Delta zum Benchmark mit Symbol und Vorzeichen
-  check((await page.$$eval('#view .kpi-group h3', (h) => h.map((x) => x.textContent))).join(',') === 'Mengen,Schriftlich,Mündlich', 'Übersicht: Kacheln in drei Blöcken (Mengen · Schriftlich · Mündlich)');
+  // M3: Die sechs Quoten stehen als Messzeilen auf einer gemeinsamen Skala, die Kacheln bleiben für Mengen
+  // und die vier Ø-Kennzahlen (die ihre Streuungszeile tragen).
+  const bloecke = await page.evaluate(() => {
+    const quoten = [...document.querySelectorAll('#view .messzeile')];
+    const spuren = [...document.querySelectorAll('#view .messzeilen')];
+    return {
+      h3: [...document.querySelectorAll('#view .kpi-group h3')].map((x) => x.textContent),
+      quoten: quoten.map((z) => (z.querySelector('.mz-label') || {}).textContent),
+      spuren: spuren.length,
+      skalenkopf: spuren.length ? spuren[0].querySelector('.mz-kopf .mz-label').textContent : '',
+      oKacheln: [...document.querySelectorAll('#view .kpi')].filter((k) => k.querySelector('.kpi-spread-full')).length,
+      quotenKacheln: [...document.querySelectorAll('#view .kpi .kpi-label')].filter((l) => /^(Schriftlich|Mündlich): (im 1\. Versuch|insgesamt|bestanden|2×)/.test(l.textContent)).length,
+    };
+  });
+  check(bloecke.h3.join(',') === 'Quoten,Mengen,Ø Resultat' && bloecke.quoten.length === 6 && bloecke.spuren === 1 && bloecke.skalenkopf === 'Quoten'
+    && bloecke.quotenKacheln === 0 && bloecke.oKacheln === 4,
+    'M3 Übersicht: sechs Quoten als Messzeilen auf einer Spur («' + bloecke.skalenkopf + '»), Kacheln nur noch in ' + bloecke.h3.join(' · ') + ' (' + bloecke.oKacheln + ' Ø-Kacheln mit Streuung)');
+  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch bestanden | Schriftlich: im 1. Versuch durchgefallen | Schriftlich: insgesamt bestanden | Mündlich: bestanden | Mündlich: im 1. Versuch durchgefallen | Mündlich: 2× durchgefallen',
+    'M3 Reihenfolge und Benennung der Messzeilen: ' + bloecke.quoten.join(' | '));
   check((await page.locator('#view .kpi-hint').count()) === 0 && (await page.locator('#view .kpi .info').count()) >= 10 && (await page.locator('#view .kpi-label a[href*="begriff="]').count()) >= 10, 'Kacheln ohne Definitionsabsatz, mit ⓘ und Glossar-Link');
   check((await page.locator('#view td.pct[style*="--v"]').count()) >= 4, 'Datenbalken in Prozentspalten (Kennzahlen je Profil)');
   // Streuung (PROMPT-2 Paket G, G.3): Zweitzeile «σ … · Median … (P25 … · P75 …)» auf den vier Ø-Kacheln (Kurzform nur auf Phone);
@@ -316,7 +339,8 @@ try {
   await page.waitForSelector('#view .kpi-delta');
   const offen = await vergleich();
   check(offen && offen.tag === 'SECTION' && !offen.satz, 'A2 Übersicht mit Bank-Filter: Vergleichstabelle offen, kein Gleichstand-Satz');
-  check(restOhne.length >= 2 && restOhne.every((r) => r <= 1), 'A3 Übersicht ohne Filter: keine Kachel höher als ihr Inhalt verlangt (Rest je Reihe ' + restOhne.join('/') + ' px)');
+  // Seit M3 sind nur noch die vier Ø-Kacheln keine Zählkacheln – eine Reihe genügt für die Prüfung
+  check(restOhne.length >= 1 && restOhne.every((r) => r <= 1), 'A3 Übersicht ohne Filter: keine Kachel höher als ihr Inhalt verlangt (Rest je Reihe ' + restOhne.join('/') + ' px)');
   // A3: Wert zuerst, Beschriftung darunter, n darunter, Delta zuletzt – Wert und n liegen je Kachelreihe auf einer Linie
   const grundlinien = () => page.$$eval('#view .kpi', (tiles) => {
     const rows = new Map();
@@ -338,7 +362,9 @@ try {
   check(linien.every((r) => r.reihenfolge.every((o) => /^kpi-value>kpi-label>kpi-n/.test(o))),
     'A3 Übersicht: Reihenfolge Wert · Beschriftung · n · (Streuung) · Delta (' + linien[0].reihenfolge[0] + ')');
   const deltas = await page.$$eval('#view .kpi-delta', (d) => d.map((x) => x.textContent.trim()));
-  check(deltas.length >= 5 && deltas.every((t) => /^[▲▼●] [+−]?\d+\.\d pp vs\. /.test(t)), 'Benchmark-Delta je Quoten-Kachel mit Symbol und Vorzeichen (' + deltas.length + ', z. B. «' + deltas[0] + '»)');
+  // Die sechs Quoten tragen ihren Benchmark seit M3 als Marke auf der Skala (Abstand im title und im versteckten Text);
+  // als Delta-Zeile erscheinen noch die vier Ø-Kacheln
+  check(deltas.length >= 4 && deltas.every((t) => /^[▲▼●] [+−]?\d+\.\d pp vs\. /.test(t)), 'Benchmark-Delta je Quoten-Kachel mit Symbol und Vorzeichen (' + deltas.length + ', z. B. «' + deltas[0] + '»)');
   const deltaCells = await page.$$eval('#view td.delta', (t) => t.map((x) => x.textContent.trim()));
   check(deltaCells.length >= 5 && deltaCells.every((t) => /^[▲▼●] [+−]?\d+\.\d pp$/.test(t)) && (await page.locator('#view td.delta.pos, #view td.delta.neg').count()) >= 1, 'Differenzspalte der Vergleichstabelle mit Symbol, Vorzeichen und Farbe (' + deltaCells.length + ' Zellen)');
   await shot(page, 'uebersicht-benchmark');
@@ -1200,13 +1226,13 @@ try {
   const kpiCols = await phone.evaluate(() => { const k = document.querySelector('#view details.kpi-group[open] .kpis'); return k ? getComputedStyle(k).gridTemplateColumns.split(' ').length : 0; });
   const phoneSpread = await phone.evaluate(() => { const full = document.querySelector('#view details.kpi-group[open] .kpi-spread-full'); const short = document.querySelector('#view details.kpi-group[open] .kpi-spread-short'); return { full: full ? full.getClientRects().length : -1, short: short ? short.getClientRects().length : -1, text: short ? short.textContent.trim() : '' }; });
   check(phoneSpread.full === 0 && phoneSpread.short > 0 && /^σ \d+\.\d pp$/.test(phoneSpread.text), 'Phone: Streuung nur als Kurzform «σ x pp» (' + phoneSpread.text + ')');
-  check(kpiGroups.join(',') === 'Mengen:zu,Schriftlich:offen,Mündlich:offen' && kpiCols === 2, 'Phone: Kachel-Blöcke als details (' + kpiGroups.join(', ') + '), zwei Spalten');
+  check(kpiGroups.join(',') === 'Mengen:zu,Ø Resultat:offen' && kpiCols === 2, 'Phone: Kachel-Blöcke als details (' + kpiGroups.join(', ') + '), zwei Spalten');
   await phone.screenshot({ path: join(outDir, 'phone-uebersicht-kacheln.png'), fullPage: true });
   // Delta erscheint erst mit einem benchmarkrelevanten Filter (A2), deshalb mit Bank im Hash
   await phone.goto(server.url + '#uebersicht?bank=' + encodeURIComponent('Testbank AG'));
   await phone.waitForSelector('#view .kpi-delta');
   const deltaVs = await phone.evaluate(() => { const s = [...document.querySelectorAll('#view .kpi-delta-vs')]; return { n: s.length, hidden: s.every((x) => getComputedStyle(x).display === 'none') }; });
-  check(deltaVs.n >= 5 && deltaVs.hidden, 'Phone: Delta nur mit Symbol und Wert, «vs. Benchmark» ausgeblendet (' + deltaVs.n + ')');
+  check(deltaVs.n >= 4 && deltaVs.hidden, 'Phone: Delta nur mit Symbol und Wert, «vs. Benchmark» ausgeblendet (' + deltaVs.n + ')');
   await phone.goto(server.url + '#zeitverlauf');
   await phone.waitForSelector('#view svg');
   const compactSvg = await phone.evaluate(() => ({ viewBox: document.querySelector('#view svg').getAttribute('viewBox'), labels: document.querySelectorAll('#view .viz-label').length, tip: (() => { const t = document.querySelector('#view .viz.compact .viz-tip'); return t ? getComputedStyle(t).position : 'fehlt'; })() }));

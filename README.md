@@ -115,11 +115,26 @@ Jede Kennzahl-Ansicht bietet im Menü «Export» CSV (alle Tabellen in einer Dat
 eine Druckansicht. Zusätzlich exportiert jede Kennzahl-Ansicht die Vorgangsebene (eine Zeile je Vorgang, eine Zeile je
 Run, mit Namen, nur intern). Der Filterzustand steht im Kopf jedes Exports.
 
-**Darstellung:** Die Kacheln der Übersicht stehen in den Blöcken Mengen, Schriftlich und Mündlich. Auf jeder Kachel steht
+**Messzeile statt Kachel für Quoten (Paket MESSZEILE):** Die sechs Quoten der Übersicht stehen als **Messzeilen auf
+einer gemeinsamen Skala von 50 bis 100 %** – erst dadurch sind sie untereinander vergleichbar; zwei Kacheln sind es
+nicht. Je Zeile: Beschriftung · Skala · Wert · n · Verlauf · Wert letztes Jahr · Delta. Auf der Skala liegen das
+**95-%-Wilson-Intervall** als Balken, der Wert als Punkt und, bei aktivem Benchmark, dessen Marke (Abstand in pp im
+`title` und im Text für Screenreader). Werte unter 50 % stehen am linken Anschlag und sagen es; abgeschnitten wird
+nichts. Der Verlauf ist eine Sparkline über die Jahre mit n ≥ 5 (unter drei Jahren keine); das Delta gilt gegen das
+Jahr davor und färbt sich erst ab 2 pp, darunter bleibt es neutral – sonst färbt sich Rauschen ein.
+
+**Mengen bleiben Kacheln.** Eine Anzahl hat keine Skala von 50 bis 100 %, und eine erfundene wäre schlimmer als keine.
+Die vier Ø-Kennzahlen bleiben ebenfalls Kacheln, weil sie die Streuungszeile (σ, Median, Quartile) tragen.
+Reihenfolge der Übersicht: Signale · Quoten · Mengen · Ø Resultat · Kennzahlen je Profil.
+
+**Höhenbudget, gemessen bei 1400 × 900 mit sechs Signalen:** Die letzte Messzeile endet bei y = 820, die erste
+Mengen-Kachel beginnt bei y = 875 – beides über der Falz. Vorher endete die letzte Quoten-Kachel bei y = 1119.
+
+**Darstellung:** Die Kacheln der Übersicht stehen in den Blöcken Mengen und Ø Resultat. Auf jeder Kachel steht
 der **Wert zuoberst**, darunter die Beschriftung, darunter n und zuletzt die Differenz zum Benchmark (Paket BEFUNDE): So liegen die
 Werte einer Reihe unabhängig vom Umbruch der Beschriftung auf einer Linie. Die Beschriftung hält zwei Zeilen frei, damit auch
 n und Differenz auf einer Linie liegen – der Preis ist eine Zeilenhöhe bei den wenigen einzeiligen Beschriftungen. Die
-Definition steckt im ⓘ, das Label verlinkt auf das Glossar. Bei aktivem Benchmark zeigt jede Quoten-Kachel die Differenz mit Symbol,
+Definition steckt im ⓘ, das Label verlinkt auf das Glossar. Bei aktivem Benchmark zeigt jede Ø-Kachel die Differenz mit Symbol,
 Vorzeichen und Farbe nach Richtung der Kennzahl (▲ +2.1 pp; höher ist besser bei Bestehensquoten und Ø Resultat, tiefer
 ist besser bei Durchfallquoten und passiven Vorgängen; unter 0.5 pp neutral ●). In Tabellen tragen Prozentspalten einen
 Datenbalken, Differenzspalten Symbol und Farbe, Statusspalten eine Badge; die erste Spalte bleibt beim horizontalen
