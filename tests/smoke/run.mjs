@@ -299,11 +299,20 @@ try {
       quotenKacheln: [...document.querySelectorAll('#view .kpi .kpi-label')].filter((l) => /^(Schriftlich|Mündlich): (im 1\. Versuch|insgesamt|bestanden|2×)/.test(l.textContent)).length,
     };
   });
-  check(bloecke.h3.join(',') === 'Quoten,Mengen,Ø Resultat' && bloecke.quoten.length === 6 && bloecke.spuren === 1 && bloecke.skalenkopf === 'Quoten'
+  check(bloecke.h3.join(',') === 'Quoten,Mengen,Ø Resultat' && bloecke.quoten.length === 5 && bloecke.spuren === 1 && bloecke.skalenkopf === 'Quoten'
     && bloecke.quotenKacheln === 0 && bloecke.oKacheln === 4,
-    'M3 Übersicht: sechs Quoten als Messzeilen auf einer Spur («' + bloecke.skalenkopf + '»), Kacheln nur noch in ' + bloecke.h3.join(' · ') + ' (' + bloecke.oKacheln + ' Ø-Kacheln mit Streuung)');
-  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch bestanden | Schriftlich: im 1. Versuch durchgefallen | Schriftlich: insgesamt bestanden | Mündlich: bestanden | Mündlich: im 1. Versuch durchgefallen | Mündlich: 2× durchgefallen',
+    'M3 Übersicht: ' + bloecke.quoten.length + ' Quoten als Messzeilen auf einer Spur («' + bloecke.skalenkopf + '»), Kacheln nur noch in ' + bloecke.h3.join(' · ') + ' (' + bloecke.oKacheln + ' Ø-Kacheln mit Streuung)');
+  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch bestanden | Schriftlich: insgesamt bestanden | Mündlich: bestanden | Mündlich: im 1. Versuch durchgefallen | Mündlich: 2× durchgefallen',
     'M3 Reihenfolge und Benennung der Messzeilen: ' + bloecke.quoten.join(' | '));
+  // Das Komplement der Erstversuchsquote steht nicht mehr auf der Übersicht – als Kennzahl bleibt es aber überall
+  // dort, wo es hingehört: in der Vergleichstabelle, im Export und in der Ansicht «Schriftlich».
+  const komplement = await page.evaluate(() => ({
+    alsKachel: [...document.querySelectorAll('#view .kpi .kpi-label')].some((l) => /^Schriftlich: im 1\. Versuch durchgefallen/.test(l.textContent)),
+    alsMesszeile: [...document.querySelectorAll('#view .mz-label')].some((l) => /durchgefallen/.test(l.textContent) && /^Schriftlich/.test(l.textContent)),
+    inVergleichstabelle: [...document.querySelectorAll('#view table.data td')].some((td) => td.textContent.trim() === 'Schriftlich: im 1. Versuch durchgefallen'),
+  }));
+  check(!komplement.alsKachel && !komplement.alsMesszeile && komplement.inVergleichstabelle,
+    'M3 Komplement der Erstversuchsquote: nicht als Zeile und nicht als Kachel, aber in der Vergleichstabelle (und im Export)');
   check((await page.locator('#view .kpi-hint').count()) === 0 && (await page.locator('#view .kpi .info').count()) >= 10 && (await page.locator('#view .kpi-label a[href*="begriff="]').count()) >= 10, 'Kacheln ohne Definitionsabsatz, mit ⓘ und Glossar-Link');
   check((await page.locator('#view td.pct[style*="--v"]').count()) >= 4, 'Datenbalken in Prozentspalten (Kennzahlen je Profil)');
   // Streuung (PROMPT-2 Paket G, G.3): Zweitzeile «σ … · Median … (P25 … · P75 …)» auf den vier Ø-Kacheln (Kurzform nur auf Phone);

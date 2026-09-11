@@ -61,8 +61,11 @@ export function build(ctx) {
   // läge sie bei 1056 – die Reihenfolge ist der einzige Weg zum Zielmass, ohne etwas einzuklappen.
   const messzeilen = messzeilenEingaben(ctx.persons, kpis, { benchmarkLabel: bench ? bench.label : null });
   const quotenLabels = new Set(messzeilen.map((z) => z.label));
+  // Das Komplement der Erstversuchsquote erscheint auf der Übersicht gar nicht mehr: Es sagt dasselbe wie die Zeile
+  // darüber, nur andersherum. Als Kennzahl bleibt es in der Vergleichstabelle, im Export und in «Schriftlich».
+  const NICHT_AUF_DER_UEBERSICHT = ['Schriftlich: im 1. Versuch durchgefallen'];
   const kachelKpis = kpis
-    .filter((k) => !quotenLabels.has(k.label))
+    .filter((k) => !quotenLabels.has(k.label) && !NICHT_AUF_DER_UEBERSICHT.includes(k.label))
     // Die Ø-Kennzahlen tragen die Streuungszeile aus Paket G; sie bleiben Kacheln und stehen zusammen in einem Block
     .map((k) => (k.kind === 'mean' ? { ...k, group: 'Ø Resultat' } : k));
   // Ein Block statt zwei: Die gemeinsame Skala ist der ganze Sinn der Messzeile – sechs Quoten auf einer Spur sind
