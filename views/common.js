@@ -544,7 +544,7 @@ function mzJahre(jahre) {
 // Eingabe: { label, glossar, count, n, pct, richtung: 'up'|'down'|'neutral', referenz: { pct, label }, jahre: [{ year, pct, n }] }
 // «Wert» ist die Lage im aktiven Filter (alle Jahre), «Wert letztes Jahr» das jüngste auswertbare Jahr und «Delta»
 // dessen Abstand zum Jahr davor. Den Gesamtwert gegen ein einzelnes Jahr zu rechnen, würde zwei Nenner vermischen.
-export function messzeileModell({ label = '', glossar = null, count = null, n = 0, pct = null, richtung = 'up', referenz = null, jahre = [], laufendesJahr = new Date().getFullYear(), skala = {} } = {}) {
+export function messzeileModell({ label = '', glossar = null, hint = null, count = null, n = 0, pct = null, richtung = 'up', referenz = null, jahre = [], laufendesJahr = new Date().getFullYear(), skala = {} } = {}) {
   const skalaMin = typeof skala.min === 'number' ? skala.min : MESSZEILE_MIN;
   const skalaMax = typeof skala.max === 'number' ? skala.max : 1;
   const pos = (v) => mzPos(v, skalaMin, skalaMax);
@@ -562,6 +562,7 @@ export function messzeileModell({ label = '', glossar = null, count = null, n = 
   const modell = {
     label,
     glossar,
+    hint,
     wert: { pct: wertPct, text: formatPct(wertPct) },
     n,
     klein: (n || 0) > 0 && n < SMALL_N,
@@ -679,7 +680,7 @@ function mzSkala(m) {
 export function messzeile(m) {
   const wert = el('span', { class: 'mz-wert' }, [m.wert.text, m.klein ? el('span', { class: 'mz-klein', title: SMALL_NOTE, text: ' ' + SMALL_MARK }) : null]);
   return el('li', { class: 'messzeile', 'aria-label': m.ariaLabel }, [
-    el('span', { class: 'mz-label', text: m.label }),
+    el('span', { class: 'mz-label' }, [m.label, m.hint ? infoIcon(m.hint, 'Definition: ') : null]),
     mzSkala(m),
     wert,
     el('span', { class: 'mz-n', text: m.anzahl }),
@@ -694,7 +695,9 @@ export function messzeile(m) {
 export function messzeilenBlock(titel, modelle, { referenzLabel = null, skala = {} } = {}) {
   const min = typeof skala.min === 'number' ? skala.min : ((modelle && modelle[0] && modelle[0].skala.min) ?? MESSZEILE_MIN);
   const max = typeof skala.max === 'number' ? skala.max : ((modelle && modelle[0] && modelle[0].skala.max) ?? 1);
-  const marken = [min, (min + max) / 2, max].map((v) => el('span', { class: 'mz-marke', style: 'left:' + mzPos(v, min, max) + '%', text: formatPct(v, 0) }));
+  // Die Mitte der Spur ist nicht immer eine ganze Zahl (0–25 % → 12.5 %); eine Dezimale nur, wo sie nötig ist
+  const markeText = (v) => formatPct(v, Math.abs(v * 100 - Math.round(v * 100)) < 1e-9 ? 0 : 1);
+  const marken = [min, (min + max) / 2, max].map((v) => el('span', { class: 'mz-marke', style: 'left:' + mzPos(v, min, max) + '%', text: markeText(v) }));
   // Der Titel ist eine echte Überschrift – jeder Block der Ansicht trägt eine, und sie steht in der Kopfzeile der
   // Spur, kostet also keine eigene Zeile.
   const kopf = el('div', { class: 'mz-kopf' }, [
