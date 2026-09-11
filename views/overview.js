@@ -71,10 +71,7 @@ export function build(ctx) {
   // Die Bestehensquoten stehen nicht mehr als Kachel auf der Übersicht: Jede ist die Gegenzahl einer Messzeile
   // («80.5 % bestanden» = «19.5 % durchgefallen»), und zweimal dieselbe Aussage ist eine zu viel. Als Kennzahlen
   // bleiben sie vollständig – in der Vergleichstabelle, im Export und in den Ansichten «Schriftlich» und «Mündlich».
-  const NICHT_AUF_DER_UEBERSICHT = [
-    'Schriftlich: im 1. Versuch bestanden', 'Schriftlich: insgesamt bestanden', 'Mündlich: bestanden',
-    'Mündlich: im 1. Versuch durchgefallen', 'Mündlich: 2× durchgefallen',
-  ];
+  const NICHT_AUF_DER_UEBERSICHT = ['Schriftlich: im 1. Versuch bestanden', 'Schriftlich: insgesamt bestanden', 'Mündlich: bestanden'];
   const kachelKpis = kpis
     .filter((k) => !quotenLabels.has(k.label) && !NICHT_AUF_DER_UEBERSICHT.includes(k.label))
     // Die Ø-Kennzahlen tragen die Streuungszeile aus Paket G; sie bleiben Kacheln und stehen zusammen in einem Block

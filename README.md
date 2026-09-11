@@ -115,7 +115,7 @@ Jede Kennzahl-Ansicht bietet im Menü «Export» CSV (alle Tabellen in einer Dat
 eine Druckansicht. Zusätzlich exportiert jede Kennzahl-Ansicht die Vorgangsebene (eine Zeile je Vorgang, eine Zeile je
 Run, mit Namen, nur intern). Der Filterzustand steht im Kopf jedes Exports.
 
-**Messzeile statt Kachel für Quoten (Paket MESSZEILE):** Die drei **Durchfallquoten** der Übersicht stehen als
+**Messzeile statt Kachel für Quoten (Paket MESSZEILE):** Die fünf **Durchfallquoten** der Übersicht stehen als
 **Messzeilen auf einer gemeinsamen Spur von 0 bis 50 %** – erst dadurch sind sie untereinander vergleichbar; zwei Kacheln sind es
 nicht. Gezeigt wird die Durchfall-, nicht die Bestehensquote: Bei 99.3 % bestanden steckt die Aussage in der
 Gegenzahl, und gefragt wird nach der **Anzahl der Nichtbestandenen**. Je Zeile: Beschriftung · Spur · Wert ·
@@ -136,7 +136,9 @@ Regel, die dieselbe Zahl auf den Kacheln und in der Vergleichstabelle schon trä
 **Mengen bleiben Kacheln** – ohne n-Zeile: Ihr Wert ist die Anzahl, und die Grundmenge der Auswahl daneben meinte
 etwas anderes als die Kachel («Personen 970 · n = 977» zählte Vorgänge). Eine Anzahl hat keine Spur von 0 bis 50 %, und eine erfundene wäre schlimmer als keine.
 Die vier Ø-Kennzahlen bleiben ebenfalls Kacheln, weil sie die Streuungszeile (σ, Median, Quartile) tragen.
-Reihenfolge der Übersicht: Signale · Durchfallquoten · Mengen · Ø Resultat · Kennzahlen je Profil.
+Reihenfolge der Übersicht: Signale · Durchfallquoten · Mengen · Ø Resultat · Kennzahlen je Profil. Die fünf Zeilen
+folgen dem Prozess: je Prüfungsteil vom ersten Versuch zum Endstand (schriftlich 1. Versuch, schriftlich insgesamt,
+mündlich 1. Versuch, mündlich 2×, mündlich insgesamt).
 Die **Bestehensquoten** erscheinen nicht mehr auf der Übersicht: Jede ist die Gegenzahl einer Messzeile («80.5 %
 bestanden» = «19.5 % durchgefallen»), und zweimal dieselbe Aussage ist eine zu viel. Als Kennzahlen bleiben sie
 vollständig – in der Vergleichstabelle, im Export und in den Ansichten «Schriftlich» und «Mündlich».

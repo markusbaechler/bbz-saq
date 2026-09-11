@@ -305,10 +305,10 @@ try {
       quotenKacheln: [...document.querySelectorAll('#view .kpi .kpi-label')].filter((l) => /^(Schriftlich|Mündlich): (im 1\. Versuch|insgesamt|bestanden|2×)/.test(l.textContent)).length,
     };
   });
-  check(bloecke.h3.join(',') === 'Durchfallquoten,Mengen,Ø Resultat' && bloecke.quoten.length === 3 && bloecke.spuren === 1 && bloecke.skalenkopf === 'Durchfallquoten'
+  check(bloecke.h3.join(',') === 'Durchfallquoten,Mengen,Ø Resultat' && bloecke.quoten.length === 5 && bloecke.spuren === 1 && bloecke.skalenkopf === 'Durchfallquoten'
     && bloecke.quotenKacheln === 0 && bloecke.oKacheln === 4,
     'M3 Übersicht: ' + bloecke.quoten.length + ' Quoten als Messzeilen auf einer Spur («' + bloecke.skalenkopf + '»), Kacheln nur noch in ' + bloecke.h3.join(' · ') + ' (' + bloecke.oKacheln + ' Ø-Kacheln mit Streuung)');
-  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch durchgefallen | Schriftlich: insgesamt nicht bestanden | Mündlich: nicht bestanden',
+  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch durchgefallen | Schriftlich: insgesamt nicht bestanden | Mündlich: im 1. Versuch durchgefallen | Mündlich: 2× durchgefallen | Mündlich: nicht bestanden',
     'M3 Reihenfolge und Benennung der Messzeilen: ' + bloecke.quoten.join(' | '));
   // Die Spur läuft von 0 bis 50 %, und jede Zeile nennt Zähler und Grundgesamtheit («191 von 977»)
   const spur = await page.evaluate(() => ({

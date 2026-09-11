@@ -515,9 +515,12 @@ export function overviewModel(persons, allPersons = persons) {
 // steckt die Aussage in der Gegenzahl (6 von 904 nicht bestanden), und die Anzahl der Nichtbestandenen ist die
 // Zahl, nach der gefragt wird. Die Werte liegen damit zwischen 0 und 50 % – die Spur des Blocks beginnt deshalb bei
 // 0 und endet bei 50 %. Keine neue Kennzahl: erstversuchFailed und nichtBestanden rechnet metrics.js längst.
+// Reihenfolge wie der Prozess: je Prüfungsteil vom ersten Versuch zum Endstand.
 const MESSZEILEN_QUOTEN = [
   { label: 'Schriftlich: im 1. Versuch durchgefallen', wert: (t) => t.written.erstversuchFailed },
   { label: 'Schriftlich: insgesamt nicht bestanden', wert: (t) => t.written.nichtBestanden },
+  { label: 'Mündlich: im 1. Versuch durchgefallen', wert: (t) => t.oral.failed1 },
+  { label: 'Mündlich: 2× durchgefallen', wert: (t) => t.oral.failed2 },
   { label: 'Mündlich: nicht bestanden', wert: (t) => t.oral.nichtBestanden },
 ];
 export const MESSZEILEN_SKALA = { min: 0, max: 0.5 };
