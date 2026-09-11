@@ -112,16 +112,20 @@ export function statusTone(text, label = '') {
 // und tragen «*», sie werden nicht weggelassen.
 // Gezeigt wird die DURCHFALLQUOTE, nicht die Bestehensquote: dieselbe Wahl wie in der Übersicht – bei 96 %
 // bestanden steckt die Aussage in der Gegenzahl, und gefragt wird nach denen, die nicht bestanden haben.
-export function quotenPunkte(persons, key, { rates = writtenPassRates, wert = (r) => r.erstversuchFailed, titel = '' } = {}) {
+export function quotenPunkte(persons, key, { rates = writtenPassRates, wert = (r) => r.erstversuchFailed, titel = '', richtung = 'down',
+  unit = 'Vorgängen', unitSg = 'Vorgang' } = {}) {
   const gesamt = wert(rates(persons));
   return {
     titel,
+    richtung, // Durchfallquote: tiefer ist besser – ohne diese Angabe läse sich «+27.9 pp» wie ein Erfolg
     punkte: byGroup(persons, key, rates)
       .filter((g) => isNum(wert(g.value).pct))
       .map((g) => {
         const r = wert(g.value);
         const iv = wilsonInterval(r.count, r.n);
-        return { label: groupLabel(g.key), pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+        // count gehört dazu, nicht nur n: Der Mouseover nennt «41 von 220», nicht «n = 220» (P4).
+        // Die Einheit benennt den Nenner – mündlich sind es angetretene Vorgänge, schriftlich Vorgänge mit 1. Versuch.
+        return { label: groupLabel(g.key), pct: r.pct, count: r.count, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N, unit, unitSg };
       })
       .sort((a, b) => b.pct - a.pct),
     referenz: isNum(gesamt.pct) ? { pct: gesamt.pct, label: 'Gesamt' } : null,
@@ -182,11 +186,12 @@ export function performanceTable(persons, key, kind = 'written') {
 export function teilPunkte(persons, kind = 'we') {
   return {
     titel: (kind === 'oe' ? 'Mündlich' : 'Schriftlich') + ': im 1. Versuch durchgefallen je Teilprüfung',
+    richtung: 'down',
     punkte: partFirstAttempt(persons, kind)
       .filter((p) => isNum(p.failed.pct))
       .map((p) => {
         const iv = wilsonInterval(p.failed.count, p.failed.n);
-        return { label: p.label, pct: p.failed.pct, n: p.failed.n, low: iv.low, high: iv.high, small: p.n < SMALL_N };
+        return { label: p.label, pct: p.failed.pct, count: p.failed.count, n: p.failed.n, low: iv.low, high: iv.high, small: p.n < SMALL_N };
       }),
     referenz: null,
   };
@@ -243,17 +248,40 @@ export function oralRateTable(persons, key) {
 // natürlichen Folge lesen sich besser als nach Wert sortiert, und die Tabelle darunter zeigt dieselbe Folge.
 // Zu beachten und im Hinweis gesagt: Die Gruppen überschneiden sich (ein Vorgang mit VSS UND VSM zählt in beiden),
 // sie sind also keine Aufteilung des Gesamtwerts. Keine neue Kennzahl.
-export function vssVsmPunkte(persons) {
-  const b = vssVsmBreakdown(persons);
-  const gesamt = writtenPassRates(persons).erstversuchFailed;
-  return {
+// Beide Prüfungsteile, dieselbe Ablesung (Paket I, P5). Die Ansicht und das README versprechen schriftlich UND
+// mündlich; gezeigt wurde nur die schriftliche Seite. Welche Kennzeichnung zu welchem Prüfungsteil gehört, sagt
+// die Datei NICHT (README: beide sind nur Kennzeichnungen aus den Threaded Comments) – hier wird deshalb auch
+// nichts zugeordnet: Beide Teile stehen für alle drei Gruppen.
+// Jede Reihe hat ihre EIGENE Bezugslinie, weil die Nenner verschieden sind: schriftlich die Vorgänge mit
+// auswertbarem ersten Versuch, mündlich die angetretenen Vorgänge (OE1 RUN1 absolviert und datiert).
+const VSSVSM_TEILE = {
+  schriftlich: {
     titel: 'Schriftlich im 1. Versuch durchgefallen nach Kennzeichnung',
+    wert: (block) => block.written.erstversuchFailed,
+    gesamt: (persons) => writtenPassRates(persons).erstversuchFailed,
+    unit: 'Vorgängen', unitSg: 'Vorgang',
+  },
+  muendlich: {
+    titel: 'Mündlich im 1. Versuch durchgefallen nach Kennzeichnung',
+    wert: (block) => block.oral.failed1,
+    gesamt: (persons) => oralPassRates(persons).failed1,
+    unit: 'angetretenen Vorgängen', unitSg: 'angetretenen Vorgang',
+  },
+};
+
+export function vssVsmPunkte(persons, teil = 'schriftlich') {
+  const def = VSSVSM_TEILE[teil] || VSSVSM_TEILE.schriftlich;
+  const b = vssVsmBreakdown(persons);
+  const gesamt = def.gesamt(persons);
+  return {
+    titel: def.titel,
+    richtung: 'down',
     punkte: [['VSS', b.vss], ['VSM', b.vsm], ['ohne', b.ohne]]
-      .filter(([, block]) => isNum(block.written.erstversuchFailed.pct))
+      .filter(([, block]) => isNum(def.wert(block).pct))
       .map(([label, block]) => {
-        const r = block.written.erstversuchFailed;
+        const r = def.wert(block);
         const iv = wilsonInterval(r.count, r.n);
-        return { label, pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+        return { label, pct: r.pct, count: r.count, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N, unit: def.unit, unitSg: def.unitSg };
       }),
     referenz: isNum(gesamt.pct) ? { pct: gesamt.pct, label: 'Gesamt' } : null,
   };
@@ -262,8 +290,15 @@ export function vssVsmPunkte(persons) {
 export function vssVsmTable(persons) {
   const b = vssVsmBreakdown(persons);
   const rows = [];
+  // Vier Quoten, vier verschiedene Nenner – und «n (Vorgänge)» ist keiner davon, sondern die Grösse der Gruppe.
+  // Jede Quote trägt deshalb ihren eigenen Nenner als Spalte daneben (P6); vorher stand eine einzige n-Spalte neben
+  // drei Quoten und sah aus wie deren Nenner.
   const push = (gruppe, profil, n, small, written, oral) => rows.push({
-    gruppe, profil, n, small, erstversuch: formatPct(written.erstversuch.pct), gesamt: formatPct(written.gesamt.pct), muendlich: formatPct(oral.bestanden.pct),
+    gruppe, profil, n, small,
+    erstversuch: formatPct(written.erstversuch.pct), nErstversuch: written.erstversuch.n,
+    gesamt: formatPct(written.gesamt.pct), nGesamt: written.gesamt.n,
+    muendlichErst: formatPct(oral.passed1.pct), nAngetreten: oral.angetreten,
+    muendlich: formatPct(oral.bestanden.pct), nMuendlich: oral.bestanden.n,
   });
   for (const [gruppe, block] of [['VSS', b.vss], ['VSM', b.vsm], ['ohne', b.ohne]]) {
     push(gruppe, 'alle', block.n, block.small, block.written, block.oral);
@@ -271,9 +306,17 @@ export function vssVsmTable(persons) {
   }
   return {
     title: 'Bestehensquoten VSS / VSM / ohne, je Profil',
-    columns: [col('gruppe', 'Gruppe', 1), col('profil', 'Profil', 1), col('n', 'n (Vorgänge)', 1), col('erstversuch', 'Schriftlich im 1. Versuch bestanden', 1), col('gesamt', 'Schriftlich insgesamt bestanden', 2), col('muendlich', 'Mündlich bestanden', 2)],
+    columns: [
+      col('gruppe', 'Gruppe', 1), col('profil', 'Profil', 1), col('n', 'n (Vorgänge)', 1),
+      col('erstversuch', 'Schriftlich im 1. Versuch bestanden', 1), col('nErstversuch', 'n (schriftlich 1. Versuch)', 2),
+      col('gesamt', 'Schriftlich insgesamt bestanden', 2), col('nGesamt', 'n (schriftlich abgeschlossen)', 3),
+      col('muendlichErst', 'Mündlich im 1. Versuch bestanden', 1), col('nAngetreten', 'n (mündlich angetreten)', 2),
+      col('muendlich', 'Mündlich bestanden', 2), col('nMuendlich', 'n (mündlich abgeschlossen)', 3),
+    ],
     rows,
-    note: 'Vorgänge mit VSS und VSM zählen in beiden Gruppen; Zeilen mit n < ' + SMALL_N + ' sind eingeschränkt aussagekräftig; Nenner der Quoten wie in den Ansichten Schriftlich und Mündlich',
+    wide: true, // elf Spalten: Prio 3 (die beiden «abgeschlossen»-Nenner) erst auf breiten Schirmen
+    // Die Fussnote nannte früher nur «wie in den Ansichten Schriftlich und Mündlich» – vier Nenner, einer benannt.
+    note: 'Vorgänge mit VSS und VSM zählen in beiden Gruppen, die drei Gruppen teilen den Gesamtwert also nicht auf; Zeilen mit n < ' + SMALL_N + ' sind eingeschränkt aussagekräftig. Vier Quoten, vier Nenner – jeder steht als eigene Spalte daneben: «n (Vorgänge)» ist die Grösse der Gruppe und Nenner keiner der Quoten; schriftlich 1. Versuch = Vorgänge mit absolviertem WE RUN1; schriftlich abgeschlossen = bestanden + nicht bestanden; mündlich angetreten = absolvierter, datierter OE1 RUN1 (geplante Termine zählen nicht); mündlich abgeschlossen = bestanden + nicht bestanden. «Mündlich im 1. Versuch bestanden» ist die Gegenzahl zu «im 1. Versuch durchgefallen» in der Ansicht Mündlich (zusammen 100 %); gezeigt wird hier die Bestehensrichtung wie auf der schriftlichen Seite.',
   };
 }
 
@@ -1343,11 +1386,13 @@ export function expertTables(runs, { deltaDirection = 'neutral' } = {}) {
   // Keine neue Kennzahl: s.fail.erst und bench.fail.erst rechnet metrics.js längst.
   const punkte = {
     titel: 'Durchfallquote 1. Versuch je Experte',
+    // Beobachtungswerte, keine Leistungsbeurteilung (E9): hier wird nicht gewertet, nur verglichen
+    richtung: 'neutral',
     punkte: stats
       .filter((s) => isNum(s.fail.erst.pct))
       .map((s) => {
         const iv = wilsonInterval(s.fail.erst.count, s.fail.erst.n);
-        return { label: s.name, pct: s.fail.erst.pct, n: s.fail.erst.n, low: iv.low, high: iv.high, small: s.fail.erst.n < SMALL_N, unit: 'Einsätzen' };
+        return { label: s.name, pct: s.fail.erst.pct, count: s.fail.erst.count, n: s.fail.erst.n, low: iv.low, high: iv.high, small: s.fail.erst.n < SMALL_N, unit: 'Einsätzen', unitSg: 'Einsatz' };
       }),
     referenz: isNum(bench.fail.erst.pct) ? { pct: bench.fail.erst.pct, label: 'Alle Experten' } : null,
   };

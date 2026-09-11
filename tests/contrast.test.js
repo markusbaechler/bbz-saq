@@ -40,6 +40,30 @@ test('contrast.darkLeftovers: nennt die Tokens, die der Druck-Block nicht zurüc
   assertEqual(darkLeftovers(':root { --a: #fff; }').length, 0, 'ohne Dark-Block keine Reste');
 });
 
+// Paket I: Die Prüfung nahm den Rest der Datei ab dem ersten «@media print» und daraus den ERSTEN :root – also
+// möglicherweise einen, der lange nach dem Block stand. In styles.css steht «@media print» mehrfach, und der erste
+// Block trägt kein :root. Beide Richtungen gingen schief: falscher Alarm und stilles Übersehen.
+test('contrast.parseThemes / darkLeftovers: alle Blöcke einer Medienabfrage zählen, nicht nur der erste', () => {
+  const mehrfach = `
+:root { --panel: #ffffff; --text: #1f2933; }
+@media (prefers-color-scheme: dark) { :root { --panel: #1e2126; --text: #e6e8eb; } }
+@media print { .nur-druck { display: inline; } }
+:root { --viz-font: 12px system-ui; }
+@media print { :root { --panel: #ffffff; --text: #1f2933; } }
+`;
+  assertEqual(darkLeftovers(mehrfach).length, 0,
+    'der zweite Druck-Block setzt beide Tokens zurück – dazwischen stehendes :root darf nicht als Druck-Block gelten');
+  assertEqual(parseThemes(mehrfach).print['--panel'], '#ffffff');
+  // Gegenprobe: Fehlt ein Token wirklich, wird es weiterhin gemeldet
+  const fehlend = mehrfach.replace('@media print { :root { --panel: #ffffff; --text: #1f2933; } }', '@media print { :root { --panel: #ffffff; } }');
+  assertEqual(darkLeftovers(fehlend).join(','), '--text');
+  // Und der Dark-Block darf genauso über mehrere Blöcke verteilt sein
+  const geteilt = mehrfach.replace('@media (prefers-color-scheme: dark) { :root { --panel: #1e2126; --text: #e6e8eb; } }',
+    '@media (prefers-color-scheme: dark) { :root { --panel: #1e2126; } }\n@media (prefers-color-scheme: dark) { :root { --text: #e6e8eb; } }');
+  assertEqual(parseThemes(geteilt).dark['--text'], '#e6e8eb');
+  assertEqual(darkLeftovers(geteilt).length, 0);
+});
+
 test('contrast.PAIRS: der Feldrahmen wird gegen jede Fläche geprüft (A4, WCAG 2.1 SC 1.4.11)', () => {
   const feld = PAIRS.filter((p) => p.fg === '--field-border');
   assertEqual(feld.length, 3, '--field-border gegen --bg, --panel und --panel-2');

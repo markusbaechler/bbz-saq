@@ -54,6 +54,29 @@ const filterWaehlen = async (p, feld, wert) => {
   await el.focus();
   await el.selectOption(wert);
 };
+// P3: Jede Beschriftung eines Punktdiagramms gegen die viewBox messen. Ein Text, der darüber hinausragt, wird vom
+// SVG abgeschnitten – ohne Seitenscroll, deshalb fängt ihn die Phone-Prüfung auf Überlauf nicht.
+const punktBeschriftungen = (p) => p.evaluate(() => [...document.querySelectorAll('#view figure.viz')]
+  .filter((f) => f.querySelector('.viz-dots')).map((f) => {
+    const svgEl = f.querySelector('svg');
+    const vb = Number(svgEl.getAttribute('viewBox').split(' ')[2]);
+    const achse = svgEl.querySelector('line.viz-axis');
+    const texte = [...svgEl.querySelectorAll('text')].map((t) => {
+      const b = t.getBBox();
+      return { t: t.textContent, l: b.x, r: b.x + b.width };
+    });
+    return {
+      titel: (f.querySelector('figcaption') || { textContent: '' }).textContent.split(' · ')[0],
+      vb,
+      plot: Math.round(Number(achse.getAttribute('x2')) - Number(achse.getAttribute('x1'))),
+      randLinks: Math.round(Number(achse.getAttribute('x1'))),
+      randRechts: Math.round(vb - Number(achse.getAttribute('x2'))),
+      ueber: texte.filter((t) => t.r > vb + 0.5 || t.l < -0.5)
+        .map((t) => '«' + t.t + '» ' + Math.round(t.l) + '…' + Math.round(t.r)),
+      gekuerzt: texte.filter((t) => /…$/.test(t.t)).length,
+    };
+  }));
+
 // Query-Teil des Hashs (#ansicht?von=…): beim Ansichtswechsel per goto muss der Filterzustand mitgenommen werden
 const hashQuery = (url) => { const h = url.split('#')[1] || ''; const q = h.indexOf('?'); return q >= 0 ? h.slice(q) : ''; };
 
@@ -239,8 +262,8 @@ try {
       textInDatenfarbe: [...fig.querySelectorAll('.viz-label, .viz-tick, figcaption')].filter((x) => /series/.test(x.getAttribute('style') || '')).length,
     };
   });
-  check(!!punkte && punkte.punkte >= 3 && punkte.punkte === punkte.balken && punkte.referenz === 1 && punkte.rolle === 'img' && punkte.aria > 40,
-    'M2 Punktdiagramm: ' + (punkte ? punkte.punkte : 0) + ' Punkte mit Wilson-Balken, Linie auf dem Gesamtwert, role=img mit aria-label');
+  check(!!punkte && punkte.punkte >= 3 && punkte.punkte === punkte.balken && punkte.referenz === 1 && punkte.rolle === 'group' && punkte.aria > 40,
+    'M2 Punktdiagramm: ' + (punkte ? punkte.punkte : 0) + ' Punkte mit Wilson-Balken, Linie auf dem Gesamtwert, role=group mit aria-label (seit P4 Container statt Bild)');
   check(!!punkte && punkte.beschriftung.length === punkte.punkte && punkte.beschriftung.every((t) => /^n = \d+( · [+−±]\d+\.\d pp)?( · gesichert)?( \*)?$/.test(t)) && punkte.legende.length === 3 && punkte.textInDatenfarbe === 0,
     'M2 Direktbeschriftung je Punkt (' + (punkte ? punkte.beschriftung.join(' | ') : '') + '), Legende mit ' + (punkte ? punkte.legende.length : 0) + ' Einträgen, kein Text in der Datenfarbe');
   check(!!punkte && punkte.hohl >= 1 && punkte.tabellenzeilen >= punkte.punkte && /Kennzahlen je Profil/.test(punkte.titelDerTabelle),
@@ -575,7 +598,8 @@ try {
     await page.waitForSelector('#view table.data');
     const h2 = await page.evaluate(() => {
       const abschnitt = [...document.querySelectorAll('#view section.block, #view details.block')]
-        .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Bestehensquote'));
+        .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Bestehen und Durchfallen'));
+      if (!abschnitt) return { diagramme: 0, ueberschriftFehlt: true };
       const figuren = [...abschnitt.querySelectorAll('figure.viz')].filter((f) => f.querySelector('.viz-dots'));
       const tabellen = [...abschnitt.querySelectorAll('table.data')];
       return {
@@ -592,6 +616,21 @@ try {
     check(h2.diagramme === erwartet && h2.tabellen >= erwartet && h2.vorDerTabelle && h2.referenz
       && h2.punkteZuZeilen.every((p) => Number(p.split('/')[0]) >= 1 && Number(p.split('/')[0]) <= Number(p.split('/')[1])),
       'H2 ' + ansicht + ': ' + h2.diagramme + ' Punktdiagramm(e) vor der Tabelle (' + h2.titel.join(' | ') + '), Punkte zu Tabellenzeilen ' + h2.punkteZuZeilen.join(', '));
+    // P1: Die Überschrift nennt beide Seiten, und ein gesicherter Abstand trägt seine Wertung als Wort
+    const p1 = await page.evaluate(() => {
+      const abschnitt = [...document.querySelectorAll('#view section.block, #view details.block')]
+        .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Bestehen und Durchfallen'));
+      const beschriftungen = [...abschnitt.querySelectorAll('figure.viz text.viz-label')].map((t) => t.textContent).filter((t) => /^n = /.test(t));
+      return {
+        ueberschrift: (abschnitt.querySelector('h3, summary') || {}).textContent,
+        hinweis: !!abschnitt.parentElement.textContent.match(/Diagramm zeigt die Durchfallquote/),
+        gesichert: beschriftungen.filter((t) => /gesichert/.test(t)),
+        ohneWertung: beschriftungen.filter((t) => /gesichert(?! (günstig|ungünstig))/.test(t)),
+      };
+    });
+    check(/^Bestehen und Durchfallen/.test(p1.ueberschrift) && p1.hinweis && p1.ohneWertung.length === 0,
+      'P1 ' + ansicht + ': Überschrift «' + p1.ueberschrift + '», Hinweis nennt beide Seiten, jeder gesicherte Abstand mit Wertung ('
+        + (p1.gesichert.length ? p1.gesichert.join(' | ') : 'keiner gesichert') + ')');
   }
 
   // Letzte Lücke aus H4: Punktdiagramm je Teilprüfung in «Schriftlich» – ohne Bezugslinie, weil ein Gesamtwert
@@ -616,6 +655,214 @@ try {
   check(!!teile && teile.punkte.length >= 1 && teile.referenz === 0 && teile.balken === teile.punkte.length
     && teile.vorDerTabelle && teile.punkte.join('|') === teile.zeilen.filter((z) => teile.punkte.includes(z)).join('|'),
     'Schriftlich: Punktdiagramm je Teilprüfung (' + (teile ? teile.punkte.join(' · ') : '') + ') ohne Bezugslinie, Folge wie die Tabelle');
+
+  // P2: Die Achse jedes Punktdiagramms folgt den Daten – geprüft wird die Regel selbst, nicht eine Faustzahl:
+  // Beginn bei 0 %, Ende auf der nächsten 5-%-Stufe ECHT über dem grössten Wert (Punkt, Intervallende ODER
+  // Bezugslinie), mindestens 10 pp Spanne, höchstens 100 %. Vorher lief die Achse immer bis 100 %.
+  for (const ansicht of ['uebersicht', 'schriftlich', 'muendlich', 'vss-vsm', 'experten']) {
+    await page.goto(server.url + '#' + ansicht);
+    await page.waitForSelector('#view figure.viz .viz-dots');
+    const skalen = await page.evaluate(() => [...document.querySelectorAll('#view figure.viz')]
+      .filter((f) => f.querySelector('.viz-dots')).map((f) => {
+        const s = f.querySelector('svg');
+        const achse = s.querySelector('line.viz-axis');
+        const xa = Number(achse.getAttribute('x1')), xe = Number(achse.getAttribute('x2'));
+        // Wert je Pixel aus zwei Achsenbeschriftungen; die Beschriftung der Bezugslinie trägt einen Namen davor
+        // und fällt hier heraus – sie ist ein zu prüfender Wert, kein Massstab.
+        const achsTicks = [...s.querySelectorAll('text.viz-tick')].filter((t) => /^[\d.,]+ %$/.test(t.textContent.trim()))
+          .map((t) => ({ x: Number(t.getAttribute('x')), v: parseFloat(t.textContent) / 100 })).sort((a, b) => a.x - b.x);
+        const a = achsTicks[0], b = achsTicks[achsTicks.length - 1];
+        const proPx = (b.v - a.v) / (b.x - a.x);
+        const wert = (x) => a.v + (x - a.x) * proPx;
+        const xs = [...s.querySelectorAll('circle.viz-dot')].map((c) => Number(c.getAttribute('cx')))
+          .concat([...s.querySelectorAll('line.viz-ci-cap')].map((l) => Number(l.getAttribute('x1'))));
+        const ref = s.querySelector('line.viz-ref');
+        if (ref) xs.push(Number(ref.getAttribute('x1')));
+        return {
+          titel: (f.querySelector('figcaption') || { textContent: '' }).textContent.split(' · ')[0],
+          ersterTick: achsTicks[0].v,
+          achsEnde: Math.round(wert(xe) * 1000) / 1000,
+          groesster: Math.round(Math.max(...xs.map(wert)) * 1000) / 1000,
+          ueberRand: xs.filter((x) => x > xe + 0.5).length,
+          fuellung: Math.round(((Math.max(...xs) - xa) / (xe - xa)) * 1000) / 10,
+          beschriftungen: [...s.querySelectorAll('text.viz-label')].map((t) => t.textContent).filter((t) => /^n = /.test(t)),
+        };
+      }));
+    // Aus Pixeln zurückgerechnet, deshalb toleriert die Prüfung 0.3 pp. Geprüft wird die Regel in ihren zwei
+    // Hälften statt gegen eine Faustzahl: Die Achse endet ÜBER dem grössten Wert, aber weniger als eine 5-%-Stufe
+    // darüber – ausser am Boden (10 pp Mindestspanne) und am Deckel (100 %), wo die Regel nicht weiter kann.
+    const TOL = 0.003;
+    const grund = (d) => d.ersterTick !== 0 ? 'beginnt bei ' + Math.round(d.ersterTick * 100) + ' % statt 0 %'
+      : d.ueberRand > 0 ? d.ueberRand + ' Werte über dem rechten Rand (geklemmt)'
+      : d.achsEnde < d.groesster - TOL ? 'endet bei ' + d.achsEnde + ' unter dem grössten Wert ' + d.groesster
+      : (d.achsEnde - d.groesster >= 0.05 + TOL && d.achsEnde > 0.103 && d.achsEnde < 0.997) ? 'endet ' + Math.round((d.achsEnde - d.groesster) * 1000) / 10 + ' pp über dem grössten Wert – mehr als eine Stufe'
+      : null;
+    const falsch = skalen.filter((d) => grund(d));
+    check(skalen.length > 0 && falsch.length === 0,
+      'P2 ' + ansicht + ': ' + skalen.length + ' Achse(n) folgen den Daten ab 0 % – '
+        + skalen.map((d) => d.titel.slice(0, 28) + ' bis ' + Math.round(d.achsEnde * 100) + ' % (grösster Wert ' + Math.round(d.groesster * 1000) / 10 + ' %, Füllung ' + d.fuellung + ' %)').join(' | ')
+        + (falsch.length ? ' – FALSCH: ' + falsch.map((d) => d.titel + ': ' + grund(d)).join(' / ') : ''));
+    // P3: Nichts ragt über die viewBox – links die Gruppennamen, rechts die Direktbeschriftung. Beide Ränder
+    // wachsen mit ihrem Text; dem Plot bleibt mindestens die halbe Breite.
+    const b = await punktBeschriftungen(page);
+    check(b.length > 0 && b.every((d) => d.ueber.length === 0 && d.plot >= d.vb / 2 - 1),
+      'P3 ' + ansicht + ': Beschriftungen innerhalb der viewBox, Plot ≥ halbe Breite – '
+        + b.map((d) => d.titel.slice(0, 24) + ' ' + d.randLinks + '|' + d.plot + '|' + d.randRechts + ' von ' + d.vb).join(' · ')
+        + (b.some((d) => d.ueber.length) ? ' – ÜBER DEN RAND: ' + b.flatMap((d) => d.ueber).join(', ') : ''));
+
+    // P4: Ein <title> JE ZEILE statt einem je SVG, und die Trefferfläche ist die ganze Zeile. Geprüft wird an
+    // vier Stellen der Zeile (Gruppenname links, Balkenanfang, Punkt, Direktbeschriftung rechts), dass derselbe
+    // Satz erscheint – und dass die Sätze verschiedener Zeilen verschieden sind. Vorher trugen alle Zeilen den
+    // Titel des Diagramms.
+    const p4 = await page.evaluate(() => {
+      // elementFromPoint rechnet im Sichtfenster: Was darunter liegt, liefert null. Deshalb wird jede Figur
+      // vor der Probe in die Mitte gescrollt – sonst misst die Prüfung den Scrollstand statt die Trefferfläche.
+      const titelAn = (x, y) => {
+        for (let e = document.elementFromPoint(x, y); e && e !== document.body; e = e.parentElement || e.parentNode) {
+          const t = e.children ? [...e.children].find((c) => c.tagName.toLowerCase() === 'title') : null;
+          if (t) return t.textContent;
+        }
+        return null;
+      };
+      return [...document.querySelectorAll('#view figure.viz')].filter((f) => f.querySelector('.viz-dots')).map((f) => {
+        const sv = f.querySelector('svg');
+        sv.scrollIntoView({ block: 'center' });
+        const kasten = sv.getBoundingClientRect();
+        const eintraege = [...sv.querySelectorAll('[role="listitem"]')];
+        const saetze = eintraege.map((g) => (g.querySelector('title') || {}).textContent || '');
+        // Vier Proben je Zeile über die volle Breite des Zeilenbandes
+        const proben = eintraege.map((g, i) => {
+          const r = g.querySelector('rect.viz-treffer');
+          if (!r) return { i, treffer: 0, von: 4 };
+          const b = r.getBoundingClientRect();
+          const y = b.top + b.height / 2;
+          const xs = [b.left + 4, b.left + b.width * 0.35, b.left + b.width * 0.6, b.right - 4];
+          return { i, treffer: xs.filter((x) => titelAn(x, y) === saetze[i]).length, von: xs.length };
+        });
+        return {
+          titel: (f.querySelector('figcaption') || { textContent: '' }).textContent.split(' · ')[0],
+          rolle: sv.getAttribute('role'),
+          listen: sv.querySelectorAll('[role="list"]').length,
+          eintraege: eintraege.length,
+          punkte: sv.querySelectorAll('circle.viz-dot').length,
+          titelAufDerWurzel: [...sv.children].filter((c) => c.tagName.toLowerCase() === 'title').length,
+          dekoVersteckt: sv.querySelectorAll('g[aria-hidden="true"] .viz-axis, g[aria-hidden="true"] .viz-grid').length,
+          verschieden: new Set(saetze).size,
+          vollstaendig: saetze.filter((t) => /·/.test(t) && / % · /.test(t)).length,
+          mitZaehler: saetze.filter((t) => / von \d+ /.test(t)).length,
+          treffer: proben.reduce((a, x) => a + x.treffer, 0),
+          proben: proben.reduce((a, x) => a + x.von, 0),
+          beispiel: saetze[0] || '',
+          flaeche: Math.round(kasten.width * (kasten.height / Math.max(1, eintraege.length))),
+        };
+      });
+    });
+    const p4Falsch = p4.filter((d) => d.rolle !== 'group' || d.listen !== 1 || d.eintraege !== d.punkte
+      || d.titelAufDerWurzel !== 0 || d.dekoVersteckt < 2 || d.verschieden !== d.eintraege
+      || d.vollstaendig !== d.eintraege || d.mitZaehler !== d.eintraege || d.treffer !== d.proben);
+    check(p4.length > 0 && p4Falsch.length === 0,
+      'P4 ' + ansicht + ': ' + p4.map((d) => d.eintraege + ' Zeilen mit eigenem Satz, Trefferfläche ' + d.flaeche + ' px² (' + d.treffer + '/' + d.proben + ' Proben)').join(' | ')
+        + ' – z. B. «' + (p4[0] || {}).beispiel + '»'
+        + (p4Falsch.length ? ' – FALSCH: ' + p4Falsch.map((d) => d.titel + ' role=' + d.rolle + ', ' + d.listen + ' Listen, ' + d.eintraege + ' Einträge zu ' + d.punkte + ' Punkten, '
+          + d.verschieden + ' verschiedene Sätze, ' + d.mitZaehler + ' mit Zähler, ' + d.titelAufDerWurzel + ' Titel auf der Wurzel, ' + d.treffer + '/' + d.proben + ' Proben').join(' / ') : ''));
+
+    // P1 für JEDES Punktdiagramm, nicht nur in «Schriftlich»/«Mündlich»: Ein gesicherter Abstand trägt seine
+    // Wertung als Wort. Die Übersicht rief das Diagramm an der Prüfung vorbei direkt auf und reichte die Richtung
+    // nicht weiter – gefunden hat das erst diese Prüfung. Ausgenommen ist «Experten»: dort ist die Richtung
+    // bewusst neutral, weil Menschen verglichen werden und eine Wertung eine Rangliste wäre (E9).
+    if (ansicht !== 'experten') {
+      const ohneWertung = skalen.flatMap((d) => d.beschriftungen.filter((t) => /gesichert(?! (günstig|ungünstig))/.test(t)));
+      const mitWertung = skalen.flatMap((d) => d.beschriftungen.filter((t) => /gesichert (günstig|ungünstig)/.test(t)));
+      check(ohneWertung.length === 0,
+        'P1 ' + ansicht + ': jeder gesicherte Abstand mit Wertung ('
+          + (mitWertung.length ? mitWertung.join(' | ') : 'keiner gesichert') + ')'
+          + (ohneWertung.length ? ' – OHNE: ' + ohneWertung.join(' | ') : ''));
+    }
+  }
+
+  // P5: «VSS/VSM» zeigt BEIDE Prüfungsteile für alle drei Gruppen – die Ansicht und das README versprachen das,
+  // gezeigt wurde nur die schriftliche Seite. Zwei Diagramme statt zweier Reihen in einem, weil die Nenner
+  // verschieden sind: Jede Seite braucht ihre eigene Bezugslinie. Die synthetische Datei trägt dafür seit P5
+  // Threaded Comments auf der Namenszelle (VSS, VSM, eine Zeile mit beidem) – vorher war VSS/VSM immer leer und
+  // die Ansicht zeigte nur «ohne».
+  await page.goto(server.url + '#vss-vsm');
+  await page.waitForSelector('#view figure.viz .viz-dots');
+  const p5 = await page.evaluate(() => {
+    const figs = [...document.querySelectorAll('#view figure.viz')].filter((f) => f.querySelector('.viz-dots'));
+    return figs.map((f) => {
+      const sv = f.querySelector('svg');
+      const refText = [...sv.querySelectorAll('text.viz-tick')].find((t) => !/^[\d.,]+ %$/.test(t.textContent.trim()));
+      return {
+        titel: (f.querySelector('figcaption') || { textContent: '' }).textContent.split(' · ')[0],
+        gruppen: [...sv.querySelectorAll('[role="listitem"] title')].map((t) => t.textContent.split(' · ')[0]),
+        saetze: [...sv.querySelectorAll('[role="listitem"] title')].map((t) => t.textContent),
+        referenz: refText ? refText.textContent.trim() : '',
+        linien: sv.querySelectorAll('line.viz-ref').length,
+        legende: [...f.querySelectorAll('.viz-legend-item')].map((x) => x.textContent.trim()).join(' · '),
+        farben: [...new Set([...sv.querySelectorAll('circle.viz-dot')].map((c) => (c.getAttribute('style') || '').replace(/^(fill|stroke):/, '')))],
+      };
+    });
+  });
+  const dreiGruppen = (d) => d.gruppen.join('|') === 'VSS|VSM|ohne';
+  const nenner = p5.map((d) => d.saetze.filter((t) => /angetretenen Vorgängen|angetretenen Vorgang/.test(t)).length);
+  check(p5.length === 2
+    && /^Schriftlich /.test(p5[0].titel) && /^Mündlich /.test(p5[1].titel)
+    && p5.every(dreiGruppen)
+    && p5.every((d) => d.linien === 1)
+    && p5[0].referenz !== p5[1].referenz
+    && nenner[0] === 0 && nenner[1] === 3
+    && p5.every((d) => d.farben.every((c) => c === 'var(--series-1)')),
+    'P5 VSS/VSM: ' + p5.length + ' Diagramme (' + p5.map((d) => d.titel.split(' ')[0] + ': ' + d.gruppen.join('/') + ', Linie «' + d.referenz + '»').join(' | ')
+      + '), mündlich mit eigenem Nenner (' + nenner[1] + ' von ' + p5[1].gruppen.length + ' Zeilen nennen angetretene Vorgänge), Reihenfarbe und Legende wie überall ('
+      + (p5[0] || {}).legende + ')');
+  // Die Kennzeichnungen kommen aus den Threaded Comments und überschneiden sich: eine Zeile trägt VSS UND VSM,
+  // die drei Gruppen teilen den Gesamtwert also nicht auf. Geprüft an der Tabelle, die die Nenner nennt.
+  const vssTabelle = await page.evaluate(() => {
+    const t = document.querySelector('#view table.data');
+    return {
+      gruppen: [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].slice(0, 3).map((td) => td.textContent.trim()).join(' · ')),
+    };
+  });
+  const alleZeilen = vssTabelle.gruppen.filter((z) => / · alle · /.test(z));
+  check(alleZeilen.length === 3 && alleZeilen.every((z) => Number(z.split(' · ')[2]) > 0),
+    'P5 VSS/VSM: alle drei Gruppen mit Vorgängen in der Tabelle (' + alleZeilen.join(' | ') + ')');
+
+  // P6: Die mündliche Erstversuchsquote steht in der Tabelle – in Bestehensrichtung wie die schriftliche Seite –,
+  // und jede der vier Quoten trägt ihren eigenen Nenner als Spalte. Vorher stand EINE n-Spalte neben drei Quoten
+  // mit drei verschiedenen Nennern und sah aus wie deren Nenner; sie ist die Grösse der Gruppe.
+  const p6 = await page.evaluate(() => {
+    const t = document.querySelector('#view table.data');
+    const kopf = [...t.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+    const zeile = [...t.querySelectorAll('tbody tr')].find((tr) => /^VSS/.test(tr.textContent));
+    return {
+      kopf,
+      // Die Fussnote steht als ⓘ am Tabellentitel, also im title-Attribut – nicht im Textinhalt.
+      note: ([...document.querySelectorAll('#view .info')].map((e) => e.getAttribute('title') || '')
+        .find((x) => /Vorgänge mit VSS und VSM zählen in beiden Gruppen/.test(x)) || ''),
+      werte: zeile ? [...zeile.querySelectorAll('td')].map((td) => td.textContent.trim()) : [],
+    };
+  });
+  const nennerSpalten = p6.kopf.filter((k) => /^n \(/.test(k));
+  check(p6.kopf.includes('Mündlich im 1. Versuch bestanden')
+    && nennerSpalten.length === 5
+    && !p6.kopf.some((k) => /durchgefallen/i.test(k))
+    && ['absolviertem WE RUN1', 'datierter OE1 RUN1', 'bestanden + nicht bestanden', 'Grösse der Gruppe'].every((teil) => p6.note.includes(teil)),
+    'P6 VSS/VSM: ' + p6.kopf.length + ' Spalten mit mündlicher Erstversuchsquote in Bestehensrichtung, '
+      + nennerSpalten.length + ' Nennerspalten (' + nennerSpalten.join(', ') + '), Fussnote benennt jeden Nenner');
+
+  // Der Export nimmt die neuen Spalten mit – geprüft am echten Knöpfchen, nicht an einem Nachbau
+  await page.locator('#view .view-actions details.export-menu summary').first().click();
+  const [p6Download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#view details.menu[open] .menu-item', { hasText: /^CSV$/ }).first().click(),
+  ]);
+  const p6Csv = readFileSync(await p6Download.path(), 'utf8');
+  const p6Kopf = (p6Csv.split(String.fromCharCode(10)).map((z) => z.split(String.fromCharCode(13)).join(''))
+    .find((z) => z.startsWith('Gruppe')) || '').split(';');
+  check(p6Kopf.length === p6.kopf.length && p6Kopf.includes('Mündlich im 1. Versuch bestanden')
+    && p6Kopf.filter((k) => /^n \(/.test(k)).length === 5,
+    'P6 Export: ' + p6Download.suggestedFilename() + ' mit ' + p6Kopf.length + ' Spalten – auch die auf dem Schirm ausgeblendeten ('
+      + p6Kopf.slice(-4).join(', ') + ')');
 
   // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
   // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
@@ -1451,6 +1698,20 @@ try {
     check(overflow <= 0 && hiddenPrio, 'Phone ' + v + ': kein Seitenscroll (' + overflow + ' px' + (ueberRand.length ? ': ' + ueberRand.join(', ') : '') + '), nur Prio-1-Spalten');
     await phone.screenshot({ path: join(outDir, 'phone-' + v + '.png'), fullPage: true });
   }
+  // P3 an der engsten Stelle: 360 viewBox-Einheiten statt 820, und die Direktbeschriftung entfällt dort ganz
+  // (die Zahlen stehen in der Tabelle darunter). Geprüft wird, dass trotzdem nichts abgeschnitten wird – links die
+  // Gruppennamen, rechts die letzte Achsenbeschriftung, die vorher zur Hälfte über den Rand ragte.
+  for (const v of ['uebersicht', 'schriftlich', 'muendlich', 'vss-vsm', 'experten']) {
+    await phone.goto(server.url + '#' + v);
+    await phone.waitForSelector('#view figure.viz .viz-dots');
+    const b = await punktBeschriftungen(phone);
+    const direkt = await phone.evaluate(() => [...document.querySelectorAll('#view figure.viz .viz-dots text.viz-label')].filter((t) => /^n = /.test(t.textContent)).length);
+    check(b.length > 0 && b.every((d) => d.ueber.length === 0 && d.plot >= d.vb / 2 - 1) && direkt === 0,
+      'P3 Phone ' + v + ': nichts abgeschnitten, keine Direktbeschriftung (' + direkt + ') – '
+        + b.map((d) => d.titel.slice(0, 22) + ' ' + d.randLinks + '|' + d.plot + '|' + d.randRechts + ' von ' + d.vb + (d.gekuerzt ? ', ' + d.gekuerzt + ' gekürzt' : '')).join(' · ')
+        + (b.some((d) => d.ueber.length) ? ' – ÜBER DEN RAND: ' + b.flatMap((d) => d.ueber).join(', ') : ''));
+  }
+
   // Paket E auf dem Phone: Das Band ist ausgeblendet, das Auswahlfeld führt zu allen vierzehn Ansichten. Die Reiter
   // bleiben als Abkürzung zwischen den Geschwistern – mit 44-px-Tap-Ziel wie jedes andere Bedienelement, in einer Zeile.
   await phone.goto(server.url + '#schriftlich');

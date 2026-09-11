@@ -25,6 +25,8 @@ export function build(ctx) {
   // angetretene Vorgänge). Die Tabelle bleibt darunter und im Export.
   const punkte = KEYS.map((k) => quotenPunkte(ctx.persons, k, {
     rates: oralPassRates, wert: (r) => r.failed1, titel: 'Mündlich im 1. Versuch durchgefallen nach ' + GROUP_LABELS[k],
+    // Der Nenner heisst hier anders als schriftlich; der Satz je Zeile (P4) benennt ihn
+    unit: 'angetretenen Vorgängen', unitSg: 'angetretenen Vorgang',
   }));
   const parts = partTable(ctx.persons, 'oe');
   const perf = KEYS.map((k) => performanceTable(ctx.persons, k, 'oral'));
@@ -33,8 +35,9 @@ export function build(ctx) {
   const hist = histogramSection(ctx, 'oral', sec);
   return {
     nodes: [
-      sec('Bestehensquote (Anteil Vorgänge)', rates.flatMap((t, i) => [punktDiagramm(punkte[i]), renderTable(t)]).filter(Boolean),
-        'Bestanden / nicht bestanden: «OE All Passed» = yes bzw. no; Nenner sind abgeschlossene Vorgänge mündlich. Offen = Gesamtergebnis leer (Prozess läuft noch, auch wenn noch keine mündliche Prüfung stattfand); nicht erfasst = unlesbar. Im 1. Versuch durchgefallen: OE1 im ersten Versuch nicht bestanden, unabhängig vom späteren Erfolg; 2× durchgefallen: OE1 im ersten und zweiten Versuch nicht bestanden. Nenner dieser beiden Quoten: angetretene Vorgänge mit absolviertem, datiertem OE1 RUN1 (geplante Termine zählen nicht).'),
+      // P1: Diagramm zeigt die Durchfallquote, Tabelle die Bestehensquoten – die Überschrift nennt beides
+      sec('Bestehen und Durchfallen (Anteil Vorgänge)', rates.flatMap((t, i) => [punktDiagramm(punkte[i]), renderTable(t)]).filter(Boolean),
+        'Das Diagramm zeigt die Durchfallquote im 1. Versuch je Gruppe (Nenner: angetretene Vorgänge), die Tabelle die Bestehensquoten. Bestanden / nicht bestanden: «OE All Passed» = yes bzw. no; Nenner sind abgeschlossene Vorgänge mündlich. Offen = Gesamtergebnis leer (Prozess läuft noch, auch wenn noch keine mündliche Prüfung stattfand); nicht erfasst = unlesbar. Im 1. Versuch durchgefallen: OE1 im ersten Versuch nicht bestanden, unabhängig vom späteren Erfolg; 2× durchgefallen: OE1 im ersten und zweiten Versuch nicht bestanden. Nenner dieser beiden Quoten: angetretene Vorgänge mit absolviertem, datiertem OE1 RUN1 (geplante Termine zählen nicht).'),
       sec('Je Teilprüfung OE1–OE2', [renderTable(parts)], 'Anteile und Ø Resultat je Teilprüfung; n = Vorgänge mit absolviertem ersten Versuch der Teilprüfung.'),
       sec('Ø Resultat (erreichte Punkte in Prozent)', perf.map((t) => renderTable(t)), 'Mittel über die Vorgänge mit Wert. Beide Wertungen nebeneinander: Resultat des ersten Versuchs und Resultat des bestandenen Runs.'),
       hist.node,

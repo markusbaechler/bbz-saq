@@ -95,9 +95,86 @@ test('tables.oralRateTable: Nenner = Personen mit OE1 RUN1-Datum, bestanden, 1×
   assertEqual([withOpen.rows[0].n, withOpen.rows[0].offen, withOpen.rows[0].angetreten, withOpen.rows[0].failed1], [4, 1, 5, '40.0 %'], 'offener Vorgang: nicht im Nenner «bestanden», aber angetreten und 1× durchgefallen');
 });
 
+// Paket I (P6): Die mündliche Erstversuchsquote fehlte in der Tabelle, und die eine n-Spalte stand neben drei
+// Quoten mit drei verschiedenen Nennern – sie sah aus wie deren Nenner, war aber die Grösse der Gruppe.
+test('tables.vssVsmTable: mündliche Erstversuchsquote in Bestehensrichtung, jeder Nenner sichtbar', () => {
+  const leute = [
+    simple({ lastName: 'A', profil: 'PK', vss: true }),
+    simple({ lastName: 'B', profil: 'PK', vss: true, oeAllPassed: false, oe: { 1: [{ passed: false, date: '2024-06-01', result: 0.4 }] } }),
+    // C ist mündlich noch nicht angetreten: im Nenner «angetreten» nicht, in «n (Vorgänge)» schon
+    simple({ lastName: 'C', profil: 'PK', vss: true, oeAllPassed: null, oe: { 1: [{ passed: null, date: null, result: null }] } }),
+  ];
+  const t = vssVsmTable(leute);
+  const vss = t.rows.find((r) => r.gruppe === 'VSS' && r.profil === 'alle');
+  assertEqual([vss.n, vss.nAngetreten, vss.nMuendlich], [3, 2, 2],
+    'drei Vorgänge, aber nur zwei angetreten und zwei abgeschlossen – drei verschiedene Zahlen in einer Zeile');
+  assertEqual(vss.muendlichErst, '50.0 %', 'einer von zwei Angetretenen hat OE1 im 1. Versuch bestanden');
+  assertEqual(vss.muendlich, '50.0 %');
+  assertEqual([vss.erstversuch, vss.nErstversuch], ['100.0 %', 3], 'schriftlich ein anderer Nenner als mündlich');
+  // Bestehensrichtung wie auf der schriftlichen Seite: keine Durchfallquote in dieser Tabelle
+  assert(t.columns.every((c) => !/durchgefallen/i.test(c.label)), t.columns.map((c) => c.label).join(' | '));
+  // Die Fussnote nennt jetzt JEDEN Nenner, nicht nur einen Verweis auf andere Ansichten
+  for (const teil of ['n (Vorgänge)', 'absolviertem WE RUN1', 'datierter OE1 RUN1', 'bestanden + nicht bestanden']) {
+    assert(t.note.includes(teil), 'Fussnote nennt «' + teil + '»: ' + t.note);
+  }
+});
+
+// Gegenprobe in metrics: passed1 und failed1 sind Gegenzahlen DERSELBEN Grundmenge
+test('tables.vssVsmTable: die mündliche Erstversuchsquote ist die Gegenzahl der Durchfallquote', () => {
+  const leute = [
+    simple({ lastName: 'A', vss: true }),
+    simple({ lastName: 'B', vss: true, oe: { 1: [{ passed: false, date: '2024-06-01', result: 0.4 }] } }),
+    simple({ lastName: 'C', vss: true, oe: { 1: [{ passed: false, date: '2024-06-01', result: 0.3 }] } }),
+  ];
+  const r = oralPassRates(leute);
+  assertEqual([r.passed1.count, r.failed1.count, r.angetreten], [1, 2, 3]);
+  assertEqual(Math.round((r.passed1.pct + r.failed1.pct) * 1000) / 1000, 1, 'zusammen 100 %');
+  assertEqual(r.passed1.n, r.failed1.n, 'derselbe Nenner');
+});
+
+// Paket I (P5): Die Ansicht und das README versprechen schriftlich UND mündlich; gezeigt wurde nur die schriftliche
+// Seite. Jeder Prüfungsteil hat seine EIGENE Bezugslinie, weil die Nenner verschieden sind.
+test('tables.vssVsmPunkte: beide Prüfungsteile, je eigene Bezugslinie und eigener Nenner', () => {
+  // Eine Kohorte, in der beide Seiten auswertbar sind und eine Person BEIDE Kennzeichnungen trägt
+  const leute = [
+    simple({ lastName: 'A', profil: 'PK', vss: true }),
+    simple({ lastName: 'B', profil: 'PK', vsm: true, oeAllPassed: false, oe: { 1: [{ passed: false, date: '2024-06-01', result: 0.4 }] } }),
+    simple({ lastName: 'C', profil: 'PK', vss: true, vsm: true, weAllPassed: false, we: { 1: [{ passed: false, date: '2024-03-01', result: 0.4 }] } }),
+    simple({ lastName: 'D', profil: 'IK' }),
+    // E ist schriftlich auswertbar, mündlich noch nicht angetreten – daran zeigt sich, dass die Nenner
+    // auseinanderlaufen: schriftlich 5 Vorgänge, mündlich 4 angetretene
+    simple({ lastName: 'E', profil: 'IK', oeAllPassed: null, oe: { 1: [{ passed: null, date: null, result: null }] } }),
+  ];
+  const schriftlich = vssVsmPunkte(leute, 'schriftlich');
+  const muendlich = vssVsmPunkte(leute, 'muendlich');
+  assertEqual(schriftlich.punkte.map((x) => x.label), ['VSS', 'VSM', 'ohne'], 'alle drei Gruppen, schriftlich');
+  assertEqual(muendlich.punkte.map((x) => x.label), ['VSS', 'VSM', 'ohne'], 'alle drei Gruppen, mündlich');
+  assertEqual(muendlich.titel, 'Mündlich im 1. Versuch durchgefallen nach Kennzeichnung');
+  // C trägt beide Kennzeichnungen und zählt in beiden Gruppen – die Gruppen teilen den Gesamtwert nicht auf
+  const vssS = schriftlich.punkte.find((x) => x.label === 'VSS');
+  const vsmS = schriftlich.punkte.find((x) => x.label === 'VSM');
+  assertEqual([vssS.count, vssS.n], [1, 2], 'VSS schriftlich: C durchgefallen von A und C');
+  assertEqual([vsmS.count, vsmS.n], [1, 2], 'VSM schriftlich: dieselbe Person C zählt auch hier');
+  // Jede Seite gegen ihren eigenen Gesamtwert, nicht gegen denselben
+  assertEqual(schriftlich.referenz.pct, writtenPassRates(leute).erstversuchFailed.pct);
+  assertEqual(muendlich.referenz.pct, oralPassRates(leute).failed1.pct);
+  assertEqual([schriftlich.referenz.pct, muendlich.referenz.pct], [1 / 5, 1 / 4],
+    'zwei Linien aus zwei Nennern: schriftlich 1 von 5 Vorgängen, mündlich 1 von 4 angetretenen');
+  // Der Nenner steht im Satz je Zeile (P4) und heisst mündlich anders
+  assertEqual([vssS.unit, vssS.unitSg], ['Vorgängen', 'Vorgang']);
+  const vssM = muendlich.punkte.find((x) => x.label === 'VSS');
+  assertEqual([vssM.unit, vssM.unitSg], ['angetretenen Vorgängen', 'angetretenen Vorgang']);
+  assertEqual([schriftlich.richtung, muendlich.richtung], ['down', 'down'], 'Durchfallquote: tiefer ist besser');
+});
+
 test('tables.vssVsmTable: VSS / VSM / ohne, je Profil, mit beiden Quoten', () => {
   const t = vssVsmTable(cohort());
-  assertEqual(t.columns.map((c) => c.label), ['Gruppe', 'Profil', 'n (Vorgänge)', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden']);
+  // P6: vier Quoten, und jede trägt ihren eigenen Nenner als Spalte daneben – «n (Vorgänge)» ist keiner davon
+  assertEqual(t.columns.map((c) => c.label), ['Gruppe', 'Profil', 'n (Vorgänge)',
+    'Schriftlich im 1. Versuch bestanden', 'n (schriftlich 1. Versuch)',
+    'Schriftlich insgesamt bestanden', 'n (schriftlich abgeschlossen)',
+    'Mündlich im 1. Versuch bestanden', 'n (mündlich angetreten)',
+    'Mündlich bestanden', 'n (mündlich abgeschlossen)']);
   assertEqual(t.rows.map((r) => [r.gruppe, r.profil, r.n]), [
     ['VSS', 'alle', 1], ['VSS', 'unbekannt', 1],
     ['VSM', 'alle', 0],
@@ -108,6 +185,7 @@ test('tables.vssVsmTable: VSS / VSM / ohne, je Profil, mit beiden Quoten', () =>
   const p = vssVsmPunkte(cohort());
   assertEqual(p.punkte.map((x) => x.label), ['VSS', 'ohne'], 'Reihenfolge wie die Tabelle, VSM ohne Wert fällt weg');
   assertEqual(p.referenz.pct, writtenPassRates(cohort()).erstversuchFailed.pct);
+  assertEqual(p.titel, 'Schriftlich im 1. Versuch durchgefallen nach Kennzeichnung', 'ohne Angabe die schriftliche Seite – wie bisher');
   assert(p.punkte.every((x) => typeof x.low === 'number' && typeof x.high === 'number'), 'Wilson-Intervall je Punkt');
   assert(p.punkte.every((x) => x.small === (x.n < 5)), 'kleine Gruppen markiert');
   assertEqual(t.rows[2].erstversuch, '–');

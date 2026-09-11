@@ -383,6 +383,7 @@ identisch mit der Ansicht «Glossar» in der App.
 | **Schriftlich: Ø Resultat bestandener Run** | Wie oben, aber Result des bestandenen Runs je Teilprüfung. | Vorgänge, deren absolvierte Teilprüfungen alle bestanden sind. | – |
 | **Je Teilprüfung (WE1–WE6, OE1–OE2)** | Im 1. Versuch bestanden / durchgefallen (RUN1), insgesamt bestanden (irgendein Run des Teils bestanden), Ø Resultat für beide Wertungen. | Vorgänge mit absolviertem RUN1 des Teils. | – |
 | **Mündlich: bestanden** | Anteil Vorgänge mit Status mündlich «bestanden» («OE All Passed» = yes). | Abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden). | Offen (auch: noch nicht angetreten) und nicht erfasst nicht im Nenner. In Sheet 2 gilt ein leeres «OE All yes» als bestanden (Hinweis). |
+| **Mündlich: im 1. Versuch bestanden** | OE1 RUN1 = yes. | Angetretene Vorgänge: absolvierter, datierter OE1 RUN1 (geplante Termine zählen nicht). | Komplement zu «im 1. Versuch durchgefallen» (zusammen 100 %). Anderer Nenner als «bestanden»: dort sind es abgeschlossene Vorgänge. |
 | **Mündlich: im 1. Versuch durchgefallen** | OE1 RUN1 = no, unabhängig vom späteren Erfolg. | Angetretene Vorgänge: absolvierter, datierter OE1 RUN1 (geplante Termine zählen nicht). | Zählt auch Vorgänge, die noch offen sind. |
 | **Mündlich: 2× durchgefallen** | OE1 RUN1 = no und OE1 RUN2 = no. | Angetretene Vorgänge (wie oben). | – |
 | **Mündlich: 3× durchgefallen** | OE1 RUN1 = no, RUN2 = no und RUN3 = no – alle Versuche, die die Datei kennt, nicht bestanden. | Angetretene Vorgänge (wie oben). | Teilmenge von «2× durchgefallen». Wer den dritten Versuch besteht, zählt nicht mit. Belegt das endgültige Scheitern über die Versuche, statt es aus «OE All Passed» = no zu erschliessen – die Spalte sagt nicht, nach wie vielen Versuchen. |
@@ -518,6 +519,13 @@ der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
 aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
 
+**Überschrift und Wertung (Paket I):** Ein Abschnitt, der ein Diagramm mit Durchfallquoten und eine Tabelle mit
+Bestehensquoten trägt, heisst «Bestehen und Durchfallen» – eine Überschrift, die nur eine Seite nennt, widerspricht
+dem, was darunter steht. Die Direktbeschriftung nennt bei einem **gesicherten** Abstand zusätzlich die Wertung als
+Wort: «n = 302 · +27.9 pp · gesichert ungünstig». Die Richtung kommt aus dem Modell (`richtung`: tiefer ist besser
+bei Durchfallquoten, höher bei Bestehensquoten, `neutral` bei den Experten, wo nicht gewertet wird). Ohne sie läse
+sich «+27.9 pp · gesichert» wie eine gute Nachricht. Farbe kommt dazu, trägt die Wertung aber nie allein.
+
 **Punktdiagramm je Gruppierung (Pakete MESSZEILE und H):** Über jeder Bestehensquoten-Tabelle steht ein
 Punktdiagramm: je Gruppe ein Punkt auf der **Durchfallquote im 1. Versuch** – dieselbe Wahl wie in der Übersicht,
 weil bei 96 % bestanden die Aussage in der Gegenzahl steckt –, dazu sein 95-%-Wilson-Intervall als Balken und eine
@@ -526,6 +534,95 @@ senkrechte Linie auf dem Gesamtwert. Es steht in der Übersicht («Kennzahlen je
 einen anderen Nenner hätte als die einzelnen Zeilen; verglichen werden die Teilprüfungen untereinander), in «Mündlich» dreimal (Profil, Sprache, Bank), in «Experten» je Experte und in «VSS/VSM» je Kennzeichnung.
 Bei VSS/VSM überschneiden sich die Gruppen: Ein Vorgang mit VSS **und** VSM zählt in beiden, die drei Punkte teilen
 den Gesamtwert also nicht auf – der Hinweis über der Ansicht sagt es.
+
+**VSS/VSM zeigt beide Prüfungsteile (Paket I, P5).** Ansicht und Tabelle oben versprechen «schriftlich und
+mündlich»; gezeigt wurde nur die schriftliche Seite. Es sind jetzt **zwei Diagramme**, eines je Prüfungsteil, jedes
+mit allen drei Gruppen (VSS, VSM, ohne). Zwei Diagramme und nicht zwei Reihen in einem: Die Nenner sind
+verschieden – schriftlich die Vorgänge mit auswertbarem ersten Versuch, mündlich die **angetretenen** Vorgänge
+(OE1 RUN1 absolviert und datiert). Jede Seite braucht deshalb ihre eigene Bezugslinie, und zwei Linien in einem
+Plot lüden dazu ein, einen Punkt gegen die falsche zu lesen (dieselbe Regel wie beim Teilprüfungs-Diagramm). Der
+Satz je Zeile benennt den Nenner mit: «2 von 3 **angetretenen** Vorgängen» gegenüber «2 von 8 Vorgängen». Beide
+Diagramme tragen dieselbe Reihenfarbe und dieselbe Legende wie alle anderen Punktdiagramme.
+
+**Welche Kennzeichnung zu welchem Prüfungsteil gehört, sagt die Datei nicht** – VSS und VSM sind Kennzeichnungen
+aus den Threaded Comments, mehr nicht. Hier wird deshalb auch nichts zugeordnet oder hergeleitet: Beide
+Prüfungsteile stehen für alle drei Gruppen.
+
+**Die Tabelle nennt jeden Nenner (Paket I, P6).** Ihr fehlte die mündliche Erstversuchsquote; sie steht jetzt als
+**«Mündlich im 1. Versuch bestanden»** da – in der Bestehensrichtung der schriftlichen Seite, nicht als
+Durchfallquote, damit in einer Tabelle nicht zwei Richtungen nebeneinander stehen. Die Kennzahl ist
+`oralPassRates().passed1`, die Gegenzahl zu `failed1` auf derselben Grundmenge (zusammen 100 %).
+
+Vier Quoten haben vier verschiedene Nenner, und **«n (Vorgänge)» ist keiner davon** – es ist die Grösse der Gruppe.
+Vorher stand diese eine Spalte neben drei Quoten und sah aus wie deren Nenner. Jede Quote trägt jetzt ihren
+eigenen daneben:
+
+| Quote | Nenner |
+|---|---|
+| Schriftlich im 1. Versuch bestanden | Vorgänge mit absolviertem WE RUN1 |
+| Schriftlich insgesamt bestanden | abgeschlossene Vorgänge schriftlich (bestanden + nicht bestanden) |
+| Mündlich im 1. Versuch bestanden | **angetretene** Vorgänge (absolvierter, datierter OE1 RUN1) |
+| Mündlich bestanden | abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden) |
+
+Elf Spalten, deshalb `wide`: Die beiden «abgeschlossen»-Nenner erscheinen erst ab 1900 px. Auf dem Phone bleiben
+die fünf Prio-1-Spalten – Gruppe, Profil, n (Vorgänge) und die beiden Erstversuchsquoten nebeneinander; die
+Tabelle scrollt dort 65 px im eigenen Rahmen, ohne Seitenscroll («Mündlich» liegt mit 56–84 px im selben Bereich).
+Der **Export nimmt alle elf Spalten** mit, auch die auf dem Schirm ausgeblendeten – er folgt den Spalten des
+Tabellenmodells, nicht der Anzeige.
+
+**Die Achse folgt den Daten (Paket I, P2)** und benutzt dazu dieselbe Regel wie die Spur der Messzeile
+(`messzeilenSkala()`): Beginn bei **0 %**, Ende auf der nächsten **5-%-Stufe echt über dem grössten Wert**,
+mindestens 10 pp Spanne, höchstens 100 %. «Grösster Wert» heisst dabei: der grösste Wert überhaupt –
+**Intervallenden und Bezugslinie eingerechnet**. Sonst reichte ein Balken über die Achse hinaus und würde am Rand
+abgeschnitten, was sich läse, als endete er genau dort. Vorher lief die Achse fest bis 100 %, während die Daten bei
+60 % endeten; die Punkte drängten sich in der linken Hälfte. Am Boden (10 pp Mindestspanne) und am Deckel (100 %)
+kann die Regel nicht weiter – nur dort darf ein Wert auf dem Rand liegen. Alle Punktdiagramme teilen denselben
+Nullpunkt; einen abweichenden Achsenbeginn gibt es hier nicht.
+
+**Die Ränder wachsen mit ihrem Text (Paket I, P3).** Fest waren sie 150 Einheiten rechts und 104 links. Gemessen
+ragte die Direktbeschriftung «n = 132 · +26.0 pp · gesichert ungünstig» (212 px breit) **72 px** über die viewBox
+und wurde abgeschnitten – seit P1 trägt sie zusätzlich die Wertung und ist damit länger geworden. Links reichte ein
+Gruppenname wie «Firmenkunden KMU Deutschschweiz» **98 px** über den Rand hinaus. Beide Ränder kommen jetzt aus
+`endLabelGutter()`, derselben Funktion wie beim Liniendiagramm; das Punktdiagramm zeichnet keinen Linienschlüssel in
+Reihenfarbe und zahlt über `{ key: false }` auch nicht mehr dafür.
+
+Die Breite wird **gemessen, nicht geschätzt**: Ein Canvas-Kontext mit derselben Schrift wie das SVG (eine Quelle:
+`--viz-font` in `styles.css`) liefert exakt dieselbe Breite wie `getBBox()`, ohne dass das Element im Dokument
+hängen muss. Der alte Schätzwert von 7 px je Zeichen stammt aus Paket B, wo die Endbeschriftung sechs Zeichen lang
+war; bei vierzig Zeichen summiert sich der Zuschlag auf 68 px, also 12 % der Zeichenfläche. Ohne DOM (Node-Tests)
+bleibt der Schätzwert als bewusst grosszügiger Rückfall. **Dem Plot bleibt mindestens die halbe Breite** – ein
+längerer Gruppenname wird gekürzt und mit «…» markiert; vollständig steht er in der Tabelle darunter. Auf dem
+Phone entfällt die Direktbeschriftung ganz (die Zahlen stehen in der Tabelle), rechts bleibt nur der Rand für die
+letzte Achsenbeschriftung – die vorher zur Hälfte über den Rand ragte.
+
+**Eine Zeile, ein Satz (Paket I, P4).** Vorher hing ein einziger `<title>` am SVG: Wer eine Zeile ansteuerte, bekam
+den Titel des Diagramms – für alle sechs Gruppen denselben Text. Jede Zeile trägt jetzt ihren eigenen:
+
+> IK · 44.7 % · 59 von 132 Vorgängen · 95-%-Intervall 36.5 bis 53.2 % · +26.0 pp gegenüber Gesamt 18.7 % · gesichert ungünstig
+
+Gruppe, Quote, **Zähler mit Nenner** («n = 132» allein nennt nur den Nenner – das ist hier überall ein Mangel),
+Wilson-Intervall von–bis, Abstand in pp zur Bezugslinie und ob er gesichert ist. Was nicht dasteht, fehlt auch im
+Satz: ohne Bezugslinie kein Abstand und kein «gesichert», bei neutraler Richtung «gesichert» ohne Wertung (E9),
+bei n < 5 der Zusatz «Gruppe mit n < 5». Der Satz steht im Modell, ist also ohne DOM prüfbar.
+
+**Die Trefferfläche ist die ganze Zeile.** Ein durchsichtiges Rechteck über die volle Breite liegt hinter Punkt,
+Balken, Gruppenname und Direktbeschriftung – gemessen **33 715 px² statt 140 px²** am Punkt allein, also Faktor
+241. Es ist `fill: transparent`, nicht `fill: none`: «none» nimmt keine Zeigerereignisse entgegen.
+
+**Die Rollenstruktur ist gemessen entschieden, nicht gewählt.** Drei Varianten im Accessibility-Baum verglichen:
+
+| | Ergebnis |
+|---|---|
+| `role="img"` + `<title>` je Zeile | Mit `img` gelten alle Nachfahren als Bildinhalt – verlässlich bleibt **ein Satz für sechs Gruppen**. |
+| `role="img"` + `<desc>` je Zeile | Dasselbe, und der Satz landet zusätzlich in `description`: **zweimal vorgelesen**. |
+| `role="list"` direkt auf dem SVG | Die vier Achsenbeschriftungen hingen als **leere Fremdkinder** in der Liste; sie meldete sechs statt zwei Einträge. |
+| **SVG = Container, Liste als eigene Gruppe** | `group › list › listitem` – sauber, ohne Fremdkinder, ohne Doppelung. **Gewählt.** |
+
+Achse, Gitter und Bezugslinie stehen deshalb in einer Gruppe mit `aria-hidden` – ihre Zahlen stehen ohnehin in
+jedem Zeilensatz. Der `<title>` auf der Wurzel ist weg: Er wurde nach dem `aria-label` ein zweites Mal vorgelesen;
+den Namen des Diagramms trägt sichtbar die figcaption, für Hilfsmittel das `aria-label` – jeder genau einmal.
+Die Zeilen bekommen **kein** eigenes `tabindex`: Vier Diagramme à sechs Zeilen wären 24 zusätzliche Tabstopps je
+Ansicht; Screenreader navigieren Listen mit ihren eigenen Tasten, und die Zahlen stehen in der Tabelle darunter.
 
 **In «Experten» gilt eine Besonderheit:** Dort werden Menschen verglichen, deshalb steht das Diagramm in der
 Reihenfolge der Tabelle (Einsätze absteigend) und **nicht nach Quote sortiert** – nach Quote sortiert wäre das Bild
