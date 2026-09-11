@@ -17,6 +17,7 @@ import './contrast.test.js';
 import './views-meta.test.js';
 import './signals.test.js';
 import './chart.test.js';
+import './dotchart.test.js';
 import './regeln.test.js';
 import './overview.test.js';
 import './filterChips.test.js';

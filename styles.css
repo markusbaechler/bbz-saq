@@ -258,6 +258,15 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .signal-titel { font-weight: 600; min-width: 0; overflow-wrap: break-word; }
 .signal-detail { grid-column: 3 / -1; margin: 0 0 .15rem; color: var(--muted); font-size: var(--fs-sm); }
 .signal-weg { white-space: nowrap; font-size: var(--fs-sm); }
+/* Punktdiagramm (Paket MESSZEILE, M2): Punkt je Gruppe, 95-%-Wilson-Balken, senkrechte Linie auf dem Gesamtwert.
+   Der Balken trägt dieselbe Farbe wie der Punkt, nur blasser – die Ablesung «Balken berührt die Linie nicht» steht
+   zusätzlich als Wort in der Direktbeschriftung. */
+.viz-ci { stroke: var(--series-1); stroke-width: 3; opacity: .35; }
+.viz-ci-cap { stroke: var(--series-1); stroke-width: 1.5; opacity: .55; }
+.viz-ref { stroke: var(--viz-axis); stroke-width: 2; stroke-dasharray: 4 3; }
+.viz-key-ci { display: inline-block; width: 1.1rem; height: 3px; background: var(--series-1); opacity: .35; }
+.viz-key-ref { display: inline-block; width: 1.1rem; height: 0; border-top: 2px dashed var(--viz-axis); }
+
 /* Messzeile (Paket MESSZEILE, M1): sieben Felder in einer Zeile, gemeinsame Skala 50–100 % für alle Quoten.
    Die Spur ist immer gleich lang und gleich skaliert – nur dadurch sind zwei Zeilen untereinander vergleichbar.
    Farbe trägt nie allein: Wert, n, Vorjahr und Delta stehen als Zahl da, die Richtung zusätzlich als Zeichen. */

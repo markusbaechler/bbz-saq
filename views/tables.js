@@ -490,7 +490,22 @@ export function overviewModel(persons, allPersons = persons) {
     // A5: Zwei Prozessstufen, zwei Namen – die schriftliche Prüfung ist das Gate zur mündlichen
     note: SMALL_NOTE + '; schriftlich offen = Vorgänge ohne schriftliches Gesamtergebnis (frühere Stufe als die Kachel «Zertifizierung offen», die das Gesamtergebnis überhaupt meint), passiv = davon ohne Prüfung seit mehr als ' + PASSIVE_DAYS + ' Tagen und ohne Termin; Nenner der Quoten wie in den Kacheln',
   };
-  return { kpis, byProfil, multi };
+  // M2: Punkte für das Profil-Diagramm – dieselben Zahlen wie die Spalte «Schriftlich im 1. Versuch bestanden»
+  // daneben, dazu ihr 95-%-Wilson-Intervall und der Gesamtwert als Bezugslinie. Keine neue Kennzahl.
+  // Sortiert nach Quote, damit die Reihenfolge selbst schon eine Aussage ist; kleine Gruppen bleiben drin und tragen «*».
+  const profilPunkte = {
+    titel: 'Schriftlich im 1. Versuch bestanden, je Profil',
+    punkte: o.byProfil
+      .filter((g) => isNum(g.value.written.erstversuch.pct))
+      .map((g) => {
+        const r = g.value.written.erstversuch;
+        const iv = wilsonInterval(r.count, r.n);
+        return { label: groupLabel(g.key), pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+      })
+      .sort((a, b) => b.pct - a.pct),
+    referenz: isNum(o.written.erstversuch.pct) ? { pct: o.written.erstversuch.pct, label: 'Gesamt' } : null,
+  };
+  return { kpis, byProfil, multi, profilPunkte };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,8 +1,9 @@
 // views/overview.js – View 1 «Übersicht»: KPIs gesamt für den aktiven Filter, Kennzahlen je Profil.
 
 import { overviewModel, plannedTables, comparisonTable } from './tables.js';
-import { renderKpis, renderTable, section, hinted, el, signalBlock } from './common.js';
-import { BENCHMARKS, benchmarkFilter, DEFAULT_FILTER } from '../metrics.js';
+import { renderKpis, renderTable, section, hinted, el, signalBlock, isPhone } from './common.js';
+import { renderDotChart } from './chart.js';
+import { BENCHMARKS, benchmarkFilter, DEFAULT_FILTER, formatPct } from '../metrics.js';
 
 export const id = 'uebersicht';
 export const label = 'Übersicht';
@@ -83,7 +84,18 @@ export function build(ctx) {
       comparison ? sec('Auswahl im Vergleich zum Benchmark', [renderTable(comparison)],
         'Differenz in Prozentpunkten: Auswahl minus Benchmark. Der Benchmark verwendet dieselben Filter wie die Auswahl, nur ohne die gewählte Einschränkung.',
         null, { phoneCollapsed: true, collapsed: !relevant }) : null,
-      section('Kennzahlen je Profil', [renderTable(m.byProfil)]),
+      // M2: Sechs Punkte mit Wilson-Balken gegen die Linie auf dem Gesamtwert lesen sich schneller als acht Spalten.
+      // Die Tabelle bleibt darunter stehen (Tabellen-Zwilling) und im Export – sie verschwindet nicht.
+      section('Kennzahlen je Profil', [
+        m.profilPunkte.punkte.length ? renderDotChart(m.profilPunkte.punkte, {
+          title: m.profilPunkte.titel,
+          yFormat: (v) => formatPct(v, 0),
+          referenz: m.profilPunkte.referenz,
+          compact: isPhone(),
+          ariaLabel: 'Punktdiagramm: Anteil im ersten Versuch bestandener Vorgänge je Profil mit 95-Prozent-Wilson-Intervall, senkrechte Linie auf dem Gesamtwert; alle Zahlen in der Tabelle darunter',
+        }) : null,
+        renderTable(m.byProfil),
+      ].filter(Boolean)),
       sec('Personen mit mehreren Profilen', [renderTable(m.multi)], 'Menschen mit Zertifizierungsvorgängen in mehr als einem Profil, gruppiert nach der zeitlichen Abfolge der Profile.', null, { phoneCollapsed: true }),
     ],
     tables: (comparison ? [kpiTable, comparison, m.byProfil] : [kpiTable, m.byProfil]).concat([m.multi]),

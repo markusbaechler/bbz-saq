@@ -178,6 +178,35 @@ try {
   await page.goto(server.url + '#uebersicht');
   await page.waitForSelector('#view .kpi');
 
+  // Punktdiagramm je Profil (Paket MESSZEILE, M2): ein Punkt mit Wilson-Balken je Profil, senkrechte Linie auf dem
+  // Gesamtwert. Die achtspaltige Tabelle bleibt als Zwilling darunter und im Export – sie verschwindet nicht.
+  const punkte = await page.evaluate(() => {
+    const svgEl = document.querySelector('#view .viz-dots');
+    if (!svgEl) return null;
+    const fig = svgEl.closest('figure');
+    const abschnitt = fig.closest('section');
+    const tabelle = abschnitt.querySelector('table.data');
+    return {
+      punkte: fig.querySelectorAll('.viz-dot').length,
+      hohl: fig.querySelectorAll('.viz-dot.small').length,
+      balken: fig.querySelectorAll('.viz-ci').length,
+      referenz: fig.querySelectorAll('.viz-ref').length,
+      legende: [...fig.querySelectorAll('.viz-legend-item')].map((x) => x.textContent.trim()),
+      beschriftung: [...fig.querySelectorAll('.viz-label')].map((x) => x.textContent).filter((t) => /^n = /.test(t)),
+      rolle: svgEl.getAttribute('role'),
+      aria: (svgEl.getAttribute('aria-label') || '').length,
+      tabellenzeilen: tabelle ? tabelle.querySelectorAll('tbody tr').length : 0,
+      titelDerTabelle: abschnitt.querySelector('h3') ? abschnitt.querySelector('h3').textContent : '',
+      textInDatenfarbe: [...fig.querySelectorAll('.viz-label, .viz-tick, figcaption')].filter((x) => /series/.test(x.getAttribute('style') || '')).length,
+    };
+  });
+  check(!!punkte && punkte.punkte >= 3 && punkte.punkte === punkte.balken && punkte.referenz === 1 && punkte.rolle === 'img' && punkte.aria > 40,
+    'M2 Punktdiagramm: ' + (punkte ? punkte.punkte : 0) + ' Punkte mit Wilson-Balken, Linie auf dem Gesamtwert, role=img mit aria-label');
+  check(!!punkte && punkte.beschriftung.length === punkte.punkte && punkte.beschriftung.every((t) => /^n = \d+( · [+−±]\d+\.\d pp)?( · gesichert)?( \*)?$/.test(t)) && punkte.legende.length === 3 && punkte.textInDatenfarbe === 0,
+    'M2 Direktbeschriftung je Punkt (' + (punkte ? punkte.beschriftung.join(' | ') : '') + '), Legende mit ' + (punkte ? punkte.legende.length : 0) + ' Einträgen, kein Text in der Datenfarbe');
+  check(!!punkte && punkte.hohl >= 1 && punkte.tabellenzeilen >= punkte.punkte && /Kennzahlen je Profil/.test(punkte.titelDerTabelle),
+    'M2 kleine Gruppen markiert (' + (punkte ? punkte.hohl : 0) + ' hohle Marker), Tabelle bleibt darunter (' + (punkte ? punkte.tabellenzeilen : 0) + ' Zeilen)');
+
   // Signale (Paket D, D2): erster Inhalt der Übersicht, Farbe nie allein, Höhenbudget im vollen Fall, Leerzustand.
   const signalLage = await page.evaluate(() => {
     const b = document.querySelector('#view .signale');

@@ -470,6 +470,13 @@ der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
 aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
 
+**Punktdiagramm je Profil (Paket MESSZEILE):** In «Kennzahlen je Profil» steht über der Tabelle ein Punktdiagramm:
+je Profil ein Punkt auf der Quote «Schriftlich im 1. Versuch bestanden», dazu sein 95-%-Wilson-Intervall als Balken
+und eine senkrechte Linie auf dem Gesamtwert. **Berührt der Balken die Linie nicht, ist der Abstand gesichert** – das
+ist die ganze Ablesung, ohne p-Wert; sie steht zusätzlich als Wort in der Direktbeschriftung («n = 302 · −8.9 pp ·
+gesichert»). Die achtspaltige Tabelle bleibt als Tabellen-Zwilling darunter und im Export. Kleine Gruppen (n < 5)
+tragen einen hohlen Marker und «*», sie werden nicht weggelassen.
+
 **Y-Achse der Liniendiagramme (Paket DIAGRAMME):** Die Achse folgt dem Wertebereich der Daten, nicht dem Nullpunkt: Beginn auf
 der nächsten 5-%-Stufe unter dem kleinsten Wert, mindestens 10 Prozentpunkte Spanne. Von null zu rechnen drängte
 Quoten, die real zwischen 66 % und 100 % liegen, ins obere Drittel und verdeckte jede Bewegung – etwa den Rückgang der
