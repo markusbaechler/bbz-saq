@@ -112,7 +112,8 @@ export function statusTone(text, label = '') {
 // und tragen «*», sie werden nicht weggelassen.
 // Gezeigt wird die DURCHFALLQUOTE, nicht die Bestehensquote: dieselbe Wahl wie in der Übersicht – bei 96 %
 // bestanden steckt die Aussage in der Gegenzahl, und gefragt wird nach denen, die nicht bestanden haben.
-export function quotenPunkte(persons, key, { rates = writtenPassRates, wert = (r) => r.erstversuchFailed, titel = '', richtung = 'down' } = {}) {
+export function quotenPunkte(persons, key, { rates = writtenPassRates, wert = (r) => r.erstversuchFailed, titel = '', richtung = 'down',
+  unit = 'Vorgängen', unitSg = 'Vorgang' } = {}) {
   const gesamt = wert(rates(persons));
   return {
     titel,
@@ -123,7 +124,8 @@ export function quotenPunkte(persons, key, { rates = writtenPassRates, wert = (r
         const r = wert(g.value);
         const iv = wilsonInterval(r.count, r.n);
         // count gehört dazu, nicht nur n: Der Mouseover nennt «41 von 220», nicht «n = 220» (P4).
-        return { label: groupLabel(g.key), pct: r.pct, count: r.count, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+        // Die Einheit benennt den Nenner – mündlich sind es angetretene Vorgänge, schriftlich Vorgänge mit 1. Versuch.
+        return { label: groupLabel(g.key), pct: r.pct, count: r.count, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N, unit, unitSg };
       })
       .sort((a, b) => b.pct - a.pct),
     referenz: isNum(gesamt.pct) ? { pct: gesamt.pct, label: 'Gesamt' } : null,
@@ -246,18 +248,40 @@ export function oralRateTable(persons, key) {
 // natürlichen Folge lesen sich besser als nach Wert sortiert, und die Tabelle darunter zeigt dieselbe Folge.
 // Zu beachten und im Hinweis gesagt: Die Gruppen überschneiden sich (ein Vorgang mit VSS UND VSM zählt in beiden),
 // sie sind also keine Aufteilung des Gesamtwerts. Keine neue Kennzahl.
-export function vssVsmPunkte(persons) {
-  const b = vssVsmBreakdown(persons);
-  const gesamt = writtenPassRates(persons).erstversuchFailed;
-  return {
+// Beide Prüfungsteile, dieselbe Ablesung (Paket I, P5). Die Ansicht und das README versprechen schriftlich UND
+// mündlich; gezeigt wurde nur die schriftliche Seite. Welche Kennzeichnung zu welchem Prüfungsteil gehört, sagt
+// die Datei NICHT (README: beide sind nur Kennzeichnungen aus den Threaded Comments) – hier wird deshalb auch
+// nichts zugeordnet: Beide Teile stehen für alle drei Gruppen.
+// Jede Reihe hat ihre EIGENE Bezugslinie, weil die Nenner verschieden sind: schriftlich die Vorgänge mit
+// auswertbarem ersten Versuch, mündlich die angetretenen Vorgänge (OE1 RUN1 absolviert und datiert).
+const VSSVSM_TEILE = {
+  schriftlich: {
     titel: 'Schriftlich im 1. Versuch durchgefallen nach Kennzeichnung',
+    wert: (block) => block.written.erstversuchFailed,
+    gesamt: (persons) => writtenPassRates(persons).erstversuchFailed,
+    unit: 'Vorgängen', unitSg: 'Vorgang',
+  },
+  muendlich: {
+    titel: 'Mündlich im 1. Versuch durchgefallen nach Kennzeichnung',
+    wert: (block) => block.oral.failed1,
+    gesamt: (persons) => oralPassRates(persons).failed1,
+    unit: 'angetretenen Vorgängen', unitSg: 'angetretenen Vorgang',
+  },
+};
+
+export function vssVsmPunkte(persons, teil = 'schriftlich') {
+  const def = VSSVSM_TEILE[teil] || VSSVSM_TEILE.schriftlich;
+  const b = vssVsmBreakdown(persons);
+  const gesamt = def.gesamt(persons);
+  return {
+    titel: def.titel,
     richtung: 'down',
     punkte: [['VSS', b.vss], ['VSM', b.vsm], ['ohne', b.ohne]]
-      .filter(([, block]) => isNum(block.written.erstversuchFailed.pct))
+      .filter(([, block]) => isNum(def.wert(block).pct))
       .map(([label, block]) => {
-        const r = block.written.erstversuchFailed;
+        const r = def.wert(block);
         const iv = wilsonInterval(r.count, r.n);
-        return { label, pct: r.pct, count: r.count, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+        return { label, pct: r.pct, count: r.count, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N, unit: def.unit, unitSg: def.unitSg };
       }),
     referenz: isNum(gesamt.pct) ? { pct: gesamt.pct, label: 'Gesamt' } : null,
   };

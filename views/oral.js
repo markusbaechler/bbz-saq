@@ -25,6 +25,8 @@ export function build(ctx) {
   // angetretene Vorgänge). Die Tabelle bleibt darunter und im Export.
   const punkte = KEYS.map((k) => quotenPunkte(ctx.persons, k, {
     rates: oralPassRates, wert: (r) => r.failed1, titel: 'Mündlich im 1. Versuch durchgefallen nach ' + GROUP_LABELS[k],
+    // Der Nenner heisst hier anders als schriftlich; der Satz je Zeile (P4) benennt ihn
+    unit: 'angetretenen Vorgängen', unitSg: 'angetretenen Vorgang',
   }));
   const parts = partTable(ctx.persons, 'oe');
   const perf = KEYS.map((k) => performanceTable(ctx.persons, k, 'oral'));

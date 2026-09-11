@@ -534,6 +534,19 @@ einen anderen Nenner hätte als die einzelnen Zeilen; verglichen werden die Teil
 Bei VSS/VSM überschneiden sich die Gruppen: Ein Vorgang mit VSS **und** VSM zählt in beiden, die drei Punkte teilen
 den Gesamtwert also nicht auf – der Hinweis über der Ansicht sagt es.
 
+**VSS/VSM zeigt beide Prüfungsteile (Paket I, P5).** Ansicht und Tabelle oben versprechen «schriftlich und
+mündlich»; gezeigt wurde nur die schriftliche Seite. Es sind jetzt **zwei Diagramme**, eines je Prüfungsteil, jedes
+mit allen drei Gruppen (VSS, VSM, ohne). Zwei Diagramme und nicht zwei Reihen in einem: Die Nenner sind
+verschieden – schriftlich die Vorgänge mit auswertbarem ersten Versuch, mündlich die **angetretenen** Vorgänge
+(OE1 RUN1 absolviert und datiert). Jede Seite braucht deshalb ihre eigene Bezugslinie, und zwei Linien in einem
+Plot lüden dazu ein, einen Punkt gegen die falsche zu lesen (dieselbe Regel wie beim Teilprüfungs-Diagramm). Der
+Satz je Zeile benennt den Nenner mit: «2 von 3 **angetretenen** Vorgängen» gegenüber «2 von 8 Vorgängen». Beide
+Diagramme tragen dieselbe Reihenfarbe und dieselbe Legende wie alle anderen Punktdiagramme.
+
+**Welche Kennzeichnung zu welchem Prüfungsteil gehört, sagt die Datei nicht** – VSS und VSM sind Kennzeichnungen
+aus den Threaded Comments, mehr nicht. Hier wird deshalb auch nichts zugeordnet oder hergeleitet: Beide
+Prüfungsteile stehen für alle drei Gruppen.
+
 **Die Achse folgt den Daten (Paket I, P2)** und benutzt dazu dieselbe Regel wie die Spur der Messzeile
 (`messzeilenSkala()`): Beginn bei **0 %**, Ende auf der nächsten **5-%-Stufe echt über dem grössten Wert**,
 mindestens 10 pp Spanne, höchstens 100 %. «Grösster Wert» heisst dabei: der grösste Wert überhaupt –

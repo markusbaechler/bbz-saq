@@ -780,6 +780,53 @@ try {
     }
   }
 
+  // P5: «VSS/VSM» zeigt BEIDE Prüfungsteile für alle drei Gruppen – die Ansicht und das README versprachen das,
+  // gezeigt wurde nur die schriftliche Seite. Zwei Diagramme statt zweier Reihen in einem, weil die Nenner
+  // verschieden sind: Jede Seite braucht ihre eigene Bezugslinie. Die synthetische Datei trägt dafür seit P5
+  // Threaded Comments auf der Namenszelle (VSS, VSM, eine Zeile mit beidem) – vorher war VSS/VSM immer leer und
+  // die Ansicht zeigte nur «ohne».
+  await page.goto(server.url + '#vss-vsm');
+  await page.waitForSelector('#view figure.viz .viz-dots');
+  const p5 = await page.evaluate(() => {
+    const figs = [...document.querySelectorAll('#view figure.viz')].filter((f) => f.querySelector('.viz-dots'));
+    return figs.map((f) => {
+      const sv = f.querySelector('svg');
+      const refText = [...sv.querySelectorAll('text.viz-tick')].find((t) => !/^[\d.,]+ %$/.test(t.textContent.trim()));
+      return {
+        titel: (f.querySelector('figcaption') || { textContent: '' }).textContent.split(' · ')[0],
+        gruppen: [...sv.querySelectorAll('[role="listitem"] title')].map((t) => t.textContent.split(' · ')[0]),
+        saetze: [...sv.querySelectorAll('[role="listitem"] title')].map((t) => t.textContent),
+        referenz: refText ? refText.textContent.trim() : '',
+        linien: sv.querySelectorAll('line.viz-ref').length,
+        legende: [...f.querySelectorAll('.viz-legend-item')].map((x) => x.textContent.trim()).join(' · '),
+        farben: [...new Set([...sv.querySelectorAll('circle.viz-dot')].map((c) => (c.getAttribute('style') || '').replace(/^(fill|stroke):/, '')))],
+      };
+    });
+  });
+  const dreiGruppen = (d) => d.gruppen.join('|') === 'VSS|VSM|ohne';
+  const nenner = p5.map((d) => d.saetze.filter((t) => /angetretenen Vorgängen|angetretenen Vorgang/.test(t)).length);
+  check(p5.length === 2
+    && /^Schriftlich /.test(p5[0].titel) && /^Mündlich /.test(p5[1].titel)
+    && p5.every(dreiGruppen)
+    && p5.every((d) => d.linien === 1)
+    && p5[0].referenz !== p5[1].referenz
+    && nenner[0] === 0 && nenner[1] === 3
+    && p5.every((d) => d.farben.every((c) => c === 'var(--series-1)')),
+    'P5 VSS/VSM: ' + p5.length + ' Diagramme (' + p5.map((d) => d.titel.split(' ')[0] + ': ' + d.gruppen.join('/') + ', Linie «' + d.referenz + '»').join(' | ')
+      + '), mündlich mit eigenem Nenner (' + nenner[1] + ' von ' + p5[1].gruppen.length + ' Zeilen nennen angetretene Vorgänge), Reihenfarbe und Legende wie überall ('
+      + (p5[0] || {}).legende + ')');
+  // Die Kennzeichnungen kommen aus den Threaded Comments und überschneiden sich: eine Zeile trägt VSS UND VSM,
+  // die drei Gruppen teilen den Gesamtwert also nicht auf. Geprüft an der Tabelle, die die Nenner nennt.
+  const vssTabelle = await page.evaluate(() => {
+    const t = document.querySelector('#view table.data');
+    return {
+      gruppen: [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].slice(0, 3).map((td) => td.textContent.trim()).join(' · ')),
+    };
+  });
+  const alleZeilen = vssTabelle.gruppen.filter((z) => / · alle · /.test(z));
+  check(alleZeilen.length === 3 && alleZeilen.every((z) => Number(z.split(' · ')[2]) > 0),
+    'P5 VSS/VSM: alle drei Gruppen mit Vorgängen in der Tabelle (' + alleZeilen.join(' | ') + ')');
+
   // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
   // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
   for (const v of ['schriftlich', 'muendlich']) {

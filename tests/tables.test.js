@@ -95,6 +95,41 @@ test('tables.oralRateTable: Nenner = Personen mit OE1 RUN1-Datum, bestanden, 1×
   assertEqual([withOpen.rows[0].n, withOpen.rows[0].offen, withOpen.rows[0].angetreten, withOpen.rows[0].failed1], [4, 1, 5, '40.0 %'], 'offener Vorgang: nicht im Nenner «bestanden», aber angetreten und 1× durchgefallen');
 });
 
+// Paket I (P5): Die Ansicht und das README versprechen schriftlich UND mündlich; gezeigt wurde nur die schriftliche
+// Seite. Jeder Prüfungsteil hat seine EIGENE Bezugslinie, weil die Nenner verschieden sind.
+test('tables.vssVsmPunkte: beide Prüfungsteile, je eigene Bezugslinie und eigener Nenner', () => {
+  // Eine Kohorte, in der beide Seiten auswertbar sind und eine Person BEIDE Kennzeichnungen trägt
+  const leute = [
+    simple({ lastName: 'A', profil: 'PK', vss: true }),
+    simple({ lastName: 'B', profil: 'PK', vsm: true, oeAllPassed: false, oe: { 1: [{ passed: false, date: '2024-06-01', result: 0.4 }] } }),
+    simple({ lastName: 'C', profil: 'PK', vss: true, vsm: true, weAllPassed: false, we: { 1: [{ passed: false, date: '2024-03-01', result: 0.4 }] } }),
+    simple({ lastName: 'D', profil: 'IK' }),
+    // E ist schriftlich auswertbar, mündlich noch nicht angetreten – daran zeigt sich, dass die Nenner
+    // auseinanderlaufen: schriftlich 5 Vorgänge, mündlich 4 angetretene
+    simple({ lastName: 'E', profil: 'IK', oeAllPassed: null, oe: { 1: [{ passed: null, date: null, result: null }] } }),
+  ];
+  const schriftlich = vssVsmPunkte(leute, 'schriftlich');
+  const muendlich = vssVsmPunkte(leute, 'muendlich');
+  assertEqual(schriftlich.punkte.map((x) => x.label), ['VSS', 'VSM', 'ohne'], 'alle drei Gruppen, schriftlich');
+  assertEqual(muendlich.punkte.map((x) => x.label), ['VSS', 'VSM', 'ohne'], 'alle drei Gruppen, mündlich');
+  assertEqual(muendlich.titel, 'Mündlich im 1. Versuch durchgefallen nach Kennzeichnung');
+  // C trägt beide Kennzeichnungen und zählt in beiden Gruppen – die Gruppen teilen den Gesamtwert nicht auf
+  const vssS = schriftlich.punkte.find((x) => x.label === 'VSS');
+  const vsmS = schriftlich.punkte.find((x) => x.label === 'VSM');
+  assertEqual([vssS.count, vssS.n], [1, 2], 'VSS schriftlich: C durchgefallen von A und C');
+  assertEqual([vsmS.count, vsmS.n], [1, 2], 'VSM schriftlich: dieselbe Person C zählt auch hier');
+  // Jede Seite gegen ihren eigenen Gesamtwert, nicht gegen denselben
+  assertEqual(schriftlich.referenz.pct, writtenPassRates(leute).erstversuchFailed.pct);
+  assertEqual(muendlich.referenz.pct, oralPassRates(leute).failed1.pct);
+  assertEqual([schriftlich.referenz.pct, muendlich.referenz.pct], [1 / 5, 1 / 4],
+    'zwei Linien aus zwei Nennern: schriftlich 1 von 5 Vorgängen, mündlich 1 von 4 angetretenen');
+  // Der Nenner steht im Satz je Zeile (P4) und heisst mündlich anders
+  assertEqual([vssS.unit, vssS.unitSg], ['Vorgängen', 'Vorgang']);
+  const vssM = muendlich.punkte.find((x) => x.label === 'VSS');
+  assertEqual([vssM.unit, vssM.unitSg], ['angetretenen Vorgängen', 'angetretenen Vorgang']);
+  assertEqual([schriftlich.richtung, muendlich.richtung], ['down', 'down'], 'Durchfallquote: tiefer ist besser');
+});
+
 test('tables.vssVsmTable: VSS / VSM / ohne, je Profil, mit beiden Quoten', () => {
   const t = vssVsmTable(cohort());
   assertEqual(t.columns.map((c) => c.label), ['Gruppe', 'Profil', 'n (Vorgänge)', 'Schriftlich im 1. Versuch bestanden', 'Schriftlich insgesamt bestanden', 'Mündlich bestanden']);
@@ -108,6 +143,7 @@ test('tables.vssVsmTable: VSS / VSM / ohne, je Profil, mit beiden Quoten', () =>
   const p = vssVsmPunkte(cohort());
   assertEqual(p.punkte.map((x) => x.label), ['VSS', 'ohne'], 'Reihenfolge wie die Tabelle, VSM ohne Wert fällt weg');
   assertEqual(p.referenz.pct, writtenPassRates(cohort()).erstversuchFailed.pct);
+  assertEqual(p.titel, 'Schriftlich im 1. Versuch durchgefallen nach Kennzeichnung', 'ohne Angabe die schriftliche Seite – wie bisher');
   assert(p.punkte.every((x) => typeof x.low === 'number' && typeof x.high === 'number'), 'Wilson-Intervall je Punkt');
   assert(p.punkte.every((x) => x.small === (x.n < 5)), 'kleine Gruppen markiert');
   assertEqual(t.rows[2].erstversuch, '–');
