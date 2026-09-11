@@ -258,6 +258,51 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .signal-titel { font-weight: 600; min-width: 0; overflow-wrap: break-word; }
 .signal-detail { grid-column: 3 / -1; margin: 0 0 .15rem; color: var(--muted); font-size: var(--fs-sm); }
 .signal-weg { white-space: nowrap; font-size: var(--fs-sm); }
+/* Messzeile (Paket MESSZEILE, M1): sieben Felder in einer Zeile, gemeinsame Skala 50–100 % für alle Quoten.
+   Die Spur ist immer gleich lang und gleich skaliert – nur dadurch sind zwei Zeilen untereinander vergleichbar.
+   Farbe trägt nie allein: Wert, n, Vorjahr und Delta stehen als Zahl da, die Richtung zusätzlich als Zeichen. */
+.messzeilen { margin-bottom: var(--space-4); }
+.messzeilen-liste { list-style: none; margin: 0; padding: 0; }
+.mz-kopf, .messzeile {
+  display: grid; align-items: center; gap: 0 var(--space-3);
+  grid-template-columns: minmax(8rem, 15rem) minmax(6rem, 1fr) 4.5rem 3.5rem 4rem 6rem 5.5rem;
+}
+.mz-kopf { color: var(--muted); font-size: var(--fs-xs); padding-bottom: var(--space-1); }
+.mz-kopf-hinweis { grid-column: 3 / -1; }
+.messzeile { padding: var(--space-1) 0; border-top: 1px solid var(--border); }
+.messzeile:first-child { border-top: none; }
+.mz-label { font-weight: 600; }
+.mz-kopf .mz-label { font-weight: 400; }
+.mz-skala { position: relative; height: 1.1rem; }
+.mz-spur { position: absolute; inset: 45% 0 auto; height: 3px; background: var(--viz-grid); border-radius: 2px; }
+.mz-intervall { position: absolute; inset: 40% auto auto; height: 7px; background: var(--bar); border-radius: 4px; }
+.mz-referenz { position: absolute; top: 10%; height: 80%; width: 2px; background: var(--viz-axis); }
+.mz-punkt { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--accent); }
+.mz-punkt.am-anschlag { border-radius: 2px 50% 50% 2px; margin-left: 0; }
+.mz-anschlag { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); padding: 0 .2rem; background: var(--panel); font-size: var(--fs-xs); color: var(--muted); }
+.mz-achse { height: 1rem; }
+.mz-marke { position: absolute; bottom: 0; transform: translateX(-50%); font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+.mz-marke:first-child { transform: none; }
+.mz-marke:last-child { transform: translateX(-100%); }
+.mz-wert { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+.mz-n, .mz-vorjahr { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.mz-n { text-align: right; }
+.mz-klein { color: var(--muted); }
+.mz-verlauf { width: 4rem; height: 1.25rem; }
+.mz-verlauf-linie { fill: none; stroke: var(--viz-tick); stroke-width: 1.5; }
+.mz-verlauf-ende { fill: var(--accent); }
+.mz-delta { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--fs-sm); white-space: nowrap; }
+.mz-delta.ton-pos { color: var(--delta-pos); }
+.mz-delta.ton-neg { color: var(--delta-neg); }
+.mz-delta.ton-neutral { color: var(--delta-neutral); }
+/* Phone: die sieben Felder brechen in zwei Zeilen – Beschriftung und Skala oben, die Zahlen darunter. */
+@media screen and (max-width: 600px) {
+  .mz-kopf, .messzeile { grid-template-columns: 1fr 4.5rem 3.5rem 5.5rem; }
+  .mz-label { grid-column: 1 / -1; }
+  .mz-skala { grid-column: 1 / -1; }
+  .mz-verlauf-zelle, .mz-vorjahr { display: none; }
+}
+
 /* Phone: Stufenwort und Weg brauchen zusammen mehr Breite, als neben dem Titel bleibt (gemessen: fixe Teile 283 von
    366 px, in der CI mit breiteren Schriften 34 px zu viel). Der Weg rückt deshalb in eine eigene Zeile. */
 @media screen and (max-width: 600px) {

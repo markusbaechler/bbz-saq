@@ -2,9 +2,9 @@
 // Nur Rendering; Zahlen und Texte kommen aus views/tables.js.
 
 import { downloadCsv, downloadXlsx, exportFileName, printPage, tablesToCsv } from '../export.js';
-import { numericColumns, deltaView, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, sortTableRows } from './tables.js';
+import { numericColumns, deltaView, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, sortTableRows, SMALL_MARK, SMALL_NOTE } from './tables.js';
 import { glossaryEntry, glossarySlug } from '../glossary.js';
-import { SMALL_N } from '../metrics.js';
+import { SMALL_N, formatPct, wilsonInterval } from '../metrics.js';
 
 export function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -497,4 +497,166 @@ export function signalBlock(ergebnis, { onWeg = null, filterKurz = 'kein Filter'
     kopf.appendChild(schalter);
   }
   return block;
+}
+
+// ---------------------------------------------------------------------------
+// Messzeile (Paket MESSZEILE, M1): eine Quote als Zeile statt als Kachel.
+// Sieben Felder: Beschriftung · Skala · Wert · n · Verlauf · Wert letztes Jahr · Delta.
+//
+// Der Punkt ist die GEMEINSAME SKALA 50–100 % für alle Quoten: Zwei Messzeilen untereinander sind vergleichbar,
+// zwei Kacheln sind es nicht. Werte unter 50 % stehen am linken Anschlag und die Zeile sagt es – abgeschnitten
+// wird nichts. Auf der Skala liegen das 95-%-Wilson-Intervall als Balken (aus metrics.js, hier wird nichts neu
+// gerechnet), der Wert als Punkt und, wenn eine Referenz gilt, deren Marke.
+//
+// Die Messzeile ersetzt Kacheln für QUOTEN. Für MENGEN bleibt die Kachel: Eine Anzahl hat keine Skala von 50 bis
+// 100 %, und eine erfundene wäre schlimmer als keine.
+//
+// Farbe trägt nie allein: Richtung steht als Zeichen und als Zahl da, die Stufe als Wort im aria-label.
+// messzeileModell() ist rein – Modell rein, Knoten raus; die Geometrie ist damit ohne DOM prüfbar.
+// ---------------------------------------------------------------------------
+
+export const MESSZEILE_MIN = 0.5;          // Untergrenze der gemeinsamen Skala
+export const MESSZEILE_DELTA_TON_PP = 2;   // darunter neutral – sonst färbt sich Rauschen ein
+export const MESSZEILE_JAHRE_MIN = 3;      // weniger Jahre → keine Sparkline, kein leerer Platz
+
+const mzNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const mzPp = (v) => Math.round(v * 10) / 10;
+// Anteil → Position auf der Skala in Prozent der Spur; ausserhalb wird geklemmt, nicht abgeschnitten
+const mzPos = (pct) => Math.max(0, Math.min(100, ((pct - MESSZEILE_MIN) / (1 - MESSZEILE_MIN)) * 100));
+const mzVorzeichen = (d) => (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(d).toFixed(1);
+const mzWorte = (pct) => (mzNum(pct) ? formatPct(pct).replace(' %', ' Prozent') : 'kein Wert');
+
+// Jahre, die für Verlauf und Delta zählen: auswertbar und mindestens SMALL_N Vorgänge, aufsteigend.
+function mzJahre(jahre) {
+  return (jahre || []).filter((j) => j && mzNum(j.pct) && (j.n || 0) >= SMALL_N).slice().sort((a, b) => a.year - b.year);
+}
+
+// Modell einer Messzeile – reine Daten, kein DOM.
+// Eingabe: { label, glossar, count, n, pct, richtung: 'up'|'down'|'neutral', referenz: { pct, label }, jahre: [{ year, pct, n }] }
+// «Wert» ist die Lage im aktiven Filter (alle Jahre), «Wert letztes Jahr» das jüngste auswertbare Jahr und «Delta»
+// dessen Abstand zum Jahr davor. Den Gesamtwert gegen ein einzelnes Jahr zu rechnen, würde zwei Nenner vermischen.
+export function messzeileModell({ label = '', glossar = null, count = null, n = 0, pct = null, richtung = 'up', referenz = null, jahre = [] } = {}) {
+  const wertPct = mzNum(pct) ? pct : (mzNum(count) && n > 0 ? count / n : null);
+  const iv = mzNum(count) && n > 0 ? wilsonInterval(count, n) : { low: null, high: null, half: null };
+  const reihe = mzJahre(jahre);
+  const letzte = reihe.length ? reihe[reihe.length - 1] : null;
+  const davor = reihe.length > 1 ? reihe[reihe.length - 2] : null;
+  const dPp = letzte && davor ? mzPp((letzte.pct - davor.pct) * 100) : null;
+  const guenstig = richtung === 'down' ? -1 : richtung === 'neutral' ? 0 : 1;
+  const modell = {
+    label,
+    glossar,
+    wert: { pct: wertPct, text: formatPct(wertPct) },
+    n,
+    klein: (n || 0) > 0 && n < SMALL_N,
+    skala: {
+      min: MESSZEILE_MIN,
+      pos: wertPct === null ? null : mzPos(wertPct),
+      anschlag: wertPct !== null && wertPct < MESSZEILE_MIN,
+    },
+    intervall: iv.low === null ? null : {
+      low: iv.low, high: iv.high, half: iv.half,
+      von: mzPos(iv.low), bis: mzPos(iv.high),
+      text: '±' + mzPp(iv.half * 100).toFixed(1) + ' pp',
+    },
+    referenz: referenz && mzNum(referenz.pct) ? { pct: referenz.pct, pos: mzPos(referenz.pct), label: referenz.label || 'Referenz', text: formatPct(referenz.pct) } : null,
+    verlauf: reihe.length >= MESSZEILE_JAHRE_MIN ? {
+      von: reihe[0].year, bis: letzte.year, jahre: reihe.length,
+      punkte: reihe.map((j, i) => ({ year: j.year, pct: j.pct, x: (i / (reihe.length - 1)) * 100, y: 100 - mzPos(j.pct) })),
+    } : null,
+    letztesJahr: letzte ? { year: letzte.year, pct: letzte.pct, text: formatPct(letzte.pct) } : null,
+    delta: dPp === null ? null : {
+      pp: dPp,
+      zeichen: dPp > 0 ? '▲' : dPp < 0 ? '▼' : '●',
+      text: (dPp > 0 ? '▲' : dPp < 0 ? '▼' : '●') + ' ' + mzVorzeichen(dPp) + ' pp',
+      ton: Math.abs(dPp) < MESSZEILE_DELTA_TON_PP || guenstig === 0 ? 'neutral' : (dPp * guenstig > 0 ? 'pos' : 'neg'),
+      gegen: davor ? davor.year : null,
+    },
+  };
+  modell.ariaLabel = [
+    label + ': ' + mzWorte(wertPct),
+    'n gleich ' + (n || 0) + (modell.klein ? ', kleine Gruppe' : ''),
+    modell.intervall ? '95-Prozent-Intervall ' + mzWorte(modell.intervall.low) + ' bis ' + mzWorte(modell.intervall.high) : 'kein Intervall',
+    modell.skala.anschlag ? 'unter der Skala, am linken Anschlag' : null,
+    modell.referenz ? modell.referenz.label + ' ' + mzWorte(modell.referenz.pct) : null,
+    modell.letztesJahr ? 'letztes Jahr ' + modell.letztesJahr.year + ' ' + mzWorte(modell.letztesJahr.pct) : null,
+    modell.delta ? 'Veränderung gegen ' + modell.delta.gegen + ' ' + (modell.delta.pp > 0 ? 'plus ' : modell.delta.pp < 0 ? 'minus ' : '') + Math.abs(modell.delta.pp).toFixed(1) + ' Prozentpunkte' : null,
+  ].filter(Boolean).join(', ') + '.';
+  return modell;
+}
+
+// Sparkline: role="img" mit Text, kein dekoratives SVG. Letzter Punkt markiert.
+function mzVerlauf(verlauf) {
+  if (!verlauf) return null;
+  const NS = 'http://www.w3.org/2000/svg';
+  const w = 64;
+  const h = 20;
+  const rand = 3; // Platz für den Endpunkt, sonst wird der Kreis am Rahmen beschnitten
+  const px = (p) => rand + (p.x / 100) * (w - 2 * rand);
+  const py = (p) => rand + (p.y / 100) * (h - 2 * rand);
+  const punkte = verlauf.punkte.map((p) => px(p) + ',' + py(p)).join(' ');
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  svg.setAttribute('class', 'mz-verlauf');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('focusable', 'false');
+  const titel = document.createElementNS(NS, 'title');
+  const ende = verlauf.punkte[verlauf.punkte.length - 1];
+  titel.textContent = 'Verlauf ' + verlauf.von + ' bis ' + verlauf.bis + ' (' + verlauf.jahre + ' Jahre mit n ≥ ' + SMALL_N + '), zuletzt ' + formatPct(ende.pct);
+  const linie = document.createElementNS(NS, 'polyline');
+  linie.setAttribute('points', punkte);
+  linie.setAttribute('class', 'mz-verlauf-linie');
+  const punkt = document.createElementNS(NS, 'circle');
+  punkt.setAttribute('cx', px(ende));
+  punkt.setAttribute('cy', py(ende));
+  punkt.setAttribute('r', 2.5);
+  punkt.setAttribute('class', 'mz-verlauf-ende');
+  svg.append(titel, linie, punkt);
+  return svg;
+}
+
+// Skalenzelle: Spur, Wilson-Balken, Referenzmarke, Wertpunkt. Ohne Wert bleibt die Spur leer.
+function mzSkala(m) {
+  const kinder = [el('span', { class: 'mz-spur' })];
+  if (m.intervall) kinder.push(el('span', { class: 'mz-intervall', style: 'left:' + m.intervall.von + '%;right:' + (100 - m.intervall.bis) + '%', title: '95-%-Intervall ' + m.intervall.text }));
+  if (m.referenz) kinder.push(el('span', { class: 'mz-referenz', style: 'left:' + m.referenz.pos + '%', title: m.referenz.label + ': ' + m.referenz.text }));
+  if (m.skala.pos !== null) kinder.push(el('span', { class: 'mz-punkt' + (m.skala.anschlag ? ' am-anschlag' : ''), style: 'left:' + m.skala.pos + '%' }));
+  // Unter der Skala wird nichts abgeschnitten: Der Punkt steht am Anschlag, und daneben steht, dass er das tut.
+  if (m.skala.anschlag) kinder.push(el('span', { class: 'mz-anschlag', text: 'unter 50 %' }));
+  // Was nur die Grafik zeigt, steht zusätzlich als Text da: Ein aria-label auf einem <li> sagen nicht alle
+  // Hilfsmittel verlässlich an, der versteckte Satz schon.
+  const worte = [
+    m.intervall ? '95-Prozent-Intervall ' + formatPct(m.intervall.low) + ' bis ' + formatPct(m.intervall.high) : null,
+    m.referenz ? m.referenz.label + ' ' + m.referenz.text : null,
+    m.skala.anschlag ? 'Wert unter dem Beginn der Skala, am linken Anschlag' : null,
+  ].filter(Boolean).join('; ');
+  if (worte) kinder.push(el('span', { class: 'visually-hidden', text: worte + '.' }));
+  return el('div', { class: 'mz-skala' }, kinder);
+}
+
+export function messzeile(m) {
+  const wert = el('span', { class: 'mz-wert' }, [m.wert.text, m.klein ? el('span', { class: 'mz-klein', title: SMALL_NOTE, text: ' ' + SMALL_MARK }) : null]);
+  return el('li', { class: 'messzeile', 'aria-label': m.ariaLabel }, [
+    el('span', { class: 'mz-label', text: m.label }),
+    mzSkala(m),
+    wert,
+    el('span', { class: 'mz-n', text: 'n = ' + (m.n || 0) }),
+    el('span', { class: 'mz-verlauf-zelle' }, [mzVerlauf(m.verlauf)]),
+    el('span', { class: 'mz-vorjahr', text: m.letztesJahr ? m.letztesJahr.year + ': ' + m.letztesJahr.text : '' }),
+    el('span', { class: 'mz-delta ton-' + (m.delta ? m.delta.ton : 'neutral'), text: m.delta ? m.delta.text : '' }),
+  ]);
+}
+
+// Block mehrerer Messzeilen: die Skala steht einmal darüber, sie gilt für alle Zeilen darunter.
+export function messzeilenBlock(titel, modelle, { referenzLabel = null } = {}) {
+  const marken = [0.5, 0.75, 1].map((v) => el('span', { class: 'mz-marke', style: 'left:' + mzPos(v) + '%', text: formatPct(v, 0) }));
+  const kopf = el('div', { class: 'mz-kopf' }, [
+    el('span', { class: 'mz-label', text: titel || '' }),
+    el('div', { class: 'mz-skala mz-achse' }, marken),
+    el('span', { class: 'mz-kopf-hinweis', text: referenzLabel ? 'Marke: ' + referenzLabel : '' }),
+  ]);
+  return el('section', { class: 'block messzeilen' }, [
+    kopf,
+    el('ol', { class: 'messzeilen-liste' }, (modelle || []).map((m) => messzeile(m))),
+  ]);
 }
