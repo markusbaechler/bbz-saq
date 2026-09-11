@@ -139,7 +139,7 @@ try {
   for (const v of views) {
     await page.goto(server.url + '#' + v);
     await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
-    const h2 = (await page.textContent('#view h2')).trim();
+    const h2 = (await page.innerText('#view h2')).trim(); // sichtbarer Text: der Druck-Zusatz zählt hier nicht mit
     const tables = await page.locator('#view table').count();
     const kpis = await page.$$eval('#view .kpi', (k) => k.map((x) => x.querySelector('.kpi-label').textContent + '=' + x.querySelector('.kpi-value').textContent));
     const hint = await page.locator('#view p.empty').count(); // z. B. Bank-Report ohne gewählte Bank
@@ -844,9 +844,12 @@ try {
     reiter: [...document.querySelectorAll('#view .view-tabs')].filter((e) => e.getClientRects().length).length,
     imDom: document.querySelectorAll('#view .view-tabs a').length,
     titel: document.querySelector('#view h2').textContent.trim(),
+    zusatzSichtbar: [...document.querySelectorAll('#view h2 .nur-druck')].every((e) => e.getClientRects().length > 0),
   }));
-  check(druckNav.band === 0 && druckNav.reiter === 0 && druckNav.imDom === 2 && druckNav.titel === 'Geplante Prüfungen',
-    'E Druck: Band und Reiter (' + druckNav.imDom + ' im DOM) ausgeblendet, Titel «' + druckNav.titel + '»');
+  // Im Druck fehlen die Reiter; die Überschrift muss deshalb sagen, welche Ansicht gedruckt wird
+  check(druckNav.band === 0 && druckNav.reiter === 0 && druckNav.imDom === 2 && druckNav.zusatzSichtbar
+    && druckNav.titel === 'Vorgänge · Geplante Prüfungen',
+    'E Druck: Band und Reiter (' + druckNav.imDom + ' im DOM) ausgeblendet, Überschrift «' + druckNav.titel + '»');
   await page.emulateMedia({ media: null });
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
   check((await page.locator('#view details.fold[open]').count()) === 1, 'Nach dem Druck: nur der zuvor geöffnete Block bleibt offen');
@@ -1131,7 +1134,7 @@ try {
       + phoneReiter.hoehen.join('/') + ' px in ' + phoneReiter.zeilen + ' Zeile (' + phoneReiter.breite + ' von ' + phoneReiter.platz + ' px)');
   // Ein Tipp auf den Reiter wechselt die Ansicht; das Auswahlfeld zeigt danach dieselbe
   await phone.locator('#view .view-tabs a', { hasText: 'Mündlich' }).first().click();
-  await phone.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'muendlich' && document.querySelector('#view h2').textContent.trim() === 'Mündlich', null, { timeout: 5000 });
+  await phone.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'muendlich' && document.querySelector('#view .view-tabs a[aria-current="page"]').textContent === 'Mündlich', null, { timeout: 5000 });
   check((await phone.locator('#nav-select').inputValue()) === 'muendlich', 'E Phone: Reiter wechselt die Ansicht, Auswahlfeld zieht nach');
   await phone.goto(server.url + '#uebersicht');
   await phone.waitForSelector('#view .kpi-groups'); // erste Kachel liegt auf Phone im geschlossenen Block «Mengen»
@@ -1146,7 +1149,9 @@ try {
   // Phone (B.2): Navigation als Auswahlfeld, Filter-Drawer, Kopf kompakt
   check((await phone.locator('#nav-select').isVisible()) && (await phone.evaluate(() => document.querySelector('#nav a').getClientRects().length === 0)), 'Phone: Navigation als Auswahlfeld, Links ausgeblendet');
   await phone.selectOption('#nav-select', 'offene-vorgaenge');
-  await phone.waitForFunction(() => location.hash.startsWith('#offene-vorgaenge') && document.querySelector('#view h2').textContent === 'Offene Vorgänge', null, { timeout: 5000 });
+  // Die Überschrift nennt bei einem gefassten Ziel das Ziel; die Ansicht steht im aktiven Reiter
+  await phone.waitForFunction(() => location.hash.startsWith('#offene-vorgaenge')
+    && (document.querySelector('#view .view-tabs a[aria-current="page"]') || {}).textContent === 'Offene Vorgänge', null, { timeout: 5000 });
   check((await phone.locator('#nav-select').inputValue()) === 'offene-vorgaenge', 'Phone: Ansicht über das Auswahlfeld gewechselt (Offene Vorgänge)');
   check(!(await phone.locator('#filterbar details.filter-drawer').evaluate((d) => d.open)) && (await phone.locator('#filterbar .filter-summary').isVisible()), 'Phone: Filter-Drawer geschlossen, Kopfzeile «Filter» sichtbar');
   await phone.locator('#filterbar .filter-summary').click();
@@ -1332,10 +1337,15 @@ try {
   const reiterZiel = await page.locator('#view .view-tabs a', { hasText: 'Mündlich' }).first().getAttribute('href');
   await page.locator('#view .view-tabs a', { hasText: 'Mündlich' }).first().click();
   // Auf die Renderung warten, nicht auf den Hash: hashchange läuft erst nach der Zuweisung
-  await page.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'muendlich' && document.querySelector('#view h2').textContent.trim() === 'Mündlich', null, { timeout: 5000 });
-  const nachReiter = { h2: (await page.textContent('#view h2')).trim(), band: await page.$$eval('#nav a[aria-current="page"]', (as) => as.map((a) => a.textContent).join('+')) };
-  check(/^#muendlich/.test(reiterZiel) && nachReiter.h2 === 'Mündlich' && nachReiter.band === 'Prüfungen',
-    'E Reiter «Mündlich» führt auf ' + reiterZiel + ' (Titel «' + nachReiter.h2 + '», Band «' + nachReiter.band + '»)');
+  await page.waitForFunction(() => location.hash.replace(/^#/, '').split('?')[0] === 'muendlich' && document.querySelector('#view .view-tabs a[aria-current="page"]').textContent === 'Mündlich', null, { timeout: 5000 });
+  // Bei einem gefassten Ziel nennt die Überschrift das Ziel, der aktive Reiter die Ansicht – der Name steht nicht zweimal
+  const nachReiter = await page.evaluate(() => ({
+    h2: [...document.querySelector('#view h2').childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim(),
+    reiter: (document.querySelector('#view .view-tabs a[aria-current="page"]') || {}).textContent,
+    band: [...document.querySelectorAll('#nav a[aria-current="page"]')].map((a) => a.textContent).join('+'),
+  }));
+  check(/^#muendlich/.test(reiterZiel) && nachReiter.h2 === 'Prüfungen' && nachReiter.reiter === 'Mündlich' && nachReiter.band === 'Prüfungen',
+    'E Reiter «Mündlich» führt auf ' + reiterZiel + ' (Überschrift «' + nachReiter.h2 + '», aktiver Reiter «' + nachReiter.reiter + '», Band «' + nachReiter.band + '»)');
   await page.setViewportSize({ width: 1400, height: 1000 });
 
   // Tabellenbreite (PROMPT-2 F.2, Option 1): ab 1280 px keine Tabelle mit horizontalem Überlauf in Übersicht, Schriftlich, Mündlich,

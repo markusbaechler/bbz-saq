@@ -31,7 +31,9 @@ anonymen Auswertungen Übersicht · **Prüfungen** · Zeitverlauf · Bank-Report
 (bbz-intern) **Vorgänge** · Personen · Bestenlisten · Experten, zuletzt **Daten**. Drei davon fassen
 Geschwister zusammen, die dieselbe Frage in Teilen beantworten – Prüfungen (Schriftlich, Mündlich, VSS/VSM),
 Vorgänge (Offene Vorgänge, Geplante Prüfungen) und Daten (Historie, Datenqualität, Glossar). Die Geschwister stehen
-als **Reiter neben dem Titel** der Ansicht, nicht in einer zweiten Leiste; sie kosten keine Höhe (der View-Kopf bleibt
+als **Reiter neben dem Titel**, nicht in einer zweiten Leiste; bei einem gefassten Ziel nennt die Überschrift das
+Ziel («Prüfungen») und der aktive Reiter die Ansicht («Schriftlich») – im Druck, wo die Reiter fehlen, hängt die
+Ansicht als Zusatz an der Überschrift («Vorgänge · Geplante Prüfungen»). Die Reiter kosten keine Höhe (der View-Kopf bleibt
 57 px, auf dem Phone 12–14 px mehr für das 44-px-Tap-Ziel). Im Druck erscheinen weder Band noch Reiter – gedruckt
 wird der Inhalt, nicht der Weg dorthin. **Alle vierzehn Routen bleiben unverändert** – `#schriftlich` bleibt `#schriftlich`, Lesezeichen und die Wege
 der Signale gelten weiter; das Band markiert das Primärziel, der Reiter die offene Ansicht (beide `aria-current`).
