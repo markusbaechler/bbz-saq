@@ -295,7 +295,10 @@ const dcPp = (v) => Math.round(v * 10) / 10;
 
 // Reines Modell: Positionen in Prozent der Plotbreite, Beschriftungen als Text. Ohne DOM prüfbar.
 // points: [{ label, pct, n, low, high, small }] – low/high aus wilsonInterval(); referenz: { pct, label }
-export function dotChartModel(points, { referenz = null, xMax = 1 } = {}) {
+// richtung: 'up' = höher ist besser, 'down' = tiefer ist besser (Durchfallquoten), 'neutral' = ohne Wertung.
+// Ohne sie liest sich «+27.9 pp · gesichert» wie eine gute Nachricht, obwohl auf einer Durchfallquote das Gegenteil
+// gilt. Die Messzeile kennt das Feld seit Paket MESSZEILE; hier fehlte es.
+export function dotChartModel(points, { referenz = null, xMax = 1, richtung = 'up' } = {}) {
   const liste = (points || []).filter((p) => p && dcNum(p.pct));
   const werte = liste.flatMap((p) => [p.pct, p.low, p.high]).filter(dcNum);
   if (referenz && dcNum(referenz.pct)) werte.push(referenz.pct);
@@ -313,6 +316,9 @@ export function dotChartModel(points, { referenz = null, xMax = 1 } = {}) {
       const diff = ref ? dcPp((p.pct - ref.pct) * 100) : null;
       // Gesichert heisst: Das Intervall enthält den Gesamtwert nicht – dieselbe Lesart wie in den Signalen
       const gesichert = !!(ref && hatIv && (p.high < ref.pct || p.low > ref.pct));
+      // Wertung nur, wenn sie etwas heisst: mit Richtung, mit Abstand und ab derselben Schwelle wie überall (0.5 pp)
+      const guenstig = richtung === 'down' ? -1 : richtung === 'up' ? 1 : 0;
+      const bewertung = diff === null || !guenstig || Math.abs(diff) < 0.5 ? null : (diff * guenstig > 0 ? 'günstig' : 'ungünstig');
       return {
         label: p.label,
         n: p.n || 0,
@@ -322,7 +328,11 @@ export function dotChartModel(points, { referenz = null, xMax = 1 } = {}) {
         intervall: hatIv ? { low: p.low, high: p.high, von: pos(p.low), bis: pos(p.high) } : null,
         diffPp: diff,
         gesichert,
-        text: ['n = ' + (p.n || 0), diff === null ? null : (diff > 0 ? '+' : diff < 0 ? '−' : '±') + Math.abs(diff).toFixed(1) + ' pp', gesichert ? 'gesichert' : null]
+        bewertung,
+        // «gesichert» allein sagt nur, DASS der Abstand echt ist, nicht ob er gut oder schlecht ist. Deshalb steht
+        // die Wertung als Wort daneben, sobald der Abstand gesichert ist – Farbe allein trägt sie nie.
+        text: ['n = ' + (p.n || 0), diff === null ? null : (diff > 0 ? '+' : diff < 0 ? '−' : '±') + Math.abs(diff).toFixed(1) + ' pp',
+          gesichert ? 'gesichert' + (bewertung ? ' ' + bewertung : '') : null]
           .filter(Boolean).join(' · ') + (p.small ? ' ' + SMALL_MARK : ''),
       };
     }),
@@ -330,8 +340,8 @@ export function dotChartModel(points, { referenz = null, xMax = 1 } = {}) {
 }
 
 // Punktdiagramm rendern. points/referenz wie oben; yFormat formatiert die Achse.
-export function renderDotChart(points, { title = '', yFormat = (v) => String(v), xMax = 1, referenz = null, ariaLabel = '', compact = false } = {}) {
-  const modell = dotChartModel(points, { referenz, xMax });
+export function renderDotChart(points, { title = '', yFormat = (v) => String(v), xMax = 1, referenz = null, ariaLabel = '', compact = false, richtung = 'up' } = {}) {
+  const modell = dotChartModel(points, { referenz, xMax, richtung });
   const width = compact ? 360 : 820;
   const zeileH = compact ? 26 : 30;
   const pad = compact
@@ -373,7 +383,7 @@ export function renderDotChart(points, { title = '', yFormat = (v) => String(v),
     }
     root.appendChild(svg('circle', { cx: xPx(z.x), cy: y, r: 6, class: 'viz-ring' }));
     root.appendChild(svg('circle', { cx: xPx(z.x), cy: y, r: 4, class: 'viz-dot' + (z.small ? ' small' : ''), style: z.small ? 'stroke:var(--series-1)' : 'fill:var(--series-1)' }));
-    if (!compact) root.appendChild(text(width - pad.right + 10, y + 4, z.text, 'viz-label'));
+    if (!compact) root.appendChild(text(width - pad.right + 10, y + 4, z.text, 'viz-label' + (z.bewertung ? ' ton-' + (z.bewertung === 'günstig' ? 'pos' : 'neg') : '')));
   });
 
   const figure = el('figure', { class: 'viz' + (compact ? ' compact' : '') }, [root]);
@@ -398,6 +408,7 @@ export function punktDiagramm(modell, { compact = isPhone() } = {}) {
   if (!modell || !modell.punkte.length) return null;
   return renderDotChart(modell.punkte, {
     title: modell.titel,
+    richtung: modell.richtung || 'up',
     yFormat: (v) => formatPct(v, 0),
     referenz: modell.referenz,
     compact,

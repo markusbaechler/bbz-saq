@@ -49,8 +49,10 @@ export function build(ctx) {
   const hist = histogramSection(ctx, 'written', sec);
   return {
     nodes: [
-      sec('Bestehensquoten (Anteil Vorgänge)', rates.flatMap((t, i) => [punktDiagramm(punkte[i]), renderTable(t)]).filter(Boolean),
-        'Im 1. Versuch bestanden: alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden. Im 1. Versuch durchgefallen: mindestens eine Teilprüfung im ersten Versuch nicht bestanden (Nenner: Vorgänge mit absolviertem RUN1). Insgesamt bestanden: «WE All Passed» = yes, unabhängig von der Anzahl Versuche (Nenner: abgeschlossene Vorgänge, d. h. bestanden oder nicht bestanden). Offen = Gesamtergebnis leer, der Prozess läuft noch; nicht erfasst = Gesamtergebnis unlesbar (Data-Quality-Log).'),
+      // P1: Der Abschnitt trägt beides – das Diagramm zeigt die Durchfallquote, die Tabelle die Bestehensquoten.
+      // Eine Überschrift, die nur eine Seite nennt, widerspricht dem, was darunter steht.
+      sec('Bestehen und Durchfallen (Anteil Vorgänge)', rates.flatMap((t, i) => [punktDiagramm(punkte[i]), renderTable(t)]).filter(Boolean),
+        'Das Diagramm zeigt die Durchfallquote im 1. Versuch je Gruppe, die Tabelle die Bestehensquoten – Gegenzahlen derselben Grundmenge (zusammen 100 %). Im 1. Versuch bestanden: alle absolvierten Teilprüfungen im ersten Versuch (RUN1) bestanden. Im 1. Versuch durchgefallen: mindestens eine Teilprüfung im ersten Versuch nicht bestanden (Nenner: Vorgänge mit absolviertem RUN1). Insgesamt bestanden: «WE All Passed» = yes, unabhängig von der Anzahl Versuche (Nenner: abgeschlossene Vorgänge, d. h. bestanden oder nicht bestanden). Offen = Gesamtergebnis leer, der Prozess läuft noch; nicht erfasst = Gesamtergebnis unlesbar (Data-Quality-Log).'),
       sec('Je Teilprüfung WE1–WE6', [punktDiagramm(teilPunkte(ctx.persons, 'we')), renderTable(parts)].filter(Boolean),
         'Anteile und Ø Resultat je Teilprüfung; n = Vorgänge mit absolviertem ersten Versuch der Teilprüfung. Das Punktdiagramm zeigt die Durchfallquote im 1. Versuch je Teilprüfung mit 95-%-Wilson-Intervall und ohne Bezugslinie: Ein Gesamtwert über alle Teilprüfungen hätte einen anderen Nenner als die einzelnen Zeilen. Verglichen werden die Teilprüfungen untereinander – überlappen zwei Intervalle nicht, ist der Unterschied gesichert.'),
       sec('Ø Resultat (erreichte Punkte in Prozent)', perf.map((t) => renderTable(t)),

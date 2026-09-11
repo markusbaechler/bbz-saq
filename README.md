@@ -518,6 +518,13 @@ der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
 aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
 
+**Überschrift und Wertung (Paket I):** Ein Abschnitt, der ein Diagramm mit Durchfallquoten und eine Tabelle mit
+Bestehensquoten trägt, heisst «Bestehen und Durchfallen» – eine Überschrift, die nur eine Seite nennt, widerspricht
+dem, was darunter steht. Die Direktbeschriftung nennt bei einem **gesicherten** Abstand zusätzlich die Wertung als
+Wort: «n = 302 · +27.9 pp · gesichert ungünstig». Die Richtung kommt aus dem Modell (`richtung`: tiefer ist besser
+bei Durchfallquoten, höher bei Bestehensquoten, `neutral` bei den Experten, wo nicht gewertet wird). Ohne sie läse
+sich «+27.9 pp · gesichert» wie eine gute Nachricht. Farbe kommt dazu, trägt die Wertung aber nie allein.
+
 **Punktdiagramm je Gruppierung (Pakete MESSZEILE und H):** Über jeder Bestehensquoten-Tabelle steht ein
 Punktdiagramm: je Gruppe ein Punkt auf der **Durchfallquote im 1. Versuch** – dieselbe Wahl wie in der Übersicht,
 weil bei 96 % bestanden die Aussage in der Gegenzahl steckt –, dazu sein 95-%-Wilson-Intervall als Balken und eine

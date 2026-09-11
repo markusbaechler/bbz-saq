@@ -112,10 +112,11 @@ export function statusTone(text, label = '') {
 // und tragen «*», sie werden nicht weggelassen.
 // Gezeigt wird die DURCHFALLQUOTE, nicht die Bestehensquote: dieselbe Wahl wie in der Übersicht – bei 96 %
 // bestanden steckt die Aussage in der Gegenzahl, und gefragt wird nach denen, die nicht bestanden haben.
-export function quotenPunkte(persons, key, { rates = writtenPassRates, wert = (r) => r.erstversuchFailed, titel = '' } = {}) {
+export function quotenPunkte(persons, key, { rates = writtenPassRates, wert = (r) => r.erstversuchFailed, titel = '', richtung = 'down' } = {}) {
   const gesamt = wert(rates(persons));
   return {
     titel,
+    richtung, // Durchfallquote: tiefer ist besser – ohne diese Angabe läse sich «+27.9 pp» wie ein Erfolg
     punkte: byGroup(persons, key, rates)
       .filter((g) => isNum(wert(g.value).pct))
       .map((g) => {
@@ -182,6 +183,7 @@ export function performanceTable(persons, key, kind = 'written') {
 export function teilPunkte(persons, kind = 'we') {
   return {
     titel: (kind === 'oe' ? 'Mündlich' : 'Schriftlich') + ': im 1. Versuch durchgefallen je Teilprüfung',
+    richtung: 'down',
     punkte: partFirstAttempt(persons, kind)
       .filter((p) => isNum(p.failed.pct))
       .map((p) => {
@@ -248,6 +250,7 @@ export function vssVsmPunkte(persons) {
   const gesamt = writtenPassRates(persons).erstversuchFailed;
   return {
     titel: 'Schriftlich im 1. Versuch durchgefallen nach Kennzeichnung',
+    richtung: 'down',
     punkte: [['VSS', b.vss], ['VSM', b.vsm], ['ohne', b.ohne]]
       .filter(([, block]) => isNum(block.written.erstversuchFailed.pct))
       .map(([label, block]) => {
@@ -1343,6 +1346,8 @@ export function expertTables(runs, { deltaDirection = 'neutral' } = {}) {
   // Keine neue Kennzahl: s.fail.erst und bench.fail.erst rechnet metrics.js längst.
   const punkte = {
     titel: 'Durchfallquote 1. Versuch je Experte',
+    // Beobachtungswerte, keine Leistungsbeurteilung (E9): hier wird nicht gewertet, nur verglichen
+    richtung: 'neutral',
     punkte: stats
       .filter((s) => isNum(s.fail.erst.pct))
       .map((s) => {

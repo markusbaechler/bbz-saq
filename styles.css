@@ -635,6 +635,10 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .viz-grid { stroke: var(--viz-grid); stroke-width: 1; shape-rendering: crispEdges; }
 .viz-axis { stroke: var(--viz-axis); stroke-width: 1; shape-rendering: crispEdges; }
 .viz-tick { fill: var(--viz-tick); font-variant-numeric: tabular-nums; }
+/* Paket I (P1): Die Wertung eines gesicherten Abstands steht als Wort in der Direktbeschriftung; die Farbe kommt
+   dazu, trägt sie aber nie allein. Datenfarben (--series-*) bleiben den Datenelementen vorbehalten. */
+.viz-label.ton-pos { fill: var(--delta-pos); }
+.viz-label.ton-neg { fill: var(--delta-neg); }
 .viz-label { fill: var(--text); }
 .viz-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 /* Paket H: Das Stück ins laufende Jahr ist gestrichelt, der Punkt dort eine Raute – beides sagt «noch nicht fertig».

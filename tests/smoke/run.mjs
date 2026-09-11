@@ -575,7 +575,8 @@ try {
     await page.waitForSelector('#view table.data');
     const h2 = await page.evaluate(() => {
       const abschnitt = [...document.querySelectorAll('#view section.block, #view details.block')]
-        .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Bestehensquote'));
+        .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Bestehen und Durchfallen'));
+      if (!abschnitt) return { diagramme: 0, ueberschriftFehlt: true };
       const figuren = [...abschnitt.querySelectorAll('figure.viz')].filter((f) => f.querySelector('.viz-dots'));
       const tabellen = [...abschnitt.querySelectorAll('table.data')];
       return {
@@ -592,6 +593,21 @@ try {
     check(h2.diagramme === erwartet && h2.tabellen >= erwartet && h2.vorDerTabelle && h2.referenz
       && h2.punkteZuZeilen.every((p) => Number(p.split('/')[0]) >= 1 && Number(p.split('/')[0]) <= Number(p.split('/')[1])),
       'H2 ' + ansicht + ': ' + h2.diagramme + ' Punktdiagramm(e) vor der Tabelle (' + h2.titel.join(' | ') + '), Punkte zu Tabellenzeilen ' + h2.punkteZuZeilen.join(', '));
+    // P1: Die Überschrift nennt beide Seiten, und ein gesicherter Abstand trägt seine Wertung als Wort
+    const p1 = await page.evaluate(() => {
+      const abschnitt = [...document.querySelectorAll('#view section.block, #view details.block')]
+        .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Bestehen und Durchfallen'));
+      const beschriftungen = [...abschnitt.querySelectorAll('figure.viz text.viz-label')].map((t) => t.textContent).filter((t) => /^n = /.test(t));
+      return {
+        ueberschrift: (abschnitt.querySelector('h3, summary') || {}).textContent,
+        hinweis: !!abschnitt.parentElement.textContent.match(/Diagramm zeigt die Durchfallquote/),
+        gesichert: beschriftungen.filter((t) => /gesichert/.test(t)),
+        ohneWertung: beschriftungen.filter((t) => /gesichert(?! (günstig|ungünstig))/.test(t)),
+      };
+    });
+    check(/^Bestehen und Durchfallen/.test(p1.ueberschrift) && p1.hinweis && p1.ohneWertung.length === 0,
+      'P1 ' + ansicht + ': Überschrift «' + p1.ueberschrift + '», Hinweis nennt beide Seiten, jeder gesicherte Abstand mit Wertung ('
+        + (p1.gesichert.length ? p1.gesichert.join(' | ') : 'keiner gesichert') + ')');
   }
 
   // Letzte Lücke aus H4: Punktdiagramm je Teilprüfung in «Schriftlich» – ohne Bezugslinie, weil ein Gesamtwert

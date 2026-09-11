@@ -31,6 +31,33 @@ test('dotchart: gesichert heisst, das Intervall enthält den Gesamtwert nicht �
   assert(/n = 50 · \+0\.6 pp$/.test(nach.IK.text), nach.IK.text);
 });
 
+test('dotchart: die Richtung sagt, ob ein gesicherter Abstand gut oder schlecht ist (Paket I, P1)', () => {
+  const punkte = [mitIv('Viel Durchfall', 219, 302), mitIv('Wenig Durchfall', 60, 302)];
+  const ref = { pct: 0.5, label: 'Gesamt' };
+  // Durchfallquote: tiefer ist besser – ein Plus ist die schlechte Nachricht
+  const runter = dotChartModel(punkte, { referenz: ref, richtung: 'down' });
+  const viel = runter.zeilen[0];
+  const wenig = runter.zeilen[1];
+  assertEqual([viel.gesichert, viel.bewertung], [true, 'ungünstig']);
+  assertEqual([wenig.gesichert, wenig.bewertung], [true, 'günstig']);
+  assert(/· gesichert ungünstig$/.test(viel.text), viel.text);
+  assert(/· gesichert günstig$/.test(wenig.text), wenig.text);
+  // Bestehensquote: höher ist besser – dieselbe Zahl, umgekehrte Wertung
+  const hoch = dotChartModel(punkte, { referenz: ref, richtung: 'up' });
+  assertEqual([hoch.zeilen[0].bewertung, hoch.zeilen[1].bewertung], ['günstig', 'ungünstig']);
+  // Ohne Richtung keine Wertung – etwa bei den Experten, wo nicht gewertet wird (E9)
+  const neutral = dotChartModel(punkte, { referenz: ref, richtung: 'neutral' });
+  assertEqual(neutral.zeilen[0].bewertung, null);
+  assert(/· gesichert$/.test(neutral.zeilen[0].text), neutral.zeilen[0].text);
+  // Unter 0.5 pp keine Wertung – dieselbe Schwelle wie bei den Kacheln und in der Vergleichstabelle
+  const knapp = dotChartModel([mitIv('Knapp', 151, 302)], { referenz: { pct: 0.5, label: 'Gesamt' }, richtung: 'down' });
+  assertEqual(knapp.zeilen[0].bewertung, null);
+  // Ein nicht gesicherter Abstand trägt das Wort nicht – «gesichert» und die Wertung gehören zusammen
+  const unsicher = dotChartModel([mitIv('Klein', 3, 4)], { referenz: ref, richtung: 'down' });
+  assertEqual(unsicher.zeilen[0].gesichert, false);
+  assert(!/günstig/.test(unsicher.zeilen[0].text), unsicher.zeilen[0].text);
+});
+
 test('dotchart: ohne Referenz keine Differenz und nichts «gesichert»', () => {
   const m = dotChartModel([mitIv('KMU', 219, 302)], {});
   assertEqual(m.referenz, null);

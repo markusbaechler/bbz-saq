@@ -17,7 +17,8 @@ export function build(ctx) {
   const sec = hinted(hints);
   return {
     nodes: [
-      sec('Bestehensquoten VSS / VSM / ohne', [punktDiagramm(punkte), renderTable(table)].filter(Boolean),
+      // P1: Diagramm zeigt die Durchfallquote, Tabelle die Bestehensquoten – die Überschrift nennt beides
+      sec('Bestehen und Durchfallen: VSS / VSM / ohne', [punktDiagramm(punkte), renderTable(table)].filter(Boolean),
         'Das Punktdiagramm zeigt die Durchfallquote im 1. Versuch je Kennzeichnung mit 95-%-Wilson-Intervall; berührt ein Balken die Linie auf dem Gesamtwert, ist der Abstand nicht gesichert. Die drei Gruppen überschneiden sich und teilen den Gesamtwert nicht auf: ein Vorgang mit VSS und VSM zählt in beiden. VSS und VSM stammen aus den Threaded Comments auf der Namenszelle (Muster «VSS …» bzw. «VSM …»). Vorgänge mit beiden Kennzeichnungen zählen in beiden Gruppen; «ohne» = weder VSS noch VSM. Nenner der Quoten wie in den Ansichten Schriftlich und Mündlich (abgeschlossene bzw. angetretene Vorgänge).'),
     ],
     tables: [table],
