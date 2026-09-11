@@ -608,6 +608,27 @@ function anzahlText(k) {
   return k.kind === 'mean' ? 'n = ' + k.n : '';
 }
 
+// Export der Kacheln («Kennzahlen gesamt»). Dieselbe Regel wie in der Vergleichstabelle, nur in zwei Spalten statt
+// in einem Satz: Eine Tabellenkalkulation rechnet mit Zahlen, nicht mit «8 von 9 Vorgängen». Mengenzeilen tragen
+// deshalb weder Zähler noch Nenner – ihr Wert IST die Anzahl, und die Grundmenge der Auswahl daneben hiesse etwas
+// anderes als die Zeile («Personen 8 · n 9» zählte Vorgänge).
+export function kennzahlenExportTable(kpis) {
+  return {
+    title: 'Kennzahlen gesamt',
+    columns: [col('label', 'Kennzahl', 1), col('value', 'Wert', 1), col('count', 'Anzahl', 2), col('n', 'n (Nenner)', 2), col('einheit', 'Einheit', 3), col('hint', 'Beschreibung', 3)],
+    rows: (kpis || []).map((k) => ({
+      label: k.label,
+      value: k.value,
+      count: k.kind === 'ratio' && k.count !== null && k.count !== undefined ? k.count : '',
+      n: k.kind === 'ratio' || k.kind === 'mean' ? k.n : '',
+      einheit: k.kind === 'ratio' || k.kind === 'mean' ? (k.unit || 'Vorgänge') : '',
+      hint: k.hint,
+      small: k.small,
+    })),
+    note: 'Anzahl und Nenner nur bei Quoten und Ø-Kennzahlen; bei Mengen ist der Wert selbst die Anzahl. ' + SMALL_NOTE,
+  };
+}
+
 export function comparisonTable(selectionKpis, benchmarkKpis, benchmarkLabel) {
   const byLabel = new Map(benchmarkKpis.map((k) => [k.label, k]));
   const rows = selectionKpis.map((k) => {

@@ -1,6 +1,6 @@
 // views/overview.js – View 1 «Übersicht»: KPIs gesamt für den aktiven Filter, Kennzahlen je Profil.
 
-import { overviewModel, plannedTables, comparisonTable, messzeilenEingaben } from './tables.js';
+import { overviewModel, plannedTables, comparisonTable, messzeilenEingaben, kennzahlenExportTable } from './tables.js';
 import { renderKpis, renderTable, section, hinted, el, signalBlock, isPhone, messzeileModell, messzeilenBlock } from './common.js';
 import { renderDotChart } from './chart.js';
 import { BENCHMARKS, benchmarkFilter, DEFAULT_FILTER, formatPct } from '../metrics.js';
@@ -91,11 +91,7 @@ export function build(ctx) {
     ctx.focusFilter ? ' ' : null,
     ctx.focusFilter ? el('button', { type: 'button', class: 'linklike', text: 'Bank wählen', onclick: () => ctx.focusFilter('bank') }) : null,
   ]);
-  const kpiTable = {
-    title: 'Kennzahlen gesamt',
-    columns: [{ key: 'label', label: 'Kennzahl' }, { key: 'value', label: 'Wert' }, { key: 'count', label: 'Anzahl' }, { key: 'n', label: 'n' }, { key: 'hint', label: 'Beschreibung' }],
-    rows: kpis.map((k) => ({ label: k.label, value: k.value, count: k.count === null || k.count === undefined ? '' : k.count, n: k.n, hint: k.hint, small: k.small })),
-  };
+  const kpiTable = kennzahlenExportTable(kpis);
   return {
     nodes: [
       // D2: Signale zuerst – sie beantworten «worauf schaue ich heute», und das gehört nicht unter zwölf Kacheln
