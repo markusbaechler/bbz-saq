@@ -593,6 +593,21 @@ function einordnung(k, b) {
   return '±' + (Math.round(w.half * 1000) / 10).toFixed(1) + ' pp · Benchmark im Intervall: ' + (inside ? 'ja' : 'nein');
 }
 
+// Anzahl je Art der Kennzahl. Die Spalte «n» trug bisher die Grundmenge der Auswahl, nicht den Nenner der Zelle
+// daneben: Bei Quoten fiel das zusammen, bei Mengen nicht («Personen 8 · n 9» zählte Vorgänge, «Zertifizierung offen
+// 3 · n 9» las sich als «3 von 9» und war es nicht). Der Zähler lag längst auf dem Modell (k.count) und wurde
+// verworfen; die Kachel rendert ihn seit je. Jetzt gilt je Art eine Regel:
+//   ratio → «Zähler von Nenner Einheit» (Einheit aus k.unit, sonst Vorgängen) – wie auf der Kachel
+//   mean  → nur «n = Nenner»; ein Mittelwert hat keinen Zähler, jede Anzahl wäre erfunden
+//   count → leer; der Wert in der Spalte «Auswahl» IST die absolute Zahl
+function anzahlText(k) {
+  if (!k) return '';
+  if (k.kind === 'ratio') {
+    return k.count === null || k.count === undefined ? 'n = ' + k.n : k.count + ' von ' + k.n + ' ' + (k.unit || 'Vorgängen');
+  }
+  return k.kind === 'mean' ? 'n = ' + k.n : '';
+}
+
 export function comparisonTable(selectionKpis, benchmarkKpis, benchmarkLabel) {
   const byLabel = new Map(benchmarkKpis.map((k) => [k.label, k]));
   const rows = selectionKpis.map((k) => {
@@ -602,15 +617,15 @@ export function comparisonTable(selectionKpis, benchmarkKpis, benchmarkLabel) {
     if (k.kind !== 'count') differenz = isNum(delta) ? formatPp(delta) : '–';
     const direction = k.direction || 'neutral';
     return {
-      kennzahl: k.label, auswahl: k.value, n: k.n, benchmark: b ? b.value : '–', n2: b ? b.n : 0, differenz, small: k.small, direction,
+      kennzahl: k.label, auswahl: k.value, n: anzahlText(k), benchmark: b ? b.value : '–', n2: anzahlText(b), differenz, small: k.small, direction,
       einordnung: einordnung(k, b), einordnungTone: k.kind !== 'count' && isNum(delta) ? deltaView(delta, direction).tone : 'neutral',
     };
   });
   return {
     title: 'Auswahl im Vergleich zum Benchmark',
-    columns: [col('kennzahl', 'Kennzahl', 1), col('auswahl', 'Auswahl', 1), col('n', 'n (Auswahl)', 3), col('benchmark', 'Benchmark: ' + benchmarkLabel, 2), col('n2', 'n (Benchmark)', 3), col('differenz', 'Differenz', 1), col('einordnung', 'Einordnung', 1, { toneKey: 'einordnungTone' })],
+    columns: [col('kennzahl', 'Kennzahl', 1), col('auswahl', 'Auswahl', 1), col('n', 'Anzahl (Auswahl)', 2), col('benchmark', 'Benchmark: ' + benchmarkLabel, 2), col('n2', 'Anzahl (Benchmark)', 2), col('differenz', 'Differenz', 1), col('einordnung', 'Einordnung', 1, { toneKey: 'einordnungTone' })],
     rows,
-    note: 'Differenz in Prozentpunkten (Auswahl minus Benchmark). Einordnung: bei Ø-Kennzahlen die Effektstärke d = Differenz geteilt durch σ des Benchmarks (unter 0.2 gering, bis 0.5 mittel, bis 0.8 deutlich, ab 0.8 gross; nur wenn beide n ≥ ' + SMALL_N + '); bei Quoten das 95-%-Wilson-Intervall der Auswahl (±pp) mit der Angabe, ob der Benchmark darin liegt; Mengen ohne Einordnung. ' + SMALL_NOTE,
+    note: 'Anzahl: bei Quoten «Zähler von Nenner» (die Grundmenge der Quote, nicht der ganzen Auswahl), bei Ø-Kennzahlen nur der Nenner, bei Mengen leer – dort ist der Wert selbst die Anzahl. Differenz in Prozentpunkten (Auswahl minus Benchmark). Einordnung: bei Ø-Kennzahlen die Effektstärke d = Differenz geteilt durch σ des Benchmarks (unter 0.2 gering, bis 0.5 mittel, bis 0.8 deutlich, ab 0.8 gross; nur wenn beide n ≥ ' + SMALL_N + '); bei Quoten das 95-%-Wilson-Intervall der Auswahl (±pp) mit der Angabe, ob der Benchmark darin liegt; Mengen ohne Einordnung. ' + SMALL_NOTE,
   };
 }
 

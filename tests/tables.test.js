@@ -223,10 +223,12 @@ test('tables.comparisonTable: Auswahl gegen Benchmark je Kennzahl, Differenz in 
   const selection = overviewModel(cohort().filter((p) => p.employerCanon === 'Testbank AG'));
   const benchmark = overviewModel(cohort());
   const t = comparisonTable(selection.kpis, benchmark.kpis, 'Alle Banken');
-  assertEqual(t.columns.map((c) => c.label), ['Kennzahl', 'Auswahl', 'n (Auswahl)', 'Benchmark: Alle Banken', 'n (Benchmark)', 'Differenz', 'Einordnung']);
+  assertEqual(t.columns.map((c) => c.label), ['Kennzahl', 'Auswahl', 'Anzahl (Auswahl)', 'Benchmark: Alle Banken', 'Anzahl (Benchmark)', 'Differenz', 'Einordnung']);
+  // Die Anzahl ist ab Prio 2 sichtbar: Sie ist der Bezug der Prozentzahl und darf nicht unter 1200 px verschwinden
+  assertEqual(t.columns.filter((c) => /^Anzahl/.test(c.label)).map((c) => c.prio), [2, 2]);
   const byLabel = Object.fromEntries(t.rows.map((r) => [r.kennzahl, r]));
   // Testbank: A, B → im 1. Versuch bestanden A (50.0 %); alle: 50.0 % → Differenz 0
-  assertEqual(byLabel['Schriftlich: im 1. Versuch bestanden'], { kennzahl: 'Schriftlich: im 1. Versuch bestanden', auswahl: '50.0 %', n: 2, benchmark: '50.0 %', n2: 4, differenz: '0.0 pp', small: true, direction: 'up', einordnung: '±40.5 pp · Benchmark im Intervall: ja', einordnungTone: 'neutral' });
+  assertEqual(byLabel['Schriftlich: im 1. Versuch bestanden'], { kennzahl: 'Schriftlich: im 1. Versuch bestanden', auswahl: '50.0 %', n: '1 von 2 Vorgängen', benchmark: '50.0 %', n2: '2 von 4 Vorgängen', differenz: '0.0 pp', small: true, direction: 'up', einordnung: '±40.5 pp · Benchmark im Intervall: ja', einordnungTone: 'neutral' });
   // insgesamt bestanden: Testbank 100 % (A, B) vs alle 75 % → +25.0 pp
   assertEqual(byLabel['Schriftlich: insgesamt bestanden'].differenz, '+25.0 pp');
   // Ø Resultat 1. Versuch: Testbank (0.7+0.5)/2 = 0.6 vs alle 0.6125 → −1.3 pp
@@ -234,6 +236,26 @@ test('tables.comparisonTable: Auswahl gegen Benchmark je Kennzahl, Differenz in 
   assertEqual(byLabel['Personen'].differenz, '', 'Zählungen ohne Differenz');
   assertEqual(byLabel['Personen'].auswahl, '2');
   assertEqual(t.rows.length, selection.kpis.length);
+  // Drei Arten, drei Regeln für die Anzahl (Befund: «n» trug die Grundmenge der Auswahl, nicht den Nenner der Zelle)
+  assertEqual(byLabel['Personen'].n, '', 'Menge: der Wert selbst ist die Anzahl, daneben gehört nichts');
+  assertEqual(byLabel['Vorgänge'].n, '', 'Menge: keine zweite Zahl neben derselben Zahl');
+  assertEqual(byLabel['Zertifizierung offen'].n, '', 'Menge: «3 von 9» wäre gelogen, es sind 3 von der ganzen Auswahl');
+  assertEqual(byLabel['Schriftlich: Ø Resultat 1. Versuch'].n, 'n = 2', 'Mittelwert: nur der Nenner, ein Zähler wäre erfunden');
+  assertEqual(byLabel['Mündlich: bestanden'].n, '2 von 2 Vorgängen', 'Quote: Zähler von Nenner mit Einheit');
+});
+
+test('tables.comparisonTable: Anzahl nennt die Einheit der Kennzahl, nicht immer «Vorgängen»', () => {
+  const kpi = (label, extra) => ({ label, value: '50.0 %', n: 4, small: false, kind: 'ratio', raw: 0.5, direction: 'up', ...extra });
+  const t = comparisonTable(
+    [kpi('Mit Einheit', { count: 2, unit: 'Einsätzen' }), kpi('Ohne Einheit', { count: 2 }), kpi('Ohne Zähler', { count: null })],
+    [kpi('Mit Einheit', { count: 3, unit: 'Einsätzen', n: 6 }), kpi('Ohne Einheit', { count: 3, n: 6 }), kpi('Ohne Zähler', { count: null, n: 6 })],
+    'Alle',
+  );
+  const byLabel = Object.fromEntries(t.rows.map((r) => [r.kennzahl, r]));
+  assertEqual(byLabel['Mit Einheit'].n, '2 von 4 Einsätzen');
+  assertEqual(byLabel['Mit Einheit'].n2, '3 von 6 Einsätzen');
+  assertEqual(byLabel['Ohne Einheit'].n, '2 von 4 Vorgängen');
+  assertEqual(byLabel['Ohne Zähler'].n, 'n = 4', 'ohne Zähler bleibt nur der Nenner – erfunden wird nichts');
 });
 
 test('tables.comparisonTable: fehlender Wert → Strich statt Differenz', () => {
