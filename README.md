@@ -523,7 +523,7 @@ Punktdiagramm: je Gruppe ein Punkt auf der **Durchfallquote im 1. Versuch** – 
 weil bei 96 % bestanden die Aussage in der Gegenzahl steckt –, dazu sein 95-%-Wilson-Intervall als Balken und eine
 senkrechte Linie auf dem Gesamtwert. Es steht in der Übersicht («Kennzahlen je Profil»), in «Schriftlich» viermal
 (Profil, Sprache, Bank und je Teilprüfung – letzteres ohne Bezugslinie, weil ein Gesamtwert über alle Teilprüfungen
-einen anderen Nenner hätte als die einzelnen Zeilen; verglichen werden die Teilprüfungen untereinander), in «Mündlich» einmal (Profil), in «Experten» je Experte und in «VSS/VSM» je Kennzeichnung.
+einen anderen Nenner hätte als die einzelnen Zeilen; verglichen werden die Teilprüfungen untereinander), in «Mündlich» dreimal (Profil, Sprache, Bank), in «Experten» je Experte und in «VSS/VSM» je Kennzeichnung.
 Bei VSS/VSM überschneiden sich die Gruppen: Ein Vorgang mit VSS **und** VSM zählt in beiden, die drei Punkte teilen
 den Gesamtwert also nicht auf – der Hinweis über der Ansicht sagt es.
 
