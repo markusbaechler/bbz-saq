@@ -26,8 +26,9 @@ die Ausgangs-URL (`navigateToLoginRequestUrl: false`). Hotfix vom 07.09.2026, Fe
 
 ## Ansichten
 
-Die Navigation hat **zwei Ebenen** (Paket E). Das Band trägt **neun Primärziele**: Übersicht · **Prüfungen** ·
-Zeitverlauf · **Vorgänge** · Personen · Bestenlisten · Experten · Bank-Report · **Daten**. Drei davon fassen
+Die Navigation hat **zwei Ebenen** (Paket E). Das Band trägt **neun Primärziele** in drei Blöcken: erst die
+anonymen Auswertungen Übersicht · **Prüfungen** · Zeitverlauf · Bank-Report, dann die Ansichten mit Namen
+(bbz-intern) **Vorgänge** · Personen · Bestenlisten · Experten, zuletzt **Daten**. Drei davon fassen
 Geschwister zusammen, die dieselbe Frage in Teilen beantworten – Prüfungen (Schriftlich, Mündlich, VSS/VSM),
 Vorgänge (Offene Vorgänge, Geplante Prüfungen) und Daten (Historie, Datenqualität, Glossar). Die Geschwister stehen
 als **Reiter neben dem Titel** der Ansicht, nicht in einer zweiten Leiste; sie kosten keine Höhe (der View-Kopf bleibt

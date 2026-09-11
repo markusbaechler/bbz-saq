@@ -71,7 +71,7 @@ try {
     zweiteLeiste: document.querySelectorAll('nav:not(#nav):not(.view-tabs), #nav-secondary').length,
     beschriftungen: document.querySelectorAll('#nav .nav-group-label').length,
   }));
-  check(navAufbau.band.join(' · ') === 'Übersicht · Prüfungen · Zeitverlauf · Vorgänge · Personen · Bestenlisten · Experten · Bank-Report · Daten'
+  check(navAufbau.band.join(' · ') === 'Übersicht · Prüfungen · Zeitverlauf · Bank-Report · Vorgänge · Personen · Bestenlisten · Experten · Daten'
     && navAufbau.optionen === 14 && navAufbau.optgroups.join(' · ') === 'Prüfungen:3 · Vorgänge:2 · Daten:3'
     && navAufbau.zweiteLeiste === 0 && navAufbau.beschriftungen === 0,
     'E Navigation: ' + navAufbau.band.length + ' Primärziele im Band (' + navAufbau.band.join(' · ') + '), '

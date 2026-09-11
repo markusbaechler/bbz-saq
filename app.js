@@ -49,15 +49,19 @@ const VIEWS = KPI_VIEWS.map((v) => ({ id: v.id, label: v.label, group: v.group, 
 // Drei Primärziele fassen Geschwister zusammen, die dieselbe Frage in Teilen beantworten; sie erscheinen als Reiter
 // im Kopf der Ansicht, nicht in einer zweiten Leiste. Alle vierzehn Routen bleiben, jedes Ziel bleibt einen Klick weit.
 // Die Zuordnung ist eine Datenänderung: diese Liste plus der group-Export je Ansicht (null = eigenes Ziel).
+// Reihenfolge: drei Blöcke. Erst die vier anonymen Auswertungen, dann die vier Ansichten mit Namen (bbz-intern,
+// E5/E8), zuletzt die Grundlagen. Die Namensgrenze läuft dadurch einmal durch das Band statt zweimal. Sichtbar wirkt
+// die Reihenfolge nur zwischen 601 und rund 660 px – dort scrollt das Band, und was hinten wegfällt, sind die
+// Grundlagen, keine Arbeitsansicht.
 const NAV_PRIMAER = [
   { view: 'uebersicht' },
   { gruppe: 'Prüfungen' },
   { view: 'zeitverlauf' },
+  { view: 'bank-report' },
   { gruppe: 'Vorgänge' },
   { view: 'personen' },
   { view: 'bestenlisten' },
   { view: 'experten' },
-  { view: 'bank-report' },
   { gruppe: 'Daten' },
 ];
 
