@@ -169,6 +169,45 @@ try {
   check(bankTables.length >= 3 && bankTables.every((t) => /Testbank AG/.test(t)), 'Bank-Report mit Bank: ' + bankTables.length + ' Tabellen (' + bankTables.join(' | ') + ')');
   check(!(await page.textContent('#view')).includes('Muster Anna'), 'Bank-Report ohne Namen');
   check((await page.$$eval('#view thead th', (th) => th.map((x) => x.textContent))).includes('Einordnung') && (await page.locator('#view td.tone').count()) >= 5, 'Bank-Report: Spalte «Einordnung» mit Ton je Kennzahlzeile (' + (await page.locator('#view td.tone').count()) + ')');
+  // H3: Messzeilen für den Empfänger – er kennt das Cockpit nicht und braucht den Bezug neben der Zahl. Geprüft
+  // wird auch der Druck: Diese Ansicht wird gedruckt und weitergegeben, und ohne print-color-adjust verschwänden
+  // Spur, Balken, Punkt und Benchmarkmarke.
+  const report = await page.evaluate(() => {
+    const zeilen = [...document.querySelectorAll('#view .messzeile')];
+    return {
+      zeilen: zeilen.length,
+      marken: document.querySelectorAll('#view .messzeile .mz-referenz').length,
+      benchmark: [...document.querySelectorAll('#view .messzeile .mz-bench')].map((x) => x.textContent.trim()).filter(Boolean).length,
+      anzahl: [...document.querySelectorAll('#view .messzeile .mz-n')].map((x) => x.textContent.trim()),
+      kopf: (document.querySelector('#view .mz-kopf .mz-titel') || {}).textContent,
+      namen: /Muster|Anna/.test((document.querySelector('#view .messzeilen') || { textContent: '' }).textContent),
+    };
+  });
+  check(report.zeilen === 5 && report.marken === 5 && report.benchmark === 5 && !report.namen
+    && report.anzahl.every((t) => /^\d+ von \d+$/.test(t)) && report.kopf === 'Durchfallquoten',
+    'H3 Bank-Report: ' + report.zeilen + ' Messzeilen mit Benchmarkmarke und Abstand (' + report.anzahl.join(' | ') + '), ohne Namen');
+  await page.emulateMedia({ media: 'print' });
+  const druck = await page.evaluate(() => {
+    const sichtbar = (sel) => [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0).length;
+    const farbe = (sel) => { const e = document.querySelector(sel); return e ? getComputedStyle(e).printColorAdjust || getComputedStyle(e).webkitPrintColorAdjust : ''; };
+    return {
+      zeilen: sichtbar('#view .messzeile'), spur: sichtbar('#view .mz-spur'), marke: sichtbar('#view .mz-referenz'),
+      punkt: sichtbar('#view .mz-punkt'), intervall: sichtbar('#view .mz-intervall'),
+      adjust: [farbe('#view .mz-spur'), farbe('#view .mz-punkt'), farbe('#view .mz-referenz')],
+      // Verlauf und «letztes Jahr» weichen im Druck, damit die Spur breit genug bleibt (die Jahreswerte stehen in
+      // der Tabelle «Verlauf je Jahr» derselben Seite)
+      verlauf: sichtbar('#view .mz-verlauf-zelle'), vorjahr: sichtbar('#view .mz-vorjahr'),
+      benchmarkSpalte: sichtbar('#view .messzeile .mz-bench'),
+      spurBreite: Math.round((document.querySelector('#view .messzeile .mz-skala') || { getBoundingClientRect: () => ({ width: 0 }) }).getBoundingClientRect().width),
+      ueberlauf: Math.round(document.querySelector('#view .messzeilen').scrollWidth - document.querySelector('#view .messzeilen').clientWidth),
+    };
+  });
+  check(druck.zeilen === 5 && druck.spur === 5 && druck.marke === 5 && druck.punkt === 5 && druck.intervall >= 1
+    && druck.adjust.every((a) => a === 'exact') && druck.verlauf === 0 && druck.vorjahr === 0
+    && druck.benchmarkSpalte === 5 && druck.ueberlauf <= 0,
+    'H3 Bank-Report im Druck: Spur ' + druck.spurBreite + ' px mit Punkt, Intervall und Marke (Farbe ' + druck.adjust[0] + '), Verlauf und letztes Jahr weichen, kein Überlauf');
+  await page.screenshot({ path: join(outDir, 'print-bank-report.png'), fullPage: true });
+  await page.emulateMedia({ media: null });
   await shot(page, 'bank-report-mit-bank');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });

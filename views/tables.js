@@ -1077,9 +1077,12 @@ export function bankReportTables(bankPersons, benchmarkPersons, bankLabel) {
     }),
     note: SMALL_NOTE + '; Benchmark = alle Banken mit denselben übrigen Filtern und demselben Zeitraum',
   };
+  // H3: Messzeilen für den Empfänger des Reports. Er kennt das Cockpit nicht – «79.2 %» kann er nur einordnen,
+  // wenn der Benchmark daneben steht. Dieselben Zeilen wie in der Übersicht, mit «alle Banken» als Referenzmarke.
+  const messzeilen = messzeilenEingaben(bankPersons, { benchmarkPersons, benchmarkLabel: 'Alle Banken' });
   const verlauf = timeSeriesTable(bankPersons);
   verlauf.title = 'Kennzahlen je Jahr: ' + bankLabel;
-  return { kpis, byProfil, verlauf };
+  return { kpis, byProfil, verlauf, messzeilen };
 }
 
 // ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 // Voraussetzung: in der Filterleiste genau eine Bank gewählt.
 
 import { bankReportTables } from './tables.js';
-import { renderTable, section, el } from './common.js';
+import { renderTable, section, el, messzeileModell, messzeilenBlock } from './common.js';
 import { printPage } from '../export.js';
 
 export const id = 'bank-report';
@@ -25,6 +25,7 @@ export function build(ctx) {
   const bank = banks[0];
   const t = bankReportTables(ctx.persons, ctx.bankBenchmarkPersons || ctx.persons, bank);
   const head = ctx.headerLines || [];
+  const messzeilenModelle = t.messzeilen.map((z) => messzeileModell(z.eingabe));
   const hints = ['Druckansicht enthält nur diesen Report mit Filterzustand; im Druckdialog «Als PDF speichern» wählen.'];
   return {
     nodes: [
@@ -36,10 +37,15 @@ export function build(ctx) {
         el('p', { class: 'meta-list', text: head.join(' · ') }),
         el('p', { class: 'meta-list', text: 'Kennzahlen der Zertifizierungsvorgänge von ' + bank + ' im Vergleich zum Benchmark «alle Banken» (derselbe Zeitraum, dieselben übrigen Filter). Der Benchmark ist ein Aggregat; andere Institute werden nicht einzeln ausgewiesen. Definitionen: Glossar des Cockpits.' }),
       ]),
+      // H3: Zuerst die Messzeilen – der Empfänger kennt das Cockpit nicht und kann eine Prozentzahl ohne Bezug nicht
+      // einordnen. Die Marke auf dem Benchmark und der Abstand in pp geben ihn, ohne andere Institute zu nennen.
+      messzeilenModelle.length ? section('Durchfallquoten im Vergleich', [
+        messzeilenBlock('Durchfallquoten', messzeilenModelle, { referenzLabel: 'Alle Banken', skala: t.messzeilen[0].skala }),
+      ]) : null,
       section('Kennzahlen im Vergleich', [renderTable(t.kpis)]),
       section('Je Profil', [renderTable(t.byProfil)]),
       section('Verlauf je Jahr', [renderTable(t.verlauf)]),
-    ],
+    ].filter(Boolean),
     tables: [t.kpis, t.byProfil, t.verlauf],
     hints,
   };

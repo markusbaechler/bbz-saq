@@ -135,6 +135,11 @@ Jahr davor und färbt sich erst ab 2 pp, darunter bleibt es neutral – sonst f�
 Schwellen unterscheiden sich bewusst: Der Jahresabstand ist ein Trendsignal (2 pp), der Benchmark-Abstand folgt der
 Regel, die dieselbe Zahl auf den Kacheln und in der Vergleichstabelle schon trägt (0.5 pp).
 
+**Im Druck** weichen Verlauf und «letztes Jahr»: Auf A4 blieben der Spur sonst 84 px, und ein Wilson-Balken von
+84 px sagt nichts – gemessen bleiben so 192 px. Die Jahreswerte stehen im Bank-Report in der Tabelle «Verlauf je
+Jahr» derselben Seite. Spur, Balken, Punkt und Marke tragen `print-color-adjust: exact`, sonst druckt der Browser
+die Flächen nicht und übrig bliebe eine Zahlenreihe ohne Bezug.
+
 **Mengen bleiben Kacheln** – ohne n-Zeile: Ihr Wert ist die Anzahl, und die Grundmenge der Auswahl daneben meinte
 etwas anderes als die Kachel («Personen 970 · n = 977» zählte Vorgänge). Eine Anzahl hat keine Spur von 0 bis 50 %, und eine erfundene wäre schlimmer als keine.
 Die vier Ø-Kennzahlen bleiben ebenfalls Kacheln, weil sie die Streuungszeile (σ, Median, Quartile) tragen.

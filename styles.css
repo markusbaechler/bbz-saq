@@ -562,6 +562,15 @@ td.status-cell { white-space: nowrap; } /* Raster-Zellen mit Badge und Datum (Pa
 .table-wrap .all-columns { display: none; } /* Desktop zeigt alle Spalten; Paket B blendet Prio 2/3 per Breakpoint aus und zeigt den Schalter */
 @media print {
   td.pct { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* H3: Der Bank-Report wird gedruckt und weitergegeben. Ohne diese Zeile druckt der Browser die Flächen der
+     Messzeile nicht – Spur, Wilson-Balken, Punkt und Benchmarkmarke verschwänden, und übrig bliebe eine Zahlenreihe
+     ohne Bezug. Genau dafür steht die Zeile dort. */
+  .mz-spur, .mz-intervall, .mz-punkt, .mz-referenz, .mz-verlauf-ende { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Auf A4 bleiben für die Spur nur 84 px, wenn alle acht Felder mitdrucken – ein Wilson-Balken von 84 px sagt
+     nichts, und genau er ist der Grund für die Messzeile im Report. Verlauf und «letztes Jahr» weichen deshalb im
+     Druck; die Jahreswerte stehen in der Tabelle «Verlauf je Jahr» derselben Seite. Gemessen: Spur 84 → 244 px. */
+  .messzeilen { grid-template-columns: minmax(8rem, max-content) minmax(9rem, 1fr) 4.5rem max-content 5.5rem 6.5rem; }
+  .mz-verlauf-zelle, .mz-vorjahr { display: none !important; }
   .table-wrap table.data td:first-child, .table-wrap table.data th:first-child { position: static !important; }
   th { position: static !important; } /* Druck: kein klebender Kopf, jede Seite trägt ihre eigene Kopfzeile */
 }
