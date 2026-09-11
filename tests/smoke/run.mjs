@@ -570,7 +570,7 @@ try {
   // H2: Punktdiagramm je Gruppierung vor der Tabelle – in «Schriftlich» drei (Profil, Sprache, Bank), in «Mündlich»
   // eines (Profil). Die Tabelle bleibt darunter stehen und im Export; die Zahl der Punkte entspricht ihren Zeilen
   // ohne die Gesamtzeile.
-  for (const [ansicht, erwartet] of [['schriftlich', 3], ['muendlich', 1]]) {
+  for (const [ansicht, erwartet] of [['schriftlich', 3], ['muendlich', 3]]) {
     await page.goto(server.url + '#' + ansicht);
     await page.waitForSelector('#view table.data');
     const h2 = await page.evaluate(() => {
