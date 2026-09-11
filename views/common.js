@@ -581,6 +581,15 @@ export function messzeileModell({ label = '', glossar = null, count = null, n = 
       gegen: davor ? davor.year : null,
     },
   };
+  // Abstand zum Benchmark als eigenes Feld: Die Kachel nannte ihn als Zahl, die Messzeile tut es wieder. Der Ton
+  // folgt der Regel der Kacheln und der Vergleichstabelle (unter 0.5 pp neutral), damit dieselbe Zahl auf der Seite
+  // nicht zweierlei Farbe trägt. Für den Jahresabstand gilt die strengere 2-pp-Schwelle aus dem Auftrag.
+  modell.benchmark = modell.referenz && modell.referenz.abstand !== null && modell.referenz.abstand !== undefined
+    ? (() => {
+      const d = deltaView(modell.referenz.abstand, richtung);
+      return { pp: modell.referenz.abstand, zeichen: d.symbol, text: d.symbol + ' ' + d.text, ton: d.tone, label: modell.referenz.label };
+    })()
+    : null;
   modell.ariaLabel = [
     label + ': ' + mzWorte(wertPct),
     'n gleich ' + (n || 0) + (modell.klein ? ', kleine Gruppe' : ''),
@@ -655,6 +664,7 @@ export function messzeile(m) {
     el('span', { class: 'mz-verlauf-zelle' }, [mzVerlauf(m.verlauf)]),
     el('span', { class: 'mz-vorjahr', text: m.letztesJahr ? m.letztesJahr.year + ': ' + m.letztesJahr.text : '' }),
     el('span', { class: 'mz-delta ton-' + (m.delta ? m.delta.ton : 'neutral'), text: m.delta ? m.delta.text : '' }),
+    el('span', { class: 'mz-bench ton-' + (m.benchmark ? m.benchmark.ton : 'neutral'), text: m.benchmark ? m.benchmark.text : '', title: m.benchmark ? 'Abstand zum ' + m.benchmark.label : null }),
   ]);
 }
 
@@ -666,7 +676,13 @@ export function messzeilenBlock(titel, modelle, { referenzLabel = null } = {}) {
   const kopf = el('div', { class: 'mz-kopf' }, [
     titel ? el('h3', { class: 'mz-label mz-titel', text: titel }) : el('span', { class: 'mz-label' }),
     el('div', { class: 'mz-skala mz-achse' }, marken),
-    el('span', { class: 'mz-kopf-hinweis', text: referenzLabel ? 'Marke: ' + referenzLabel : '' }),
+    // Zwei Abstände nebeneinander brauchen zwei Namen, sonst heisst «▲ +3.7 pp» zweimal etwas anderes
+    el('span', { class: 'mz-wert', text: 'Wert' }),
+    el('span', { class: 'mz-n', text: 'n' }),
+    el('span', { class: 'mz-verlauf-zelle', text: 'Verlauf' }),
+    el('span', { class: 'mz-vorjahr', text: 'letztes Jahr' }),
+    el('span', { class: 'mz-delta', text: 'Δ Vorjahr' }),
+    el('span', { class: 'mz-bench', text: referenzLabel ? 'Δ Benchmark' : '' , title: referenzLabel ? 'Abstand zum Benchmark «' + referenzLabel + '»' : null }),
   ]);
   return el('section', { class: 'block messzeilen' }, [
     kopf,

@@ -277,7 +277,7 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
   /* Die Beschriftungsspalte trägt die längste Kennzahl einzeilig: max-content statt eines festen Masses. Ein festes
      Mass hielt lokal (260 px für «Schriftlich: im 1. Versuch durchgefallen»), brach aber in der breiteren
      CI-Schrift um – sechs umbrechende Zeilen kosteten 84 px Höhe und damit das Höhenbudget der Übersicht. */
-  grid-template-columns: minmax(8rem, max-content) minmax(6rem, 1fr) 4.5rem 3.5rem 4rem 6rem 5.5rem;
+  grid-template-columns: minmax(8rem, max-content) minmax(6rem, 1fr) 4.5rem 3.5rem 4rem 6rem 5.5rem 6.5rem;
 }
 .mz-kopf { color: var(--muted); font-size: var(--fs-xs); padding-bottom: var(--space-1); }
 .mz-kopf-hinweis { grid-column: 3 / -1; }
@@ -308,11 +308,18 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .mz-delta.ton-pos { color: var(--delta-pos); }
 .mz-delta.ton-neg { color: var(--delta-neg); }
 .mz-delta.ton-neutral { color: var(--delta-neutral); }
+/* Achtes Feld: Abstand zum Benchmark als Zahl – die Kachel nannte ihn, die Messzeile nennt ihn wieder. */
+.mz-bench { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--fs-sm); white-space: nowrap; }
+.mz-bench.ton-pos { color: var(--delta-pos); }
+.mz-bench.ton-neg { color: var(--delta-neg); }
+.mz-bench.ton-neutral { color: var(--delta-neutral); }
+.mz-kopf .mz-wert, .mz-kopf .mz-delta, .mz-kopf .mz-bench, .mz-kopf .mz-n { font-weight: 400; color: var(--muted); }
 /* Phone: die sieben Felder brechen in zwei Zeilen – Beschriftung und Skala oben, die Zahlen darunter. */
 @media screen and (max-width: 600px) {
   .mz-kopf, .messzeile { grid-template-columns: 1fr 4.5rem 3.5rem 5.5rem; }
   .mz-label { grid-column: 1 / -1; }
   .mz-skala { grid-column: 1 / -1; }
+  /* Auf dem Phone bleibt der Abstand zum Benchmark; Verlauf und Vorjahr weichen, sie brauchen Breite */
   .mz-verlauf-zelle, .mz-vorjahr { display: none; }
 }
 
