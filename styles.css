@@ -649,6 +649,9 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .viz-line-laufend { stroke-dasharray: 5 4; }
 .viz-ring { fill: var(--panel); }
 .viz-dot.small { fill: var(--panel); stroke-width: 2; }
+/* Trefferfläche einer Zeile im Punktdiagramm (Paket I, P4): durchsichtig, aber nicht «none» – «none» nimmt keine
+   Zeigerereignisse entgegen, und dann hinge der Mouseover wieder am 6-px-Punkt. */
+.viz-treffer { fill: transparent; }
 .viz-leader { stroke: var(--viz-grid); stroke-width: 1; }
 .viz-key { stroke-width: 2; stroke-linecap: round; }
 .viz-cross { stroke: var(--viz-tick); stroke-width: 1; pointer-events: none; }

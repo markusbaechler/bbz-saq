@@ -368,6 +368,22 @@ export function dotChartModel(points, { referenz = null, richtung = 'up' } = {})
         text: ['n = ' + (p.n || 0), diff === null ? null : (diff > 0 ? '+' : diff < 0 ? '−' : '±') + Math.abs(diff).toFixed(1) + ' pp',
           gesichert ? 'gesichert' + (bewertung ? ' ' + bewertung : '') : null]
           .filter(Boolean).join(' · ') + (p.small ? ' ' + SMALL_MARK : ''),
+        // Der ganze Satz für die Zeile (P4): Gruppe, Quote, Zähler MIT Nenner, Intervall, Abstand und ob er
+        // gesichert ist. Er ist der Mouseover-Text und zugleich der Name der Zeile im Accessibility-Baum.
+        // «n = 132» nennt nur den Nenner – ohne Zähler ist das in diesem Repo überall ein Mangel; auf dem Schirm
+        // steht die kurze Form, hier die vollständige.
+        titel: [
+          p.label,
+          formatPct(p.pct, 1),
+          dcNum(p.count)
+            ? p.count + ' von ' + (p.n || 0) + ' ' + ((p.n || 0) === 1 ? (p.unitSg || 'Vorgang') : (p.unit || 'Vorgängen'))
+            : 'n = ' + (p.n || 0),
+          hatIv ? '95-%-Intervall ' + formatPct(p.low, 1).replace(/\s%$/, '') + ' bis ' + formatPct(p.high, 1) : null,
+          diff === null ? null : (diff > 0 ? '+' : diff < 0 ? '−' : '±') + Math.abs(diff).toFixed(1)
+            + ' pp gegenüber ' + ref.label + ' ' + formatPct(ref.pct, 1),
+          diff === null ? null : (gesichert ? 'gesichert' + (bewertung ? ' ' + bewertung : '') : 'nicht gesichert'),
+          p.small ? 'Gruppe mit n < ' + SMALL_N : null,
+        ].filter(Boolean).join(' · '),
       };
     }),
   };
@@ -399,39 +415,60 @@ export function renderDotChart(points, { title = '', yFormat = (v) => String(v),
   const plotW = width - pad.left - pad.right;
   const xPx = (prozent) => pad.left + (plotW * prozent) / 100;
   const yPx = (i) => pad.top + zeileH * i + zeileH / 2;
+  // Rollenstruktur (P4), gemessen entschieden: Das SVG ist ein Container, die Zeilen stehen als eigene Liste
+  // darin. Mit role="img" auf dem SVG gelten alle Nachfahren als Bildinhalt – die Zeilen sind dann für
+  // Hilfsmittel nicht da, und übrig bleibt ein Satz für sechs Gruppen. role="list" direkt auf dem SVG geht
+  // auch nicht: Gemessen hingen die vier Achsenbeschriftungen als leere Fremdkinder in der Liste, die damit
+  // sechs statt zwei Einträge meldete. Deshalb eine eigene Gruppe für die Liste und aria-hidden auf allem,
+  // was Achse, Gitter und Bezugslinie ist – deren Zahlen stehen ohnehin in jedem Zeilensatz.
   const root = svg('svg', {
-    viewBox: '0 0 ' + width + ' ' + height, class: 'viz-svg viz-dots', role: 'img', tabindex: 0,
+    viewBox: '0 0 ' + width + ' ' + height, class: 'viz-svg viz-dots', role: 'group', tabindex: 0,
     'aria-label': ariaLabel || title,
   });
-  if (title) root.appendChild(svg('title', {}, [document.createTextNode(title)]));
+  // Kein <title> auf der Wurzel mehr: Er landete als «description» neben dem aria-label und wurde nach dem
+  // langen Satz ein zweites Mal vorgelesen. Den Namen des Diagramms trägt sichtbar die figcaption darunter,
+  // für Hilfsmittel das aria-label – jeder genau einmal. Den Mouseover tragen jetzt die Zeilen.
+  const deko = svg('g', { 'aria-hidden': 'true' });
+  root.appendChild(deko);
 
   // Eine Achse unten, Gitterlinien senkrecht auf den Ticks
   for (const tv of modell.ticks) {
     const x = xPx(((tv - modell.xMin) / Math.max(modell.xMax - modell.xMin, 1e-9)) * 100);
-    root.appendChild(svg('line', { x1: x, x2: x, y1: pad.top - 6, y2: height - pad.bottom, class: 'viz-grid' }));
-    root.appendChild(text(x, height - pad.bottom + 16, yFormat(tv), 'viz-tick', 'middle'));
+    deko.appendChild(svg('line', { x1: x, x2: x, y1: pad.top - 6, y2: height - pad.bottom, class: 'viz-grid' }));
+    deko.appendChild(text(x, height - pad.bottom + 16, yFormat(tv), 'viz-tick', 'middle'));
   }
-  root.appendChild(svg('line', { x1: pad.left, x2: width - pad.right, y1: height - pad.bottom, y2: height - pad.bottom, class: 'viz-axis' }));
+  deko.appendChild(svg('line', { x1: pad.left, x2: width - pad.right, y1: height - pad.bottom, y2: height - pad.bottom, class: 'viz-axis' }));
 
   // Senkrechte auf dem Gesamtwert – die Bezugslinie, gegen die jeder Balken gelesen wird
   if (modell.referenz) {
     const x = xPx(modell.referenz.x);
-    root.appendChild(svg('line', { x1: x, x2: x, y1: pad.top - 10, y2: height - pad.bottom, class: 'viz-ref' }));
-    root.appendChild(text(x, pad.top - 14, modell.referenz.label + ' ' + yFormat(modell.referenz.pct), 'viz-tick', 'middle'));
+    deko.appendChild(svg('line', { x1: x, x2: x, y1: pad.top - 10, y2: height - pad.bottom, class: 'viz-ref' }));
+    deko.appendChild(text(x, pad.top - 14, modell.referenz.label + ' ' + yFormat(modell.referenz.pct), 'viz-tick', 'middle'));
   }
 
+  const liste = svg('g', { role: 'list', 'aria-label': (title || 'Werte') + ', ' + modell.zeilen.length + ' Gruppen' });
+  root.appendChild(liste);
   modell.zeilen.forEach((z, i) => {
     const y = yPx(i);
-    root.appendChild(text(pad.left - 10, y + 4, beschriftung(z), 'viz-label', 'end'));
+    // Eine Zeile, ein Satz: Der <title> ist der Mouseover-Text und zugleich der Name der Zeile im
+    // Accessibility-Baum – einmal geschrieben, nicht zweimal (ein aria-label daneben liesse den Satz doppelt
+    // vorlesen). Er steht als ERSTES Kind, sonst gilt er nicht für die ganze Gruppe.
+    const zeile = svg('g', { role: 'listitem' }, [svg('title', {}, [document.createTextNode(z.titel)])]);
+    // Die Trefferfläche ist die ganze Zeile, nicht der Punkt: Punkt (r = 6) und Balken (2 px hoch) treffen
+    // heisst auf 30 px Zeilenhöhe zielen. Das Rechteck liegt hinter allem und ist durchsichtig, nicht «none» –
+    // «none» nimmt keine Zeigerereignisse entgegen.
+    zeile.appendChild(svg('rect', { x: 0, y: pad.top + zeileH * i, width, height: zeileH, class: 'viz-treffer' }));
+    zeile.appendChild(text(pad.left - 10, y + 4, beschriftung(z), 'viz-label', 'end'));
     if (z.intervall) {
-      root.appendChild(svg('line', { x1: xPx(z.intervall.von), x2: xPx(z.intervall.bis), y1: y, y2: y, class: 'viz-ci' }));
+      zeile.appendChild(svg('line', { x1: xPx(z.intervall.von), x2: xPx(z.intervall.bis), y1: y, y2: y, class: 'viz-ci' }));
       for (const p of [z.intervall.von, z.intervall.bis]) {
-        root.appendChild(svg('line', { x1: xPx(p), x2: xPx(p), y1: y - 4, y2: y + 4, class: 'viz-ci-cap' }));
+        zeile.appendChild(svg('line', { x1: xPx(p), x2: xPx(p), y1: y - 4, y2: y + 4, class: 'viz-ci-cap' }));
       }
     }
-    root.appendChild(svg('circle', { cx: xPx(z.x), cy: y, r: 6, class: 'viz-ring' }));
-    root.appendChild(svg('circle', { cx: xPx(z.x), cy: y, r: 4, class: 'viz-dot' + (z.small ? ' small' : ''), style: z.small ? 'stroke:var(--series-1)' : 'fill:var(--series-1)' }));
-    if (!compact) root.appendChild(text(width - pad.right + 10, y + 4, z.text, 'viz-label' + (z.bewertung ? ' ton-' + (z.bewertung === 'günstig' ? 'pos' : 'neg') : '')));
+    zeile.appendChild(svg('circle', { cx: xPx(z.x), cy: y, r: 6, class: 'viz-ring' }));
+    zeile.appendChild(svg('circle', { cx: xPx(z.x), cy: y, r: 4, class: 'viz-dot' + (z.small ? ' small' : ''), style: z.small ? 'stroke:var(--series-1)' : 'fill:var(--series-1)' }));
+    if (!compact) zeile.appendChild(text(width - pad.right + 10, y + 4, z.text, 'viz-label' + (z.bewertung ? ' ton-' + (z.bewertung === 'günstig' ? 'pos' : 'neg') : '')));
+    liste.appendChild(zeile);
   });
 
   const figure = el('figure', { class: 'viz' + (compact ? ' compact' : '') }, [root]);

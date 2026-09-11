@@ -559,6 +559,35 @@ längerer Gruppenname wird gekürzt und mit «…» markiert; vollständig steht
 Phone entfällt die Direktbeschriftung ganz (die Zahlen stehen in der Tabelle), rechts bleibt nur der Rand für die
 letzte Achsenbeschriftung – die vorher zur Hälfte über den Rand ragte.
 
+**Eine Zeile, ein Satz (Paket I, P4).** Vorher hing ein einziger `<title>` am SVG: Wer eine Zeile ansteuerte, bekam
+den Titel des Diagramms – für alle sechs Gruppen denselben Text. Jede Zeile trägt jetzt ihren eigenen:
+
+> IK · 44.7 % · 59 von 132 Vorgängen · 95-%-Intervall 36.5 bis 53.2 % · +26.0 pp gegenüber Gesamt 18.7 % · gesichert ungünstig
+
+Gruppe, Quote, **Zähler mit Nenner** («n = 132» allein nennt nur den Nenner – das ist hier überall ein Mangel),
+Wilson-Intervall von–bis, Abstand in pp zur Bezugslinie und ob er gesichert ist. Was nicht dasteht, fehlt auch im
+Satz: ohne Bezugslinie kein Abstand und kein «gesichert», bei neutraler Richtung «gesichert» ohne Wertung (E9),
+bei n < 5 der Zusatz «Gruppe mit n < 5». Der Satz steht im Modell, ist also ohne DOM prüfbar.
+
+**Die Trefferfläche ist die ganze Zeile.** Ein durchsichtiges Rechteck über die volle Breite liegt hinter Punkt,
+Balken, Gruppenname und Direktbeschriftung – gemessen **33 715 px² statt 140 px²** am Punkt allein, also Faktor
+241. Es ist `fill: transparent`, nicht `fill: none`: «none» nimmt keine Zeigerereignisse entgegen.
+
+**Die Rollenstruktur ist gemessen entschieden, nicht gewählt.** Drei Varianten im Accessibility-Baum verglichen:
+
+| | Ergebnis |
+|---|---|
+| `role="img"` + `<title>` je Zeile | Mit `img` gelten alle Nachfahren als Bildinhalt – verlässlich bleibt **ein Satz für sechs Gruppen**. |
+| `role="img"` + `<desc>` je Zeile | Dasselbe, und der Satz landet zusätzlich in `description`: **zweimal vorgelesen**. |
+| `role="list"` direkt auf dem SVG | Die vier Achsenbeschriftungen hingen als **leere Fremdkinder** in der Liste; sie meldete sechs statt zwei Einträge. |
+| **SVG = Container, Liste als eigene Gruppe** | `group › list › listitem` – sauber, ohne Fremdkinder, ohne Doppelung. **Gewählt.** |
+
+Achse, Gitter und Bezugslinie stehen deshalb in einer Gruppe mit `aria-hidden` – ihre Zahlen stehen ohnehin in
+jedem Zeilensatz. Der `<title>` auf der Wurzel ist weg: Er wurde nach dem `aria-label` ein zweites Mal vorgelesen;
+den Namen des Diagramms trägt sichtbar die figcaption, für Hilfsmittel das `aria-label` – jeder genau einmal.
+Die Zeilen bekommen **kein** eigenes `tabindex`: Vier Diagramme à sechs Zeilen wären 24 zusätzliche Tabstopps je
+Ansicht; Screenreader navigieren Listen mit ihren eigenen Tasten, und die Zahlen stehen in der Tabelle darunter.
+
 **In «Experten» gilt eine Besonderheit:** Dort werden Menschen verglichen, deshalb steht das Diagramm in der
 Reihenfolge der Tabelle (Einsätze absteigend) und **nicht nach Quote sortiert** – nach Quote sortiert wäre das Bild
 eine Rangliste von Personen, und genau das ist die Ansicht laut ihrer eigenen Fussnote nicht (E9). Die Balken werden

@@ -262,8 +262,8 @@ try {
       textInDatenfarbe: [...fig.querySelectorAll('.viz-label, .viz-tick, figcaption')].filter((x) => /series/.test(x.getAttribute('style') || '')).length,
     };
   });
-  check(!!punkte && punkte.punkte >= 3 && punkte.punkte === punkte.balken && punkte.referenz === 1 && punkte.rolle === 'img' && punkte.aria > 40,
-    'M2 Punktdiagramm: ' + (punkte ? punkte.punkte : 0) + ' Punkte mit Wilson-Balken, Linie auf dem Gesamtwert, role=img mit aria-label');
+  check(!!punkte && punkte.punkte >= 3 && punkte.punkte === punkte.balken && punkte.referenz === 1 && punkte.rolle === 'group' && punkte.aria > 40,
+    'M2 Punktdiagramm: ' + (punkte ? punkte.punkte : 0) + ' Punkte mit Wilson-Balken, Linie auf dem Gesamtwert, role=group mit aria-label (seit P4 Container statt Bild)');
   check(!!punkte && punkte.beschriftung.length === punkte.punkte && punkte.beschriftung.every((t) => /^n = \d+( · [+−±]\d+\.\d pp)?( · gesichert)?( \*)?$/.test(t)) && punkte.legende.length === 3 && punkte.textInDatenfarbe === 0,
     'M2 Direktbeschriftung je Punkt (' + (punkte ? punkte.beschriftung.join(' | ') : '') + '), Legende mit ' + (punkte ? punkte.legende.length : 0) + ' Einträgen, kein Text in der Datenfarbe');
   check(!!punkte && punkte.hohl >= 1 && punkte.tabellenzeilen >= punkte.punkte && /Kennzahlen je Profil/.test(punkte.titelDerTabelle),
@@ -709,6 +709,62 @@ try {
       'P3 ' + ansicht + ': Beschriftungen innerhalb der viewBox, Plot ≥ halbe Breite – '
         + b.map((d) => d.titel.slice(0, 24) + ' ' + d.randLinks + '|' + d.plot + '|' + d.randRechts + ' von ' + d.vb).join(' · ')
         + (b.some((d) => d.ueber.length) ? ' – ÜBER DEN RAND: ' + b.flatMap((d) => d.ueber).join(', ') : ''));
+
+    // P4: Ein <title> JE ZEILE statt einem je SVG, und die Trefferfläche ist die ganze Zeile. Geprüft wird an
+    // vier Stellen der Zeile (Gruppenname links, Balkenanfang, Punkt, Direktbeschriftung rechts), dass derselbe
+    // Satz erscheint – und dass die Sätze verschiedener Zeilen verschieden sind. Vorher trugen alle Zeilen den
+    // Titel des Diagramms.
+    const p4 = await page.evaluate(() => {
+      // elementFromPoint rechnet im Sichtfenster: Was darunter liegt, liefert null. Deshalb wird jede Figur
+      // vor der Probe in die Mitte gescrollt – sonst misst die Prüfung den Scrollstand statt die Trefferfläche.
+      const titelAn = (x, y) => {
+        for (let e = document.elementFromPoint(x, y); e && e !== document.body; e = e.parentElement || e.parentNode) {
+          const t = e.children ? [...e.children].find((c) => c.tagName.toLowerCase() === 'title') : null;
+          if (t) return t.textContent;
+        }
+        return null;
+      };
+      return [...document.querySelectorAll('#view figure.viz')].filter((f) => f.querySelector('.viz-dots')).map((f) => {
+        const sv = f.querySelector('svg');
+        sv.scrollIntoView({ block: 'center' });
+        const kasten = sv.getBoundingClientRect();
+        const eintraege = [...sv.querySelectorAll('[role="listitem"]')];
+        const saetze = eintraege.map((g) => (g.querySelector('title') || {}).textContent || '');
+        // Vier Proben je Zeile über die volle Breite des Zeilenbandes
+        const proben = eintraege.map((g, i) => {
+          const r = g.querySelector('rect.viz-treffer');
+          if (!r) return { i, treffer: 0, von: 4 };
+          const b = r.getBoundingClientRect();
+          const y = b.top + b.height / 2;
+          const xs = [b.left + 4, b.left + b.width * 0.35, b.left + b.width * 0.6, b.right - 4];
+          return { i, treffer: xs.filter((x) => titelAn(x, y) === saetze[i]).length, von: xs.length };
+        });
+        return {
+          titel: (f.querySelector('figcaption') || { textContent: '' }).textContent.split(' · ')[0],
+          rolle: sv.getAttribute('role'),
+          listen: sv.querySelectorAll('[role="list"]').length,
+          eintraege: eintraege.length,
+          punkte: sv.querySelectorAll('circle.viz-dot').length,
+          titelAufDerWurzel: [...sv.children].filter((c) => c.tagName.toLowerCase() === 'title').length,
+          dekoVersteckt: sv.querySelectorAll('g[aria-hidden="true"] .viz-axis, g[aria-hidden="true"] .viz-grid').length,
+          verschieden: new Set(saetze).size,
+          vollstaendig: saetze.filter((t) => /·/.test(t) && / % · /.test(t)).length,
+          mitZaehler: saetze.filter((t) => / von \d+ /.test(t)).length,
+          treffer: proben.reduce((a, x) => a + x.treffer, 0),
+          proben: proben.reduce((a, x) => a + x.von, 0),
+          beispiel: saetze[0] || '',
+          flaeche: Math.round(kasten.width * (kasten.height / Math.max(1, eintraege.length))),
+        };
+      });
+    });
+    const p4Falsch = p4.filter((d) => d.rolle !== 'group' || d.listen !== 1 || d.eintraege !== d.punkte
+      || d.titelAufDerWurzel !== 0 || d.dekoVersteckt < 2 || d.verschieden !== d.eintraege
+      || d.vollstaendig !== d.eintraege || d.mitZaehler !== d.eintraege || d.treffer !== d.proben);
+    check(p4.length > 0 && p4Falsch.length === 0,
+      'P4 ' + ansicht + ': ' + p4.map((d) => d.eintraege + ' Zeilen mit eigenem Satz, Trefferfläche ' + d.flaeche + ' px² (' + d.treffer + '/' + d.proben + ' Proben)').join(' | ')
+        + ' – z. B. «' + (p4[0] || {}).beispiel + '»'
+        + (p4Falsch.length ? ' – FALSCH: ' + p4Falsch.map((d) => d.titel + ' role=' + d.rolle + ', ' + d.listen + ' Listen, ' + d.eintraege + ' Einträge zu ' + d.punkte + ' Punkten, '
+          + d.verschieden + ' verschiedene Sätze, ' + d.mitZaehler + ' mit Zähler, ' + d.titelAufDerWurzel + ' Titel auf der Wurzel, ' + d.treffer + '/' + d.proben + ' Proben').join(' / ') : ''));
 
     // P1 für JEDES Punktdiagramm, nicht nur in «Schriftlich»/«Mündlich»: Ein gesicherter Abstand trägt seine
     // Wertung als Wort. Die Übersicht rief das Diagramm an der Prüfung vorbei direkt auf und reichte die Richtung

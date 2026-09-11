@@ -7,7 +7,8 @@ import { wilsonInterval } from '../metrics.js';
 const punkt = (label, pct, n, extra = {}) => ({ label, pct, n, ...extra });
 const mitIv = (label, count, n) => {
   const iv = wilsonInterval(count, n);
-  return { label, pct: count / n, n, low: iv.low, high: iv.high, small: n < 5 };
+  // count gehört zum Punkt, seit der Satz je Zeile «59 von 132» nennt statt nur «n = 132» (P4)
+  return { label, pct: count / n, count, n, low: iv.low, high: iv.high, small: n < 5 };
 };
 
 test('dotchart: Achse beginnt bei 0 und endet über dem grössten Wert, Referenz und Punkte liegen darauf', () => {
@@ -56,6 +57,39 @@ test('dotchart: die Richtung sagt, ob ein gesicherter Abstand gut oder schlecht 
   const unsicher = dotChartModel([mitIv('Klein', 3, 4)], { referenz: ref, richtung: 'down' });
   assertEqual(unsicher.zeilen[0].gesichert, false);
   assert(!/günstig/.test(unsicher.zeilen[0].text), unsicher.zeilen[0].text);
+});
+
+// P4: Jede Zeile trägt ihren eigenen Satz – Mouseover-Text und Name im Accessibility-Baum in einem. Vorher hing
+// ein einziger <title> am SVG, und alle sechs Gruppen zeigten denselben Text: den Titel des Diagramms.
+test('dotchart: der Satz je Zeile nennt Gruppe, Quote, Zähler MIT Nenner, Intervall, Abstand und ob er gesichert ist', () => {
+  const m = dotChartModel([mitIv('IK', 59, 132)], { referenz: { pct: 178 / 952, label: 'Gesamt' }, richtung: 'down' });
+  assertEqual(m.zeilen[0].titel,
+    'IK · 44.7 % · 59 von 132 Vorgängen · 95-%-Intervall 36.5 bis 53.2 % · +26.0 pp gegenüber Gesamt 18.7 % · gesichert ungünstig');
+});
+
+test('dotchart: der Satz lässt weg, was nicht dasteht – und zählt richtig in der Einzahl', () => {
+  // Ohne Bezugslinie gibt es keinen Abstand und damit auch kein «gesichert» – das wäre eine Aussage ohne Bezug
+  const ohneRef = dotChartModel([mitIv('WE1', 8, 52)]);
+  assertEqual(ohneRef.zeilen[0].titel, 'WE1 · 15.4 % · 8 von 52 Vorgängen · 95-%-Intervall 8.0 bis 27.5 %');
+  // Ohne Zähler bleibt nur der Nenner; die Kurzform ist dann ausdrücklich als n gekennzeichnet
+  const ohneCount = dotChartModel([punkt('PK', 0.13, 600)]);
+  assertEqual(ohneCount.zeilen[0].titel, 'PK · 13.0 % · n = 600');
+  // «0 von 1 Vorgängen» ist falsches Deutsch; die Einheit kommt aus dem Punkt (Experten zählen Einsätze)
+  const eins = dotChartModel([{ label: 'Neu', pct: 0, count: 0, n: 1, small: true }]);
+  assertEqual(eins.zeilen[0].titel, 'Neu · 0.0 % · 0 von 1 Vorgang · Gruppe mit n < 5');
+  const experte = dotChartModel([{ label: 'E1', pct: 0.5, count: 1, n: 2, unit: 'Einsätzen', unitSg: 'Einsatz' },
+    { label: 'E2', pct: 1, count: 1, n: 1, unit: 'Einsätzen', unitSg: 'Einsatz' }]);
+  assert(/1 von 2 Einsätzen/.test(experte.zeilen[0].titel), experte.zeilen[0].titel);
+  assertEqual(experte.zeilen[1].titel, 'E2 · 100.0 % · 1 von 1 Einsatz');
+});
+
+test('dotchart: kleine Gruppen und neutrale Richtung im Satz je Zeile', () => {
+  const klein = dotChartModel([mitIv('Neu', 2, 4)], { referenz: { pct: 0.2, label: 'Gesamt' }, richtung: 'down' });
+  assert(/· Gruppe mit n < 5$/.test(klein.zeilen[0].titel), 'die kleine Gruppe wird benannt, nicht weggelassen: ' + klein.zeilen[0].titel);
+  assert(/nicht gesichert/.test(klein.zeilen[0].titel), 'bei n = 4 ist nichts gesichert: ' + klein.zeilen[0].titel);
+  // Neutral (Experten, E9): gesichert ja, aber ohne Wertung – hier werden Menschen verglichen
+  const neutral = dotChartModel([mitIv('E1', 59, 132)], { referenz: { pct: 0.187, label: 'Alle Experten' }, richtung: 'neutral' });
+  assert(/· gesichert$/.test(neutral.zeilen[0].titel), 'gesichert ohne Wertung: ' + neutral.zeilen[0].titel);
 });
 
 test('dotchart: ohne Referenz keine Differenz und nichts «gesichert»', () => {

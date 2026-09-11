@@ -122,7 +122,8 @@ export function quotenPunkte(persons, key, { rates = writtenPassRates, wert = (r
       .map((g) => {
         const r = wert(g.value);
         const iv = wilsonInterval(r.count, r.n);
-        return { label: groupLabel(g.key), pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+        // count gehört dazu, nicht nur n: Der Mouseover nennt «41 von 220», nicht «n = 220» (P4).
+        return { label: groupLabel(g.key), pct: r.pct, count: r.count, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
       })
       .sort((a, b) => b.pct - a.pct),
     referenz: isNum(gesamt.pct) ? { pct: gesamt.pct, label: 'Gesamt' } : null,
@@ -188,7 +189,7 @@ export function teilPunkte(persons, kind = 'we') {
       .filter((p) => isNum(p.failed.pct))
       .map((p) => {
         const iv = wilsonInterval(p.failed.count, p.failed.n);
-        return { label: p.label, pct: p.failed.pct, n: p.failed.n, low: iv.low, high: iv.high, small: p.n < SMALL_N };
+        return { label: p.label, pct: p.failed.pct, count: p.failed.count, n: p.failed.n, low: iv.low, high: iv.high, small: p.n < SMALL_N };
       }),
     referenz: null,
   };
@@ -256,7 +257,7 @@ export function vssVsmPunkte(persons) {
       .map(([label, block]) => {
         const r = block.written.erstversuchFailed;
         const iv = wilsonInterval(r.count, r.n);
-        return { label, pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+        return { label, pct: r.pct, count: r.count, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
       }),
     referenz: isNum(gesamt.pct) ? { pct: gesamt.pct, label: 'Gesamt' } : null,
   };
@@ -1352,7 +1353,7 @@ export function expertTables(runs, { deltaDirection = 'neutral' } = {}) {
       .filter((s) => isNum(s.fail.erst.pct))
       .map((s) => {
         const iv = wilsonInterval(s.fail.erst.count, s.fail.erst.n);
-        return { label: s.name, pct: s.fail.erst.pct, n: s.fail.erst.n, low: iv.low, high: iv.high, small: s.fail.erst.n < SMALL_N, unit: 'Einsätzen' };
+        return { label: s.name, pct: s.fail.erst.pct, count: s.fail.erst.count, n: s.fail.erst.n, low: iv.low, high: iv.high, small: s.fail.erst.n < SMALL_N, unit: 'Einsätzen', unitSg: 'Einsatz' };
       }),
     referenz: isNum(bench.fail.erst.pct) ? { pct: bench.fail.erst.pct, label: 'Alle Experten' } : null,
   };
