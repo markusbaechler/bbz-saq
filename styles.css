@@ -274,9 +274,10 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .messzeilen-liste { list-style: none; margin: 0; padding: 0; }
 .mz-kopf, .messzeile {
   display: grid; align-items: center; gap: 0 var(--space-3);
-  /* Die Beschriftungsspalte trägt die längste Kennzahl einzeilig – gemessen «Schriftlich: im 1. Versuch
-     durchgefallen» mit 260 px; bei 15rem brach sie um und kostete je Zeile 14 px Höhe. */
-  grid-template-columns: minmax(8rem, 17rem) minmax(6rem, 1fr) 4.5rem 3.5rem 4rem 6rem 5.5rem;
+  /* Die Beschriftungsspalte trägt die längste Kennzahl einzeilig: max-content statt eines festen Masses. Ein festes
+     Mass hielt lokal (260 px für «Schriftlich: im 1. Versuch durchgefallen»), brach aber in der breiteren
+     CI-Schrift um – sechs umbrechende Zeilen kosteten 84 px Höhe und damit das Höhenbudget der Übersicht. */
+  grid-template-columns: minmax(8rem, max-content) minmax(6rem, 1fr) 4.5rem 3.5rem 4rem 6rem 5.5rem;
 }
 .mz-kopf { color: var(--muted); font-size: var(--fs-xs); padding-bottom: var(--space-1); }
 .mz-kopf-hinweis { grid-column: 3 / -1; }

@@ -250,6 +250,9 @@ try {
       // Seit M3 folgt auf die Signale der Quotenblock; gemessen wird, was direkt darunter beginnt
       kachelY: Math.round((document.querySelector('#view .messzeile') || document.querySelector('#view .kpi')).getBoundingClientRect().top + window.scrollY),
       letzteMesszeile: (() => { const z = [...document.querySelectorAll('#view .messzeile')]; return z.length ? Math.round(z[z.length - 1].getBoundingClientRect().bottom + window.scrollY) : null; })(),
+      // Bei Überschreitung nennen, woher die Höhe kommt: Zeilenhöhen und umbrechende Beschriftungen
+      zeilenhoehen: [...new Set([...document.querySelectorAll('#view .messzeile')].map((z) => Math.round(z.getBoundingClientRect().height)))],
+      umbrueche: [...document.querySelectorAll('#view .mz-label')].filter((l) => l.getBoundingClientRect().height > 24).length,
       details: [...b.querySelectorAll('.signal-detail')].filter((p) => p.getClientRects().length > 0).length,
     });
     const zu = mess();
@@ -262,7 +265,8 @@ try {
   check(budget.zu.kachelY < 700, 'D2 erster Inhalt unter den Signalen bei y = ' + budget.zu.kachelY + ' (über 700)');
   // M3: Höhenbudget der Übersicht im echten Fall – die sechs Quoten-Messzeilen müssen ohne Scrollen lesbar sein
   check(budget.zu.letzteMesszeile !== null && budget.zu.letzteMesszeile < 900,
-    'M3 Höhenbudget: letzte Quoten-Messzeile bei y = ' + budget.zu.letzteMesszeile + ' (über 900, mit sechs Signalen bei 1400 × 900)');
+    'M3 Höhenbudget: letzte Quoten-Messzeile bei y = ' + budget.zu.letzteMesszeile + ' (über 900, mit sechs Signalen bei 1400 × 900); Zeilen '
+      + budget.zu.zeilenhoehen.join('/') + ' px, ' + budget.zu.umbrueche + ' umbrechende Beschriftungen');
   check(budget.zu.details === 3 && budget.auf.details === 6, 'D2 drei Detailzeilen offen, alle sechs über den Schalter erreichbar (' + budget.zu.details + ' → ' + budget.auf.details + ')');
 
   // Leerzustand: Feuert keine Regel, verschwindet der Block nicht, sondern nennt, was geprüft wurde und ruhig blieb.
