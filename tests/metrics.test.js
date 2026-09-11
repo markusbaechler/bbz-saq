@@ -284,13 +284,24 @@ function oralCohort() {
   return { ok, f1, f2, none };
 }
 
-test('oralPassRates: Nenner = Personen mit OE1 RUN1-Datum; bestanden, 1× und 2× durchgefallen', () => {
+test('oralPassRates: Nenner = Personen mit OE1 RUN1-Datum; bestanden, 1×, 2× und 3× durchgefallen', () => {
   const { ok, f1, f2, none } = oralCohort();
-  const r = oralPassRates([ok, f1, f2, none]);
-  assertEqual(r.bestanden.n, 3);
+  // 3× durchgefallen: alle drei Versuche nicht bestanden – RUN3 ist der letzte, den die Datei kennt
+  const f3 = simple({ profil: 'IK', oeAllPassed: false, oe: { 1: [
+    { passed: false, date: '2024-05-01', result: 0.4 }, { passed: false, date: '2024-06-01', result: 0.45 }, { passed: false, date: '2024-09-01', result: 0.5 },
+  ] } });
+  const r = oralPassRates([ok, f1, f2, none, f3]);
+  assertEqual(r.bestanden.n, 4);
   assertEqual(r.bestanden.count, 2);
-  assertEqual(r.failed1, { count: 2, n: 3, pct: 2 / 3, small: true });
-  assertEqual(r.failed2, { count: 1, n: 3, pct: 1 / 3, small: true });
+  assertEqual(r.failed1, { count: 3, n: 4, pct: 3 / 4, small: true });
+  assertEqual(r.failed2, { count: 2, n: 4, pct: 2 / 4, small: true });
+  assertEqual(r.failed3, { count: 1, n: 4, pct: 1 / 4, small: true }, '3× ist Teilmenge von 2×, gleicher Nenner');
+  // Wer den dritten Versuch besteht, zählt nicht mit
+  const rette = simple({ profil: 'IK', oeAllPassed: true, oe: { 1: [
+    { passed: false, date: '2024-05-01', result: 0.4 }, { passed: false, date: '2024-06-01', result: 0.45 }, { passed: true, date: '2024-09-01', result: 0.7 },
+  ] } });
+  assertEqual(oralPassRates([rette]).failed3, ratio(0, 1));
+  assertEqual(oralPassRates([rette]).failed2, ratio(1, 1));
   assertEqual(oralPassRates([none]).bestanden, ratio(0, 0));
 });
 

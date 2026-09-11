@@ -309,7 +309,7 @@ try {
   check(bloecke.h3.join(',') === 'Durchfallquoten,Mengen,Ø Resultat' && bloecke.quoten.length === 5 && bloecke.spuren === 1 && bloecke.skalenkopf === 'Durchfallquoten'
     && bloecke.quotenKacheln === 0 && bloecke.oKacheln === 4,
     'M3 Übersicht: ' + bloecke.quoten.length + ' Quoten als Messzeilen auf einer Spur («' + bloecke.skalenkopf + '»), Kacheln nur noch in ' + bloecke.h3.join(' · ') + ' (' + bloecke.oKacheln + ' Ø-Kacheln mit Streuung)');
-  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch durchgefallen | Schriftlich: endgültig nicht bestanden | Mündlich: im 1. Versuch durchgefallen | Mündlich: 2× durchgefallen | Mündlich: endgültig nicht bestanden'
+  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch durchgefallen | Schriftlich: endgültig nicht bestanden | Mündlich: im 1. Versuch durchgefallen | Mündlich: 2× durchgefallen | Mündlich: 3× durchgefallen'
     && bloecke.definitionen === 5,
     'M3 Reihenfolge und Benennung der Messzeilen: ' + bloecke.quoten.join(' | '));
   // Die Spur läuft von 0 bis 50 %, und jede Zeile nennt Zähler und Grundgesamtheit («191 von 977»)
@@ -318,12 +318,17 @@ try {
     anzahl: [...document.querySelectorAll('#view .messzeile .mz-n')].map((x) => x.textContent.trim()),
     kopf: [...document.querySelectorAll('#view .mz-kopf > *')].map((x) => x.textContent.trim()),
     maxPos: Math.max(...[...document.querySelectorAll('#view .messzeile .mz-punkt')].map((p) => parseFloat(p.style.left) || 0)),
+    // Ein Nullpunkt für alle: Kopfzeile und Zeilen teilen ein Raster (Subgrid). Vorher rechnete jede Zeile ihre
+    // Spaltenbreite selbst – die Spur begann bei 316, 310, 313, 248 und 306 px, die Achse 130 px weiter links.
+    spurStart: [...new Set([...document.querySelectorAll('#view .messzeilen .mz-skala')].map((e) => Math.round(e.getBoundingClientRect().left)))],
   }));
   // Die Spur endet auf der nächsten 5-%-Stufe über dem grössten Wert (mindestens 10 pp): Der grösste Punkt liegt
   // damit im rechten Drittel statt in der linken Hälfte einer festen 50-%-Spur.
   check(spur.marken[0] === '0 %' && /^\d+(\.\d)? %$/.test(spur.marken[2]) && spur.maxPos >= 60
     && spur.anzahl.every((t) => /^\d+ von \d+$/.test(t)) && spur.kopf.includes('Anzahl'),
     'M3 Spur ' + spur.marken.join(' · ') + ', grösster Wert bei ' + spur.maxPos + ' % der Spur, Anzahl als Zähler von Grundgesamtheit (' + spur.anzahl.join(' | ') + ')');
+  check(spur.spurStart.length === 1,
+    'M3 ein Nullpunkt für Achse und alle Zeilen (Spurbeginn bei ' + spur.spurStart.join('/') + ' px)');
   // Das Komplement der Erstversuchsquote steht nicht mehr auf der Übersicht – als Kennzahl bleibt es aber überall
   // dort, wo es hingehört: in der Vergleichstabelle, im Export und in der Ansicht «Schriftlich».
   const durchfall = await page.evaluate(() => {

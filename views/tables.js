@@ -537,8 +537,8 @@ const MESSZEILEN_QUOTEN = [
     hint: 'Anteil angetretener Vorgänge, die OE1 im ersten und im zweiten Versuch nicht bestanden haben; n = angetretene Vorgänge. Teilmenge der Zeile darüber.',
   },
   {
-    label: 'Mündlich: endgültig nicht bestanden', wert: (t) => t.oral.nichtBestanden,
-    hint: 'Anteil abgeschlossener Vorgänge mit «OE All Passed» = no, also mündlich endgültig gescheitert; n = abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden). Die Datei sagt nicht, nach wie vielen Versuchen.',
+    label: 'Mündlich: 3× durchgefallen', wert: (t) => t.oral.failed3,
+    hint: 'Anteil angetretener Vorgänge, die OE1 in allen drei Versuchen nicht bestanden haben (RUN1, RUN2, RUN3 – mehr kennt die Datei nicht); n = angetretene Vorgänge. Teilmenge der Zeile darüber.',
   },
 ];
 
