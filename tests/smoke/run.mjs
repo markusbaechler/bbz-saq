@@ -298,7 +298,8 @@ try {
     const spuren = [...document.querySelectorAll('#view .messzeilen')];
     return {
       h3: [...document.querySelectorAll('#view .kpi-group h3')].map((x) => x.textContent),
-      quoten: quoten.map((z) => (z.querySelector('.mz-label') || {}).textContent),
+      quoten: quoten.map((z) => ((z.querySelector('.mz-label') || {}).textContent || '').replace('ⓘ', '').trim()),
+      definitionen: quoten.filter((z) => z.querySelector('.mz-label .info')).length,
       spuren: spuren.length,
       skalenkopf: spuren.length ? spuren[0].querySelector('.mz-kopf .mz-label').textContent : '',
       oKacheln: [...document.querySelectorAll('#view .kpi')].filter((k) => k.querySelector('.kpi-spread-full')).length,
@@ -308,16 +309,21 @@ try {
   check(bloecke.h3.join(',') === 'Durchfallquoten,Mengen,Ø Resultat' && bloecke.quoten.length === 5 && bloecke.spuren === 1 && bloecke.skalenkopf === 'Durchfallquoten'
     && bloecke.quotenKacheln === 0 && bloecke.oKacheln === 4,
     'M3 Übersicht: ' + bloecke.quoten.length + ' Quoten als Messzeilen auf einer Spur («' + bloecke.skalenkopf + '»), Kacheln nur noch in ' + bloecke.h3.join(' · ') + ' (' + bloecke.oKacheln + ' Ø-Kacheln mit Streuung)');
-  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch durchgefallen | Schriftlich: insgesamt nicht bestanden | Mündlich: im 1. Versuch durchgefallen | Mündlich: 2× durchgefallen | Mündlich: nicht bestanden',
+  check(bloecke.quoten.join(' | ') === 'Schriftlich: im 1. Versuch durchgefallen | Schriftlich: endgültig nicht bestanden | Mündlich: im 1. Versuch durchgefallen | Mündlich: 2× durchgefallen | Mündlich: endgültig nicht bestanden'
+    && bloecke.definitionen === 5,
     'M3 Reihenfolge und Benennung der Messzeilen: ' + bloecke.quoten.join(' | '));
   // Die Spur läuft von 0 bis 50 %, und jede Zeile nennt Zähler und Grundgesamtheit («191 von 977»)
   const spur = await page.evaluate(() => ({
     marken: [...document.querySelectorAll('#view .mz-achse .mz-marke')].map((m) => m.textContent),
     anzahl: [...document.querySelectorAll('#view .messzeile .mz-n')].map((x) => x.textContent.trim()),
     kopf: [...document.querySelectorAll('#view .mz-kopf > *')].map((x) => x.textContent.trim()),
+    maxPos: Math.max(...[...document.querySelectorAll('#view .messzeile .mz-punkt')].map((p) => parseFloat(p.style.left) || 0)),
   }));
-  check(spur.marken.join(' ') === '0 % 25 % 50 %' && spur.anzahl.every((t) => /^\d+ von \d+$/.test(t)) && spur.kopf.includes('Anzahl'),
-    'M3 Spur 0–50 % (' + spur.marken.join(' · ') + '), Anzahl als Zähler von Grundgesamtheit (' + spur.anzahl.join(' | ') + ')');
+  // Die Spur endet auf der nächsten 5-%-Stufe über dem grössten Wert (mindestens 10 pp): Der grösste Punkt liegt
+  // damit im rechten Drittel statt in der linken Hälfte einer festen 50-%-Spur.
+  check(spur.marken[0] === '0 %' && /^\d+(\.\d)? %$/.test(spur.marken[2]) && spur.maxPos >= 60
+    && spur.anzahl.every((t) => /^\d+ von \d+$/.test(t)) && spur.kopf.includes('Anzahl'),
+    'M3 Spur ' + spur.marken.join(' · ') + ', grösster Wert bei ' + spur.maxPos + ' % der Spur, Anzahl als Zähler von Grundgesamtheit (' + spur.anzahl.join(' | ') + ')');
   // Das Komplement der Erstversuchsquote steht nicht mehr auf der Übersicht – als Kennzahl bleibt es aber überall
   // dort, wo es hingehört: in der Vergleichstabelle, im Export und in der Ansicht «Schriftlich».
   const durchfall = await page.evaluate(() => {

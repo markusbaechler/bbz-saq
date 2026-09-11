@@ -2,7 +2,7 @@ import { test, assert, assertEqual, assertClose } from './runner.js';
 import { MODE, personSearchIndex, expertRuns } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
-  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
+  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, messzeilenSkala, messzeilenEingaben, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
@@ -272,6 +272,33 @@ test('tables.kennzahlenExportTable: Anzahl und Nenner je Art – Zahlen für die
     assertEqual([byLabel[label].count, byLabel[label].n, byLabel[label].einheit], ['', '', ''], label);
   }
   assertEqual(byLabel['Personen'].value, '4');
+});
+
+test('tables.messzeilenSkala: die Spur endet auf der nächsten 5-%-Stufe über dem grössten Wert, mindestens 10 pp', () => {
+  // Echte Lage: fünf Durchfallquoten zwischen 0.4 und 20.7 % – eine feste Spur bis 50 % verschenkte die halbe Breite
+  assertEqual(messzeilenSkala([0.195, 0.007, 0.207, 0.035, 0.004]), { min: 0, max: 0.25 });
+  assertEqual(messzeilenSkala([0.004, 0.007]), { min: 0, max: 0.1 }, 'nie enger als 10 pp – sonst wird Rauschen zum Balken');
+  assertEqual(messzeilenSkala([0.25]), { min: 0, max: 0.3 }, 'die Stufe liegt echt über dem Wert, sonst klebt der Punkt am Rand');
+  assertEqual(messzeilenSkala([0.251]), { min: 0, max: 0.3 });
+  assertEqual(messzeilenSkala([]), { min: 0, max: 0.1 });
+  assertEqual(messzeilenSkala([null, undefined, 0.42]), { min: 0, max: 0.45 });
+});
+
+test('tables.messzeilenEingaben: fünf Durchfallquoten mit Definition, gemeinsamer Spur und Benchmark', () => {
+  const alle = cohort();
+  const zeilen = messzeilenEingaben(alle.filter((p) => p.employerCanon === 'Testbank AG'), { benchmarkPersons: alle, benchmarkLabel: 'Alle Banken' });
+  assertEqual(zeilen.map((z) => z.label), [
+    'Schriftlich: im 1. Versuch durchgefallen', 'Schriftlich: endgültig nicht bestanden',
+    'Mündlich: im 1. Versuch durchgefallen', 'Mündlich: 2× durchgefallen', 'Mündlich: endgültig nicht bestanden',
+  ]);
+  // Alle Zeilen teilen dieselbe Spur – sonst sind sie untereinander nicht vergleichbar
+  const spuren = new Set(zeilen.map((z) => JSON.stringify(z.skala)));
+  assertEqual(spuren.size, 1);
+  assert(zeilen.every((z) => z.eingabe.richtung === 'down'), 'tiefer ist besser');
+  assert(zeilen.every((z) => /n = /.test(z.eingabe.hint)), 'jede Zeile nennt ihren Nenner in der Definition');
+  assert(zeilen.every((z) => z.eingabe.referenz && z.eingabe.referenz.label === 'Benchmark: Alle Banken'), 'Benchmark je Zeile');
+  // Ohne Benchmark-Menge keine Marke
+  assertEqual(messzeilenEingaben(alle, {})[0].eingabe.referenz, null);
 });
 
 test('tables.comparisonTable: fehlender Wert → Strich statt Differenz', () => {

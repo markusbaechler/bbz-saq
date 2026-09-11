@@ -515,15 +515,45 @@ export function overviewModel(persons, allPersons = persons) {
 // steckt die Aussage in der Gegenzahl (6 von 904 nicht bestanden), und die Anzahl der Nichtbestandenen ist die
 // Zahl, nach der gefragt wird. Die Werte liegen damit zwischen 0 und 50 % – die Spur des Blocks beginnt deshalb bei
 // 0 und endet bei 50 %. Keine neue Kennzahl: erstversuchFailed und nichtBestanden rechnet metrics.js längst.
-// Reihenfolge wie der Prozess: je Prüfungsteil vom ersten Versuch zum Endstand.
+// Reihenfolge wie der Prozess: je Prüfungsteil vom ersten Versuch zum Endstand. «Endgültig nicht bestanden» meint
+// den abgeschlossenen Vorgang mit «All Passed» = no – die Datei sagt ja/nein, nicht, nach wie vielen Versuchen;
+// der übliche Weg dorthin sind die aufgebrauchten Versuche, aber behaupten lässt sich das nicht. Jede Zeile trägt
+// ihre Definition samt Nenner als ⓘ, weil «nicht bestanden» sonst drei Lesarten hat.
 const MESSZEILEN_QUOTEN = [
-  { label: 'Schriftlich: im 1. Versuch durchgefallen', wert: (t) => t.written.erstversuchFailed },
-  { label: 'Schriftlich: insgesamt nicht bestanden', wert: (t) => t.written.nichtBestanden },
-  { label: 'Mündlich: im 1. Versuch durchgefallen', wert: (t) => t.oral.failed1 },
-  { label: 'Mündlich: 2× durchgefallen', wert: (t) => t.oral.failed2 },
-  { label: 'Mündlich: nicht bestanden', wert: (t) => t.oral.nichtBestanden },
+  {
+    label: 'Schriftlich: im 1. Versuch durchgefallen', wert: (t) => t.written.erstversuchFailed,
+    hint: 'Anteil Vorgänge mit mindestens einer Teilprüfung, die im ersten Versuch (RUN1) nicht bestanden wurde – unabhängig vom späteren Erfolg; n = Vorgänge mit absolviertem WE RUN1.',
+  },
+  {
+    label: 'Schriftlich: endgültig nicht bestanden', wert: (t) => t.written.nichtBestanden,
+    hint: 'Anteil abgeschlossener Vorgänge mit «WE All Passed» = no, also schriftlich endgültig gescheitert; n = abgeschlossene Vorgänge schriftlich (bestanden + nicht bestanden). Die Datei sagt nicht, nach wie vielen Versuchen.',
+  },
+  {
+    label: 'Mündlich: im 1. Versuch durchgefallen', wert: (t) => t.oral.failed1,
+    hint: 'Anteil angetretener Vorgänge, die OE1 im ersten Versuch nicht bestanden haben – unabhängig vom späteren Erfolg; n = angetretene Vorgänge (absolvierter, datierter OE1 RUN1).',
+  },
+  {
+    label: 'Mündlich: 2× durchgefallen', wert: (t) => t.oral.failed2,
+    hint: 'Anteil angetretener Vorgänge, die OE1 im ersten und im zweiten Versuch nicht bestanden haben; n = angetretene Vorgänge. Teilmenge der Zeile darüber.',
+  },
+  {
+    label: 'Mündlich: endgültig nicht bestanden', wert: (t) => t.oral.nichtBestanden,
+    hint: 'Anteil abgeschlossener Vorgänge mit «OE All Passed» = no, also mündlich endgültig gescheitert; n = abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden). Die Datei sagt nicht, nach wie vielen Versuchen.',
+  },
 ];
-export const MESSZEILEN_SKALA = { min: 0, max: 0.5 };
+
+// Obergrenze der gemeinsamen Spur: die nächste 5-%-Stufe über dem grössten Wert des Blocks, mindestens 10 pp
+// Spanne. Eine feste Spur bis 50 % drängte fünf Werte zwischen 0.4 und 20.7 % in die linke Hälfte; dieselbe Regel
+// nutzen die Diagramme seit Paket DIAGRAMME für ihre Achse (autoYMin). Alle Zeilen des Blocks teilen die Spur –
+// sonst wären sie untereinander nicht vergleichbar.
+export function messzeilenSkala(werte) {
+  const gueltig = (werte || []).filter(isNum);
+  const max = gueltig.length ? Math.max(...gueltig) : 0;
+  // Die Stufe liegt echt über dem grössten Wert – sonst klebte der Punkt am rechten Rand und sein Intervall
+  // wäre halb abgeschnitten. Auf drei Stellen runden: 0.05er-Schritte ergeben in Gleitkomma sonst 0.30000000000000004.
+  const stufe = (Math.floor(max / 0.05 + 1e-9) + 1) * 0.05;
+  return { min: 0, max: Math.round(Math.min(1, Math.max(0.1, stufe)) * 1000) / 1000 };
+}
 
 // Auswahl und Benchmark werden mit denselben Funktionen gerechnet; die Zeile hängt damit nicht an der Liste der
 // Kacheln, sondern an den Kennzahlen selbst.
@@ -531,18 +561,22 @@ export function messzeilenEingaben(persons, { benchmarkPersons = null, benchmark
   const jetzt = { written: writtenPassRates(persons), oral: oralPassRates(persons) };
   const bench = benchmarkPersons ? { written: writtenPassRates(benchmarkPersons), oral: oralPassRates(benchmarkPersons) } : null;
   const reihen = timeSeries(persons);
+  // Die Spur richtet sich nach den Werten beider Seiten – sonst läge eine Benchmarkmarke ausserhalb
+  const skala = messzeilenSkala(MESSZEILEN_QUOTEN.flatMap((q) => [q.wert(jetzt).pct, bench ? q.wert(bench).pct : null]));
   return MESSZEILEN_QUOTEN.map((q) => {
     const r = q.wert(jetzt);
     const b = bench ? q.wert(bench) : null;
     return {
       label: q.label,
+      skala,
       eingabe: {
         label: q.label,
+        hint: q.hint,
         count: r.count, n: r.n, pct: r.pct,
         richtung: 'down', // tiefer ist besser
         referenz: b && isNum(b.pct) ? { pct: b.pct, label: 'Benchmark: ' + (benchmarkLabel || '–') } : null,
         jahre: reihen.map((j) => ({ year: j.year, pct: q.wert(j).pct, n: q.wert(j).n })),
-        skala: MESSZEILEN_SKALA,
+        skala,
       },
     };
   });
