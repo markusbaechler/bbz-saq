@@ -827,6 +827,43 @@ try {
   check(alleZeilen.length === 3 && alleZeilen.every((z) => Number(z.split(' · ')[2]) > 0),
     'P5 VSS/VSM: alle drei Gruppen mit Vorgängen in der Tabelle (' + alleZeilen.join(' | ') + ')');
 
+  // P6: Die mündliche Erstversuchsquote steht in der Tabelle – in Bestehensrichtung wie die schriftliche Seite –,
+  // und jede der vier Quoten trägt ihren eigenen Nenner als Spalte. Vorher stand EINE n-Spalte neben drei Quoten
+  // mit drei verschiedenen Nennern und sah aus wie deren Nenner; sie ist die Grösse der Gruppe.
+  const p6 = await page.evaluate(() => {
+    const t = document.querySelector('#view table.data');
+    const kopf = [...t.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+    const zeile = [...t.querySelectorAll('tbody tr')].find((tr) => /^VSS/.test(tr.textContent));
+    return {
+      kopf,
+      // Die Fussnote steht als ⓘ am Tabellentitel, also im title-Attribut – nicht im Textinhalt.
+      note: ([...document.querySelectorAll('#view .info')].map((e) => e.getAttribute('title') || '')
+        .find((x) => /Vorgänge mit VSS und VSM zählen in beiden Gruppen/.test(x)) || ''),
+      werte: zeile ? [...zeile.querySelectorAll('td')].map((td) => td.textContent.trim()) : [],
+    };
+  });
+  const nennerSpalten = p6.kopf.filter((k) => /^n \(/.test(k));
+  check(p6.kopf.includes('Mündlich im 1. Versuch bestanden')
+    && nennerSpalten.length === 5
+    && !p6.kopf.some((k) => /durchgefallen/i.test(k))
+    && ['absolviertem WE RUN1', 'datierter OE1 RUN1', 'bestanden + nicht bestanden', 'Grösse der Gruppe'].every((teil) => p6.note.includes(teil)),
+    'P6 VSS/VSM: ' + p6.kopf.length + ' Spalten mit mündlicher Erstversuchsquote in Bestehensrichtung, '
+      + nennerSpalten.length + ' Nennerspalten (' + nennerSpalten.join(', ') + '), Fussnote benennt jeden Nenner');
+
+  // Der Export nimmt die neuen Spalten mit – geprüft am echten Knöpfchen, nicht an einem Nachbau
+  await page.locator('#view .view-actions details.export-menu summary').first().click();
+  const [p6Download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#view details.menu[open] .menu-item', { hasText: /^CSV$/ }).first().click(),
+  ]);
+  const p6Csv = readFileSync(await p6Download.path(), 'utf8');
+  const p6Kopf = (p6Csv.split(String.fromCharCode(10)).map((z) => z.split(String.fromCharCode(13)).join(''))
+    .find((z) => z.startsWith('Gruppe')) || '').split(';');
+  check(p6Kopf.length === p6.kopf.length && p6Kopf.includes('Mündlich im 1. Versuch bestanden')
+    && p6Kopf.filter((k) => /^n \(/.test(k)).length === 5,
+    'P6 Export: ' + p6Download.suggestedFilename() + ' mit ' + p6Kopf.length + ' Spalten – auch die auf dem Schirm ausgeblendeten ('
+      + p6Kopf.slice(-4).join(', ') + ')');
+
   // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
   // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
   for (const v of ['schriftlich', 'muendlich']) {

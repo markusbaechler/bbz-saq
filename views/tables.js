@@ -290,8 +290,15 @@ export function vssVsmPunkte(persons, teil = 'schriftlich') {
 export function vssVsmTable(persons) {
   const b = vssVsmBreakdown(persons);
   const rows = [];
+  // Vier Quoten, vier verschiedene Nenner – und «n (Vorgänge)» ist keiner davon, sondern die Grösse der Gruppe.
+  // Jede Quote trägt deshalb ihren eigenen Nenner als Spalte daneben (P6); vorher stand eine einzige n-Spalte neben
+  // drei Quoten und sah aus wie deren Nenner.
   const push = (gruppe, profil, n, small, written, oral) => rows.push({
-    gruppe, profil, n, small, erstversuch: formatPct(written.erstversuch.pct), gesamt: formatPct(written.gesamt.pct), muendlich: formatPct(oral.bestanden.pct),
+    gruppe, profil, n, small,
+    erstversuch: formatPct(written.erstversuch.pct), nErstversuch: written.erstversuch.n,
+    gesamt: formatPct(written.gesamt.pct), nGesamt: written.gesamt.n,
+    muendlichErst: formatPct(oral.passed1.pct), nAngetreten: oral.angetreten,
+    muendlich: formatPct(oral.bestanden.pct), nMuendlich: oral.bestanden.n,
   });
   for (const [gruppe, block] of [['VSS', b.vss], ['VSM', b.vsm], ['ohne', b.ohne]]) {
     push(gruppe, 'alle', block.n, block.small, block.written, block.oral);
@@ -299,9 +306,17 @@ export function vssVsmTable(persons) {
   }
   return {
     title: 'Bestehensquoten VSS / VSM / ohne, je Profil',
-    columns: [col('gruppe', 'Gruppe', 1), col('profil', 'Profil', 1), col('n', 'n (Vorgänge)', 1), col('erstversuch', 'Schriftlich im 1. Versuch bestanden', 1), col('gesamt', 'Schriftlich insgesamt bestanden', 2), col('muendlich', 'Mündlich bestanden', 2)],
+    columns: [
+      col('gruppe', 'Gruppe', 1), col('profil', 'Profil', 1), col('n', 'n (Vorgänge)', 1),
+      col('erstversuch', 'Schriftlich im 1. Versuch bestanden', 1), col('nErstversuch', 'n (schriftlich 1. Versuch)', 2),
+      col('gesamt', 'Schriftlich insgesamt bestanden', 2), col('nGesamt', 'n (schriftlich abgeschlossen)', 3),
+      col('muendlichErst', 'Mündlich im 1. Versuch bestanden', 1), col('nAngetreten', 'n (mündlich angetreten)', 2),
+      col('muendlich', 'Mündlich bestanden', 2), col('nMuendlich', 'n (mündlich abgeschlossen)', 3),
+    ],
     rows,
-    note: 'Vorgänge mit VSS und VSM zählen in beiden Gruppen; Zeilen mit n < ' + SMALL_N + ' sind eingeschränkt aussagekräftig; Nenner der Quoten wie in den Ansichten Schriftlich und Mündlich',
+    wide: true, // elf Spalten: Prio 3 (die beiden «abgeschlossen»-Nenner) erst auf breiten Schirmen
+    // Die Fussnote nannte früher nur «wie in den Ansichten Schriftlich und Mündlich» – vier Nenner, einer benannt.
+    note: 'Vorgänge mit VSS und VSM zählen in beiden Gruppen, die drei Gruppen teilen den Gesamtwert also nicht auf; Zeilen mit n < ' + SMALL_N + ' sind eingeschränkt aussagekräftig. Vier Quoten, vier Nenner – jeder steht als eigene Spalte daneben: «n (Vorgänge)» ist die Grösse der Gruppe und Nenner keiner der Quoten; schriftlich 1. Versuch = Vorgänge mit absolviertem WE RUN1; schriftlich abgeschlossen = bestanden + nicht bestanden; mündlich angetreten = absolvierter, datierter OE1 RUN1 (geplante Termine zählen nicht); mündlich abgeschlossen = bestanden + nicht bestanden. «Mündlich im 1. Versuch bestanden» ist die Gegenzahl zu «im 1. Versuch durchgefallen» in der Ansicht Mündlich (zusammen 100 %); gezeigt wird hier die Bestehensrichtung wie auf der schriftlichen Seite.',
   };
 }
 

@@ -383,6 +383,7 @@ identisch mit der Ansicht «Glossar» in der App.
 | **Schriftlich: Ø Resultat bestandener Run** | Wie oben, aber Result des bestandenen Runs je Teilprüfung. | Vorgänge, deren absolvierte Teilprüfungen alle bestanden sind. | – |
 | **Je Teilprüfung (WE1–WE6, OE1–OE2)** | Im 1. Versuch bestanden / durchgefallen (RUN1), insgesamt bestanden (irgendein Run des Teils bestanden), Ø Resultat für beide Wertungen. | Vorgänge mit absolviertem RUN1 des Teils. | – |
 | **Mündlich: bestanden** | Anteil Vorgänge mit Status mündlich «bestanden» («OE All Passed» = yes). | Abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden). | Offen (auch: noch nicht angetreten) und nicht erfasst nicht im Nenner. In Sheet 2 gilt ein leeres «OE All yes» als bestanden (Hinweis). |
+| **Mündlich: im 1. Versuch bestanden** | OE1 RUN1 = yes. | Angetretene Vorgänge: absolvierter, datierter OE1 RUN1 (geplante Termine zählen nicht). | Komplement zu «im 1. Versuch durchgefallen» (zusammen 100 %). Anderer Nenner als «bestanden»: dort sind es abgeschlossene Vorgänge. |
 | **Mündlich: im 1. Versuch durchgefallen** | OE1 RUN1 = no, unabhängig vom späteren Erfolg. | Angetretene Vorgänge: absolvierter, datierter OE1 RUN1 (geplante Termine zählen nicht). | Zählt auch Vorgänge, die noch offen sind. |
 | **Mündlich: 2× durchgefallen** | OE1 RUN1 = no und OE1 RUN2 = no. | Angetretene Vorgänge (wie oben). | – |
 | **Mündlich: 3× durchgefallen** | OE1 RUN1 = no, RUN2 = no und RUN3 = no – alle Versuche, die die Datei kennt, nicht bestanden. | Angetretene Vorgänge (wie oben). | Teilmenge von «2× durchgefallen». Wer den dritten Versuch besteht, zählt nicht mit. Belegt das endgültige Scheitern über die Versuche, statt es aus «OE All Passed» = no zu erschliessen – die Spalte sagt nicht, nach wie vielen Versuchen. |
@@ -546,6 +547,28 @@ Diagramme tragen dieselbe Reihenfarbe und dieselbe Legende wie alle anderen Punk
 **Welche Kennzeichnung zu welchem Prüfungsteil gehört, sagt die Datei nicht** – VSS und VSM sind Kennzeichnungen
 aus den Threaded Comments, mehr nicht. Hier wird deshalb auch nichts zugeordnet oder hergeleitet: Beide
 Prüfungsteile stehen für alle drei Gruppen.
+
+**Die Tabelle nennt jeden Nenner (Paket I, P6).** Ihr fehlte die mündliche Erstversuchsquote; sie steht jetzt als
+**«Mündlich im 1. Versuch bestanden»** da – in der Bestehensrichtung der schriftlichen Seite, nicht als
+Durchfallquote, damit in einer Tabelle nicht zwei Richtungen nebeneinander stehen. Die Kennzahl ist
+`oralPassRates().passed1`, die Gegenzahl zu `failed1` auf derselben Grundmenge (zusammen 100 %).
+
+Vier Quoten haben vier verschiedene Nenner, und **«n (Vorgänge)» ist keiner davon** – es ist die Grösse der Gruppe.
+Vorher stand diese eine Spalte neben drei Quoten und sah aus wie deren Nenner. Jede Quote trägt jetzt ihren
+eigenen daneben:
+
+| Quote | Nenner |
+|---|---|
+| Schriftlich im 1. Versuch bestanden | Vorgänge mit absolviertem WE RUN1 |
+| Schriftlich insgesamt bestanden | abgeschlossene Vorgänge schriftlich (bestanden + nicht bestanden) |
+| Mündlich im 1. Versuch bestanden | **angetretene** Vorgänge (absolvierter, datierter OE1 RUN1) |
+| Mündlich bestanden | abgeschlossene Vorgänge mündlich (bestanden + nicht bestanden) |
+
+Elf Spalten, deshalb `wide`: Die beiden «abgeschlossen»-Nenner erscheinen erst ab 1900 px. Auf dem Phone bleiben
+die fünf Prio-1-Spalten – Gruppe, Profil, n (Vorgänge) und die beiden Erstversuchsquoten nebeneinander; die
+Tabelle scrollt dort 65 px im eigenen Rahmen, ohne Seitenscroll («Mündlich» liegt mit 56–84 px im selben Bereich).
+Der **Export nimmt alle elf Spalten** mit, auch die auf dem Schirm ausgeblendeten – er folgt den Spalten des
+Tabellenmodells, nicht der Anzeige.
 
 **Die Achse folgt den Daten (Paket I, P2)** und benutzt dazu dieselbe Regel wie die Spur der Messzeile
 (`messzeilenSkala()`): Beginn bei **0 %**, Ende auf der nächsten **5-%-Stufe echt über dem grössten Wert**,
