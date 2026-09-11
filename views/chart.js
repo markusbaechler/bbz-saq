@@ -4,9 +4,9 @@
 // Legende bei ≥ 2 Reihen, sparsame Direktbeschriftung am Linienende, Fadenkreuz-Tooltip über alle Reihen
 // (auch per Tastatur: Pfeiltasten), Tabellen-Zwilling in der Ansicht. Reihenfarben: CSS-Variablen --series-1 … --series-3.
 
-import { el } from './common.js';
+import { el, isPhone } from './common.js';
 import { SMALL_MARK } from './tables.js';
-import { SMALL_N } from '../metrics.js';
+import { SMALL_N, formatPct } from '../metrics.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 
@@ -390,4 +390,17 @@ export function renderDotChart(points, { title = '', yFormat = (v) => String(v),
   }
   if (compact) figure.appendChild(el('p', { class: 'viz-subtitle', text: 'Zahlen je Gruppe in der Tabelle darunter.' }));
   return figure;
+}
+
+// Punktdiagramm zu einem Quoten-Modell (Paket H, H2): eine Zeile je Gruppe, Wilson-Balken, Linie auf dem
+// Gesamtwert. Ohne Punkte (kein Wert im Filter) entfällt es – eine leere Achse sagt nichts.
+export function punktDiagramm(modell, { compact = isPhone() } = {}) {
+  if (!modell || !modell.punkte.length) return null;
+  return renderDotChart(modell.punkte, {
+    title: modell.titel,
+    yFormat: (v) => formatPct(v, 0),
+    referenz: modell.referenz,
+    compact,
+    ariaLabel: 'Punktdiagramm: ' + modell.titel + ' je Gruppe mit 95-Prozent-Wilson-Intervall, senkrechte Linie auf dem Gesamtwert; alle Zahlen in der Tabelle darunter',
+  });
 }

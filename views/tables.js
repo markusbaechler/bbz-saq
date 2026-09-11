@@ -106,6 +106,28 @@ export function statusTone(text, label = '') {
 // Schriftlich
 // ---------------------------------------------------------------------------
 
+// Punkte für ein Punktdiagramm (Paket MESSZEILE M2, verallgemeinert in Paket H): eine Quote je Gruppe mit ihrem
+// 95-%-Wilson-Intervall, dazu der Gesamtwert als Bezugslinie. Dieselben Zahlen wie die Tabelle daneben – keine neue
+// Kennzahl. Sortiert nach Wert, damit die Reihenfolge selbst schon eine Aussage ist; kleine Gruppen bleiben drin
+// und tragen «*», sie werden nicht weggelassen.
+// Gezeigt wird die DURCHFALLQUOTE, nicht die Bestehensquote: dieselbe Wahl wie in der Übersicht – bei 96 %
+// bestanden steckt die Aussage in der Gegenzahl, und gefragt wird nach denen, die nicht bestanden haben.
+export function quotenPunkte(persons, key, { rates = writtenPassRates, wert = (r) => r.erstversuchFailed, titel = '' } = {}) {
+  const gesamt = wert(rates(persons));
+  return {
+    titel,
+    punkte: byGroup(persons, key, rates)
+      .filter((g) => isNum(wert(g.value).pct))
+      .map((g) => {
+        const r = wert(g.value);
+        const iv = wilsonInterval(r.count, r.n);
+        return { label: groupLabel(g.key), pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
+      })
+      .sort((a, b) => b.pct - a.pct),
+    referenz: isNum(gesamt.pct) ? { pct: gesamt.pct, label: 'Gesamt' } : null,
+  };
+}
+
 export function passRateTable(persons, key) {
   const total = writtenPassRates(persons);
   const smallTotal = persons.length < SMALL_N;
@@ -123,7 +145,12 @@ export function passRateTable(persons, key) {
       col('gesamt', 'Insgesamt bestanden', 1), col('abgeschlossen', 'n (abgeschlossen)', 2), col('offen', 'Offen', 2), col('passiv', 'davon passiv (> ' + PASSIVE_DAYS + ' Tage)', 3), col('nichtErfasst', 'Nicht erfasst', 3),
     ],
     rows,
-    note: SMALL_NOTE + '; 1. Versuch: Nenner sind Vorgänge mit absolviertem RUN1; insgesamt bestanden: Nenner sind abgeschlossene Vorgänge (bestanden + nicht bestanden); offen = Gesamtergebnis leer (läuft noch), passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen und kein Termin; nicht erfasst = Gesamtergebnis unlesbar',
+    // «Im 1. Versuch bestanden» und «durchgefallen» sind Gegenzahlen. Auf der Übersicht ist das Paar entfernt worden
+    // (PR #32): Dort kostete jede Zahl eine eigene Zeile mit Skala, Verlauf und zwei Differenzen – fünf Felder für
+    // dieselbe Aussage. Hier stehen beide als Spalten DERSELBEN Zeile, mit demselben Nenner daneben; die Tabelle ist
+    // zugleich der Export, und wer sie weiterverarbeitet, soll die Zahl lesen können, die er braucht, statt sie
+    // auszurechnen. Der Grund steht in der Fussnote, damit niemand sie für zwei Kennzahlen hält.
+    note: SMALL_NOTE + '; 1. Versuch: Nenner sind Vorgänge mit absolviertem RUN1; «im 1. Versuch bestanden» und «durchgefallen» sind Gegenzahlen derselben Grundmenge (zusammen 100 %) – beide stehen da, damit die gesuchte Zahl nicht ausgerechnet werden muss; insgesamt bestanden: Nenner sind abgeschlossene Vorgänge (bestanden + nicht bestanden); offen = Gesamtergebnis leer (läuft noch), passiv = offen, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen und kein Termin; nicht erfasst = Gesamtergebnis unlesbar',
   };
 }
 
@@ -490,21 +517,8 @@ export function overviewModel(persons, allPersons = persons) {
     // A5: Zwei Prozessstufen, zwei Namen – die schriftliche Prüfung ist das Gate zur mündlichen
     note: SMALL_NOTE + '; schriftlich offen = Vorgänge ohne schriftliches Gesamtergebnis (frühere Stufe als die Kachel «Zertifizierung offen», die das Gesamtergebnis überhaupt meint), passiv = davon ohne Prüfung seit mehr als ' + PASSIVE_DAYS + ' Tagen und ohne Termin; Nenner der Quoten wie in den Kacheln',
   };
-  // M2: Punkte für das Profil-Diagramm – dieselben Zahlen wie die Spalte «Schriftlich im 1. Versuch bestanden»
-  // daneben, dazu ihr 95-%-Wilson-Intervall und der Gesamtwert als Bezugslinie. Keine neue Kennzahl.
-  // Sortiert nach Quote, damit die Reihenfolge selbst schon eine Aussage ist; kleine Gruppen bleiben drin und tragen «*».
-  const profilPunkte = {
-    titel: 'Schriftlich im 1. Versuch bestanden, je Profil',
-    punkte: o.byProfil
-      .filter((g) => isNum(g.value.written.erstversuch.pct))
-      .map((g) => {
-        const r = g.value.written.erstversuch;
-        const iv = wilsonInterval(r.count, r.n);
-        return { label: groupLabel(g.key), pct: r.pct, n: r.n, low: iv.low, high: iv.high, small: r.n < SMALL_N };
-      })
-      .sort((a, b) => b.pct - a.pct),
-    referenz: isNum(o.written.erstversuch.pct) ? { pct: o.written.erstversuch.pct, label: 'Gesamt' } : null,
-  };
+  // Punkte für das Profil-Diagramm der Übersicht – derselbe Bauer wie in «Schriftlich» und «Mündlich» (Paket H)
+  const profilPunkte = quotenPunkte(persons, 'profil', { titel: 'Schriftlich im 1. Versuch durchgefallen, je Profil' });
   return { kpis, byProfil, multi, profilPunkte };
 }
 

@@ -1,8 +1,8 @@
 import { test, assert, assertEqual, assertClose } from './runner.js';
-import { MODE, personSearchIndex, expertRuns } from '../metrics.js';
+import { MODE, personSearchIndex, expertRuns, writtenPassRates, oralPassRates } from '../metrics.js';
 import {
   groupLabel, passRateTable, performanceTable, partTable, oralRateTable, vssVsmTable,
-  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, messzeilenSkala, messzeilenEingaben, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
+  rankingTables, plannedTables, overviewModel, comparisonTable, kennzahlenExportTable, messzeilenSkala, messzeilenEingaben, quotenPunkte, multiProfileTable, excludedTables, openCasesTables, SMALL_MARK,
   awardDossierTable, rankReasonText, vorgangExportTables,
   timeSeriesTable, timeSeriesByProfileTable, timeSeriesChartSeries, yearComparisonTable, defaultCompareYears, difficultyTables,
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
@@ -272,6 +272,26 @@ test('tables.kennzahlenExportTable: Anzahl und Nenner je Art – Zahlen für die
     assertEqual([byLabel[label].count, byLabel[label].n, byLabel[label].einheit], ['', '', ''], label);
   }
   assertEqual(byLabel['Personen'].value, '4');
+});
+
+test('tables.quotenPunkte: eine Quote je Gruppe mit Intervall gegen den Gesamtwert – für jede Gruppierung', () => {
+  const ps = cohort();
+  const p = quotenPunkte(ps, 'profil', { titel: 'Probe' });
+  assertEqual(p.titel, 'Probe');
+  assert(p.punkte.length >= 2, 'je Gruppe ein Punkt');
+  assert(p.punkte.every((x) => typeof x.pct === 'number' && typeof x.n === 'number' && typeof x.low === 'number'), JSON.stringify(p.punkte[0]));
+  // Absteigend sortiert: die Reihenfolge ist selbst eine Aussage
+  assert(p.punkte.every((x, i) => i === 0 || p.punkte[i - 1].pct >= x.pct), 'sortiert');
+  // Referenz ist der Gesamtwert derselben Quote
+  assertEqual(p.referenz.pct, writtenPassRates(ps).erstversuchFailed.pct);
+  assertEqual(p.referenz.label, 'Gesamt');
+  // Andere Gruppierung, andere Punkte – gleiche Form
+  assert(quotenPunkte(ps, 'employerCanon', {}).punkte.length >= 1);
+  // Mündlich: andere Ratenfunktion, andere Quote
+  const o = quotenPunkte(ps, 'profil', { rates: oralPassRates, wert: (r) => r.failed1, titel: 'Mündlich' });
+  assertEqual(o.referenz.pct, oralPassRates(ps).failed1.pct);
+  // Kleine Gruppen bleiben drin und sind markiert
+  assert(p.punkte.some((x) => x.small === true) || p.punkte.every((x) => x.n >= 5));
 });
 
 test('tables.messzeilenSkala: die Spur endet auf der nächsten 5-%-Stufe über dem grössten Wert, mindestens 10 pp', () => {

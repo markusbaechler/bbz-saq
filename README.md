@@ -513,11 +513,23 @@ der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
 aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
 
-**Punktdiagramm je Profil (Paket MESSZEILE):** In «Kennzahlen je Profil» steht über der Tabelle ein Punktdiagramm:
-je Profil ein Punkt auf der Quote «Schriftlich im 1. Versuch bestanden», dazu sein 95-%-Wilson-Intervall als Balken
-und eine senkrechte Linie auf dem Gesamtwert. **Berührt der Balken die Linie nicht, ist der Abstand gesichert** – das
+**Punktdiagramm je Gruppierung (Pakete MESSZEILE und H):** Über jeder Bestehensquoten-Tabelle steht ein
+Punktdiagramm: je Gruppe ein Punkt auf der **Durchfallquote im 1. Versuch** – dieselbe Wahl wie in der Übersicht,
+weil bei 96 % bestanden die Aussage in der Gegenzahl steckt –, dazu sein 95-%-Wilson-Intervall als Balken und eine
+senkrechte Linie auf dem Gesamtwert. Es steht in der Übersicht («Kennzahlen je Profil»), in «Schriftlich» dreimal
+(Profil, Sprache, Bank) und in «Mündlich» einmal (Profil). **Berührt der Balken die Linie nicht, ist der Abstand gesichert** – das
 ist die ganze Ablesung, ohne p-Wert; sie steht zusätzlich als Wort in der Direktbeschriftung («n = 302 · −8.9 pp ·
-gesichert»). Die achtspaltige Tabelle bleibt als Tabellen-Zwilling darunter und im Export. Kleine Gruppen (n < 5)
+gesichert»). Die Tabelle bleibt als Tabellen-Zwilling darunter und im Export; sie trägt Spalten, die das Diagramm nicht zeigt
+(insgesamt bestanden, offen, passiv, nicht erfasst), und ist deshalb nicht eingeklappt. Gemessen kostet ein Diagramm
+etwa so viel Höhe wie die Tabelle darunter, eine Zeile je Gruppe: «Schriftlich» wächst von 2939 auf 3573 px,
+«Mündlich» von 2378 auf 2622 px.
+
+**Gegenzahlen in den Tabellen:** «Im 1. Versuch bestanden» und «Im 1. Versuch durchgefallen» stehen dort weiterhin
+nebeneinander, obwohl sie zusammen 100 % ergeben. Auf der Übersicht ist dieses Paar entfernt worden, weil dort jede
+Zahl eine eigene Zeile mit Skala, Verlauf und zwei Differenzen kostete – fünf Felder für dieselbe Aussage. In der
+Tabelle sind es zwei Spalten derselben Zeile mit demselben Nenner daneben, und die Tabelle ist zugleich der Export:
+Wer sie weiterverarbeitet, soll die gesuchte Zahl lesen können, statt sie auszurechnen. Die Fussnote sagt, dass es
+Gegenzahlen sind, damit niemand sie für zwei Kennzahlen hält. Kleine Gruppen (n < 5)
 tragen einen hohlen Marker und «*», sie werden nicht weggelassen.
 
 **Das laufende Jahr (Paket H):** Ein angefangenes Jahr ist nicht mit einem abgeschlossenen vergleichbar – ihm fehlen

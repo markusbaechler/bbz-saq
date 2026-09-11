@@ -507,6 +507,33 @@ try {
   check(stufen.kachel !== null && stufen.spalte === 'Schriftlich offen' && stufen.summe <= stufen.kachel && stufen.altNamen.length === 0 && /begriff=zertifizierung-offen/.test(stufen.glossar || ''),
     'A5 Übersicht: Kachel «Zertifizierung offen» = ' + stufen.kachel + ', Spalte «Schriftlich offen» Summe ' + stufen.summe + ' (frühere Stufe, also nicht grösser), kein «Offen» mehr, Kachel verlinkt ins Glossar');
 
+  // H2: Punktdiagramm je Gruppierung vor der Tabelle – in «Schriftlich» drei (Profil, Sprache, Bank), in «Mündlich»
+  // eines (Profil). Die Tabelle bleibt darunter stehen und im Export; die Zahl der Punkte entspricht ihren Zeilen
+  // ohne die Gesamtzeile.
+  for (const [ansicht, erwartet] of [['schriftlich', 3], ['muendlich', 1]]) {
+    await page.goto(server.url + '#' + ansicht);
+    await page.waitForSelector('#view table.data');
+    const h2 = await page.evaluate(() => {
+      const abschnitt = [...document.querySelectorAll('#view section.block, #view details.block')]
+        .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Bestehensquote'));
+      const figuren = [...abschnitt.querySelectorAll('figure.viz')].filter((f) => f.querySelector('.viz-dots'));
+      const tabellen = [...abschnitt.querySelectorAll('table.data')];
+      return {
+        diagramme: figuren.length,
+        tabellen: tabellen.length,
+        titel: figuren.map((f) => (f.querySelector('figcaption') || {}).textContent.split(' · ')[0]),
+        vorDerTabelle: figuren.every((f, i) => tabellen[i] && !!(f.compareDocumentPosition(tabellen[i]) & Node.DOCUMENT_POSITION_FOLLOWING)),
+        punkteZuZeilen: figuren.map((f, i) => f.querySelectorAll('.viz-dot').length + '/' + (tabellen[i] ? tabellen[i].querySelectorAll('tbody tr').length - 1 : -1)),
+        referenz: figuren.every((f) => f.querySelectorAll('.viz-ref').length === 1),
+      };
+    });
+    // Höchstens so viele Punkte wie Tabellenzeilen: Eine Gruppe ohne auswertbaren Wert (niemand angetreten) hat
+    // keinen Punkt – eine Position auf der Achse wäre dort eine Behauptung.
+    check(h2.diagramme === erwartet && h2.tabellen >= erwartet && h2.vorDerTabelle && h2.referenz
+      && h2.punkteZuZeilen.every((p) => Number(p.split('/')[0]) >= 1 && Number(p.split('/')[0]) <= Number(p.split('/')[1])),
+      'H2 ' + ansicht + ': ' + h2.diagramme + ' Punktdiagramm(e) vor der Tabelle (' + h2.titel.join(' | ') + '), Punkte zu Tabellenzeilen ' + h2.punkteZuZeilen.join(', '));
+  }
+
   // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
   // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
   for (const v of ['schriftlich', 'muendlich']) {
@@ -514,7 +541,9 @@ try {
     await page.waitForFunction((id) => location.hash.replace(/^#/, '').split('?')[0] === id && !!document.querySelector('#view h2'), v, { timeout: 5000 });
     const bars = await page.evaluate(() => ({
       svg: document.querySelectorAll('#view svg.viz-bars').length, rects: document.querySelectorAll('#view svg.viz-bars rect.viz-bar').length,
-      legend: document.querySelectorAll('#view .viz-legend-item').length, twin: [...document.querySelectorAll('#view table caption')].some((c) => /Verteilung der Resultate/.test(c.textContent)),
+      // Legende des Histogramms, nicht die der Punktdiagramme daneben (seit H2 stehen mehrere Diagramme in der Ansicht)
+      legend: (() => { const f = (document.querySelector('#view svg.viz-bars') || {}).closest ? document.querySelector('#view svg.viz-bars').closest('figure') : null; return f ? f.querySelectorAll('.viz-legend-item').length : 0; })(),
+      twin: [...document.querySelectorAll('#view table caption')].some((c) => /Verteilung der Resultate/.test(c.textContent)),
       ticks: [...document.querySelectorAll('#view svg.viz-bars text.viz-tick')].map((t) => t.textContent),
     }));
     check(bars.svg === 1 && bars.rects >= 10 && bars.legend === 2 && bars.twin && bars.ticks.includes('90–100') && bars.ticks.some((t) => /%$/.test(t)), 'Ansicht ' + v + ': Histogramm der Resultate (' + bars.rects + ' Balken, 2 Reihen, Tabellen-Zwilling, Klassen bis 90–100)');
