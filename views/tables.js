@@ -812,6 +812,20 @@ export function profilePartsTable(persons) {
 // Zeit (P6): Zeitverlauf je Kennzahl (a1), Zeitraumvergleich (a6), Schwierigkeit je Teilprüfung (b6)
 // ---------------------------------------------------------------------------
 
+// Das laufende Jahr ist unfertig: Ihm fehlen Wiederholungen und Nachträge. Wer es wie ein volles Jahr liest, misst
+// die Unvollständigkeit, nicht die Entwicklung – derselbe Grund wie in der Messzeile (Paket MESSZEILE). Es wird
+// deshalb überall, wo ein Jahr steht, als «läuft» gekennzeichnet; das Jahr kommt als Parameter, damit Tests nicht
+// vom Datum des Laufs abhängen.
+export const LAUFEND_MARK = '(läuft)';
+export const laufendesJahr = () => new Date().getFullYear();
+// Für Titel und Auswahlfelder: «2026 (läuft)». NICHT für Tabellenzellen – dort bliebe die Jahresspalte sonst als
+// Text hängen und sortierte alphabetisch statt numerisch. In Tabellen steht der Stand in einer eigenen Spalte.
+export function jahrLabel(year, jetzt = laufendesJahr()) {
+  return year >= jetzt ? year + ' ' + LAUFEND_MARK : String(year);
+}
+export const jahrStand = (year, jetzt = laufendesJahr()) => (year >= jetzt ? 'läuft' : '');
+export const LAUFEND_NOTE = 'Ein Jahr mit «' + LAUFEND_MARK + '» läuft noch: Wiederholungen und Nachträge fehlen, seine Quoten sind mit abgeschlossenen Jahren nicht vergleichbar.';
+
 function seriesRow(label, r) {
   return {
     gruppe: mark(label, r.small), n: r.n, small: r.small, personen: r.personen,
@@ -828,34 +842,35 @@ const TIME_COLUMNS = [
 ];
 
 // persons: kennzahlrelevante Vorgänge ohne Zeitraumfilter
-export function timeSeriesTable(persons) {
-  const rows = timeSeries(persons).map((r) => seriesRow(String(r.year), r));
+export function timeSeriesTable(persons, jetzt = laufendesJahr()) {
+  const rows = timeSeries(persons).map((r) => ({ ...seriesRow(String(r.year), r), stand: jahrStand(r.year, jetzt) }));
   return {
     title: 'Kennzahlen je Jahr',
-    columns: [col('gruppe', 'Jahr', 1)].concat(TIME_COLUMNS),
+    columns: [col('gruppe', 'Jahr', 1), col('stand', 'Stand', 2)].concat(TIME_COLUMNS),
     rows,
-    note: SMALL_NOTE + '; Jahr = Jahr des Referenzdatums (bestandene mündliche Prüfung, sonst letzte Prüfung); Nenner wie in der Übersicht',
+    note: SMALL_NOTE + '; Jahr = Jahr des Referenzdatums (bestandene mündliche Prüfung, sonst letzte Prüfung); Nenner wie in der Übersicht. ' + LAUFEND_NOTE,
   };
 }
 
-export function timeSeriesByProfileTable(persons) {
+export function timeSeriesByProfileTable(persons, jetzt = laufendesJahr()) {
   const rows = [];
   for (const g of timeSeriesBy(persons, 'profil')) {
-    for (const r of g.series) rows.push({ profil: groupLabel(g.key), ...seriesRow(String(r.year), r) });
+    for (const r of g.series) rows.push({ profil: groupLabel(g.key), ...seriesRow(String(r.year), r), stand: jahrStand(r.year, jetzt) });
   }
   return {
     title: 'Kennzahlen je Profil und Jahr',
-    columns: [col('profil', 'Profil', 1), col('gruppe', 'Jahr', 1)].concat(TIME_COLUMNS),
+    columns: [col('profil', 'Profil', 1), col('gruppe', 'Jahr', 1), col('stand', 'Stand', 2)].concat(TIME_COLUMNS),
     rows,
-    note: SMALL_NOTE,
+    note: SMALL_NOTE + '. ' + LAUFEND_NOTE,
   };
 }
 
 // Reihen für das Liniendiagramm: [{ label, points: [{ x, y, n, small }] }]
 // Kein «short» mehr (Paket B, B2): Die Endbeschriftung trägt nur noch den Wert, den Reihennamen nennt die Legende.
-export function timeSeriesChartSeries(persons) {
+export function timeSeriesChartSeries(persons, jetzt = laufendesJahr()) {
   const ts = timeSeries(persons);
-  const pick = (label, fn) => ({ label, points: ts.map((r) => ({ x: String(r.year), y: fn(r), n: r.n, small: r.small })) });
+  // laufend: Das Diagramm kann das unvollständige Jahr nur kennzeichnen, wenn es im Modell steht
+  const pick = (label, fn) => ({ label, points: ts.map((r) => ({ x: String(r.year), y: fn(r), n: r.n, small: r.small, laufend: r.year >= jetzt })) });
   return {
     quoten: [
       pick('Schriftlich im 1. Versuch bestanden', (r) => r.written.erstversuch.pct),
@@ -870,22 +885,27 @@ export function timeSeriesChartSeries(persons) {
 }
 
 // Zwei Jahre vergleichen (a6): Kennzahlen des Jahres A gegen Jahr B, Differenz in Prozentpunkten
-export function yearComparisonTable(persons, yearA, yearB) {
+export function yearComparisonTable(persons, yearA, yearB, jetzt = laufendesJahr()) {
   const ofYear = (y) => persons.filter((p) => refYear(p) === y);
   const a = overviewModel(ofYear(yearA), persons);
   const b = overviewModel(ofYear(yearB), persons);
   const t = comparisonTable(a.kpis, b.kpis, String(yearB));
   t.title = 'Vergleich ' + yearA + ' gegenüber ' + yearB;
   t.columns = t.columns.map((c) => (c.key === 'auswahl' ? col('auswahl', String(yearA), c.prio) : c.key === 'n' ? col('n', 'n ' + yearA, c.prio) : c.key === 'n2' ? col('n2', 'n ' + yearB, c.prio) : c));
-  t.note = 'Differenz in Prozentpunkten (' + yearA + ' minus ' + yearB + '); Jahr = Jahr des Referenzdatums; ' + SMALL_NOTE;
+  const laufende = [yearA, yearB].filter((y) => y >= jetzt);
+  t.title = 'Vergleich ' + jahrLabel(yearA, jetzt) + ' gegenüber ' + jahrLabel(yearB, jetzt);
+  t.note = 'Differenz in Prozentpunkten (' + yearA + ' minus ' + yearB + '); Jahr = Jahr des Referenzdatums; ' + SMALL_NOTE
+    + (laufende.length ? '. ACHTUNG: ' + (laufende.length === 1 ? 'Das Jahr ' + laufende[0] + ' läuft noch' : 'Beide Jahre laufen noch') + ' – die Differenz misst dann auch die Unvollständigkeit, nicht nur die Entwicklung.' : '');
   return t;
 }
 
-// Standardwahl für den Vergleich: die zwei jüngsten Jahre mit Daten
-export function defaultCompareYears(persons) {
-  const years = yearsOf(persons);
-  if (years.length < 2) return years.length === 1 ? { a: years[0], b: years[0] } : null;
-  return { a: years[years.length - 1], b: years[years.length - 2] };
+// Standardwahl für den Vergleich: die zwei jüngsten ABGESCHLOSSENEN Jahre. Das laufende Jahr voreinzustellen hiesse,
+// ein angefangenes gegen ein volles zu rechnen – die Differenzspalte meldete dann die Unvollständigkeit als Einbruch.
+// Wählbar bleibt es; wer es wählt, liest es in der Fussnote. Weniger als zwei abgeschlossene Jahre → kein Vergleich.
+export function defaultCompareYears(persons, jetzt = laufendesJahr()) {
+  const fertig = yearsOf(persons).filter((y) => y < jetzt);
+  if (fertig.length < 2) return null;
+  return { a: fertig[fertig.length - 1], b: fertig[fertig.length - 2] };
 }
 
 // Schwierigkeit je Teilprüfung (b6): lange Tabelle und Pivot (Teil × Jahr, Durchfallquote im 1. Versuch)
@@ -1013,8 +1033,8 @@ export function throughputTables(persons) {
   };
   const byYear = {
     title: 'Durchlaufzeit je Jahr',
-    columns: columns('Jahr'),
-    rows: yearsOf(persons).map((y) => row(String(y), persons.filter((p) => refYear(p) === y))),
+    columns: [columns('Jahr')[0], col('stand', 'Stand', 2)].concat(columns('Jahr').slice(1)),
+    rows: yearsOf(persons).map((y) => ({ ...row(String(y), persons.filter((p) => refYear(p) === y)), stand: jahrStand(y) })),
     note,
   };
   return { byProfil, byYear };

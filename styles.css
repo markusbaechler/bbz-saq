@@ -313,9 +313,10 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .mz-verlauf { width: 4rem; height: 1.25rem; }
 .mz-verlauf-linie { fill: none; stroke: var(--viz-tick); stroke-width: 1.5; }
 .mz-verlauf-ende { fill: var(--accent); }
-/* Laufendes Jahr: hohler Endpunkt – der Punkt steht, aber er ist noch nicht fertig (wie der hohle Marker für
-   kleine Gruppen in den Diagrammen). Der title der Sparkline sagt es in Worten. */
-.mz-verlauf-ende.laufend { fill: var(--panel); stroke: var(--accent); stroke-width: 1.5; }
+/* Laufendes Jahr: dieselbe Raute wie im Liniendiagramm (Paket H) – der hohle Marker bedeutet dort «n < 5», und
+   zwei Bedeutungen auf einem Zeichen waren der Befund. Der title der Sparkline sagt es zusätzlich in Worten. */
+.mz-verlauf-laufend { fill: var(--accent); }
+.mz-verlauf-linie-laufend { fill: none; stroke: var(--viz-tick); stroke-width: 1.5; stroke-dasharray: 3 2; }
 .mz-delta { text-align: right; font-variant-numeric: tabular-nums; font-size: var(--fs-sm); white-space: nowrap; }
 .mz-delta.ton-pos { color: var(--delta-pos); }
 .mz-delta.ton-neg { color: var(--delta-neg); }
@@ -627,6 +628,9 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 .viz-tick { fill: var(--viz-tick); font-variant-numeric: tabular-nums; }
 .viz-label { fill: var(--text); }
 .viz-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+/* Paket H: Das Stück ins laufende Jahr ist gestrichelt, der Punkt dort eine Raute – beides sagt «noch nicht fertig».
+   Der hohle Marker bleibt für «n < 5» reserviert; zwei Bedeutungen auf einem Zeichen waren der Befund. */
+.viz-line-laufend { stroke-dasharray: 5 4; }
 .viz-ring { fill: var(--panel); }
 .viz-dot.small { fill: var(--panel); stroke-width: 2; }
 .viz-leader { stroke: var(--viz-grid); stroke-width: 1; }

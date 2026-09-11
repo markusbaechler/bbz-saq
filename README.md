@@ -520,6 +520,15 @@ ist die ganze Ablesung, ohne p-Wert; sie steht zusätzlich als Wort in der Direk
 gesichert»). Die achtspaltige Tabelle bleibt als Tabellen-Zwilling darunter und im Export. Kleine Gruppen (n < 5)
 tragen einen hohlen Marker und «*», sie werden nicht weggelassen.
 
+**Das laufende Jahr (Paket H):** Ein angefangenes Jahr ist nicht mit einem abgeschlossenen vergleichbar – ihm fehlen
+Wiederholungen und Nachträge. Es wird deshalb überall gekennzeichnet, mit **einem** Zeichen: **Raute und
+gestrichelte Linie** im Liniendiagramm und in der Sparkline der Messzeile, Spalte **«Stand» = «läuft»** in den
+Jahrestabellen, und im Zwei-Jahres-Vergleich eine Warnung in der Fussnote, wenn ein laufendes Jahr gewählt ist.
+Der **hohle Marker** bleibt für «n < 5» reserviert: Form sagt, ob das Jahr fertig ist, Füllung sagt, ob die Gruppe
+gross genug ist – beides zusammen ist lesbar (hohle Raute). Vorgewählt sind im Vergleich die zwei jüngsten
+**abgeschlossenen** Jahre; das laufende bleibt wählbar. Gibt es weniger als zwei abgeschlossene Jahre, entfällt der
+Vergleich. Verschwiegen wird das laufende Jahr nirgends – ein fehlender Punkt wäre die andere Lüge.
+
 **Y-Achse der Liniendiagramme (Paket DIAGRAMME):** Die Achse folgt dem Wertebereich der Daten, nicht dem Nullpunkt: Beginn auf
 der nächsten 5-%-Stufe unter dem kleinsten Wert, mindestens 10 Prozentpunkte Spanne. Von null zu rechnen drängte
 Quoten, die real zwischen 66 % und 100 % liegen, ins obere Drittel und verdeckte jede Bewegung – etwa den Rückgang der

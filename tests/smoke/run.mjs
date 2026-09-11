@@ -327,6 +327,30 @@ try {
   check(spur.marken[0] === '0 %' && /^\d+(\.\d)? %$/.test(spur.marken[2]) && spur.maxPos >= 60
     && spur.anzahl.every((t) => /^\d+ von \d+$/.test(t)) && spur.kopf.includes('Anzahl'),
     'M3 Spur ' + spur.marken.join(' · ') + ', grösster Wert bei ' + spur.maxPos + ' % der Spur, Anzahl als Zähler von Grundgesamtheit (' + spur.anzahl.join(' | ') + ')');
+  // H1: Dasselbe Zeichen in beiden Darstellungen – die Sparkline der Messzeile trägt für das laufende Jahr eine
+  // Raute und ein gestricheltes Stück, genau wie das Liniendiagramm.
+  // Die synthetische Datei hat zu wenige Jahre für eine Sparkline; geprüft wird deshalb am Baustein selbst, mit
+  // einer Reihe, deren letztes Jahr noch läuft – und einer zweiten, die abgeschlossen endet.
+  const sparkline = await page.evaluate(async () => {
+    const mod = await import('/views/common.js');
+    const jahre = (bis) => [2022, 2023, 2024, bis].map((year, i) => ({ year, pct: 0.2 - i * 0.01, n: 40 }));
+    const bau = (bis) => {
+      const node = mod.messzeile(mod.messzeileModell({ label: 'Probe', count: 20, n: 100, jahre: jahre(bis), laufendesJahr: 2026, skala: { min: 0, max: 0.5 } }));
+      document.body.appendChild(node);
+      const out = {
+        rauten: node.querySelectorAll('polygon.mz-verlauf-laufend').length,
+        gestrichelt: node.querySelectorAll('.mz-verlauf-linie-laufend').length,
+        kreise: node.querySelectorAll('circle.mz-verlauf-ende').length,
+        titel: [...node.querySelectorAll('title')].some((t) => /unvollständig/.test(t.textContent)),
+      };
+      node.remove();
+      return out;
+    };
+    return { laufend: bau(2026), fertig: bau(2025) };
+  });
+  check(sparkline.laufend.rauten === 1 && sparkline.laufend.gestrichelt === 1 && sparkline.laufend.kreise === 0 && sparkline.laufend.titel
+    && sparkline.fertig.rauten === 0 && sparkline.fertig.gestrichelt === 0 && sparkline.fertig.kreise === 1 && !sparkline.fertig.titel,
+    'H1 Sparkline: laufendes Jahr als Raute mit gestricheltem Stück und Text, abgeschlossenes als gefüllter Punkt');
   check(spur.spurStart.length === 1,
     'M3 ein Nullpunkt für Achse und alle Zeilen (Spurbeginn bei ' + spur.spurStart.join('/') + ' px)');
   // Das Komplement der Erstversuchsquote steht nicht mehr auf der Übersicht – als Kennzahl bleibt es aber überall
@@ -629,6 +653,40 @@ try {
   check((await page.locator('#filterbar .chip', { hasText: '2026' }).count()) === 1 && (await page.locator('#filterbar .summary-inactive').isHidden()), 'A1 Übersicht: zurück – der Jahresfilter wirkt wieder, Chip «2026» erscheint erneut');
   await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
   await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
+  // Paket H (H1): Das laufende Jahr ist unvollständig und wird überall so gekennzeichnet – im Diagramm mit Raute und
+  // gestrichelter Linie (der hohle Marker bleibt «n < 5»), in den Tabellen mit der Spalte «Stand», im Vergleich als
+  // Warnung. Voreingestellt sind zwei abgeschlossene Jahre.
+  await page.goto(server.url + '#zeitverlauf');
+  await page.waitForSelector('#view table.data');
+  const laufend = await page.evaluate(() => {
+    const jahr = new Date().getFullYear();
+    const tabelle = [...document.querySelectorAll('#view table.data')].find((t) => (t.querySelector('caption') || {}).textContent.startsWith('Kennzahlen je Jahr'));
+    const kopf = [...tabelle.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+    const iStand = kopf.findIndex((t) => t.startsWith('Stand'));
+    const zeilen = [...tabelle.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent.trim()));
+    const figur = document.querySelector('#view .viz-svg');
+    const vergleich = [...document.querySelectorAll('#view section.block, #view details.block')]
+      .find((x) => ((x.querySelector('h3, summary') || {}).textContent || '').startsWith('Zwei Jahre vergleichen'));
+    const jahrWahl = vergleich ? [...vergleich.querySelectorAll('select')].map((sel) => sel.value) : [];
+    return {
+      jahr: String(jahr),
+      standSpalte: iStand >= 0,
+      laufendeZeilen: zeilen.filter((z) => z[iStand] === 'läuft').map((z) => z[0]),
+      abgeschlossen: zeilen.filter((z) => z[iStand] === '').length,
+      rauten: figur ? figur.querySelectorAll('polygon.viz-dot').length : -1,
+      gestrichelt: figur ? figur.querySelectorAll('.viz-line-laufend').length : -1,
+      legende: (document.querySelector('#view figcaption') || {}).textContent || '',
+      jahrWahl,
+      vergleichTitel: vergleich ? (vergleich.querySelector('table caption') || {}).textContent : '',
+    };
+  });
+  check(laufend.standSpalte && laufend.laufendeZeilen.length === 1 && laufend.laufendeZeilen[0].startsWith(laufend.jahr) && laufend.abgeschlossen >= 1,
+    'H1 Kennzahlen je Jahr: Spalte «Stand», ' + laufend.laufendeZeilen.join('/') + ' läuft, ' + laufend.abgeschlossen + ' abgeschlossene Jahre');
+  check(laufend.rauten >= 1 && laufend.gestrichelt >= 1 && /Raute und gestrichelte Linie/.test(laufend.legende) && /hohler Marker: n < 5/.test(laufend.legende),
+    'H1 Liniendiagramm: ' + laufend.rauten + ' Rauten und ' + laufend.gestrichelt + ' gestrichelte Stücke für das laufende Jahr, Legende nennt beide Zeichen');
+  check(laufend.jahrWahl.length === 2 && laufend.jahrWahl.every((y) => Number(y) < Number(laufend.jahr)) && !/ACHTUNG/.test(laufend.vergleichTitel),
+    'H1 Zwei Jahre vergleichen: voreingestellt ' + laufend.jahrWahl.join(' gegen ') + ' – beide abgeschlossen');
 
   // Paket C (C2): Die Filterleiste war das einzige klebende Element – 95 px, 11 % der Viewporthöhe, dauerhaft, für
   // Bedienelemente, die beim Lesen niemand anfasst. Gescrollt bleibt nur die Zusammenfassungszeile (Zähler und Chips);

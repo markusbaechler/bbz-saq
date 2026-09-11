@@ -633,7 +633,8 @@ function mzVerlauf(verlauf) {
   const rand = 3; // Platz für den Endpunkt, sonst wird der Kreis am Rahmen beschnitten
   const px = (p) => rand + (p.x / 100) * (w - 2 * rand);
   const py = (p) => rand + (p.y / 100) * (h - 2 * rand);
-  const punkte = verlauf.punkte.map((p) => px(p) + ',' + py(p)).join(' ');
+  const fertig = verlauf.punkte.filter((p) => !p.laufend);
+  const punkte = fertig.map((p) => px(p) + ',' + py(p)).join(' ');
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
   svg.setAttribute('class', 'mz-verlauf');
@@ -646,12 +647,29 @@ function mzVerlauf(verlauf) {
   const linie = document.createElementNS(NS, 'polyline');
   linie.setAttribute('points', punkte);
   linie.setAttribute('class', 'mz-verlauf-linie');
-  const punkt = document.createElementNS(NS, 'circle');
-  punkt.setAttribute('cx', px(ende));
-  punkt.setAttribute('cy', py(ende));
-  punkt.setAttribute('r', 2.5);
-  punkt.setAttribute('class', 'mz-verlauf-ende' + (ende.laufend ? ' laufend' : ''));
-  svg.append(titel, linie, punkt);
+  // Das laufende Jahr hängt als gestricheltes Stück an der Linie und trägt eine Raute – dasselbe Zeichen wie im
+  // Liniendiagramm (Paket H). Der hohle Marker bleibt dort «n < 5» vorbehalten.
+  const laufend = verlauf.punkte.find((p) => p.laufend);
+  const stueck = laufend && fertig.length ? document.createElementNS(NS, 'polyline') : null;
+  if (stueck) {
+    const vor = fertig[fertig.length - 1];
+    stueck.setAttribute('points', px(vor) + ',' + py(vor) + ' ' + px(laufend) + ',' + py(laufend));
+    stueck.setAttribute('class', 'mz-verlauf-linie-laufend');
+  }
+  const d = 3;
+  const punkt = ende.laufend ? document.createElementNS(NS, 'polygon') : document.createElementNS(NS, 'circle');
+  if (ende.laufend) {
+    const x = px(ende);
+    const y = py(ende);
+    punkt.setAttribute('points', [[x, y - d], [x + d, y], [x, y + d], [x - d, y]].map((p) => p.join(',')).join(' '));
+    punkt.setAttribute('class', 'mz-verlauf-ende mz-verlauf-laufend');
+  } else {
+    punkt.setAttribute('cx', px(ende));
+    punkt.setAttribute('cy', py(ende));
+    punkt.setAttribute('r', 2.5);
+    punkt.setAttribute('class', 'mz-verlauf-ende');
+  }
+  svg.append(titel, linie, ...(stueck ? [stueck] : []), punkt);
   return svg;
 }
 

@@ -20,6 +20,14 @@ function svg(tag, attrs = {}, children = []) {
   return node;
 }
 
+// Marker: Kreis für abgeschlossene Jahre, Raute für das laufende. Gleiche optische Grösse, klar unterscheidbar –
+// und unterscheidbar vom hohlen Marker, der weiterhin «n < 5» heisst.
+function marker(x, y, r, raute, attrs) {
+  if (!raute) return svg('circle', { cx: x, cy: y, r, ...attrs });
+  const d = r * 1.25;
+  return svg('polygon', { points: [[x, y - d], [x + d, y], [x, y + d], [x - d, y]].map((p) => p.join(',')).join(' '), ...attrs });
+}
+
 function text(x, y, content, cls, anchor = 'start') {
   const t = svg('text', { x, y, class: cls, 'text-anchor': anchor });
   t.textContent = content;
@@ -111,17 +119,27 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
     const pts = s.points.map((p, i) => ({ ...p, i, px: xPos(xs.indexOf(p.x)), py: p.y === null || p.y === undefined ? null : yPos(p.y) }));
     let d = '';
     let pen = false;
+    let dLaufend = ''; // das Stück ins laufende Jahr: gestrichelt, weil der Punkt dahinter noch wandert
     for (const p of pts) {
       if (p.py === null) { pen = false; continue; }
-      d += (pen ? ' L ' : ' M ') + p.px.toFixed(1) + ' ' + p.py.toFixed(1);
+      const ziel = ' ' + p.px.toFixed(1) + ' ' + p.py.toFixed(1);
+      if (pen && p.laufend) {
+        const vor = pts[pts.indexOf(p) - 1];
+        dLaufend += ' M ' + vor.px.toFixed(1) + ' ' + vor.py.toFixed(1) + ' L' + ziel;
+      } else {
+        d += (pen ? ' L' : ' M') + ziel;
+      }
       pen = true;
     }
     if (d) root.appendChild(svg('path', { d: d.trim(), class: 'viz-line', style: 'stroke:' + color }));
+    if (dLaufend) root.appendChild(svg('path', { d: dLaufend.trim(), class: 'viz-line viz-line-laufend', style: 'stroke:' + color }));
     for (const p of pts) {
       if (p.py === null) continue;
-      // Ring in Oberflächenfarbe, dann Marker; kleine Gruppen (n < 5) hohl
-      root.appendChild(svg('circle', { cx: p.px, cy: p.py, r: 6, class: 'viz-ring' }));
-      root.appendChild(svg('circle', { cx: p.px, cy: p.py, r: 4, class: 'viz-dot' + (p.small ? ' small' : ''), style: p.small ? 'stroke:' + color : 'fill:' + color }));
+      // Ring in Oberflächenfarbe, dann Marker. Zwei Eigenschaften, zwei Mittel, damit sie nicht verwechselt werden:
+      // FORM sagt, ob das Jahr abgeschlossen ist (Kreis) oder noch läuft (Raute, Paket H); FÜLLUNG sagt, ob die
+      // Gruppe gross genug ist (gefüllt) oder unter SMALL_N liegt (hohl). Beides zusammen ist lesbar: hohle Raute.
+      root.appendChild(marker(p.px, p.py, 6, p.laufend, { class: 'viz-ring' }));
+      root.appendChild(marker(p.px, p.py, 4, p.laufend, { class: 'viz-dot' + (p.small ? ' small' : ''), style: p.small ? 'stroke:' + color : 'fill:' + color }));
     }
     const last = [...pts].reverse().find((p) => p.py !== null);
     if (last) endLabels.push({ y: last.py, x: last.px, value: yFormat(last.y), color });
@@ -149,7 +167,13 @@ export function renderLineChart(series, { title = '', yFormat = (v) => String(v)
   attachTooltip(root, figure, { xs, xPos, series, yFormat, width, cross });
   const leg = legend(series);
   if (leg) figure.appendChild(leg);
-  if (title) figure.appendChild(el('figcaption', { text: title + ' · * Jahr mit n < 5 Vorgängen (hohler Marker)' }));
+  if (title) {
+    const laufend = series.some((r) => (r.points || []).some((p) => p.laufend));
+    figure.appendChild(el('figcaption', {
+      text: title + ' · hohler Marker: n < 5 Vorgänge'
+        + (laufend ? ' · Raute und gestrichelte Linie: Jahr läuft noch, unvollständig' : ''),
+    }));
+  }
   return figure;
 }
 
