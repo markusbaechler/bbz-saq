@@ -98,9 +98,28 @@ function rootBlock(text) {
   return '';
 }
 
-function fromQuery(text, query) {
-  const start = text.indexOf(query);
-  return start < 0 ? '' : text.slice(start);
+// Alle :root-Deklarationen einer Medienabfrage – über ALLE Blöcke dieser Abfrage hinweg, in Dokumentreihenfolge
+// zusammengeführt. So steht es auch im Browser: «@media print» kommt in styles.css mehrfach vor, und jeder Block
+// gilt.
+//
+// Früher nahm die Prüfung den Rest der Datei ab dem ersten Vorkommen und daraus den ersten :root – also
+// möglicherweise einen, der lange nach dem Block stand. Ein einzelnes :root zwischen zwei Medienabfragen liess sie
+// dreissig Tokens als «fehlt im Druck-Block» melden, die alle dastanden; umgekehrt hätte sie einen wirklich
+// fehlenden Token still übersehen, sobald der erste Block der Abfrage kein :root trägt (gefunden in Paket I).
+function mediaDeclarations(text, query) {
+  const out = {};
+  for (let von = text.indexOf(query); von >= 0; von = text.indexOf(query, von + query.length)) {
+    const open = text.indexOf('{', von);
+    if (open < 0) break;
+    let depth = 0;
+    let ende = text.length;
+    for (let i = open; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      if (text[i] === '}' && --depth === 0) { ende = i; break; }
+    }
+    Object.assign(out, declarations(rootBlock(text.slice(open + 1, ende))));
+  }
+  return out;
 }
 
 // Themes: Light = erster :root; Dark = Light plus dunkler Block. Druck = hell → dunkel → Druck (Paket A, A4):
@@ -110,16 +129,16 @@ function fromQuery(text, query) {
 export function parseThemes(cssText) {
   const clean = cssText.replace(/\/\*[\s\S]*?\*\//g, '');
   const light = declarations(rootBlock(clean));
-  const darkOnly = declarations(rootBlock(fromQuery(clean, '@media (prefers-color-scheme: dark)')));
-  const printOnly = declarations(rootBlock(fromQuery(clean, '@media print')));
+  const darkOnly = mediaDeclarations(clean, '@media (prefers-color-scheme: dark)');
+  const printOnly = mediaDeclarations(clean, '@media print');
   return { light, dark: { ...light, ...darkOnly }, print: { ...light, ...darkOnly, ...printOnly } };
 }
 
 // Tokens, die der Dark-Block setzt, der Druck-Block aber nicht zurücksetzt – jedes davon bleibt beim Drucken dunkel.
 export function darkLeftovers(cssText) {
   const clean = cssText.replace(/\/\*[\s\S]*?\*\//g, '');
-  const darkOnly = declarations(rootBlock(fromQuery(clean, '@media (prefers-color-scheme: dark)')));
-  const printOnly = declarations(rootBlock(fromQuery(clean, '@media print')));
+  const darkOnly = mediaDeclarations(clean, '@media (prefers-color-scheme: dark)');
+  const printOnly = mediaDeclarations(clean, '@media print');
   return Object.keys(darkOnly).filter((k) => !(k in printOnly));
 }
 
