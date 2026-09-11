@@ -5,6 +5,7 @@
 
 import { expertTables } from './tables.js';
 import { renderKpis, renderTable, renderExpandableTable, section, hinted, el } from './common.js';
+import { punktDiagramm } from './chart.js';
 
 export const id = 'experten';
 export const label = 'Experten';
@@ -35,6 +36,7 @@ function detailNode(det) {
 export function build(ctx) {
   const meta = ctx.expertMeta || { columns: false, expected: [] };
   const hints = [
+    'Das Punktdiagramm steht in der Reihenfolge der Tabelle (Einsätze absteigend), nicht nach Quote sortiert: Es soll zeigen, wessen Abstand zum Benchmark gesichert ist, und keine Rangliste von Personen sein. Die Balken werden nach unten breiter, weil wenige Einsätze stärker streuen – berührt ein Balken die Linie, ist der Abstand nicht gesichert.',
     'Beobachtungswerte, keine Leistungsbeurteilung: ein Einsatz zählt für beide Experten voll; Kandidaten mit Wiederholung haben strukturell höhere Durchfallquoten, deshalb getrennter Benchmark je Versuchsart (E9). Δ = Wert des Experten minus Benchmark aller Experten im Filter, in Prozentpunkten, neutral dargestellt.',
     'Profil, Sprache, Bank, VSS/VSM und «nur ausgestellte Zertifikate» wirken über die Vorgänge; der Zeitraum wirkt auf das Run-Datum des Einsatzes. Runs mit Ergebnis ohne Datum zählen nur ohne Zeitraum («ohne Datum»).',
   ];
@@ -51,7 +53,8 @@ export function build(ctx) {
   return {
     nodes: [
       renderKpis(t.kpis, { glossaryHref: ctx.glossaryHref }),
-      sec('Experten', [holder], null, t.main.rows.length + (t.main.rows.length === 1 ? ' Experte' : ' Experten') + ' · ' + (ctx.expertRuns || []).length + ' Einsätze'),
+      sec('Experten', [punktDiagramm(t.punkte), holder].filter(Boolean), null,
+        t.main.rows.length + (t.main.rows.length === 1 ? ' Experte' : ' Experten') + ' · ' + (ctx.expertRuns || []).length + ' Einsätze'),
       sec('Paarungen Experte 1 × Experte 2', [renderTable(t.pairs)], 'Einsätze mit zwei verschiedenen Experten, unabhängig von der Rollenreihenfolge; häufigste Paare zuerst (höchstens 30).', null, { phoneCollapsed: true }),
     ],
     tables: [t.main, t.pairs],

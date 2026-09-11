@@ -1225,6 +1225,27 @@ try {
   const pairRows = await page.evaluate(() => { const s = [...document.querySelectorAll('#view section.block')].find((x) => (x.querySelector('h3') || {}).textContent.startsWith('Paarungen')); return s ? s.querySelectorAll('tbody tr').length : -1; });
   check(pairRows >= 3, 'Experten: Paarungstabelle mit ' + pairRows + ' Paaren');
   await page.click('#view details.menu > summary');
+  // Punktdiagramm je Experte: Wilson-Balken gegen die Linie auf dem Benchmark aller Experten. Die Reihenfolge
+  // (Einsätze statt Quote – keine Rangliste von Personen) prüft der Unit-Test am Modell; hier zählt der Aufbau.
+  const expertenPunkte = await page.evaluate(() => {
+    const svgEl = document.querySelector('#view .viz-dots');
+    if (!svgEl) return null;
+    const f = svgEl.closest('figure');
+    return {
+      punkte: f.querySelectorAll('.viz-dot').length,
+      balken: f.querySelectorAll('.viz-ci').length,
+      referenz: f.querySelectorAll('.viz-ref').length,
+      hohl: f.querySelectorAll('.viz-dot.small').length,
+      beschriftung: [...f.querySelectorAll('text.viz-label')].filter((t) => /^n = /.test(t.textContent)).map((t) => t.textContent),
+      legende: [...f.querySelectorAll('.viz-legend-item')].map((x) => x.textContent.trim()),
+      titel: (f.querySelector('figcaption') || {}).textContent.split(' · ')[0],
+    };
+  });
+  check(!!expertenPunkte && expertenPunkte.punkte >= 2 && expertenPunkte.punkte === expertenPunkte.balken
+    && expertenPunkte.referenz === 1 && expertenPunkte.hohl >= 1 && expertenPunkte.legende.length === 3
+    && expertenPunkte.beschriftung.every((t) => /^n = \d+( · [+−±]\d+\.\d pp)?( · gesichert)?( \*)?$/.test(t)),
+    'Experten: Punktdiagramm «' + (expertenPunkte ? expertenPunkte.titel : '') + '» mit ' + (expertenPunkte ? expertenPunkte.punkte : 0)
+      + ' Punkten, Linie auf dem Benchmark, kleine Gruppen hohl (' + (expertenPunkte ? expertenPunkte.beschriftung[0] : '') + ')');
   check((await page.locator('#view details.menu[open] .menu-item', { hasText: 'CSV (Einsatzebene)' }).count()) === 1, 'Experten: Export-Menü mit «CSV (Einsatzebene)»');
   await page.click('#view details.menu > summary');
   await filterWaehlen(page, 'jahr', '2024');
