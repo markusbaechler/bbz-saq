@@ -73,12 +73,30 @@ test('messzeile: Wert unter dem Skalenbeginn – am Anschlag statt abgeschnitten
   assertEqual(m.skala.pos, 0);
   assertEqual(m.skala.anschlag, true);
   assert(m.intervall.von >= 0 && m.intervall.bis <= 100, 'auch der Balken bleibt in der Spur');
-  assert(/am linken Anschlag/.test(m.ariaLabel), m.ariaLabel);
+  assert(/unter 50 %, am Anschlag der Spur/.test(m.ariaLabel), m.ariaLabel);
   // Genau auf der Grenze ist kein Anschlag
   const grenze = modell({ label: 'Genau 50 %', count: 20, n: 40 });
   assertEqual(grenze.wert.pct, MESSZEILE_MIN);
   assertEqual(grenze.skala.anschlag, false);
   assertEqual(grenze.skala.pos, 0);
+});
+
+test('messzeile: eigene Spur je Block – Durchfallquoten liegen auf 0 bis 50 %', () => {
+  const skala = { min: 0, max: 0.5 };
+  const m = modell({ label: 'Im 1. Versuch durchgefallen', count: 191, n: 977, richtung: 'down', skala });
+  assertEqual(m.wert.text, '19.5 %');
+  assertEqual(Math.round(m.skala.pos), 39, '19.5 % von 0–50 % liegt bei 39 % der Spur');
+  assertEqual([m.skala.min, m.skala.max], [0, 0.5]);
+  assertEqual(m.skala.anschlag, false);
+  assertEqual(m.anzahl, '191 von 977', 'Zähler und Grundgesamtheit, nicht nur der Nenner');
+  // Auch nach oben wird geklemmt statt abgeschnitten, und die Zeile sagt es
+  const hoch = modell({ label: 'Mehr als die Hälfte', count: 60, n: 100, richtung: 'down', skala });
+  assertEqual(hoch.skala.pos, 100);
+  assertEqual(hoch.skala.anschlagOben, true);
+  assertEqual(hoch.skala.anschlagText, 'über 50 %');
+  assert(/über 50 %, am Anschlag der Spur/.test(hoch.ariaLabel), hoch.ariaLabel);
+  // Das Intervall wird auf dieselbe Spur gerechnet
+  assert(m.intervall.von > 30 && m.intervall.bis < 50, JSON.stringify(m.intervall));
 });
 
 test('messzeile: Quote ohne Zähler – Punkt ja, Intervall nein; Referenzmarke und Ton nach Richtung', () => {

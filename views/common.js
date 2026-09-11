@@ -522,14 +522,16 @@ export function signalBlock(ergebnis, { onWeg = null, filterKurz = 'kein Filter'
 // messzeileModell() ist rein – Modell rein, Knoten raus; die Geometrie ist damit ohne DOM prüfbar.
 // ---------------------------------------------------------------------------
 
-export const MESSZEILE_MIN = 0.5;          // Untergrenze der gemeinsamen Skala
+export const MESSZEILE_MIN = 0.5;          // Voreinstellung: gemeinsame Skala der Bestehensquoten
 export const MESSZEILE_DELTA_TON_PP = 2;   // darunter neutral – sonst färbt sich Rauschen ein
 export const MESSZEILE_JAHRE_MIN = 3;      // weniger Jahre → keine Sparkline, kein leerer Platz
 
 const mzNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const mzPp = (v) => Math.round(v * 10) / 10;
-// Anteil → Position auf der Skala in Prozent der Spur; ausserhalb wird geklemmt, nicht abgeschnitten
-const mzPos = (pct) => Math.max(0, Math.min(100, ((pct - MESSZEILE_MIN) / (1 - MESSZEILE_MIN)) * 100));
+// Anteil → Position auf der Spur in Prozent; ausserhalb wird geklemmt, nicht abgeschnitten. Die Spur beginnt und
+// endet dort, wo die Kennzahlen des Blocks liegen: Bestehensquoten 50–100 %, Durchfallquoten 0–50 %. Entscheidend
+// ist, dass ALLE Zeilen eines Blocks dieselbe Spur tragen – sonst sind zwei Zeilen untereinander nicht vergleichbar.
+const mzPos = (pct, min = MESSZEILE_MIN, max = 1) => Math.max(0, Math.min(100, ((pct - min) / Math.max(max - min, 1e-9)) * 100));
 const mzVorzeichen = (d) => (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(d).toFixed(1);
 const mzWorte = (pct) => (mzNum(pct) ? formatPct(pct).replace(' %', ' Prozent') : 'kein Wert');
 
@@ -542,7 +544,10 @@ function mzJahre(jahre) {
 // Eingabe: { label, glossar, count, n, pct, richtung: 'up'|'down'|'neutral', referenz: { pct, label }, jahre: [{ year, pct, n }] }
 // «Wert» ist die Lage im aktiven Filter (alle Jahre), «Wert letztes Jahr» das jüngste auswertbare Jahr und «Delta»
 // dessen Abstand zum Jahr davor. Den Gesamtwert gegen ein einzelnes Jahr zu rechnen, würde zwei Nenner vermischen.
-export function messzeileModell({ label = '', glossar = null, count = null, n = 0, pct = null, richtung = 'up', referenz = null, jahre = [], laufendesJahr = new Date().getFullYear() } = {}) {
+export function messzeileModell({ label = '', glossar = null, count = null, n = 0, pct = null, richtung = 'up', referenz = null, jahre = [], laufendesJahr = new Date().getFullYear(), skala = {} } = {}) {
+  const skalaMin = typeof skala.min === 'number' ? skala.min : MESSZEILE_MIN;
+  const skalaMax = typeof skala.max === 'number' ? skala.max : 1;
+  const pos = (v) => mzPos(v, skalaMin, skalaMax);
   const wertPct = mzNum(pct) ? pct : (mzNum(count) && n > 0 ? count / n : null);
   const iv = mzNum(count) && n > 0 ? wilsonInterval(count, n) : { low: null, high: null, half: null };
   const reihe = mzJahre(jahre);
@@ -561,24 +566,28 @@ export function messzeileModell({ label = '', glossar = null, count = null, n = 
     n,
     klein: (n || 0) > 0 && n < SMALL_N,
     skala: {
-      min: MESSZEILE_MIN,
-      pos: wertPct === null ? null : mzPos(wertPct),
-      anschlag: wertPct !== null && wertPct < MESSZEILE_MIN,
+      min: skalaMin,
+      max: skalaMax,
+      pos: wertPct === null ? null : pos(wertPct),
+      // Ausserhalb der Spur wird nichts abgeschnitten: Der Punkt steht am Anschlag, und die Zeile sagt, an welchem
+      anschlag: wertPct !== null && wertPct < skalaMin,
+      anschlagOben: wertPct !== null && wertPct > skalaMax,
+      anschlagText: wertPct === null ? '' : (wertPct < skalaMin ? 'unter ' + formatPct(skalaMin, 0) : wertPct > skalaMax ? 'über ' + formatPct(skalaMax, 0) : ''),
     },
     intervall: iv.low === null ? null : {
       low: iv.low, high: iv.high, half: iv.half,
-      von: mzPos(iv.low), bis: mzPos(iv.high),
+      von: pos(iv.low), bis: pos(iv.high),
       text: '±' + mzPp(iv.half * 100).toFixed(1) + ' pp',
     },
     referenz: referenz && mzNum(referenz.pct) ? {
-      pct: referenz.pct, pos: mzPos(referenz.pct), label: referenz.label || 'Referenz', text: formatPct(referenz.pct),
+      pct: referenz.pct, pos: pos(referenz.pct), label: referenz.label || 'Referenz', text: formatPct(referenz.pct),
       // Abstand zur Referenz in pp: Die Kachel nannte ihn als Delta-Zeile; in der Messzeile steht er an der Marke
       abstand: wertPct === null ? null : mzPp((wertPct - referenz.pct) * 100),
     } : null,
     verlauf: reihe.length >= MESSZEILE_JAHRE_MIN ? {
       von: reihe[0].year, bis: letzte.year, jahre: reihe.length,
       laufend: reihe[reihe.length - 1].year >= laufendesJahr,
-      punkte: reihe.map((j, i) => ({ year: j.year, pct: j.pct, laufend: j.year >= laufendesJahr, x: (i / (reihe.length - 1)) * 100, y: 100 - mzPos(j.pct) })),
+      punkte: reihe.map((j, i) => ({ year: j.year, pct: j.pct, laufend: j.year >= laufendesJahr, x: (i / (reihe.length - 1)) * 100, y: 100 - pos(j.pct) })),
     } : null,
     letztesJahr: letzte ? { year: letzte.year, pct: letzte.pct, text: formatPct(letzte.pct) } : null,
     delta: dPp === null ? null : {
@@ -592,6 +601,9 @@ export function messzeileModell({ label = '', glossar = null, count = null, n = 
   // Abstand zum Benchmark als eigenes Feld: Die Kachel nannte ihn als Zahl, die Messzeile tut es wieder. Der Ton
   // folgt der Regel der Kacheln und der Vergleichstabelle (unter 0.5 pp neutral), damit dieselbe Zahl auf der Seite
   // nicht zweierlei Farbe trägt. Für den Jahresabstand gilt die strengere 2-pp-Schwelle aus dem Auftrag.
+  // Anzahl: Zähler und Grundgesamtheit – «191 von 977». Nur den Nenner zu nennen, war die Doppeldeutigkeit, die
+  // in der Vergleichstabelle und auf den Kacheln schon behoben ist.
+  modell.anzahl = mzNum(count) ? count + ' von ' + (n || 0) : 'n = ' + (n || 0);
   modell.benchmark = modell.referenz && modell.referenz.abstand !== null && modell.referenz.abstand !== undefined
     ? (() => {
       const d = deltaView(modell.referenz.abstand, richtung);
@@ -602,7 +614,7 @@ export function messzeileModell({ label = '', glossar = null, count = null, n = 
     label + ': ' + mzWorte(wertPct),
     'n gleich ' + (n || 0) + (modell.klein ? ', kleine Gruppe' : ''),
     modell.intervall ? '95-Prozent-Intervall ' + mzWorte(modell.intervall.low) + ' bis ' + mzWorte(modell.intervall.high) : 'kein Intervall',
-    modell.skala.anschlag ? 'unter der Skala, am linken Anschlag' : null,
+    modell.skala.anschlagText ? modell.skala.anschlagText + ', am Anschlag der Spur' : null,
     modell.referenz ? modell.referenz.label + ' ' + mzWorte(modell.referenz.pct) + (modell.referenz.abstand === null ? '' : ', Abstand ' + (modell.referenz.abstand > 0 ? 'plus ' : modell.referenz.abstand < 0 ? 'minus ' : '') + Math.abs(modell.referenz.abstand).toFixed(1) + ' Prozentpunkte') : null,
     modell.letztesJahr ? 'letztes abgeschlossenes Jahr ' + modell.letztesJahr.year + ' ' + mzWorte(modell.letztesJahr.pct) : null,
     modell.verlauf && modell.verlauf.laufend ? 'das laufende Jahr ' + modell.verlauf.punkte[modell.verlauf.punkte.length - 1].year + ' ist unvollständig und zählt nicht für den Vergleich' : null,
@@ -650,15 +662,15 @@ function mzSkala(m) {
     const abstand = m.referenz.abstand === null || m.referenz.abstand === undefined ? '' : ' (' + (m.referenz.abstand > 0 ? '+' : m.referenz.abstand < 0 ? '−' : '±') + Math.abs(m.referenz.abstand).toFixed(1) + ' pp)';
     kinder.push(el('span', { class: 'mz-referenz', style: 'left:' + m.referenz.pos + '%', title: m.referenz.label + ': ' + m.referenz.text + abstand }));
   }
-  if (m.skala.pos !== null) kinder.push(el('span', { class: 'mz-punkt' + (m.skala.anschlag ? ' am-anschlag' : ''), style: 'left:' + m.skala.pos + '%' }));
-  // Unter der Skala wird nichts abgeschnitten: Der Punkt steht am Anschlag, und daneben steht, dass er das tut.
-  if (m.skala.anschlag) kinder.push(el('span', { class: 'mz-anschlag', text: 'unter 50 %' }));
+  if (m.skala.pos !== null) kinder.push(el('span', { class: 'mz-punkt' + (m.skala.anschlag || m.skala.anschlagOben ? ' am-anschlag' : ''), style: 'left:' + m.skala.pos + '%' }));
+  // Ausserhalb der Spur wird nichts abgeschnitten: Der Punkt steht am Anschlag, und daneben steht, dass er das tut.
+  if (m.skala.anschlagText) kinder.push(el('span', { class: 'mz-anschlag' + (m.skala.anschlagOben ? ' oben' : ''), text: m.skala.anschlagText }));
   // Was nur die Grafik zeigt, steht zusätzlich als Text da: Ein aria-label auf einem <li> sagen nicht alle
   // Hilfsmittel verlässlich an, der versteckte Satz schon.
   const worte = [
     m.intervall ? '95-Prozent-Intervall ' + formatPct(m.intervall.low) + ' bis ' + formatPct(m.intervall.high) : null,
     m.referenz ? m.referenz.label + ' ' + m.referenz.text + (m.referenz.abstand === null ? '' : ', Abstand ' + (m.referenz.abstand > 0 ? 'plus ' : m.referenz.abstand < 0 ? 'minus ' : '') + Math.abs(m.referenz.abstand).toFixed(1) + ' Prozentpunkte') : null,
-    m.skala.anschlag ? 'Wert unter dem Beginn der Skala, am linken Anschlag' : null,
+    m.skala.anschlagText ? 'Wert ' + m.skala.anschlagText + ', am Anschlag der Spur' : null,
   ].filter(Boolean).join('; ');
   if (worte) kinder.push(el('span', { class: 'visually-hidden', text: worte + '.' }));
   return el('div', { class: 'mz-skala' }, kinder);
@@ -670,7 +682,7 @@ export function messzeile(m) {
     el('span', { class: 'mz-label', text: m.label }),
     mzSkala(m),
     wert,
-    el('span', { class: 'mz-n', text: 'n = ' + (m.n || 0) }),
+    el('span', { class: 'mz-n', text: m.anzahl }),
     el('span', { class: 'mz-verlauf-zelle' }, [mzVerlauf(m.verlauf)]),
     el('span', { class: 'mz-vorjahr', text: m.letztesJahr ? m.letztesJahr.year + ': ' + m.letztesJahr.text : '' }),
     el('span', { class: 'mz-delta ton-' + (m.delta ? m.delta.ton : 'neutral'), text: m.delta ? m.delta.text : '' }),
@@ -679,8 +691,10 @@ export function messzeile(m) {
 }
 
 // Block mehrerer Messzeilen: die Skala steht einmal darüber, sie gilt für alle Zeilen darunter.
-export function messzeilenBlock(titel, modelle, { referenzLabel = null } = {}) {
-  const marken = [0.5, 0.75, 1].map((v) => el('span', { class: 'mz-marke', style: 'left:' + mzPos(v) + '%', text: formatPct(v, 0) }));
+export function messzeilenBlock(titel, modelle, { referenzLabel = null, skala = {} } = {}) {
+  const min = typeof skala.min === 'number' ? skala.min : ((modelle && modelle[0] && modelle[0].skala.min) ?? MESSZEILE_MIN);
+  const max = typeof skala.max === 'number' ? skala.max : ((modelle && modelle[0] && modelle[0].skala.max) ?? 1);
+  const marken = [min, (min + max) / 2, max].map((v) => el('span', { class: 'mz-marke', style: 'left:' + mzPos(v, min, max) + '%', text: formatPct(v, 0) }));
   // Der Titel ist eine echte Überschrift – jeder Block der Ansicht trägt eine, und sie steht in der Kopfzeile der
   // Spur, kostet also keine eigene Zeile.
   const kopf = el('div', { class: 'mz-kopf' }, [
@@ -688,7 +702,7 @@ export function messzeilenBlock(titel, modelle, { referenzLabel = null } = {}) {
     el('div', { class: 'mz-skala mz-achse' }, marken),
     // Zwei Abstände nebeneinander brauchen zwei Namen, sonst heisst «▲ +3.7 pp» zweimal etwas anderes
     el('span', { class: 'mz-wert', text: 'Wert' }),
-    el('span', { class: 'mz-n', text: 'n' }),
+    el('span', { class: 'mz-n', text: 'Anzahl' }),
     el('span', { class: 'mz-verlauf-zelle', text: 'Verlauf' }),
     el('span', { class: 'mz-vorjahr', text: 'letztes Jahr' }),
     el('span', { class: 'mz-delta', text: 'Δ Vorjahr' }),

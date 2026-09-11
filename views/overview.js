@@ -1,6 +1,6 @@
 // views/overview.js – View 1 «Übersicht»: KPIs gesamt für den aktiven Filter, Kennzahlen je Profil.
 
-import { overviewModel, plannedTables, comparisonTable, messzeilenEingaben, kennzahlenExportTable } from './tables.js';
+import { overviewModel, plannedTables, comparisonTable, messzeilenEingaben, MESSZEILEN_SKALA, kennzahlenExportTable } from './tables.js';
 import { renderKpis, renderTable, section, hinted, el, signalBlock, isPhone, messzeileModell, messzeilenBlock } from './common.js';
 import { renderDotChart } from './chart.js';
 import { BENCHMARKS, benchmarkFilter, DEFAULT_FILTER, formatPct } from '../metrics.js';
@@ -61,12 +61,20 @@ export function build(ctx) {
   // die vier Ø-Kennzahlen bleiben Kacheln und folgen darunter. Gemessen bei 1400 × 900: So endet die letzte Messzeile
   // bei y = 771 statt y = 1119 (letzte Quoten-Kachel vorher) und liegt damit über der Falz. Blieben die Kacheln oben,
   // läge sie bei 1056 – die Reihenfolge ist der einzige Weg zum Zielmass, ohne etwas einzuklappen.
-  const messzeilen = messzeilenEingaben(ctx.persons, kpis, { benchmarkLabel: bench ? bench.label : null });
+  // Messzeilen: die drei Durchfallquoten, gerechnet aus denselben Kennzahlen wie die Auswahl. Der Benchmark gilt nur
+  // mit benchmarkrelevantem Filter (A2) – sonst ist die Auswahl der Benchmark.
+  const messzeilen = messzeilenEingaben(ctx.persons, {
+    benchmarkPersons: relevant && bench ? bench.persons : null,
+    benchmarkLabel: bench ? bench.label : null,
+  });
   const quotenLabels = new Set(messzeilen.map((z) => z.label));
-  // Die drei Durchfallquoten erscheinen auf der Übersicht nicht: Die schriftliche sagt dasselbe wie die Zeile darüber,
-  // nur andersherum, und alle drei lägen auf der 50–100-%-Skala am Anschlag. Als Kennzahlen bleiben sie in der
-  // Vergleichstabelle, im Export und in den Ansichten «Schriftlich» und «Mündlich».
-  const NICHT_AUF_DER_UEBERSICHT = ['Schriftlich: im 1. Versuch durchgefallen', 'Mündlich: im 1. Versuch durchgefallen', 'Mündlich: 2× durchgefallen'];
+  // Die Bestehensquoten stehen nicht mehr als Kachel auf der Übersicht: Jede ist die Gegenzahl einer Messzeile
+  // («80.5 % bestanden» = «19.5 % durchgefallen»), und zweimal dieselbe Aussage ist eine zu viel. Als Kennzahlen
+  // bleiben sie vollständig – in der Vergleichstabelle, im Export und in den Ansichten «Schriftlich» und «Mündlich».
+  const NICHT_AUF_DER_UEBERSICHT = [
+    'Schriftlich: im 1. Versuch bestanden', 'Schriftlich: insgesamt bestanden', 'Mündlich: bestanden',
+    'Mündlich: im 1. Versuch durchgefallen', 'Mündlich: 2× durchgefallen',
+  ];
   const kachelKpis = kpis
     .filter((k) => !quotenLabels.has(k.label) && !NICHT_AUF_DER_UEBERSICHT.includes(k.label))
     // Die Ø-Kennzahlen tragen die Streuungszeile aus Paket G; sie bleiben Kacheln und stehen zusammen in einem Block
@@ -76,7 +84,7 @@ export function build(ctx) {
   // genau die fehlen im echten Fall am Zielmass (922 statt 840 px bei sechs Signalen).
   const quotenModelle = messzeilen.map((z) => messzeileModell(z.eingabe));
   const quotenBlock = quotenModelle.length ? el('section', { class: 'kpi-group' }, [
-    messzeilenBlock('Bestehensquoten', quotenModelle, { referenzLabel: relevant && bench ? bench.label : null }),
+    messzeilenBlock('Durchfallquoten', quotenModelle, { referenzLabel: relevant && bench ? bench.label : null, skala: MESSZEILEN_SKALA }),
   ]) : null;
   let benchmarkBar = null;
   if (bench) {

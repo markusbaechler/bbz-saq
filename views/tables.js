@@ -511,35 +511,38 @@ export function overviewModel(persons, allPersons = persons) {
 // M3: Die sechs Quoten der Blöcke «Schriftlich» und «Mündlich» als Eingaben für die Messzeile. Keine neue Kennzahl –
 // Label, Zähler, Nenner und Richtung kommen aus denselben Kacheln wie bisher; dazu die Jahresreihe derselben Quote
 // für den Verlauf und der Benchmark als Referenzmarke. Die Reihenfolge ist die der Kacheln.
-// Hier stehen nur Bestehensquoten. Die drei Durchfallquoten fehlen mit Absicht: «Schriftlich: im 1. Versuch
-// durchgefallen» ist das exakte Komplement der Zeile darüber, und alle drei liegen auf der 50–100-%-Skala am linken
-// Anschlag – gemessen an echten Daten 20.7 % und 3.5 % mündlich, also zwei von fünf Zeilen ohne Aussage auf der Spur.
-// Eine eigene Skala ab 0 % für sie hiesse, den Sinn der gemeinsamen Spur aufzugeben. Als Kennzahlen bleiben sie
-// vollständig erhalten: in der Vergleichstabelle, im Export und in den Ansichten «Schriftlich» und «Mündlich».
+// Die drei Messzeilen der Übersicht zeigen die DURCHFALLQUOTEN, nicht die Bestehensquoten: Bei 99.3 % bestanden
+// steckt die Aussage in der Gegenzahl (6 von 904 nicht bestanden), und die Anzahl der Nichtbestandenen ist die
+// Zahl, nach der gefragt wird. Die Werte liegen damit zwischen 0 und 50 % – die Spur des Blocks beginnt deshalb bei
+// 0 und endet bei 50 %. Keine neue Kennzahl: erstversuchFailed und nichtBestanden rechnet metrics.js längst.
 const MESSZEILEN_QUOTEN = [
-  { label: 'Schriftlich: im 1. Versuch bestanden', gruppe: 'Schriftlich', jahr: (t) => t.written.erstversuch },
-  { label: 'Schriftlich: insgesamt bestanden', gruppe: 'Schriftlich', jahr: (t) => t.written.gesamt },
-  { label: 'Mündlich: bestanden', gruppe: 'Mündlich', jahr: (t) => t.oral.bestanden },
+  { label: 'Schriftlich: im 1. Versuch durchgefallen', wert: (t) => t.written.erstversuchFailed },
+  { label: 'Schriftlich: insgesamt nicht bestanden', wert: (t) => t.written.nichtBestanden },
+  { label: 'Mündlich: nicht bestanden', wert: (t) => t.oral.nichtBestanden },
 ];
+export const MESSZEILEN_SKALA = { min: 0, max: 0.5 };
 
-export function messzeilenEingaben(persons, kpis, { benchmarkLabel = null } = {}) {
+// Auswahl und Benchmark werden mit denselben Funktionen gerechnet; die Zeile hängt damit nicht an der Liste der
+// Kacheln, sondern an den Kennzahlen selbst.
+export function messzeilenEingaben(persons, { benchmarkPersons = null, benchmarkLabel = null } = {}) {
+  const jetzt = { written: writtenPassRates(persons), oral: oralPassRates(persons) };
+  const bench = benchmarkPersons ? { written: writtenPassRates(benchmarkPersons), oral: oralPassRates(benchmarkPersons) } : null;
   const reihen = timeSeries(persons);
-  const byLabel = new Map((kpis || []).map((k) => [k.label, k]));
   return MESSZEILEN_QUOTEN.map((q) => {
-    const k = byLabel.get(q.label);
-    if (!k) return null;
+    const r = q.wert(jetzt);
+    const b = bench ? q.wert(bench) : null;
     return {
-      gruppe: q.gruppe,
       label: q.label,
       eingabe: {
-        // Alle sechs Quoten stehen auf EINER Skala – deshalb trägt jede Zeile ihren vollen Namen samt Prüfungsart
         label: q.label,
-        count: k.count, n: k.n, pct: k.raw, richtung: k.direction,
-        referenz: isNum(k.benchmarkRaw) ? { pct: k.benchmarkRaw, label: 'Benchmark: ' + (benchmarkLabel || '–') } : null,
-        jahre: reihen.map((j) => ({ year: j.year, pct: q.jahr(j).pct, n: q.jahr(j).n })),
+        count: r.count, n: r.n, pct: r.pct,
+        richtung: 'down', // tiefer ist besser
+        referenz: b && isNum(b.pct) ? { pct: b.pct, label: 'Benchmark: ' + (benchmarkLabel || '–') } : null,
+        jahre: reihen.map((j) => ({ year: j.year, pct: q.wert(j).pct, n: q.wert(j).n })),
+        skala: MESSZEILEN_SKALA,
       },
     };
-  }).filter(Boolean);
+  });
 }
 
 // ---------------------------------------------------------------------------
