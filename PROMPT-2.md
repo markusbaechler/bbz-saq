@@ -810,14 +810,28 @@ Grundlage: unabhängige Prüfung von HEAD `3616d32` (Prüfbericht «PRUEFBERICHT
 Syntax, 340 Unit-Tests, 135 Kontrastpaare, Glossar-Abgleich ohne Diff, Smoke 179 ok auf 1400 × 1000 / 820 × 1180 / 390 × 844 in einer
 unabhängigen Umgebung. Offen sind Layoutmängel gegenüber A.11 und ein Doku-Eintrag. **Keine fachlichen Änderungen; Snapshot vor/nach identisch (0.4).**
 
+> **Stand 11.09.2026: Paket F ist erledigt.** Umgesetzt am 07.09.2026 als PR #18 (Merge `5310ccc`), alle sieben Punkte;
+> Akzeptanzkriterien erfüllt (Smoke auf allen fünf Viewports, Snapshot identisch, Kontrast grün, E13 im Log, `spike/` gelöscht).
+> Drei Punkte sind seither durch spätere Pakete überholt oder nachgeschärft worden:
+>
+> | Nr. | Stand |
+> |---|---|
+> | F1 | erledigt 07.09.2026 (`a2046f0`, `bff26d4`) mit Variante (b); **überholt** durch Paket C/C3 (PR #25, `a1433e4`: alle Ziele an einer Stelle, Sekundärnavigation zurückgebaut) und durch **Paket E** (PR #27/#28, `c61fcc8`: zwei Ebenen, neun Primärziele, Band 661 statt 1165 px, kein Scroll ab 1000 px). Das Zielmass «ab 1100 px ohne Scroll» ist damit erfüllt. |
+> | F2 | erledigt 07.09.2026 (`cf28529`, `b002059`); **nachgeschärft** in Paket G (`51f975b`: breite Tabellen zeigen Prio 3 erst ab 1900 px) und in Paket C/C2 (PR #25: Scroll-Container nur dort, wo eine Tabelle wirklich überläuft – 3 von 60 bei 1400 px). |
+> | F5 | erledigt 07.09.2026 (`f6afbbb`); das Zielmass «bei 1280 px eine Zeile» galt zwischenzeitlich nicht mehr (C5 brachte zwei Steuerelemente mehr) und ist seit **Paket D/D0** (PR #26, `01b6b06`) wieder erfüllt: elf Felder brauchen 1188 von 1256 px. |
+> | F4 | erledigt 07.09.2026 (`f6afbbb`, `504dc36`); Zielmass «Kopf ≤ 260 px bei 390 px» wird im Smoke geprüft. Die Lade-Aktionen im Datenstand gelten seit Paket C/C1 auf jedem Gerät, nicht nur auf dem Phone. |
+> | F6 | erledigt 07.09.2026 (`f6afbbb`); im Smoke geprüft (Rand none, Dekoration none, unterstrichen bei Hover). |
+> | F7 | erledigt 07.09.2026 (`3bc9e90`) nach Entscheid (a): `spike/` gelöscht, Verweise in README und DEPLOY.md auf «historisch» umgestellt. |
+> | F3 | erledigt 07.09.2026 (`3bc9e90`): Entscheid E13 im README-Entscheid-Log und in `docs/SPIKE-mutation.md` Abschnitt 8. |
+
 > **⛔ Entscheide vor Start** (eine Nachricht vor Schritt F.1):
 > 1. F1 Navigation: (a) Gruppenbeschriftung inline vor den Links, engere Abstände, `--fs-sm`; (b) Gruppe «Daten» rechtsbündig als Sekundärnavigation;
 >    (c) zwei Zeilen zulassen. Empfehlung: (a) mit Zielmass `#nav.scrollWidth ≤ clientWidth` ab 1100 px; (b) nur, wenn (a) bei 1100 px nicht reicht.
 >    *(Erledigt in Paket C, C1/C3: (a) umgesetzt, (b) rückgängig – alle 14 Ziele stehen an einer Stelle. Das Zielmass wird
 >    ab 1200 px erreicht (1165 von 1200 px ohne Gruppenbeschriftung); bei 1100 px scrollt das Band horizontal, statt eine
 >    zweite Leiste zu öffnen. Die Umgruppierung selbst bleibt für Paket F offen und ist jetzt eine Datenänderung.)*
-> 2. F2 Tabellen: Prio-3-Spalten bereits unter 1200 px ausblenden (heute 900 px). Empfehlung: ja.
-> 3. F7 `spike/`: (a) löschen; (b) nach `tools/spike/` verschieben und aus Pages ausnehmen. Empfehlung: (a) – der Spike ist abgeschlossen, Adapter und Tests decken den Ablauf ab.
+> 2. F2 Tabellen: Prio-3-Spalten bereits unter 1200 px ausblenden (heute 900 px). Empfehlung: ja. *(Erledigt 07.09.2026; Breakpoint 1200 px, für breite Tabellen seit Paket G 1900 px.)*
+> 3. F7 `spike/`: (a) löschen; (b) nach `tools/spike/` verschieben und aus Pages ausnehmen. Empfehlung: (a) – der Spike ist abgeschlossen, Adapter und Tests decken den Ablauf ab. *(Entschieden und erledigt 07.09.2026: (a), Commit `3bc9e90`.)*
 
 ### F.0 Befunde (Kurzfassung)
 
@@ -848,10 +862,10 @@ unabhängigen Umgebung. Offen sind Layoutmängel gegenüber A.11 und ein Doku-Ei
 
 ### F.2 Schritte
 
-- [ ] **F.1** Entscheide vor Start einholen (eine Nachricht). Branch `paket-f-nacharbeiten`, Draft-PR. F1 umsetzen; Smoke-Prüfung «Navigation ohne Scroll» bei 1100, 1280, 1400. Vorlegen.
-- [ ] **F.2** F2 umsetzen; Smoke-Prüfung «keine Tabelle mit Überlauf ≥ 1280 px» (Übersicht, Schriftlich, Mündlich, Experten). Vorlegen.
-- [ ] **F.3** F5, F4, F6; Smoke: Filterleiste bei 1280 px ≤ 110 px hoch, Phone-Kopf ≤ 260 px nach dem Laden. Vorlegen.
-- [ ] **F.4** F7 und F3 (Doku); README «Ansichten»/«Mobile» prüfen; Snapshot-Vergleich; PR «Ready for review». ⛔ Abnahme Paket F (inkl. «Entscheide vor Start» Paket G).
+- [x] **F.1** (07.09.2026, `a2046f0`/`bff26d4`) Entscheide vor Start einholen (eine Nachricht). Branch `paket-f-nacharbeiten`, Draft-PR. F1 umsetzen; Smoke-Prüfung «Navigation ohne Scroll» bei 1100, 1280, 1400. Vorlegen.
+- [x] **F.2** (07.09.2026, `cf28529`/`b002059`) F2 umsetzen; Smoke-Prüfung «keine Tabelle mit Überlauf ≥ 1280 px» (Übersicht, Schriftlich, Mündlich, Experten). Vorlegen.
+- [x] **F.3** (07.09.2026, `f6afbbb`/`504dc36`) F5, F4, F6; Smoke: Filterleiste bei 1280 px ≤ 110 px hoch, Phone-Kopf ≤ 260 px nach dem Laden. Vorlegen.
+- [x] **F.4** (07.09.2026, `3bc9e90`) F7 und F3 (Doku); README «Ansichten»/«Mobile» prüfen; Snapshot-Vergleich; PR «Ready for review». ⛔ Abnahme Paket F (inkl. «Entscheide vor Start» Paket G).
 
 ### F.3 Akzeptanzkriterien
 
@@ -1065,6 +1079,6 @@ Nur erfundene Namen und Banken; keine realen Kürzel von Instituten aus `EMPLOYE
 ### A7 Änderungen Fassung 3 gegenüber Fassung 2 (07.09.2026)
 
 1. **Stand festgehalten:** Pakete A–E gemerged (PR #9–#17, HEAD `3616d32`), unabhängig geprüft (Prüfbericht beim Auftraggeber): Syntax 64 Module, 340 Unit-Tests, 135 Kontrastpaare, Glossar-Abgleich, Smoke 179 ok auf drei Viewports.
-2. **Paket F – Nacharbeiten** aus dem Prüfbericht: F1 Navigation (1597 px Breite), F2 Tabellenüberlauf (`th.num` nowrap), F5 Filterleiste bei 1280 px, F4 Phone-Kopf, F6 KPI-Labels, F7 `spike/`, F3 nur Doku (E13). Reihenfolge F1 → F2 → F5/F4/F6 → F7/F3.
+2. **Paket F – Nacharbeiten** aus dem Prüfbericht: F1 Navigation (1597 px Breite), F2 Tabellenüberlauf (`th.num` nowrap), F5 Filterleiste bei 1280 px, F4 Phone-Kopf, F6 KPI-Labels, F7 `spike/`, F3 nur Doku (E13). Reihenfolge F1 → F2 → F5/F4/F6 → F7/F3. `[erledigt 07.09.2026, PR #18; Stand je Punkt im Abschnitt «Paket F»]`
 3. **Paket G – Streuung** nach Frage des Auftraggebers: σ + Median/Quartile für Ø-Resultate (Kacheln Zweitzeile, Tabellen Prio 3), Wilson-Intervall für Quoten, Einordnung von Differenzen (Effektstärke bzw. Intervall) in Benchmark-Vergleich und Bank-Report, Histogramm optional. Keine neue Kachel, keine SD für Quoten, Snapshot unverändert.
 4. **Reihenfolge** `A → B → C → D → E → F → G` (0.5); Kick-off-Nachricht für die Fortsetzung (Abschnitt 6); Anhang A3 um Abschnitt G, A4 um E13/E14 ergänzt.
