@@ -4,7 +4,7 @@ Stand: 07.09.2026, Fassung 3 (Fassung 2 vom 06.09.2026 plus Pakete F und G; Änd
 Ausführung: Claude Code (CC) im Repo `markusbaechler/bbz-saq`, lokaler Klon `C:\Users\markus.baechler\Documents\bbz_vc\bbz-saq`.
 Ausgangsstand des Codes: `origin/main` = `7bb9966` (06.09.2026) oder neuer. Diese Datei liegt nach Schritt 0 als `PROMPT-2.md` im Repo-Wurzelverzeichnis.
 
-Dieses Dokument setzt auf `PROMPT.md` (Phase 1, umgesetzt) auf und beschreibt sieben Arbeitspakete (A–E umgesetzt und gemerged, F–G offen):
+Dieses Dokument setzt auf `PROMPT.md` (Phase 1, umgesetzt) auf und beschreibt sieben Arbeitspakete (A–G, alle umgesetzt und gemerged; F und G am 07.09.2026 als PR #18 und #19):
 
 | Paket | Inhalt | Art |
 |---|---|---|
@@ -15,6 +15,11 @@ Dieses Dokument setzt auf `PROMPT.md` (Phase 1, umgesetzt) auf und beschreibt si
 | **E** | Mutation: minimaler Schreibpfad in die Excel (Phase 2) | Spike mit Go/No-Go, dann Umsetzung |
 | **F** | Nacharbeiten aus dem Prüfbericht vom 06.09.2026 (Navigation, Tabellenbreite, Filterleiste, Phone-Kopf, Doku) | Umbau ohne fachliche Änderung |
 | **G** | Streuung der Resultate: σ, Median/Quartile, Einordnung von Differenzen (Effektstärke, Wilson-Intervall) | Neue Kennzahlen, additiv |
+
+> **Ein Buchstabe meint immer Runde 1.** A–G bezeichnen in diesem Dokument ausschliesslich diese sieben Pakete
+> (06./07.09.2026). Die Pakete der **Runde 2** ab dem 10.09.2026 tragen **Namen** und stehen im Abschnitt
+> «Runde 2 – benannte Pakete». Ohne diese Trennung hätte «Paket E» zwei Bedeutungen (Schreibpfad und Navigation),
+> «Paket F» zwei (Nacharbeiten und Doku-Stand) und «Paket G» zwei (Streuung und das jeweils nächste Thema).
 
 ## Lesehinweise für CC
 
@@ -250,7 +255,7 @@ Schlüssel ohne Geburtsdatum). Der vollständige Text bleibt im `#status`-Elemen
 `summary`. Fehlerzähler > 0 mit `--warn`-Farbe.
 
 **Navigation** (B1; `app.js` `VIEWS`, `renderNav()`): jede View erhält `group` `[entscheid 06.09.2026: Gruppierung bestätigt]`
-`[überholt 11.09.2026, Paket E: zwei Ebenen statt vierzehn gleichrangiger Ziele – neun Primärziele im Band
+`[überholt 11.09.2026, Paket NAVIGATION (Runde 2): zwei Ebenen statt vierzehn gleichrangiger Ziele – neun Primärziele im Band
 (661 statt 1165 px), die Geschwister von «Prüfungen», «Vorgänge» und «Daten» als Reiter im Kopf der Ansicht.
 Die Gruppenbeschriftung im Band entfällt ersatzlos; alle vierzehn Routen bleiben. Siehe README «Ansichten».]`:
 
@@ -399,7 +404,7 @@ bedienbar (`details/summary`); Chips als Buttons mit `aria-label="Filter Profil 
 
 ### A.12 Entscheide (Stand 06.09.2026)
 
-- Gruppierung der Navigation (A.2): **bestätigt** `[überholt 11.09.2026 durch Paket E: zwei Ebenen, neun Primärziele]`.
+- Gruppierung der Navigation (A.2): **bestätigt** `[überholt 11.09.2026 durch Paket NAVIGATION (Runde 2): zwei Ebenen, neun Primärziele]`.
 - Jahr als `<select>` statt Buttons (A.2): **bestätigt**; die Alternative «Buttons in einem `details`-Popover» entfällt.
 
 ---
@@ -560,7 +565,7 @@ Statusfarbe je Schritt (A.1), Passerelle-Kennzeichen aus `passerelleFrom()`, feh
 
 - Globale Filter Profil, Sprache, Bank, VSS/VSM und Zertifikate schränken die **Trefferliste** ein; das Detail zeigt **immer alle** Vorgänge
   der Person. Zeitraum, Versuche und Wertung wirken nicht `[entscheid: vor Start, Frage 2]`; Hinweis unter dem Suchfeld.
-  *(Überholt durch Paket A, A1: Die Felder sind in der Filterleiste deaktiviert und tragen den Grund als Tooltip; der erklärende
+  *(Überholt durch Paket BEFUNDE (Runde 2), A1: Die Felder sind in der Filterleiste deaktiviert und tragen den Grund als Tooltip; der erklärende
   Nebensatz unter dem Suchfeld ist entfallen. Die Aussage selbst bleibt richtig.)*
 - Suchtext und gewählte Person liegen in `store.ui.personen = { query, selectedKey }` (Memory), werden in `urlState.js` **nicht serialisiert**
   (wie `snapshots`; `DEFAULT_UI.personen = null`); Test in `tests/urlState.test.js`: `serializeState()` enthält nie `personen`. Kein Deep-Link auf
@@ -711,10 +716,10 @@ Formeln in `metrics.js` als reine Funktionen: `expertRuns(persons, { from, to })
 
 Profil, Sprache, Bank, VSS/VSM, Zertifikate wirken über die Vorgänge. **Zeitraum wirkt auf das Run-Datum des Einsatzes** (nicht auf das
 Referenzdatum des Vorgangs), damit «2025» die Einsätze des Jahres 2025 zeigt. Versuche-Filter und Wertung wirken nicht (Hinweis in der Ansicht).
-*(Überholt durch Paket A, A1: «Versuche» ist in der Filterleiste deaktiviert und trägt den Grund als Tooltip; der Zeitraum bleibt aktiv und
+*(Überholt durch Paket BEFUNDE (Runde 2), A1: «Versuche» ist in der Filterleiste deaktiviert und trägt den Grund als Tooltip; der Zeitraum bleibt aktiv und
 trägt einen sichtbaren Hinweis auf das Run-Datum. Die Aussage selbst bleibt richtig.)*
 Umsetzung: `filterPersons(state.persons, filter, { period: false })` → `expertRuns(persons, { from: filter.from, to: filter.to })`.
-*(Überholt durch Paket B, B4: Die Haupttabelle wird über renderExpandableTable sortiert wie jede andere Tabelle; der
+*(Überholt durch Paket DIAGRAMME (Runde 2), B4: Die Haupttabelle wird über renderExpandableTable sortiert wie jede andere Tabelle; der
 Sortierzustand steht in der URL statt nur im Memory – ein geteilter Link zeigt sonst eine andere Reihenfolge.)*
 
 ### D.7 Schritte
@@ -816,10 +821,10 @@ unabhängigen Umgebung. Offen sind Layoutmängel gegenüber A.11 und ein Doku-Ei
 >
 > | Nr. | Stand |
 > |---|---|
-> | F1 | erledigt 07.09.2026 (`a2046f0`, `bff26d4`) mit Variante (b); **überholt** durch Paket C/C3 (PR #25, `a1433e4`: alle Ziele an einer Stelle, Sekundärnavigation zurückgebaut) und durch **Paket E** (PR #27/#28, `c61fcc8`: zwei Ebenen, neun Primärziele, Band 661 statt 1165 px, kein Scroll ab 1000 px). Das Zielmass «ab 1100 px ohne Scroll» ist damit erfüllt. |
-> | F2 | erledigt 07.09.2026 (`cf28529`, `b002059`); **nachgeschärft** in Paket G (`51f975b`: breite Tabellen zeigen Prio 3 erst ab 1900 px) und in Paket C/C2 (PR #25: Scroll-Container nur dort, wo eine Tabelle wirklich überläuft – 3 von 60 bei 1400 px). |
-> | F5 | erledigt 07.09.2026 (`f6afbbb`); das Zielmass «bei 1280 px eine Zeile» galt zwischenzeitlich nicht mehr (C5 brachte zwei Steuerelemente mehr) und ist seit **Paket D/D0** (PR #26, `01b6b06`) wieder erfüllt: elf Felder brauchen 1188 von 1256 px. |
-> | F4 | erledigt 07.09.2026 (`f6afbbb`, `504dc36`); Zielmass «Kopf ≤ 260 px bei 390 px» wird im Smoke geprüft. Die Lade-Aktionen im Datenstand gelten seit Paket C/C1 auf jedem Gerät, nicht nur auf dem Phone. |
+> | F1 | erledigt 07.09.2026 (`a2046f0`, `bff26d4`) mit Variante (b); **überholt** durch Paket KOPFBEREICH (Runde 2, C3; PR #25, `a1433e4`: alle Ziele an einer Stelle, Sekundärnavigation zurückgebaut) und durch **Paket NAVIGATION** (Runde 2; PR #27/#28, `c61fcc8`: zwei Ebenen, neun Primärziele, Band 661 statt 1165 px, kein Scroll ab 1000 px). Das Zielmass «ab 1100 px ohne Scroll» ist damit erfüllt. |
+> | F2 | erledigt 07.09.2026 (`cf28529`, `b002059`); **nachgeschärft** in Paket G (Runde 1, `51f975b`: breite Tabellen zeigen Prio 3 erst ab 1900 px) und in Paket KOPFBEREICH (Runde 2, C2; PR #25: Scroll-Container nur dort, wo eine Tabelle wirklich überläuft – 3 von 60 bei 1400 px). |
+> | F5 | erledigt 07.09.2026 (`f6afbbb`); das Zielmass «bei 1280 px eine Zeile» galt zwischenzeitlich nicht mehr (C5 brachte zwei Steuerelemente mehr) und ist seit **Paket SIGNALE** (Runde 2, D0; PR #26, `01b6b06`) wieder erfüllt: elf Felder brauchen 1188 von 1256 px. |
+> | F4 | erledigt 07.09.2026 (`f6afbbb`, `504dc36`); Zielmass «Kopf ≤ 260 px bei 390 px» wird im Smoke geprüft. Die Lade-Aktionen im Datenstand gelten seit Paket KOPFBEREICH (Runde 2, C1) auf jedem Gerät, nicht nur auf dem Phone. |
 > | F6 | erledigt 07.09.2026 (`f6afbbb`); im Smoke geprüft (Rand none, Dekoration none, unterstrichen bei Hover). |
 > | F7 | erledigt 07.09.2026 (`3bc9e90`) nach Entscheid (a): `spike/` gelöscht, Verweise in README und DEPLOY.md auf «historisch» umgestellt. |
 > | F3 | erledigt 07.09.2026 (`3bc9e90`): Entscheid E13 im README-Entscheid-Log und in `docs/SPIKE-mutation.md` Abschnitt 8. |
@@ -827,10 +832,11 @@ unabhängigen Umgebung. Offen sind Layoutmängel gegenüber A.11 und ein Doku-Ei
 > **⛔ Entscheide vor Start** (eine Nachricht vor Schritt F.1):
 > 1. F1 Navigation: (a) Gruppenbeschriftung inline vor den Links, engere Abstände, `--fs-sm`; (b) Gruppe «Daten» rechtsbündig als Sekundärnavigation;
 >    (c) zwei Zeilen zulassen. Empfehlung: (a) mit Zielmass `#nav.scrollWidth ≤ clientWidth` ab 1100 px; (b) nur, wenn (a) bei 1100 px nicht reicht.
->    *(Erledigt in Paket C, C1/C3: (a) umgesetzt, (b) rückgängig – alle 14 Ziele stehen an einer Stelle. Das Zielmass wird
+>    *(Erledigt in Paket KOPFBEREICH (Runde 2), C1/C3: (a) umgesetzt, (b) rückgängig – alle 14 Ziele stehen an einer Stelle. Das Zielmass wird
 >    ab 1200 px erreicht (1165 von 1200 px ohne Gruppenbeschriftung); bei 1100 px scrollt das Band horizontal, statt eine
->    zweite Leiste zu öffnen. Die Umgruppierung selbst bleibt für Paket F offen und ist jetzt eine Datenänderung.)*
-> 2. F2 Tabellen: Prio-3-Spalten bereits unter 1200 px ausblenden (heute 900 px). Empfehlung: ja. *(Erledigt 07.09.2026; Breakpoint 1200 px, für breite Tabellen seit Paket G 1900 px.)*
+>    zweite Leiste zu öffnen. Die Umgruppierung selbst blieb offen und wurde am 11.09.2026 in Paket NAVIGATION
+>    (Runde 2) entschieden – als zwei Ebenen statt einer Umgruppierung.)*
+> 2. F2 Tabellen: Prio-3-Spalten bereits unter 1200 px ausblenden (heute 900 px). Empfehlung: ja. *(Erledigt 07.09.2026; Breakpoint 1200 px, für breite Tabellen seit Paket G (Runde 1) 1900 px.)*
 > 3. F7 `spike/`: (a) löschen; (b) nach `tools/spike/` verschieben und aus Pages ausnehmen. Empfehlung: (a) – der Spike ist abgeschlossen, Adapter und Tests decken den Ablauf ab. *(Entschieden und erledigt 07.09.2026: (a), Commit `3bc9e90`.)*
 
 ### F.0 Befunde (Kurzfassung)
@@ -935,6 +941,28 @@ Tests mit bekannten Werten: `[0.7, 0.8, 0.9]` → sd 0.1, median 0.8, p25 0.75, 
 - Bank-Report: jede Kennzahlzeile trägt eine Einordnung; eine Differenz von 2 pp bei d < 0.2 erscheint als «gering».
 - Bestehende Zahlen unverändert (Snapshot identisch); Exporte enthalten die neuen Spalten mit denselben Werten wie die Ansicht.
 - Smoke grün auf allen Viewports; kein Überlauf durch die neuen Spalten (Prio 3, Voraussetzung F2).
+
+---
+
+## Runde 2 – benannte Pakete (ab 10.09.2026)
+
+Die Pakete dieser Runde tragen **Namen statt Buchstaben**. Grund: Die Buchstaben A–G sind in diesem Dokument bereits
+vergeben, und eine zweite Vergabe hätte drei von ihnen doppelt belegt – «Paket E» wäre zugleich der Schreibpfad
+(Abschnitt «Paket E – Mutation») und die Navigation gewesen, «Paket F» zugleich die Nacharbeiten und ein Doku-Stand,
+«Paket G» zugleich die Streuung und das jeweils nächste Thema. Verweise in diesem Dokument, die ein Paket der Runde 2
+meinen, nennen deshalb den Namen; ein blosser Buchstabe meint immer Runde 1.
+
+| Name | Inhalt | Buchstabe während der Arbeit | PR | `main` |
+|---|---|---|---|---|
+| **BEFUNDE** | Sechs belegte UX-Befunde: Filterleiste je Ansicht wirksam/abgeschaltet mit Grund, Benchmark-Gleichstand, Kachelaufbau, Kontrast-Tokens samt Prüfliste, zwei Offen-Begriffe, Glossar | A (A1–A6) | #22 | `b9cf821` |
+| **DIAGRAMME** | Diagramme und Grundverhalten der Tabellen: Achsen und Direktbeschriftung, Tabellen-Zwilling, Sortierung über eine Funktion, klebende Tabellenköpfe | B (B1–B6) | #24 | `9d7704f` |
+| **KOPFBEREICH** | Kopfzeile, Steuerung, Gitter: Datenleiste aufgelöst, Filterleiste beim Scrollen geschrumpft, Navigation aus einer Deklaration, `.ranking-grid` nach Inhaltsbreite, Wertung und Benchmark in die Filterleiste | C (C1–C5) | #25 | `a1433e4` |
+| **SIGNALE** | Sechs Regeln über den vorhandenen Kennzahlen als reine Funktionen (`signals()`), Signalliste als erster Inhalt der Übersicht, Höhenbudget gemessen | D (D0–D2) | #26 | `af1d62e` |
+| **NAVIGATION** | Zwei Ebenen statt vierzehn gleichrangiger Ziele: neun Primärziele im Band (661 statt 1165 px), Geschwister als Reiter im Kopf der Ansicht, Reihenfolge in drei Blöcken, Überschrift nennt das Ziel | E | #27, #28, #30 | `dda749e` |
+| **MESSZEILE** | Messzeile als Grundbaustein (gemeinsame Skala, Wilson-Balken, Verlauf, Delta), Profil-Punktdiagramm, Einbau in die Übersicht | – (M0–M3) | offen | – |
+
+Ohne Paketnamen liefen zwei Unterhaltsarbeiten derselben Runde: `AGENTS.md` gegen Drift zu `CLAUDE.md` abgesichert
+(#23, `2701057`) und der Stand der Runde-1-Pakete in diesem Dokument nachgeführt (#29, `05ad32b`).
 
 ---
 
