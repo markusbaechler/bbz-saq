@@ -561,9 +561,14 @@ function renderView() {
     if (v.id === current) a.setAttribute('aria-current', 'page');
     return a;
   })) : null;
+  // Bei einem gefassten Ziel nennt die Überschrift das Ziel und der aktive Reiter die Ansicht – sonst stünde derselbe
+  // Name zweimal nebeneinander. Im Druck fehlen die Reiter; dort hängt die Ansicht deshalb als Zusatz an der
+  // Überschrift, damit ein Ausdruck sagt, was er zeigt.
+  const ueberschrift = el('h2', {}, [nachbarn.length ? view.group : view.label]);
+  if (nachbarn.length) ueberschrift.appendChild(el('span', { class: 'nur-druck', text: ' · ' + view.label }));
   container.appendChild(el('div', { class: 'view-head' }, [
     el('div', { class: 'view-title' }, [
-      el('div', { class: 'view-titelzeile' }, [el('h2', { text: view.label }), reiter]),
+      el('div', { class: 'view-titelzeile' }, [ueberschrift, reiter]),
       view.intro ? el('p', { class: 'view-intro', text: view.intro }) : null,
     ]),
     actions,
