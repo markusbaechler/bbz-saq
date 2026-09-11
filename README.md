@@ -534,6 +534,15 @@ einen anderen Nenner hätte als die einzelnen Zeilen; verglichen werden die Teil
 Bei VSS/VSM überschneiden sich die Gruppen: Ein Vorgang mit VSS **und** VSM zählt in beiden, die drei Punkte teilen
 den Gesamtwert also nicht auf – der Hinweis über der Ansicht sagt es.
 
+**Die Achse folgt den Daten (Paket I, P2)** und benutzt dazu dieselbe Regel wie die Spur der Messzeile
+(`messzeilenSkala()`): Beginn bei **0 %**, Ende auf der nächsten **5-%-Stufe echt über dem grössten Wert**,
+mindestens 10 pp Spanne, höchstens 100 %. «Grösster Wert» heisst dabei: der grösste Wert überhaupt –
+**Intervallenden und Bezugslinie eingerechnet**. Sonst reichte ein Balken über die Achse hinaus und würde am Rand
+abgeschnitten, was sich läse, als endete er genau dort. Vorher lief die Achse fest bis 100 %, während die Daten bei
+60 % endeten; die Punkte drängten sich in der linken Hälfte. Am Boden (10 pp Mindestspanne) und am Deckel (100 %)
+kann die Regel nicht weiter – nur dort darf ein Wert auf dem Rand liegen. Alle Punktdiagramme teilen denselben
+Nullpunkt; einen abweichenden Achsenbeginn gibt es hier nicht.
+
 **In «Experten» gilt eine Besonderheit:** Dort werden Menschen verglichen, deshalb steht das Diagramm in der
 Reihenfolge der Tabelle (Einsätze absteigend) und **nicht nach Quote sortiert** – nach Quote sortiert wäre das Bild
 eine Rangliste von Personen, und genau das ist die Ansicht laut ihrer eigenen Fussnote nicht (E9). Die Balken werden

@@ -5,7 +5,7 @@
 // (auch per Tastatur: Pfeiltasten), Tabellen-Zwilling in der Ansicht. Reihenfarben: CSS-Variablen --series-1 … --series-3.
 
 import { el, isPhone } from './common.js';
-import { SMALL_MARK } from './tables.js';
+import { SMALL_MARK, messzeilenSkala } from './tables.js';
 import { SMALL_N, formatPct } from '../metrics.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -298,11 +298,16 @@ const dcPp = (v) => Math.round(v * 10) / 10;
 // richtung: 'up' = höher ist besser, 'down' = tiefer ist besser (Durchfallquoten), 'neutral' = ohne Wertung.
 // Ohne sie liest sich «+27.9 pp · gesichert» wie eine gute Nachricht, obwohl auf einer Durchfallquote das Gegenteil
 // gilt. Die Messzeile kennt das Feld seit Paket MESSZEILE; hier fehlte es.
-export function dotChartModel(points, { referenz = null, xMax = 1, richtung = 'up' } = {}) {
+export function dotChartModel(points, { referenz = null, richtung = 'up' } = {}) {
   const liste = (points || []).filter((p) => p && dcNum(p.pct));
+  // Die Achse folgt den Daten, und zwar nach derselben Regel wie die Spur der Messzeile (messzeilenSkala): nächste
+  // 5-%-Stufe echt über dem grössten Wert, mindestens 10 pp Spanne, Beginn bei 0. Vorher stand hier die feste
+  // Obergrenze 1 – die Achse lief bis 100 %, während die Daten bei 60 % endeten, und die Punkte drängten sich links.
+  // Gewogen wird der grösste Wert samt INTERVALLENDEN und BEZUGSLINIE: Ein Balken, der über die Achse hinausreicht,
+  // würde am Rand abgeschnitten und läse sich wie ein Balken, der genau dort endet.
   const werte = liste.flatMap((p) => [p.pct, p.low, p.high]).filter(dcNum);
   if (referenz && dcNum(referenz.pct)) werte.push(referenz.pct);
-  const xMin = autoYMin([{ points: werte.map((v) => ({ y: v })) }], xMax);
+  const { min: xMin, max: xMax } = messzeilenSkala(werte);
   const span = Math.max(xMax - xMin, 1e-9);
   const pos = (v) => Math.max(0, Math.min(100, ((v - xMin) / span) * 100));
   const ref = referenz && dcNum(referenz.pct) ? { pct: referenz.pct, label: referenz.label || 'Gesamt', x: pos(referenz.pct) } : null;
@@ -340,8 +345,8 @@ export function dotChartModel(points, { referenz = null, xMax = 1, richtung = 'u
 }
 
 // Punktdiagramm rendern. points/referenz wie oben; yFormat formatiert die Achse.
-export function renderDotChart(points, { title = '', yFormat = (v) => String(v), xMax = 1, referenz = null, ariaLabel = '', compact = false, richtung = 'up' } = {}) {
-  const modell = dotChartModel(points, { referenz, xMax, richtung });
+export function renderDotChart(points, { title = '', yFormat = (v) => String(v), referenz = null, ariaLabel = '', compact = false, richtung = 'up' } = {}) {
+  const modell = dotChartModel(points, { referenz, richtung });
   const width = compact ? 360 : 820;
   const zeileH = compact ? 26 : 30;
   const pad = compact

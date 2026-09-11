@@ -10,14 +10,14 @@ const mitIv = (label, count, n) => {
   return { label, pct: count / n, n, low: iv.low, high: iv.high, small: n < 5 };
 };
 
-test('dotchart: Achse folgt dem Wertebereich, Referenz und Punkte liegen darauf', () => {
+test('dotchart: Achse beginnt bei 0 und endet über dem grössten Wert, Referenz und Punkte liegen darauf', () => {
   const m = dotChartModel([punkt('PK', 0.88, 640), punkt('KMU', 0.72, 302)], { referenz: { pct: 0.814, label: 'Gesamt' } });
-  assertEqual(m.xMin, 0.7, 'kleinster Wert 72 % → Achse ab 70 %, nicht ab 0');
-  assertEqual(m.ticks[0], 0.7);
-  assertEqual(m.xMax, 1);
-  assertEqual(Math.round(m.zeilen[0].x), 60, 'PK bei (0.88 − 0.7) / 0.3');
-  assertEqual(Math.round(m.zeilen[1].x), 7);
-  assertEqual(Math.round(m.referenz.x), 38);
+  assertEqual(m.xMin, 0, 'gemeinsamer Nullpunkt wie in der Messzeile – nicht der Wertebereich');
+  assertEqual(m.ticks[0], 0);
+  assertEqual(m.xMax, 0.9, 'grösster Wert 88 % → nächste 5-%-Stufe echt darüber (P2)');
+  assertEqual(Math.round(m.zeilen[0].x), 98, 'PK bei 0.88 / 0.9');
+  assertEqual(Math.round(m.zeilen[1].x), 80);
+  assertEqual(Math.round(m.referenz.x), 90);
 });
 
 test('dotchart: gesichert heisst, das Intervall enthält den Gesamtwert nicht – unten wie oben', () => {
@@ -75,9 +75,27 @@ test('dotchart: kleine Gruppe bleibt drin und wird markiert; Punkte ohne Wert fa
   assertEqual(klein.gesichert, false, 'bei n = 4 ist das Intervall zu breit für eine gesicherte Aussage');
 });
 
-test('dotchart: Intervall ausserhalb der Achse wird geklemmt, nicht abgeschnitten', () => {
+// P2: Die Achse wird aus DEN GLEICHEN Werten gebaut, gegen die sie gelesen wird. Vorher endete sie fest bei 100 %;
+// ein Balken darüber hinaus wurde geklemmt und sah aus, als endete er genau am Rand.
+test('dotchart: das Intervallende bestimmt die Achse, nicht nur der Punkt', () => {
+  const m = dotChartModel([mitIv('Klein', 1, 8)]);
+  assertEqual(m.xMax, 0.5, 'Punkt bei 12.5 %, Intervall bis 47.1 % → Achse bis 50 %');
+  const z = m.zeilen[0];
+  assert(z.intervall.bis < 100, 'das Ende liegt echt im Plot, nichts wird geklemmt: ' + JSON.stringify(z.intervall));
+});
+
+test('dotchart: die Bezugslinie zieht die Achse mit, wenn sie über allen Punkten liegt', () => {
   const m = dotChartModel([mitIv('Rand', 1, 6)], { referenz: { pct: 0.9, label: 'Gesamt' } });
+  assertEqual(m.xMax, 0.95, 'Gesamtwert 90 % → Achse bis 95 %, sonst klebte die Linie am Rand');
+  assert(m.referenz.x < 100, 'die Linie steht im Plot, nicht auf dem Rahmen: ' + m.referenz.x);
   const z = m.zeilen[0];
   assert(z.intervall.von >= 0 && z.intervall.bis <= 100, 'Balken bleibt im Plot: ' + JSON.stringify(z.intervall));
-  assertEqual(m.xMin, 0, 'ein Wert bei 16.7 % zieht die Achse auf 0');
+});
+
+test('dotchart: mindestens 10 pp Spanne, und bei 100 % endet die Achse bei 100 %', () => {
+  const winzig = dotChartModel([punkt('A', 0.004, 900), punkt('B', 0.007, 900)]);
+  assertEqual(winzig.xMax, 0.1, 'zwei Werte unter 1 % ergäben sonst eine Achse bis 5 % – Rauschen als Balken');
+  const voll = dotChartModel([punkt('Alle', 1, 3)]);
+  assertEqual(voll.xMax, 1, 'über 100 % gibt es nichts; nur hier darf der Punkt auf dem Rand liegen');
+  assertEqual(Math.round(voll.zeilen[0].x), 100);
 });

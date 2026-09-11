@@ -633,6 +633,66 @@ try {
     && teile.vorDerTabelle && teile.punkte.join('|') === teile.zeilen.filter((z) => teile.punkte.includes(z)).join('|'),
     'Schriftlich: Punktdiagramm je Teilprüfung (' + (teile ? teile.punkte.join(' · ') : '') + ') ohne Bezugslinie, Folge wie die Tabelle');
 
+  // P2: Die Achse jedes Punktdiagramms folgt den Daten – geprüft wird die Regel selbst, nicht eine Faustzahl:
+  // Beginn bei 0 %, Ende auf der nächsten 5-%-Stufe ECHT über dem grössten Wert (Punkt, Intervallende ODER
+  // Bezugslinie), mindestens 10 pp Spanne, höchstens 100 %. Vorher lief die Achse immer bis 100 %.
+  for (const ansicht of ['uebersicht', 'schriftlich', 'muendlich', 'vss-vsm', 'experten']) {
+    await page.goto(server.url + '#' + ansicht);
+    await page.waitForSelector('#view figure.viz .viz-dots');
+    const skalen = await page.evaluate(() => [...document.querySelectorAll('#view figure.viz')]
+      .filter((f) => f.querySelector('.viz-dots')).map((f) => {
+        const s = f.querySelector('svg');
+        const achse = s.querySelector('line.viz-axis');
+        const xa = Number(achse.getAttribute('x1')), xe = Number(achse.getAttribute('x2'));
+        // Wert je Pixel aus zwei Achsenbeschriftungen; die Beschriftung der Bezugslinie trägt einen Namen davor
+        // und fällt hier heraus – sie ist ein zu prüfender Wert, kein Massstab.
+        const achsTicks = [...s.querySelectorAll('text.viz-tick')].filter((t) => /^[\d.,]+ %$/.test(t.textContent.trim()))
+          .map((t) => ({ x: Number(t.getAttribute('x')), v: parseFloat(t.textContent) / 100 })).sort((a, b) => a.x - b.x);
+        const a = achsTicks[0], b = achsTicks[achsTicks.length - 1];
+        const proPx = (b.v - a.v) / (b.x - a.x);
+        const wert = (x) => a.v + (x - a.x) * proPx;
+        const xs = [...s.querySelectorAll('circle.viz-dot')].map((c) => Number(c.getAttribute('cx')))
+          .concat([...s.querySelectorAll('line.viz-ci-cap')].map((l) => Number(l.getAttribute('x1'))));
+        const ref = s.querySelector('line.viz-ref');
+        if (ref) xs.push(Number(ref.getAttribute('x1')));
+        return {
+          titel: (f.querySelector('figcaption') || { textContent: '' }).textContent.split(' · ')[0],
+          ersterTick: achsTicks[0].v,
+          achsEnde: Math.round(wert(xe) * 1000) / 1000,
+          groesster: Math.round(Math.max(...xs.map(wert)) * 1000) / 1000,
+          ueberRand: xs.filter((x) => x > xe + 0.5).length,
+          fuellung: Math.round(((Math.max(...xs) - xa) / (xe - xa)) * 1000) / 10,
+          beschriftungen: [...s.querySelectorAll('text.viz-label')].map((t) => t.textContent).filter((t) => /^n = /.test(t)),
+        };
+      }));
+    // Aus Pixeln zurückgerechnet, deshalb toleriert die Prüfung 0.3 pp. Geprüft wird die Regel in ihren zwei
+    // Hälften statt gegen eine Faustzahl: Die Achse endet ÜBER dem grössten Wert, aber weniger als eine 5-%-Stufe
+    // darüber – ausser am Boden (10 pp Mindestspanne) und am Deckel (100 %), wo die Regel nicht weiter kann.
+    const TOL = 0.003;
+    const grund = (d) => d.ersterTick !== 0 ? 'beginnt bei ' + Math.round(d.ersterTick * 100) + ' % statt 0 %'
+      : d.ueberRand > 0 ? d.ueberRand + ' Werte über dem rechten Rand (geklemmt)'
+      : d.achsEnde < d.groesster - TOL ? 'endet bei ' + d.achsEnde + ' unter dem grössten Wert ' + d.groesster
+      : (d.achsEnde - d.groesster >= 0.05 + TOL && d.achsEnde > 0.103 && d.achsEnde < 0.997) ? 'endet ' + Math.round((d.achsEnde - d.groesster) * 1000) / 10 + ' pp über dem grössten Wert – mehr als eine Stufe'
+      : null;
+    const falsch = skalen.filter((d) => grund(d));
+    check(skalen.length > 0 && falsch.length === 0,
+      'P2 ' + ansicht + ': ' + skalen.length + ' Achse(n) folgen den Daten ab 0 % – '
+        + skalen.map((d) => d.titel.slice(0, 28) + ' bis ' + Math.round(d.achsEnde * 100) + ' % (grösster Wert ' + Math.round(d.groesster * 1000) / 10 + ' %, Füllung ' + d.fuellung + ' %)').join(' | ')
+        + (falsch.length ? ' – FALSCH: ' + falsch.map((d) => d.titel + ': ' + grund(d)).join(' / ') : ''));
+    // P1 für JEDES Punktdiagramm, nicht nur in «Schriftlich»/«Mündlich»: Ein gesicherter Abstand trägt seine
+    // Wertung als Wort. Die Übersicht rief das Diagramm an der Prüfung vorbei direkt auf und reichte die Richtung
+    // nicht weiter – gefunden hat das erst diese Prüfung. Ausgenommen ist «Experten»: dort ist die Richtung
+    // bewusst neutral, weil Menschen verglichen werden und eine Wertung eine Rangliste wäre (E9).
+    if (ansicht !== 'experten') {
+      const ohneWertung = skalen.flatMap((d) => d.beschriftungen.filter((t) => /gesichert(?! (günstig|ungünstig))/.test(t)));
+      const mitWertung = skalen.flatMap((d) => d.beschriftungen.filter((t) => /gesichert (günstig|ungünstig)/.test(t)));
+      check(ohneWertung.length === 0,
+        'P1 ' + ansicht + ': jeder gesicherte Abstand mit Wertung ('
+          + (mitWertung.length ? mitWertung.join(' | ') : 'keiner gesichert') + ')'
+          + (ohneWertung.length ? ' – OHNE: ' + ohneWertung.join(' | ') : ''));
+    }
+  }
+
   // Histogramm (PROMPT-2 Paket G, G.4): Schriftlich und Mündlich zeigen die Verteilung der Resultate (1. Versuch) als Balkendiagramm
   // (Auswahl vs. Benchmark, Klassen à 10 pp) mit Legende und Tabellen-Zwilling; Tooltip per Tastatur; n < 5 → Hinweis statt Diagramm
   for (const v of ['schriftlich', 'muendlich']) {
