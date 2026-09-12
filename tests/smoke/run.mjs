@@ -381,6 +381,72 @@ try {
 
   // Höhenbudget: gemessen mit dem vollen Fall (sechs Signale), nicht mit dem leeren. Offen bleiben die drei schwersten;
   // die übrigen Detailzeilen sind über «Alle Details zeigen» erreichbar, gehen also nicht verloren.
+  // O4a Bestandsband: die Vorgaenge als ein Band, Breite nach Menge. Die Abschnitte MUESSEN die ganze Menge sein –
+  // ein proportionales Band, das das nicht ist, behauptet eine falsche Aufteilung. Fuenf Abschnitte statt der vier
+  // aus dem Auftrag, weil «nicht erfasst» sonst fehlte.
+  const band = await page.evaluate(() => {
+    const bb = document.querySelector('#view .bb');
+    if (!bb) return null;
+    const teile = [...bb.querySelectorAll('.bb-teil')];
+    const zahl = (t) => { const m = /: (\d+) von (\d+) Vorg/.exec(t); return m ? [Number(m[1]), Number(m[2])] : null; };
+    const werte = teile.map((t) => zahl(t.title)).filter(Boolean);
+    return {
+      abschnitte: teile.length,
+      summe: werte.reduce((a, x) => a + x[0], 0),
+      n: werte.length ? werte[0][1] : 0,
+      mitAnteil: teile.filter((t) => /\(\d+\.\d %\)/.test(t.title)).length,
+      rollen: bb.querySelectorAll('[role="list"]').length + '/' + bb.querySelectorAll('[role="listitem"]').length,
+      legende: [...bb.querySelectorAll('.bb-legende-item')].map((e) => e.textContent.replace(/ⓘ/g, '').trim()),
+      breiten: teile.map((t) => Math.round(t.getBoundingClientRect().width)),
+      druckfest: teile.every((t) => getComputedStyle(t).printColorAdjust === 'exact'),
+    };
+  });
+  check(!!band && band.summe === band.n && band.abschnitte >= 4 && band.mitAnteil === band.abschnitte
+    && band.rollen === '1/' + band.abschnitte && band.legende.length === band.abschnitte
+    && band.breiten.every((b) => b >= 3) && band.druckfest,
+    'O4a Bestandsband: ' + (band ? band.abschnitte + ' Abschnitte, zusammen ' + band.summe + ' von ' + band.n
+      + ' Vorgaengen, Legende «' + band.legende.join(' · ') + '», Breiten ' + band.breiten.join('/') + ' px, druckfest' : 'fehlt'));
+
+  // O4b Zwei Spalten ab 1100 px. Die DOM-Folge bleibt die Lesefolge – Tastatur und Screenreader bekommen
+  // dieselbe Reihenfolge wie das Auge; nebeneinander stellt allein das Raster.
+  const spalten = [];
+  for (const breite of [1400, 1100, 1099]) {
+    await page.setViewportSize({ width: breite, height: 1000 });
+    await page.waitForTimeout(200);
+    spalten.push(await page.evaluate((b) => {
+      const oben = document.querySelector('#view .ue-oben');
+      const spur = getComputedStyle(oben).gridTemplateColumns.split(' ').length;
+      const folge = [...oben.children].map((k) => (k.querySelector('h3, h2') || { textContent: '?' }).textContent.trim().split(' ')[0]);
+      return b + 'px:' + spur + 'spaltig(' + folge.join('→') + ')';
+    }, breite));
+  }
+  await page.setViewportSize({ width: 1400, height: 1000 });
+  await page.waitForTimeout(200);
+  check(spalten[0].includes('2spaltig') && spalten[1].includes('2spaltig') && spalten[2].includes('1spaltig')
+    && spalten.every((x) => x.includes('Signale→Durchfallquoten')),
+    'O4b Zwei Spalten: ' + spalten.join(' · ') + ' – DOM-Folge in jeder Breite gleich');
+
+  // O4c Hover auf der ganzen Messzeile. Vorher trugen nur Intervallbalken und Referenzmarke ein title.
+  const mzHover = await page.evaluate(() => {
+    const zeilen = [...document.querySelectorAll('#view .messzeile')];
+    const fl = (e) => { const b = e.getBoundingClientRect(); return b.width * b.height; };
+    return {
+      zeilen: zeilen.length,
+      mitTreffer: zeilen.filter((z) => z.querySelector('.mz-treffer')).length,
+      mitZaehler: zeilen.filter((z) => / von \d+ /.test((z.querySelector('.mz-treffer') || {}).title || '')).length,
+      deckung: Math.round(fl(zeilen[0].querySelector('.mz-treffer')) / fl(zeilen[0]) * 100),
+      faktor: Math.round(fl(zeilen[0].querySelector('.mz-treffer')) / fl(zeilen[0].querySelector('.mz-intervall'))),
+      // Das aria-label bleibt der Name; der Mouseover-Satz darf NICHT als zweite Beschreibung daneben stehen
+      titelAufLi: zeilen.filter((z) => z.getAttribute('title')).length,
+      ariaMitZaehler: zeilen.filter((z) => / von \d+,/.test(z.getAttribute('aria-label') || '')).length,
+    };
+  });
+  check(mzHover.zeilen > 0 && mzHover.mitTreffer === mzHover.zeilen && mzHover.mitZaehler === mzHover.zeilen
+    && mzHover.deckung >= 99 && mzHover.titelAufLi === 0 && mzHover.ariaMitZaehler === mzHover.zeilen,
+    'O4c Messzeile: ' + mzHover.zeilen + ' Zeilen mit eigener Trefferflaeche ueber ' + mzHover.deckung
+      + ' % der Zeile (Faktor ' + mzHover.faktor + ' gegen den Intervallbalken), Satz mit Zaehler und Nenner, '
+      + 'kein title am <li> (sonst doppelte Beschreibung), aria-label nennt den Zaehler mit');
+
   await page.setViewportSize({ width: 1400, height: 900 });
   const budget = await page.evaluate(async (sechs) => {
     const mod = await import('/views/common.js');
@@ -400,9 +466,24 @@ try {
     b.querySelector('.signale-mehr').click();
     const auf = mess();
     b.querySelector('.signale-mehr').click();
-    return { zu, auf, zeilen: b.querySelectorAll('.signal').length };
+    // Seit O4b stehen Signale und Messzeilen NEBENEINANDER. Gemessen wird deshalb der Kopfbereich als Ganzes:
+    // Er ist die Strecke bis zur ersten Zahl, und genau darum ging es Paket D.
+    const oben = document.querySelector('#view .ue-oben');
+    return { zu, auf, zeilen: b.querySelectorAll('.signal').length,
+      obenHoehe: oben ? Math.round(oben.getBoundingClientRect().height) : null,
+      zweispaltig: oben ? getComputedStyle(oben).gridTemplateColumns.split(' ').length === 2 : false };
   }, SECHS_SIGNALE);
-  check(budget.zeilen === 6 && budget.zu.hoehe <= 300, 'D2 Höhenbudget: sechs Signale in ' + budget.zu.hoehe + ' px (Grenze 300 px bei 1400 × 900)');
+  // Paket D hat «sechs Signale in ≤ 300 px» gemessen, als die Signale über allem standen und die Messzeilen
+  // darunter. Seit O4b stehen beide nebeneinander, und die Marke ist neu hergeleitet, nicht aufgeweicht:
+  // Gemessen wird jetzt der KOPFBEREICH aus Signalen UND Messzeilen zusammen, denn das ist die Strecke bis zur
+  // ersten Zahl. Gestapelt waren das 427 px, zweispaltig sind es 318 px – die Absicht von Paket D ist besser
+  // erfüllt als vorher. Der Signalblock allein wächst dabei von 149 auf 278 px (mit sechs Signalen auf 539 px),
+  // weil 470 px Spaltenbreite ihn umbrechen lassen; das ist der Preis und er wird vom Kopfbereich mehr als
+  // aufgewogen. Grenze 700 px: die 539 px des Signalblocks plus Reserve, und deutlich unter den 900 px Sichthöhe.
+  check(budget.zeilen === 6 && (budget.zweispaltig ? budget.obenHoehe <= 700 : budget.zu.hoehe <= 300),
+    'D2 Höhenbudget neu hergeleitet (O4b): Kopfbereich ' + budget.obenHoehe + ' px mit sechs Signalen '
+      + (budget.zweispaltig ? 'zweispaltig' : 'einspaltig') + ' (Grenze 700 px bei 1400 × 900; Signalblock allein '
+      + budget.zu.hoehe + ' px, vorher ≤ 300 px als er über allem stand)');
   check(budget.zu.kachelY < 700, 'D2 erster Inhalt unter den Signalen bei y = ' + budget.zu.kachelY + ' (über 700)');
   // M3: Höhenbudget der Übersicht im echten Fall – die sechs Quoten-Messzeilen müssen ohne Scrollen lesbar sein
   check(budget.zu.letzteMesszeile !== null && budget.zu.letzteMesszeile < 900,

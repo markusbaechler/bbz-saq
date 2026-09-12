@@ -6,7 +6,7 @@
 import {
   MODE, SMALL_N, formatPct, writtenPassRates, writtenPerformance, partFirstAttempt, oralPassRates, oralPerformance,
   byGroup, vssVsmBreakdown, topWritten, topOral, awardRanking, overview, plannedRuns, plannedGroups, plannedByKind, dayKey,
-  multiProfilePersons, personCount, excludedRows, openCases, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
+  multiProfilePersons, personCount, excludedRows, openCases, statusCounts, STATUS, rankingLimit, writtenScore, oralScore, firstAttemptPassed, partResult,
   timeSeries, timeSeriesBy, partDifficultyByYear, yearsOf, refYear,
   earlyWarnings, passiveCases, throughputStats, durationDays, certificateDays, groupBy, partsByProfile, missingParts, PASSIVE_DAYS, profileParts, personIndex, passerelleFrom,
   runTimeline, examGrid, expertStats, expertBenchmark, expertPairs, mean,
@@ -637,6 +637,47 @@ const MESSZEILEN_QUOTEN = [
     hint: 'Anteil angetretener Vorgänge, die OE1 in allen drei Versuchen nicht bestanden haben (RUN1, RUN2, RUN3 – mehr kennt die Datei nicht); n = angetretene Vorgänge. Teilmenge der Zeile darüber.',
   },
 ];
+
+// Bestandsband (Paket OPTIK, O4a): die Vorgänge als ein Band, Breite nach Menge. Keine neue Kennzahl – jede Zahl
+// wird schon gerechnet: statusCounts() liefert abgeschlossen, offen, passiv und nicht erfasst, und openCases()
+// liefert «mit geplantem Termin» (dieselbe Zahl wie die Spalte «mit geplantem Termin» in «Offene Vorgänge»).
+//
+// FÜNF Abschnitte, nicht vier. Der Auftrag nennt «abgeschlossen · Termin gesetzt · ohne Termin · passiv»; diese
+// vier ergeben zusammen n MINUS «nicht erfasst». Ein proportionales Band, dessen Abschnitte nicht die ganze Menge
+// sind, behauptet eine Aufteilung, die es nicht ist – deshalb ist «nicht erfasst» der fünfte Abschnitt. Er steht
+// ohnehin schon als Kachel da.
+export function bestandsband(persons, today = new Date()) {
+  const st = statusCounts(persons);
+  const geplant = openCases(persons, today).filter((c) => c.nextPlanned).length;
+  const ohneTermin = Math.max(0, st.offen - st.passiv - geplant);
+  const teile = [
+    { key: 'abgeschlossen', label: 'abgeschlossen', anzahl: st.abgeschlossen,
+      hint: 'Vorgänge mit Gesamtergebnis bestanden oder nicht bestanden' },
+    { key: 'geplant', label: 'Termin gesetzt', anzahl: geplant,
+      hint: 'Offene Vorgänge mit einem geplanten Termin in der Zukunft' },
+    { key: 'ohne-termin', label: 'ohne Termin', anzahl: ohneTermin,
+      hint: 'Offene Vorgänge ohne geplanten Termin, letzte Prüfung vor weniger als ' + PASSIVE_DAYS + ' Tagen' },
+    { key: 'passiv', label: 'passiv', anzahl: st.passiv,
+      hint: 'Offene Vorgänge ohne Termin, letzte Prüfung vor mehr als ' + PASSIVE_DAYS + ' Tagen' },
+    { key: 'nicht-erfasst', label: 'nicht erfasst', anzahl: st.nichtErfasst,
+      hint: 'Vorgänge mit unlesbarem Gesamtergebnis (Fehler im Data-Quality-Log)' },
+  ];
+  const summe = teile.reduce((a, t) => a + t.anzahl, 0);
+  return {
+    titel: 'Bestand der Vorgänge',
+    n: st.n,
+    summe,
+    // Gegenprobe im Modell: Die Abschnitte MÜSSEN die ganze Menge sein, sonst ist das Band eine Behauptung.
+    vollstaendig: summe === st.n,
+    abschnitte: teile.filter((t) => t.anzahl > 0).map((t) => ({
+      ...t,
+      anteil: summe > 0 ? t.anzahl / summe : 0,
+      text: t.label + ': ' + t.anzahl + ' von ' + st.n + ' Vorgängen (' + formatPct(summe > 0 ? t.anzahl / summe : null, 1) + ')',
+    })),
+    note: 'Breite nach Menge. Die fünf Abschnitte sind die ganze Menge der Vorgänge im Filter – zusammen '
+      + summe + ' von ' + st.n + '. Dieselben Zahlen stehen als Kacheln darunter, dort mit Definition und Abstand zum Benchmark.',
+  };
+}
 
 // Obergrenze der gemeinsamen Spur: die nächste 5-%-Stufe über dem grössten Wert des Blocks, mindestens 10 pp
 // Spanne. Eine feste Spur bis 50 % drängte fünf Werte zwischen 0.4 und 20.7 % in die linke Hälfte; dieselbe Regel

@@ -11,7 +11,7 @@
    --------------------------------------------------------------------------- */
 @font-face {
   font-family: 'Public Sans';
-  src: url(lib/public-sans-latin.woff2?v=79089a321152t) format('woff2');
+  src: url(lib/public-sans-latin.woff2?v=1c702d6011bu1) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -19,7 +19,7 @@
 }
 @font-face {
   font-family: 'Archivo';
-  src: url(lib/archivo-latin.woff2?v=79089a321152t) format('woff2');
+  src: url(lib/archivo-latin.woff2?v=1c702d6011bu1) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -386,6 +386,36 @@ input, select { font: inherit; padding: .35rem .5rem; border: 1px solid var(--fi
 .mz-marke { position: absolute; bottom: 0; transform: translateX(-50%); font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
 .mz-marke:first-child { transform: none; }
 .mz-marke:last-child { transform: translateX(-100%); }
+/* Zwei Spalten auf der Uebersicht ab 1100 px (Paket OPTIK, O4b): Signale links, Messzeilen rechts. Unter 1100 px
+   bleibt es einspaltig. Die DOM-Folge ist unveraendert die Lesefolge – das Nebeneinander macht allein das Raster,
+   deshalb bekommen Tastatur und Screenreader dieselbe Reihenfolge wie das Auge. Die Messzeilen brauchen mehr
+   Breite als die Signale, weil ihre Spur sonst zu kurz wird: 470 px fuer die Signale wie im Prototyp, der Rest
+   fuer die Messung. */
+.ue-oben { display: grid; gap: var(--space-4); align-items: start; }
+@media (min-width: 1100px) { .ue-oben { grid-template-columns: 470px minmax(0, 1fr); } }
+@media print { .ue-oben { grid-template-columns: 1fr; } }
+
+/* Bestandsband (Paket OPTIK, O4a). Fünf Abschnitte, Breite nach Menge über flex-grow – kein Prozentrechnen im
+   CSS, und ein Abschnitt mit einem einzigen Vorgang bleibt sichtbar (min-width). Die Farben sind die vorhandenen
+   Status-Töne; Text trägt nie die Datenfarbe. Im Druck braucht die Fläche print-color-adjust: exact, sonst ist
+   das Band auf Papier weg – dieselbe Lehre wie bei der Messzeile (Paket H3). */
+.bb-band { display: flex; height: 1.4rem; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); margin: var(--space-2) 0; }
+.bb-teil { min-width: 3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.bb-abgeschlossen { background: var(--status-bestanden); }
+.bb-geplant { background: var(--status-geplant); }
+.bb-ohne-termin { background: var(--status-offen); }
+.bb-passiv { background: var(--status-passiv); }
+.bb-nicht-erfasst { background: var(--muted); }
+.bb-legende { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-size: var(--fs-sm); color: var(--muted); }
+.bb-legende-item { display: inline-flex; align-items: center; gap: .3rem; font-variant-numeric: tabular-nums; }
+.bb-key { display: inline-block; width: 12px; height: 12px; border-radius: 2px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.bb-note { color: var(--muted); font-size: var(--fs-sm); margin: var(--space-2) 0 0; }
+
+/* Trefferfläche der ganzen Messzeile (Paket OPTIK, O4). Durchsichtig und ausserhalb des Flusses, damit das
+   Subgrid-Raster unberührt bleibt; sie liegt UNTER dem Inhalt, damit das ⓘ seinen eigenen Hinweis behält. */
+.messzeile { position: relative; }
+.mz-treffer { position: absolute; inset: 0; z-index: 0; }
+.messzeile > *:not(.mz-treffer) { position: relative; z-index: 1; }
 .mz-wert { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
 .mz-n, .mz-vorjahr { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .mz-n { text-align: right; }

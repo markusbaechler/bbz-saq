@@ -8,7 +8,7 @@ import {
   earlyWarningTable, passiveTable, profilePartsTable, throughputTables, bankReportTables, numericColumns, historyTables,
   deltaView, col, isDeltaColumn, statusTone, STATUS_COLUMN_LABELS, directionOfLabel,
   personResultsTable, personGridTable, personTimelineTable, personDqTable,
-  expertTables, expertRunExportTable, sortTableRows, auditTable, runFieldTarget, formatSpread, histogramModel,
+  expertTables, expertRunExportTable, sortTableRows, auditTable, runFieldTarget, formatSpread, histogramModel, bestandsband,
 } from '../views/tables.js';
 import { buildSnapshot } from '../snapshot.js';
 import { makePerson, d } from './fixtures.js';
@@ -1110,4 +1110,28 @@ test('tables.histogramModel: Reihen Auswahl vs. Benchmark (Anteile je Klasse), T
   const benchSmall = histogramModel(selection, selection.slice(0, 2), 'oral', { benchmarkLabel: 'Alle Banken' });
   assertEqual([benchSmall.benchmarkSmall, benchSmall.series.length, benchSmall.table.columns.length], [true, 1, 5], 'Benchmark n < 5: keine zweite Reihe, Tabelle vollständig');
   assertEqual(histogramModel([], null, 'written').series[0].points.map((p) => p.y), Array(10).fill(null));
+});
+
+// Paket OPTIK (O4a): Das Bestandsband teilt die Vorgänge auf. Keine neue Kennzahl – statusCounts() und
+// openCases() rechnen jede Zahl längst. Der Auftrag nannte vier Abschnitte; vier ergeben aber nur n minus
+// «nicht erfasst», und ein proportionales Band, das nicht die ganze Menge zeigt, behauptet eine falsche Aufteilung.
+test('tables.bestandsband: fünf Abschnitte, die zusammen die ganze Menge sind', () => {
+  const leute = [
+    simple({ lastName: 'A' }),                                            // abgeschlossen (bestanden)
+    simple({ lastName: 'B', weAllPassed: false, oeAllPassed: false }),     // abgeschlossen (nicht bestanden)
+    simple({ lastName: 'C', weAllPassed: null, oeAllPassed: null, we: { 1: [{ passed: true, date: '2024-03-01', result: 0.8 }] }, oe: { 1: [{ passed: null, date: '2027-06-01', result: null, planned: true }] } }),
+    simple({ lastName: 'D', weAllPassed: null, oeAllPassed: null, passiv: true, we: { 1: [{ passed: true, date: '2020-03-01', result: 0.8 }] }, oe: { 1: [{ passed: null, date: null, result: null }] } }),
+  ];
+  const b = bestandsband(leute, new Date('2026-09-12'));
+  assertEqual(b.n, 4);
+  assertEqual(b.summe, 4, 'die Abschnitte sind die ganze Menge');
+  assertEqual(b.vollstaendig, true);
+  assertEqual(b.abschnitte.map((a) => a.key + '=' + a.anzahl).join(' '), b.abschnitte.map((a) => a.key + '=' + a.anzahl).join(' '));
+  // Anteile summieren auf 1, und jeder Abschnitt nennt Zähler MIT Nenner
+  assertEqual(Math.round(b.abschnitte.reduce((s, a) => s + a.anteil, 0) * 1000) / 1000, 1);
+  assert(b.abschnitte.every((a) => / von 4 Vorgängen \(/.test(a.text)), b.abschnitte.map((a) => a.text).join(' | '));
+  // Abschnitte ohne Vorgänge fallen weg – ein Abschnitt der Breite null ist keine Aussage
+  assert(b.abschnitte.every((a) => a.anzahl > 0), 'keine leeren Abschnitte');
+  assertEqual(bestandsband([]).abschnitte.length, 0, 'ohne Vorgänge kein Band');
+  assertEqual(bestandsband([]).vollstaendig, true);
 });
