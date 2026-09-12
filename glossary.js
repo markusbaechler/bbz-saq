@@ -266,6 +266,49 @@ export const GLOSSARY = [
   { kind: 'Kennzahl', term: 'Personen mit mehreren Profilen', definition: 'Anzahl Personen im Filter mit Vorgängen in mehr als einem Profil; Tabelle mit Profil-Abfolge (zeitlich nach erstem Prüfungsdatum) und Anzahl Personen je Abfolge.', nenner: '–', grenzfaelle: 'Berücksichtigt alle kennzahlrelevanten Vorgänge der Person, auch ausserhalb eines aktiven Profil-Filters; zählt Menschen, nicht Vorgänge (E3).' },
   { kind: 'Kennzahl', term: 'Geplante Prüfungstermine', definition: 'Anzahl geplanter Runs (Datum in der Zukunft ohne Passed-Wert) für die Filter Profil, Sprache, Bank, VSS/VSM.', nenner: '–', grenzfaelle: 'Der Zeitraum wirkt nicht (geplant heisst immer «in der Zukunft»); der Versuchsmodus wirkt über die Vorgänge.' },
   { kind: 'Kennzahl', term: 'bbz-Award', definition: '0.5 · Ø Resultat schriftlich + 0.5 · Ø Resultat mündlich gemäss gewählter Wertung; Rangliste je Profil (Top k, k = höchstens halbe Gruppe, maximal 5).', nenner: 'Vorgänge mit bestandener mündlicher Prüfung und beiden Werten.', grenzfaelle: 'Tie-Break 1: weniger Prüfungsversuche gesamt; Tie-Break 2: früheres Referenzdatum; gilt auch für die schriftlichen und mündlichen Bestenlisten. Unter 5 Vorgängen im Profil keine Liste (Mindestgruppengrösse, E5). Begründung je Rang im Award-Dossier.' },
+  // ------------------------------------------------------- Versuchslogik (PROMPT-3, E11 – P7.2a)
+  {
+    kind: 'Begriff', term: 'Angetreten (Versuch r)',
+    definition: 'Ein Vorgang gilt als zu Versuch r angetreten, wenn mindestens eine Teilprüfung für Run r ein erfasstes Ergebnis trägt (Passed-Wert). Ein Prüfungsdatum ohne Ergebnis ist ein Termin, kein Antritt.',
+    nenner: '–',
+    grenzfaelle: 'Entscheid des Auftraggebers vom 12.09.2026. Termine ohne Ergebnis stehen als eigene Zahl neben der Quote, nie im Nenner – sonst zählte ein Vorgang als angetreten, ohne je als bestanden oder durchgefallen zählbar zu sein.',
+  },
+  {
+    kind: 'Kennzahl', term: 'Durchfallquote je Versuch (schriftlich)',
+    definition: 'Anteil Vorgänge, die nach Versuch r nicht bestanden waren: mindestens eine absolvierte Teilprüfung trägt bis und mit Run r kein «bestanden». Gemessen auf Vorgangsebene, nicht je Teilprüfung.',
+    nenner: 'Vorgänge, die zu Versuch r angetreten sind.',
+    grenzfaelle: 'Die Versuche sind untereinander nicht vergleichbar: Versuch 2 misst nur Wiederholer, eine ausgelesene Gruppe, und liegt deshalb regelmässig höher als Versuch 1. Eine Teilprüfung, die erst später begonnen wurde, lässt den Vorgang im früheren Versuch scheitern – er war dort nicht vollständig.',
+  },
+  {
+    kind: 'Kennzahl', term: 'Durchfallquote je Versuch (mündlich)',
+    definition: 'Wie schriftlich, gerechnet über die absolvierten mündlichen Teilprüfungen.',
+    nenner: 'Vorgänge, die zu Versuch r angetreten sind.',
+    grenzfaelle: 'Rechnet über alle absolvierten OE-Teile, nicht nur über OE1; in der Datei trägt heute nahezu jeder Vorgang nur OE1. Unterscheidet sich damit von «Mündlich: im 1. Versuch durchgefallen», das ausdrücklich OE1 RUN1 misst.',
+  },
+  {
+    kind: 'Kennzahl', term: 'Antritte je Versuch',
+    definition: 'Anzahl Vorgänge mit erfasstem Ergebnis in Run r; steht als Nenner neben jeder Durchfallquote je Versuch.',
+    nenner: '–',
+    grenzfaelle: 'Nimmt von Versuch zu Versuch stark ab. Liegt die Zahl unter der Schwelle von 5, wird statt der Quote nur die Anzahl ausgewiesen (E5).',
+  },
+  {
+    kind: 'Kennzahl', term: 'Termine ohne erfasstes Ergebnis',
+    definition: 'Anzahl Vorgänge mit Prüfungsdatum für Versuch r, aber ohne Passed-Wert.',
+    nenner: '–',
+    grenzfaelle: 'Zählt nie als Antritt. Trennt «nicht angetreten» von «Ergebnis fehlt»; ohne diese Zahl bliebe die Lücke unsichtbar. Der Grund je Zeile steht im Data-Quality-Log.',
+  },
+  {
+    kind: 'Kennzahl', term: 'Ø Versuche bis Bestanden',
+    definition: 'Schriftlich: je Vorgang das Mittel der benötigten Run-Nummern über die absolvierten Teilprüfungen, dann das Mittel über die Vorgänge. Mündlich ergibt dieselbe Rechnung die Run-Nummer des bestandenen Runs.',
+    nenner: 'Bestandene Vorgänge (Status nach E4), deren absolvierte Teilprüfungen alle einen bestandenen Run tragen.',
+    grenzfaelle: 'Offene und nicht bestandene Vorgänge fliessen nicht ein; ihre Anzahl steht als Fussnote bei der Kennzahl. Als bestanden erfasste Vorgänge ohne bestandenen Run sind eine Datenlücke und werden getrennt gezählt, nie als offen.',
+  },
+  {
+    kind: 'Kennzahl', term: 'Sprachvergleich (Verteilung und Erstversuch)',
+    definition: 'Je Sprache die Anzahl Vorgänge mit Anteil an allen Vorgängen und die Durchfallquote im ersten Versuch, schriftlich und mündlich.',
+    nenner: 'Verteilung: alle Vorgänge im Filter. Quoten: die zu Versuch 1 angetretenen Vorgänge der Sprache.',
+    grenzfaelle: 'Die Zeilen folgen den Daten, nicht einer festen Liste – neben DE, FR und IT trägt die Datei heute auch EN. Vorgänge ohne Sprachangabe bilden eine eigene Zeile. Je Bank fallen kleine Sprachgruppen regelmässig unter die Schwelle von 5.',
+  },
 ];
 
 export function glossaryTerms(kind = null) {

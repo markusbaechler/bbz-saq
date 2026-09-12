@@ -11,7 +11,7 @@
    --------------------------------------------------------------------------- */
 @font-face {
   font-family: 'Public Sans';
-  src: url(lib/public-sans-latin.woff2?v=e985a00211c34) format('woff2');
+  src: url(lib/public-sans-latin.woff2?v=cf5e307211j4u) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -19,7 +19,7 @@
 }
 @font-face {
   font-family: 'Archivo';
-  src: url(lib/archivo-latin.woff2?v=e985a00211c34) format('woff2');
+  src: url(lib/archivo-latin.woff2?v=cf5e307211j4u) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;

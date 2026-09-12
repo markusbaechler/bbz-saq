@@ -508,6 +508,115 @@ export function oralPerformance(persons, mode) {
 }
 
 // ---------------------------------------------------------------------------
+// Versuchslogik (PROMPT-3, E11) – Durchfallquote je Versuch, Ø Versuche bis Bestanden, Sprache
+// ---------------------------------------------------------------------------
+
+// «Angetreten zu Versuch r» = für Run r liegt ein erfasstes Ergebnis vor (Passed-Wert). Der Wortlaut von E11 nannte
+// «Datum oder Resultat»; gemessen an der Datei wären das allein mündlich 187 Erstversuche mit Termin, aber ohne
+// Ergebnis – angetreten, nie als durchgefallen zählbar, die Quote sänke ohne gelösten Fall. Entscheid des
+// Auftraggebers vom 12.09.2026: ein Datum ohne Ergebnis bleibt Termin (store.js: run.taken = passed !== null) und
+// wird als eigene Zahl ausgewiesen, nie in einem Nenner.
+
+// Absolvierte Teilprüfungen eines Vorgangs: Teile mit mindestens einem Run mit erfasstem Ergebnis.
+export function takenParts(person, kind) {
+  return person[kind].filter((t) => t.runs.some((r) => r.taken));
+}
+
+export function attempted(person, kind, run) {
+  return person[kind].some((t) => t.runs[run - 1] && t.runs[run - 1].taken);
+}
+
+// Bestanden bis und mit Versuch r, auf Vorgangsebene (E11): jede absolvierte Teilprüfung trägt bis dahin ein
+// «bestanden». Ein Teil, der erst später begonnen wurde, lässt den Vorgang im früheren Versuch scheitern – er war
+// dort nicht vollständig. Ohne absolvierte Teilprüfung gibt es nichts zu bestehen.
+export function passedThrough(person, kind, run) {
+  const parts = takenParts(person, kind);
+  return parts.length > 0 && parts.every((t) => t.runs.slice(0, run).some((r) => r.passed === true));
+}
+
+// Termine zu Versuch r ohne erfasstes Ergebnis: Prüfungsdatum vorhanden, Passed-Wert fehlt. Steht neben der Quote,
+// damit der Unterschied zwischen «nicht angetreten» und «Ergebnis fehlt» sichtbar bleibt.
+export function appointmentsWithoutResult(persons, kind, run) {
+  return persons.filter((p) => !attempted(p, kind, run)
+    && p[kind].some((t) => t.runs[run - 1] && t.runs[run - 1].date !== null)).length;
+}
+
+// E10.1/E10.2 – Durchfallquote je Versuch. Nenner = Vorgänge, die zu Versuch r angetreten sind; Zähler = davon nach
+// Versuch r nicht bestanden. Die Quoten der Versuche sind NICHT untereinander vergleichbar: Versuch 2 misst nur
+// Wiederholer, also eine ausgelesene Gruppe.
+export function failRatesByAttempt(persons, kind) {
+  const out = [];
+  for (let r = 1; r <= CONFIG[kind].runs; r++) {
+    const base = persons.filter((p) => attempted(p, kind, r));
+    const durch = base.filter((p) => !passedThrough(p, kind, r));
+    out.push({
+      versuch: r,
+      antritte: base.length,
+      durchgefallen: durch.length,
+      quote: ratio(durch.length, base.length),
+      termineOhneErgebnis: appointmentsWithoutResult(persons, kind, r),
+      small: base.length < SMALL_N,
+    });
+  }
+  return out;
+}
+
+const STATUS_FIELD = { we: 'weStatus', oe: 'oeStatus' };
+
+// Benötigte Run-Nummer einer Teilprüfung = Nummer des ersten bestandenen Runs; null, wenn nie bestanden.
+function passedRunNumber(part) {
+  const i = part.runs.findIndex((r) => r.passed === true);
+  return i < 0 ? null : i + 1;
+}
+
+// E10.5 – Ø Versuche bis Bestanden, nur über bestandene Vorgänge (Status nach E4). Schriftlich: Mittel der benötigten
+// Run-Nummern über die absolvierten Teilprüfungen, dann Mittel über die Vorgänge. Mündlich ergibt dieselbe Rechnung
+// die Run-Nummer des bestandenen OE-Runs. «ohneRunNummer»: als bestanden erfasst, aber kein Teil trägt einen
+// bestandenen Run – eine Datenlücke, die nicht als offen gelten darf.
+export function attemptsUntilPass(persons, kind) {
+  const werte = [];
+  const ausgeschlossen = { offen: 0, nichtBestanden: 0, nichtErfasst: 0, ohneRunNummer: 0 };
+  for (const p of persons) {
+    const status = p[STATUS_FIELD[kind]];
+    if (status === STATUS.OFFEN) { ausgeschlossen.offen++; continue; }
+    if (status === STATUS.NICHT_BESTANDEN) { ausgeschlossen.nichtBestanden++; continue; }
+    if (status === STATUS.NICHT_ERFASST) { ausgeschlossen.nichtErfasst++; continue; }
+    const nrs = takenParts(p, kind).map(passedRunNumber);
+    if (!nrs.length || nrs.some((n) => n === null)) { ausgeschlossen.ohneRunNummer++; continue; }
+    werte.push(nrs.reduce((a, b) => a + b, 0) / nrs.length);
+  }
+  const m = mean(werte);
+  return { mean: m.mean, n: m.n, ausgeschlossen, small: m.n < SMALL_N };
+}
+
+// Vorgänge ohne Sprachangabe bilden eine eigene Zeile, statt aus der Verteilung zu verschwinden.
+export const LANG_NONE = 'ohne Angabe';
+
+// E10.6 – Verteilung der Sprachen und Durchfallquote im Erstversuch je Sprache. Die Zeilen folgen den Daten
+// (heute DE, FR, IT und EN), nicht einer festen Liste – eine feste Liste würde eine Sprache stillschweigend
+// unterschlagen. Sortierung nach Häufigkeit.
+export function languageBreakdown(persons) {
+  const gruppen = new Map();
+  for (const p of persons) {
+    const key = p.sprache || LANG_NONE;
+    if (!gruppen.has(key)) gruppen.set(key, []);
+    gruppen.get(key).push(p);
+  }
+  const out = [];
+  for (const [sprache, list] of gruppen) {
+    out.push({
+      sprache,
+      vorgaenge: list.length,
+      anteil: ratio(list.length, persons.length),
+      we1: failRatesByAttempt(list, 'we')[0].quote,
+      oe1: failRatesByAttempt(list, 'oe')[0].quote,
+      small: list.length < SMALL_N,
+    });
+  }
+  return out.sort((a, b) => b.vorgaenge - a.vorgaenge || a.sprache.localeCompare(b.sprache, 'de-CH'));
+}
+
+// ---------------------------------------------------------------------------
 // Streuung und Einordnung (PROMPT-2 Paket G, E14 – additiv, nicht im Snapshot)
 // ---------------------------------------------------------------------------
 
