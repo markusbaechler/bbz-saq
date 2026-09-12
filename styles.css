@@ -11,7 +11,7 @@
    --------------------------------------------------------------------------- */
 @font-face {
   font-family: 'Public Sans';
-  src: url(lib/public-sans-latin.woff2?v=58191a161122m) format('woff2');
+  src: url(lib/public-sans-latin.woff2?v=c59d0b9d11292) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -19,7 +19,7 @@
 }
 @font-face {
   font-family: 'Archivo';
-  src: url(lib/archivo-latin.woff2?v=58191a161122m) format('woff2');
+  src: url(lib/archivo-latin.woff2?v=c59d0b9d11292) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -28,11 +28,13 @@
 
 :root {
   color-scheme: light;
-  --bg: #f5f6f8;
+  /* Paket OPTIK (O2): Werte des Prototyps, Token-Namen unveraendert – tools/contrast.js haengt an den Namen und
+     prueft die neue Palette dadurch vollstaendig mit. Der Grund ist warmgrau statt blaugrau; Flaeche bleibt weiss. */
+  --bg: #eef0ee;
   --panel: #ffffff;
-  --panel-2: #fafbfc;
-  --text: #1f2933;
-  --muted: #5f6b7a;
+  --panel-2: #f7f8f7;
+  --text: #12161a;
+  --muted: #59626b;
   --border: #d9dee5;
   /* A4: Eingabefelder haben dieselbe Füllfarbe wie ihre Umgebung und sind allein durch ihren Rahmen erkennbar –
      der braucht 3:1 (WCAG 2.1 SC 1.4.11). --border trägt daneben reine Deko-Rahmen und bleibt dezent. */
@@ -45,7 +47,7 @@
   --danger-bg: #fdecea;
   --danger: #b3261e;
   --danger-border: #f1b8b3;
-  --ok: #1a7f37;
+  --ok: #187033;
   --warn: #8a5a00;
   --warn-bg: #fff4e0;
   --shadow: rgba(0, 0, 0, .08);
@@ -837,14 +839,14 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 @media print {
   :root {
     color-scheme: light;
-    --bg: #ffffff; --panel: #ffffff; --panel-2: #ffffff; --text: #1f2933; --muted: #5f6b7a; --border: #d9dee5;
+    --bg: #ffffff; --panel: #ffffff; --panel-2: #ffffff; --text: #12161a; --muted: #59626b; --border: #d9dee5;
     --accent: #0b5fa5; --accent-dark: #084a80; --on-accent: #ffffff; --th-bg: #f0f3f6; --warn: #8a5a00; --danger: #b3261e;
     --field-border: #7d8896;
     /* A4: Beim Drucken mit dunkler Systemeinstellung gilt der Dark-Block weiter – jedes dort gesetzte Token muss hier
        zurück auf den hellen Wert, sonst landet z. B. --ok (#5ad07a) mit 1.96:1 auf weissem Papier.
        tests/contrast.test.js prüft, dass diese Liste vollständig bleibt. */
     --hover: #eef4fa; --shadow: rgba(0, 0, 0, .08);
-    --ok: #1a7f37; --warn-bg: #fff4e0; --danger-bg: #fdecea; --danger-border: #f1b8b3;
+    --ok: #187033; --warn-bg: #fff4e0; --danger-bg: #fdecea; --danger-border: #f1b8b3;
     --status-bestanden-bg: #edf8f0; --status-offen-bg: #e6f0fa; --status-geplant: #5b4bc4; --status-geplant-bg: #eeebfb;
     --series-1: #2a78d6; --series-2: #eb6834; --series-3: #189e70; --viz-grid: #e1e0d9; --viz-axis: #c3c2b7; --viz-tick: #898781;
     --bar: rgba(0, 0, 0, .12); /* Druck: Datenbalken hell und grau */

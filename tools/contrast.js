@@ -16,6 +16,9 @@ export const PAIRS = [
   { fg: '--warn', bg: '--warn-bg', min: 4.5 },
   { fg: '--warn', bg: '--panel', min: 4.5 },
   { fg: '--ok', bg: '--panel', min: 4.5 },
+  // Gemessen in Paket OPTIK (O2): --ok traegt Text im Status-Badge, und das Badge sitzt auf --panel-2, nicht auf
+  // --panel. Das Paar fehlte – geprueft wurde nur die Flaeche, auf der die Farbe NICHT steht.
+  { fg: '--ok', bg: '--panel-2', min: 4.5 },
   ...['bestanden', 'nicht', 'offen', 'passiv', 'geplant'].flatMap((s) => [
     { fg: '--status-' + s, bg: '--status-' + s + '-bg', min: 4.5 },
     { fg: '--status-' + s, bg: '--panel', min: 4.5 },

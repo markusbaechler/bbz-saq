@@ -12,6 +12,7 @@ import { startServer } from './server.mjs';
 import { writeSynthWorkbook } from './synth.mjs';
 import { SECHS_SIGNALE } from './signale-sechs.mjs';
 import { versionAusModul } from '../../tools/version.js';
+import { parseThemes } from '../../tools/contrast.js';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -1664,21 +1665,43 @@ try {
   // A4: Druck bei dunkler Systemeinstellung – im Browser gilt dann die Kaskade hell → dunkel → Druck. Jedes Token, das der
   // Dark-Block setzt, muss der Druck-Block zurücksetzen, sonst landen dunkle Farben auf weissem Papier (--ok mit 1.96:1).
   await page.emulateMedia({ media: 'print', colorScheme: 'dark' });
-  const TOKENS = { '--ok': 'rgb(26, 127, 55)', '--status-geplant': 'rgb(91, 75, 196)', '--hover': 'rgb(238, 244, 250)', '--danger-bg': 'rgb(253, 236, 234)', '--danger-border': 'rgb(241, 184, 179)', '--warn-bg': 'rgb(255, 244, 224)', '--status-bestanden-bg': 'rgb(237, 248, 240)', '--status-offen-bg': 'rgb(230, 240, 250)', '--status-geplant-bg': 'rgb(238, 235, 251)', '--text': 'rgb(31, 41, 51)', '--field-border': 'rgb(125, 136, 150)' };
+  // Die Erwartung kommt aus dem HELLEN :root von styles.css, nicht aus einer Liste von Hex-Werten. Vorher standen
+  // die Farben hier abgeschrieben, und der erste Palettentausch (Paket OPTIK, O2) liess die Pruefung rot werden,
+  // obwohl der Druck genau das tat, was sie verlangt. Geprueft wird die AUSSAGE – im Druck gelten die hellen Werte,
+  // nicht die dunklen –, und die haelt jede Palette aus. Dieselbe Lehre wie 5bca619 bei den Schriftmassen.
+  const lichtWerte = parseThemes(readFileSync(join(root, 'styles.css'), 'utf8')).light;
+  const dunkelWerte = parseThemes(readFileSync(join(root, 'styles.css'), 'utf8')).dark;
+  // Drei Tokens weichen im Druck ABSICHTLICH von der hellen Palette ab – Papier ist weiss, und Flaechen kosten
+  // Toner. Sie stehen hier mit Grund, damit die Pruefung sie nicht als Fehler meldet und niemand sie stillschweigend
+  // aendert. Alles andere muss im Druck den hellen Wert tragen.
+  const PAPIER = {
+    '--bg': '#ffffff',      // Grund: Papier ist weiss, nicht warmgrau – eine Vollflaeche waere Toner ohne Aussage
+    '--panel-2': '#ffffff', // dito fuer die zweite Flaeche; auf Papier trennt der Rahmen, nicht der Ton
+    '--bar': 'rgba(0, 0, 0, .12)', // Datenbalken grau statt in Akzentfarbe (eigene Pruefung «Datenbalken grau»)
+  };
+  // Nur Tokens, die der Dark-Block ueberhaupt umsetzt: Bei den uebrigen gibt es nichts zurueckzusetzen.
+  const TOKENS = Object.fromEntries(Object.keys(lichtWerte)
+    .filter((t) => /^--/.test(t) && dunkelWerte[t] !== lichtWerte[t])
+    .map((t) => [t, PAPIER[t] || lichtWerte[t]]));
   const printDark = await page.evaluate((tokens) => {
     const probe = document.createElement('div');
     document.body.appendChild(probe);
     const out = { body: getComputedStyle(document.body).backgroundColor, falsch: [] };
+    // Vergleich in DERSELBEN Einheit: Der erwartete Wert wird durch den Browser geschickt, statt eine
+    // rgb()-Schreibweise zu erraten.
+    const alsRgb = (wert) => { probe.style.color = '#000'; probe.style.color = wert; return getComputedStyle(probe).color; };
     for (const [token, erwartet] of Object.entries(tokens)) {
+      const soll = alsRgb(erwartet);
       probe.style.color = 'var(' + token + ')';
       const ist = getComputedStyle(probe).color;
-      if (ist !== erwartet) out.falsch.push(token + ' = ' + ist + ' statt ' + erwartet);
+      if (ist !== soll) out.falsch.push(token + ' = ' + ist + ' statt ' + soll + ' (' + erwartet + ')');
     }
     probe.remove();
     return out;
   }, TOKENS);
   check(printDark.body === 'rgb(255, 255, 255)' && printDark.falsch.length === 0,
-    'A4 Druck bei dunkler Systemeinstellung: weisses Papier, alle ' + Object.keys(TOKENS).length + ' geprüften Tokens hell' + (printDark.falsch.length ? ' – ' + printDark.falsch.join('; ') : ''));
+    'A4 Druck bei dunkler Systemeinstellung: weisses Papier, alle ' + Object.keys(TOKENS).length
+      + ' geprüften Tokens hell (' + Object.keys(PAPIER).length + ' davon bewusst auf Papierwerten)' + (printDark.falsch.length ? ' – ' + printDark.falsch.join('; ') : ''));
   await shot(page, 'print-dark-uebersicht');
   await page.emulateMedia({ media: null, colorScheme: 'light' });
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));

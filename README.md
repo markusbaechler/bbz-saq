@@ -526,7 +526,35 @@ gemessen führen **beide** Familien Tabellenziffern (mit `tabular-nums` sind «1
 unterscheiden sie sich um 3 bzw. 12 px), Zahlenkolonnen fallen also nicht auseinander. Zwei Zeichen der App liegen
 ausserhalb des Latin-Subsets und rendern im Fallback: **σ** in der Streuungszeile und **ⓘ** am Abschnittstitel.
 Die Marke `?v=…` an den `@font-face`-URLs setzt `tools/version.js`: Die Import-Map in `index.html` erreicht
-Stylesheet-URLs nicht. Diagramme sind Inline-SVG ohne Bibliothek
+Stylesheet-URLs nicht.
+
+**Helle Palette (Paket OPTIK, O2):** Es wurden nur **Werte** getauscht, kein Token-Name geändert, keiner entfernt.
+`tools/contrast.js` hängt an den Namen und prüft die neue Palette dadurch vollständig mit. Vier Werte ändern sich
+wirklich – der Rest der Prototyp-Palette war schon der der App (`--accent #0b5fa5`, `--ok`, `--series-2`,
+`--series-3`):
+
+| Token | vorher | nachher |
+|---|---|---|
+| `--bg` | `#f5f6f8` (blaugrau) | **`#eef0ee`** (warmgrau) |
+| `--panel-2` | `#fafbfc` | **`#f7f8f7`** |
+| `--text` | `#1f2933` | **`#12161a`** |
+| `--muted` | `#5f6b7a` | **`#59626b`** |
+| `--ok` | `#1a7f37` | **`#187033`** (dunkler, siehe unten) |
+
+**Drei Werte des Prototyps werden nicht übernommen.** `line #b9c0c6` als Feldrahmen erreicht auf dem Grund nur
+1.61:1 statt der verlangten 3:1 – das ist Befund B-22, den `--field-border #7d8896` behoben hat; der Prototyp ist
+hier hinter der App. `faint #97a1ac` wird nicht gebraucht. Und die Reihenfarben bleiben, weil sie nie auf dem Grund
+liegen: **gemessen über alle 14 Ansichten sitzt keine einzige Fundstelle von `--ok`, `--series-2` oder
+`--series-3` direkt auf `--bg`** – jede liegt auf `--panel` (Diagramme tragen `background: var(--panel)`) oder auf
+`--panel-2` (Badge). `--series-2` auf dem Grund wäre schon mit der alten Palette 2.96:1 gewesen; das Paar existiert
+einfach nicht.
+
+Dabei fand sich eine **Lücke in der Prüfliste**: `--ok` trägt Text im Status-Badge, und das Badge sitzt auf
+`--panel-2` – geprüft wurde es nur auf `--panel`, also auf der Fläche, auf der es nicht steht. Das Paar ist ergänzt
+(**150/150** statt 147/147), und `--ok` ist auf `#187033` nachgedunkelt: nicht weil das Paar heute durchfiele
+(5.79:1 auf `--panel-2`), sondern weil O4 die Komposition ändert und eine Farbe, die nur wegen ihrer heutigen Lage
+besteht, eine Falle für später ist. Das knappste helle Paar ist jetzt `--field-border` auf `--bg` mit **3.14:1**
+(vorher 3.33:1, Minimum 3): Auf dem wärmeren, dunkleren Grund hat das Grau weniger Luft. Diagramme sind Inline-SVG ohne Bibliothek
 (`views/chart.js`), Farben nach validierter Palette. Dark Mode folgt der Systemeinstellung (`prefers-color-scheme`);
 der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die Gestaltung läuft über CSS-Tokens in
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
