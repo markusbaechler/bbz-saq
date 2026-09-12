@@ -950,6 +950,19 @@ async function init() {
 // Seite, statt alte Zahlen als aktuelle auszugeben.
 // ---------------------------------------------------------------------------
 
+// Themenschalter (Paket OPTIK, O3a): setzt data-theme auf <html> und sonst nichts. Kein Speicher – die
+// Zusicherung «localStorage ist leer» bleibt unangetastet, und nach dem Neuladen steht wieder System.
+// «System» heisst: Attribut weg, dann entscheidet die Media-Abfrage in styles.css wieder allein.
+function themenschalterVerdrahten() {
+  const box = document.getElementById('theme-switch');
+  if (!box) return;
+  box.addEventListener('change', (ev) => {
+    const wahl = ev.target && ev.target.value;
+    if (wahl === 'system') delete document.documentElement.dataset.theme;
+    else if (wahl === 'light' || wahl === 'dark') document.documentElement.dataset.theme = wahl;
+  });
+}
+
 function zeigeFassung() {
   const fuss = document.querySelector('.app-footer');
   if (fuss && !fuss.querySelector('.app-version')) fuss.appendChild(el('span', { class: 'app-version', text: 'Fassung ' + VERSION }));
@@ -980,6 +993,7 @@ function meldeVeralteteFassung(neu) {
 }
 
 init().then(async () => {
+  themenschalterVerdrahten();
   zeigeFassung();
   const neu = await veroeffentlichteFassung();
   if (neu) meldeVeralteteFassung(neu);

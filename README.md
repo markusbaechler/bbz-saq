@@ -528,6 +528,27 @@ ausserhalb des Latin-Subsets und rendern im Fallback: **σ** in der Streuungszei
 Die Marke `?v=…` an den `@font-face`-URLs setzt `tools/version.js`: Die Import-Map in `index.html` erreicht
 Stylesheet-URLs nicht.
 
+**Themenschalter ohne Gedächtnis (Paket OPTIK, O3a):** Drei Zustände – **System · Hell · Dunkel**, Standard
+System – als Radiogruppe im Kopf (nicht im Konto-Menü: das erscheint erst mit Konto, und ohne Anmeldung lädt man
+sehr wohl eine lokale Excel-Datei). Drei und nicht zwei, weil es ohne «System» innerhalb einer Sitzung keinen Weg
+zurück zur Systemeinstellung gäbe. Er merkt sich **nichts**: kein localStorage, kein sessionStorage, kein Cookie,
+keine URL – nach dem Neuladen steht er wieder auf System. Native Radios mit `legend`: Tastaturbedienung, Rolle und
+der sichtbare Zustand kommen vom Browser, der aktive Zustand ist nicht nur durch Farbe erkennbar. Gemessen: der
+Schalter ist 184 px breit, das statische Chrome bleibt bei **130 px** (Ziel 170).
+
+Die dunkle Palette steht dafür **einmal** in der Media-Abfrage; `tools/theme.js --write` erzeugt daraus den Block
+`:root[data-theme="dark"]` für die manuelle Wahl, und `tools/contrast.js` vergleicht beide Blöcke Deklaration für
+Deklaration. Von Hand verdoppelt wären es 30 Werte zweimal – genau dort entsteht Drift, und O3 schreibt die dunkle
+Palette gleich neu. Die Media-Abfrage trägt den Wächter `:root:not([data-theme="light"])`: Wer bei dunklem System
+ausdrücklich «Hell» wählt, muss Hell bekommen.
+
+**Der Druck war der heikle Teil, und zwar eine Stufe tiefer als erwartet.** Der Block der manuellen Wahl hat
+Spezifität (0,2,0) – aber der Wächter hebt auch die **Media-Abfrage** auf (0,2,0). Ein blosses `:root` im
+Druck-Block (0,1,0) verliert damit gegen beide: gemessen druckte eine dunkle Systemeinstellung **alle 29 Tokens
+dunkel auf weisses Papier**, `--ok` mit 1.96:1. Der Druck-Block trägt deshalb zwei Selektoren, die zusammen jeden
+Zustand treffen und beide (0,2,0) haben: `:root[data-theme], :root:not([data-theme])`. Gleiche Spezifität und
+später in der Datei heisst: der Druck gewinnt. Geprüft im Smoke-Test in **allen drei Zuständen**.
+
 **Helle Palette (Paket OPTIK, O2):** Es wurden nur **Werte** getauscht, kein Token-Name geändert, keiner entfernt.
 `tools/contrast.js` hängt an den Namen und prüft die neue Palette dadurch vollständig mit. Vier Werte ändern sich
 wirklich – der Rest der Prototyp-Palette war schon der der App (`--accent #0b5fa5`, `--ok`, `--series-2`,

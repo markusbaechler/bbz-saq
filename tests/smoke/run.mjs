@@ -106,6 +106,66 @@ try {
     && navAufbau.zweiteLeiste === 0 && navAufbau.beschriftungen === 0,
     'E Navigation: ' + navAufbau.band.length + ' Primärziele im Band (' + navAufbau.band.join(' · ') + '), '
       + navAufbau.optionen + ' Ansichten im Auswahlfeld (' + navAufbau.optgroups.join(' · ') + '), keine zweite Leiste, keine Gruppenbeschriftung');
+  // O3a Themenschalter: drei Zustaende, ohne Gedaechtnis. Geprueft wird der Fall, den ein ungeguardeter
+  // Media-Block verliert (manuell Hell bei dunklem System), und dass nach dem Neuladen wieder System gilt.
+  const themeStand = async (p) => p.evaluate(() => ({
+    attribut: document.documentElement.getAttribute('data-theme'),
+    gewaehlt: (document.querySelector('#theme-switch input:checked') || {}).value,
+    grund: getComputedStyle(document.body).backgroundColor,
+    schema: getComputedStyle(document.documentElement).colorScheme,
+  }));
+  const dunkelGrund = 'rgb(20, 22, 26)';
+  const hellGrund = 'rgb(238, 240, 238)';
+  check((await page.locator('#theme-switch input[type="radio"]').count()) === 3
+    && (await page.locator('#theme-switch legend').count()) === 1
+    && (await themeStand(page)).gewaehlt === 'system' && (await themeStand(page)).attribut === null,
+    'O3a Schalter: drei Zustaende als Radiogruppe mit Beschriftung, Standard System, kein Attribut gesetzt');
+  // Bei HELLEM System: manuell Dunkel muss dunkel rendern – das kann eine Media-Abfrage allein nicht
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.locator('#theme-switch input[value="dark"]').check();
+  const hellSystemDunkel = await themeStand(page);
+  await page.locator('#theme-switch input[value="system"]').check();
+  const hellSystemSystem = await themeStand(page);
+  // Bei DUNKLEM System: manuell Hell muss hell rendern – genau der Fall, den ein ungeguardeter Block verliert
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const dunkelSystem = await themeStand(page);
+  await page.locator('#theme-switch input[value="light"]').check();
+  const dunkelSystemHell = await themeStand(page);
+  check(hellSystemDunkel.grund === dunkelGrund && hellSystemDunkel.schema === 'dark'
+    && hellSystemSystem.grund === hellGrund
+    && dunkelSystem.grund === dunkelGrund && dunkelSystemHell.grund === hellGrund,
+    'O3a beide Richtungen: helles System + Dunkel = ' + hellSystemDunkel.grund + ', zurueck auf System = '
+      + hellSystemSystem.grund + ' | dunkles System = ' + dunkelSystem.grund + ', + Hell = ' + dunkelSystemHell.grund);
+  // Druck in allen drei Zustaenden hell – der manuelle Block hat hoehere Spezifitaet als @media print { :root }
+  const druckGrund = [];
+  for (const wahl of ['system', 'light', 'dark']) {
+    await page.emulateMedia({ media: null, colorScheme: 'dark' });
+    await page.locator('#theme-switch input[value="' + wahl + '"]').check();
+    await page.emulateMedia({ media: 'print', colorScheme: 'dark' });
+    druckGrund.push(wahl + '=' + (await page.evaluate(() => getComputedStyle(document.body).backgroundColor)));
+  }
+  await page.emulateMedia({ media: null, colorScheme: 'light' });
+  check(druckGrund.every((x) => x.endsWith('rgb(255, 255, 255)')),
+    'O3a Druck bleibt hell in allen drei Zustaenden: ' + druckGrund.join(' · '));
+  // Ohne Gedaechtnis: nach dem Neuladen wieder System, und nichts im Speicher
+  await page.locator('#theme-switch input[value="dark"]').check();
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(300);
+  const nachNeuladen = await themeStand(page);
+  const speicher = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
+  check(nachNeuladen.attribut === null && nachNeuladen.gewaehlt === 'system' && speicher.local.length === 0,
+    'O3a ohne Gedaechtnis: nach dem Neuladen wieder System (Attribut ' + nachNeuladen.attribut + '), localStorage leer');
+  // Der Kopf hat ein gemessenes Budget – der Schalter darf es nicht sprengen
+  const kopfMitSchalter = await page.evaluate(() => {
+    const h = (s) => { const e = document.querySelector(s); return e && e.getClientRects().length ? Math.round(e.getBoundingClientRect().height) : 0; };
+    const sw = document.getElementById('theme-switch').getBoundingClientRect();
+    return { chrome: h('.app-header') + h('#databar') + h('.views') + h('#filterbar'),
+      kopf: h('.app-header'), schalterBreite: Math.round(sw.width), imKopf: !!document.querySelector('.app-header #theme-switch') };
+  });
+  check(kopfMitSchalter.chrome <= 175 && kopfMitSchalter.imKopf,
+    'O3a Kopfbudget haelt: statisches Chrome ' + kopfMitSchalter.chrome + ' px (Ziel 170), Kopf '
+      + kopfMitSchalter.kopf + ' px, Schalter ' + kopfMitSchalter.schalterBreite + ' px breit, im Kopf statt im Konto-Menue');
+
   // Cache-Busting: Nach einem Deploy holte der Browser bis zu zehn Minuten alte Module aus dem Cache, teils
   // gemischt mit neuen – die App zeigte den Stand von vorher, ohne es zu sagen. Jede Modul-URL, jede Bibliothek
   // und das Stylesheet tragen deshalb eine Fassungsmarke aus dem Inhalt der Dateien.

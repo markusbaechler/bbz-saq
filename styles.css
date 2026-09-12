@@ -11,7 +11,7 @@
    --------------------------------------------------------------------------- */
 @font-face {
   font-family: 'Public Sans';
-  src: url(lib/public-sans-latin.woff2?v=c59d0b9d11292) format('woff2');
+  src: url(lib/public-sans-latin.woff2?v=79089a321152t) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -19,7 +19,7 @@
 }
 @font-face {
   font-family: 'Archivo';
-  src: url(lib/archivo-latin.woff2?v=c59d0b9d11292) format('woff2');
+  src: url(lib/archivo-latin.woff2?v=79089a321152t) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -87,9 +87,12 @@
   :root { --bar: color-mix(in srgb, var(--accent) 18%, transparent); }
 }
 
-/* Dark Mode (Befund 17): folgt der Systemeinstellung; Druck bleibt hell (siehe @media print) */
+/* Dark Mode (Befund 17): folgt der Systemeinstellung; Druck bleibt hell (siehe @media print).
+   Der Waechter :not([data-theme="light"]) ist der Themenschalter (Paket OPTIK, O3a): Wer bei dunklem System
+   ausdruecklich «Hell» waehlt, muss Hell bekommen – ohne ihn gaebe es innerhalb der Media-Abfrage keinen Weg
+   zurueck. Der Block darunter deckt den Gegenfall ab (manuell «Dunkel» bei hellem System) und wird erzeugt. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #14161a;
     --panel: #1e2126;
@@ -121,6 +124,42 @@
     --viz-tick: #898781;
   }
 }
+
+/* erzeugt von tools/theme.js – nicht von Hand ändern */
+/* Dieselben Werte wie die Media-Abfrage darüber, nur für die manuelle Wahl «Dunkel» bei hellem System.
+   Quelle ist die Media-Abfrage; hier wird nichts von Hand gepflegt. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14161a;
+  --panel: #1e2126;
+  --panel-2: #23272d;
+  --text: #e6e8eb;
+  --muted: #9aa3ad;
+  --border: #343a42;
+  --field-border: #79838f;
+  --accent: #6aa6e6;
+  --accent-dark: #8dbcee;
+  --on-accent: #0f1418;
+  --hover: #2b3440;
+  --th-bg: #262b31;
+  --danger-bg: #3a1f1d;
+  --danger: #ff8a80;
+  --danger-border: #6b3733;
+  --ok: #5ad07a;
+  --warn: #e0a84f;
+  --warn-bg: #3a2f14;
+  --shadow: rgba(0, 0, 0, .5);
+  --status-bestanden-bg: #1f3a2a; --status-offen-bg: #1f2f44; --status-geplant: #a89cf5; --status-geplant-bg: #2b2740;
+  --bar: rgba(106, 166, 230, .22);
+  /* Diagramme: dieselben Farbtöne, für die dunkle Fläche gestuft und validiert */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
+  --viz-tick: #898781;
+}
+/* /erzeugt */
 
 * { box-sizing: border-box; }
 /* [hidden] gewinnt gegen jede display-Regel. Ohne das überschreibt jedes «display: flex» am Element das Attribut, und
@@ -834,10 +873,27 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
   border: 1px solid var(--warn); border-radius: var(--radius); background: var(--warn-bg); color: var(--warn); }
 .version-hinweis strong { font-weight: 600; }
 .app-version { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Themenschalter (Paket OPTIK, O3a): schmal, weil der Kopf ein gemessenes Budget hat. Kein eigener Rahmen und
+   kein Abstand vom fieldset – der Browser setzt dort beides von sich aus. */
+.theme-switch { display: flex; gap: var(--space-2); border: 0; margin: 0; padding: 0; font-size: var(--fs-sm); color: var(--muted); }
+.theme-switch label { display: inline-flex; align-items: center; gap: .2rem; white-space: nowrap; cursor: pointer; }
+.theme-switch input { margin: 0; accent-color: var(--accent); }
+.theme-switch label:has(input:checked) { color: var(--text); font-weight: 600; }
+.theme-switch input:focus-visible { outline: 2px solid var(--accent-dark); outline-offset: 2px; }
+@media print { .theme-switch { display: none !important; } }
 @media print { .version-hinweis { display: none !important; } }
 
 @media print {
-  :root {
+  /* Zwei Selektoren, die zusammen JEDEN Zustand treffen – und beide mit Spezifitaet (0,2,0):
+       :root[data-theme]      – eine manuelle Wahl liegt vor (Hell oder Dunkel)
+       :root:not([data-theme]) – keine, es gilt die Systemeinstellung
+     Ein blosses :root (0,1,0) genuegt NICHT. Beide dunklen Bloecke haben (0,2,0): der manuelle
+     (:root[data-theme="dark"]) und – seit dem Waechter – auch die Media-Abfrage
+     (:root:not([data-theme="light"])). Gemessen: Mit blossem :root druckte eine dunkle Systemeinstellung alle
+     29 Tokens dunkel auf weisses Papier, --ok mit 1.96:1. Gleiche Spezifitaet und spaeter in der Datei heisst:
+     der Druck gewinnt. Der Smoke-Test prueft alle drei Zustaende. */
+  :root[data-theme], :root:not([data-theme]) {
     color-scheme: light;
     --bg: #ffffff; --panel: #ffffff; --panel-2: #ffffff; --text: #12161a; --muted: #59626b; --border: #d9dee5;
     --accent: #0b5fa5; --accent-dark: #084a80; --on-accent: #ffffff; --th-bg: #f0f3f6; --warn: #8a5a00; --danger: #b3261e;
