@@ -11,7 +11,7 @@
    --------------------------------------------------------------------------- */
 @font-face {
   font-family: 'Public Sans';
-  src: url(lib/public-sans-latin.woff2?v=49f6c57b12jlj) format('woff2');
+  src: url(lib/public-sans-latin.woff2?v=a023fe3d12jt2) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -19,7 +19,7 @@
 }
 @font-face {
   font-family: 'Archivo';
-  src: url(lib/archivo-latin.woff2?v=49f6c57b12jlj) format('woff2');
+  src: url(lib/archivo-latin.woff2?v=a023fe3d12jt2) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -1019,6 +1019,9 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
      (längster Name 40 Zeichen, längstes Wort 20). Kein Tooltip im Druck – der gehört an den Bildschirm. */
   #report-print .druck-tabelle thead th { max-height: 3.9em; }
   #report-print .druck-tabelle th.kennzahl, #report-print .druck-tabelle td.kennzahl { text-align: left; }
+  /* Erste Spalte und Fliesstext linksbündig; rechtsbündig sind nur Zahlen. */
+  #report-print .druck-tabelle th:first-child, #report-print .druck-tabelle td:first-child { text-align: left; }
+  #report-print .methodik th, #report-print .methodik td { text-align: left; }
   #report-print .druck-tabelle td.delta { font-variant-numeric: tabular-nums; }
   #report-print .druck-tabelle tbody th { text-align: left; font-weight: 400; }
   /* Zwischenzeile je Kennzahlgruppe: die Gruppe steht einmal, nicht vor jeder Zeile (E14). */
