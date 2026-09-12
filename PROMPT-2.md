@@ -960,7 +960,50 @@ meinen, nennen deshalb den Namen; ein blosser Buchstabe meint immer Runde 1.
 | **SIGNALE** | Sechs Regeln über den vorhandenen Kennzahlen als reine Funktionen (`signals()`), Signalliste als erster Inhalt der Übersicht, Höhenbudget gemessen | D (D0–D2) | #26 | `af1d62e` |
 | **NAVIGATION** | Zwei Ebenen statt vierzehn gleichrangiger Ziele: neun Primärziele im Band (661 statt 1165 px), Geschwister als Reiter im Kopf der Ansicht, Reihenfolge in drei Blöcken, Überschrift nennt das Ziel | E | #27, #28, #30 | `dda749e` |
 | **MESSZEILE** | Messzeile als Grundbaustein (gemeinsame Spur, Wilson-Balken, Verlauf, Delta), Profil-Punktdiagramm, Einbau in die Übersicht | – (M0–M3) | #31–#33, #36–#38 | `0abdca8` |
-| **H** | Das laufende Jahr im Zeitverlauf, Punktdiagramme in «Schriftlich»/«Mündlich», Messzeilen im Bank-Report, Deckungsprüfung | H (H1–H4, Runde 2 – nicht das Paket H aus Runde 1, das es dort nicht gibt) | offen | – |
+| **H** | Das laufende Jahr im Zeitverlauf, Punktdiagramme in «Schriftlich»/«Mündlich», Messzeilen im Bank-Report, Deckungsprüfung | H (H1–H4, Runde 2 – nicht das Paket H aus Runde 1, das es dort nicht gibt) | #39–#42 | `343e73b` |
+| **I** | Punktdiagramme: Überschrift und Wertung, Achse folgt den Daten, Ränder wachsen mit dem Text, ein Satz je Zeile, VSS/VSM mit beiden Prüfungsteilen und sichtbaren Nennern | I (P1–P6) | #43 | `ce1e4cd` |
+| *(Hotfix)* | Cache-Busting: Fassungsmarke an jeder ausgelieferten Datei – ohne sie zeigte der Browser nach einem Deploy bis zu zehn Minuten alte Module, teils gemischt | – | #44 | `199b873` |
+| **OPTIK** | Überführung in die Gestaltung des Prototyps: Schrift, Farbe hell, dunkel und Druck, Komposition, Abgleich | O (O0–O5) | offen | – |
+
+### Paket OPTIK (Stand 12.09.2026, in Arbeit)
+
+Der Auftrag steht nur als Brief des Auftraggebers; dieser Abschnitt ist der einzige Beleg im Repo. Sechs Halte,
+einer je Nachricht. **Drei Unverrückbare:** (1) keine Rechenlogik, keine Metrikdefinition, keine Kennzahl – diese
+Runde fasst `styles.css`, `index.html`, die Schriftdateien und (nur in O4) den Aufbau der Bauteile in `views/` an,
+nie deren Inhalt; (2) der Funktionsumfang schrumpft nicht, Messlatte in O0; (3) im Konflikt zwischen Prototyp und
+heutiger App gewinnt die App – der Prototyp ist ein Entwurf und hat die Prüfungen nie durchlaufen.
+
+| Halt | Inhalt |
+|---|---|
+| **O0** | Messlatte des Funktionsumfangs als wiederholbares Skript (`tests/smoke/bestand.mjs`, Messlatte `tests/smoke/bestand.txt`); Entscheide: Schriften selbst gehostet, Dark Mode und Druck bleiben |
+| **O1** | Schrift: Public Sans für Text und Tabellen, Archivo für Zahlen, Kennzahlen und Titel; woff2 lokal unter `lib/`, Lizenzen dazu, `font-display: swap`, echte Fallback-Kette. Grundgrösse bleibt 14px/1.45 |
+| **O2** | Farbe hell: nur **Werte** tauschen, kein Token-Name ändern – `tools/contrast.js` hängt an den Namen und prüft die neue Palette dadurch vollständig mit. Sieben Paare des Prototyps fallen durch und werden **nicht** übernommen (u. a. `line #b9c0c6` als Feldrahmen: das ist Befund B-22, den Paket A mit `--field-border` behoben hat) |
+| **O3a** | Themenschalter ohne Gedächtnis (System · Hell · Dunkel), **vor** dem Entwurf der dunklen Palette, damit sie im Betrieb beurteilt werden kann. Kein localStorage – die Zusicherung «localStorage ist leer» bleibt unangetastet |
+| **O3** | Dunkel und Druck aus der neuen hellen Palette ableiten; `darkLeftovers()` ist die Checkliste. Der Druck ist der heikle Fall (Bank-Report wird gedruckt und weitergegeben) |
+| **O4** | Komposition: Bestandsband über die Vorgänge, zwei Spalten ab 1100 px, Hover auf der ganzen Messzeile |
+| **O5** | Abgleich: Skript aus O0 erneut, Zeile für Zeile; Zielmasse aus C und H neu herleiten statt aufweichen; 432 Tests, 147 Paare, Smoke auf fünf Viewports hell **und** dunkel; Screenshot-Vergleich am PR |
+
+**Drei gemessene Fallen für O3a**, vom Auftraggeber belegt: (1) `parseThemes()` und `darkLeftovers()` lesen die
+dunkle Palette nur aus `@media (prefers-color-scheme: dark)` – ein zweiter Block bliebe ungeprüft; (2) der
+Druck-Block `@media print { :root { … } }` hat Spezifität (0,1,0) und verliert gegen `:root[data-theme="dark"]`
+(0,2,0) – wer mit manuellem Dunkel druckt, bekäme `--ok #5ad07a` mit 1.96:1 auf weissem Papier; (3) das
+Konto-Menü ist der falsche Ort, es erscheint erst mit Konto – ohne Anmeldung lädt man aber sehr wohl eine lokale
+Excel-Datei.
+
+### Bestand des Funktionsumfangs (Paket OPTIK, O0, Stand 12.09.2026)
+
+`node tests/smoke/bestand.mjs --write` nimmt den Ist-Stand auf, `node tests/smoke/bestand.mjs` vergleicht gegen die
+Messlatte: **jede Anzahl darf nur steigen**, die Höhe darf sich ändern (O4 stellt zwei Spalten nebeneinander).
+Gemessen bei 1400 px mit der synthetischen Datei auf `199b873`: **14 Ansichten · 69 Tabellen · 390 Tabellenzeilen ·
+15 Diagramme · 10 Messzeilen · 33 Kacheln · 560 sortierbare Spalten · 68 Schalter «Alle Spalten» · 12
+Steuerelemente der Filterleiste**.
+
+Zwei Ansichten zeigen ohne Eingabe nur einen Hinweis und werden deshalb befüllt gemessen – sonst fällt gerade die
+Ansicht aus der Messlatte, die gedruckt und weitergegeben wird: **Bank-Report** mit gewählter Bank (3 Tabellen, 5
+Messzeilen, 1968 px statt 759 px leer) und **Personen** mit Suchtext und offener Detailkarte (6 Tabellen, 1385 px
+statt 757 px leer). Der Bankfilter wird danach zurückgesetzt, sonst messen die folgenden Ansichten eine Teilmenge.
+Die Höhen hängen an den Schriftmetriken; die Umgebung steht deshalb im Kopf der Messlatte, und zwei Läufe sind nur
+bei gleicher Umgebung Zeile für Zeile vergleichbar.
 
 ### Deckung der Bausteine je Ansicht (Paket H, H4, Stand 11.09.2026)
 
