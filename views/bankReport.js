@@ -11,19 +11,20 @@
 // Versuche, Zertifikate) gelten für alle Spalten gleich.
 
 import { bankComparison, COMPARE_MAX } from '../metrics.js';
-import { bankComparisonTable, bankReportTables } from './tables.js';
+import { bankComparisonTable, bankReportTables, bankReportExportTables } from './tables.js';
 import { renderTable, section, el, messzeileModell, messzeilenBlock } from './common.js';
 import { bankReportPrintModel, druckeBankReport } from './print.js';
 import { CONFIG } from '../config.js';
+import { bankReportHeaderLines } from '../export.js';
 
 export const id = 'bank-report';
 export const label = 'Bank-Report';
 export const group = null; // eigenes Ziel im Band (Paket E)
 export const intro = 'Eine Bank gegen bis zu vier selbst gewählte Vergleichsbanken und gegen alle Banken; für das Steuerungsgespräch, bbz-intern.';
 export const glossar = 'Bank-Report';
-// Vorgangsebene mit Namen folgt in P7.2e (Entscheid Auftraggeber 12.09.2026, bbz-intern); bis dahin kein Personenexport,
-// weil der Standardexport auf der global gefilterten Menge rechnet – und die ist hier eine andere als im Report.
-export const noPersonExport = true;
+// Der Personenexport ist frei (P7.2e, Entscheid Auftraggeber 12.09.2026: Vorgangsebene mit Namen, bbz-intern).
+// Er rechnet NICHT auf der global gefilterten Menge – die ist hier eine andere –, sondern auf der Menge des Reports;
+// die Ansicht liefert ihn deshalb selbst über exportExtra.
 // Der Bankfilter der Leiste würde die Benchmarks leeren – die Auswahl steht in der Ansicht.
 export const filters = {
   bank: false,
@@ -111,6 +112,9 @@ export function build(ctx) {
       section('Verlauf je Jahr', [renderTable(t.verlauf)]),
     ].filter(Boolean),
     tables: [vergleichstabelle, t.byProfil, t.verlauf],
+    // P7.2e: Kopfzeile mit Auswahl und Schwelle, Vorgangsebene über die Menge des Reports statt über den globalen Filter
+    exportHeaderLines: bankReportHeaderLines(ctx.headerLines || [], { fokus: r.fokus, vergleich: r.vergleichsbanken, k: r.k }),
+    exportExtra: { label: 'Vorgangsebene', tables: bankReportExportTables(r.persons, { fokus: r.fokus, vergleich: r.vergleichsbanken }) },
     hints,
   };
 }

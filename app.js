@@ -690,7 +690,12 @@ function renderView() {
     : view.id === 'historie' && ctx.audit.length
       ? { label: 'Änderungen über die App', tables: [auditTable(ctx.audit, state.persons)], suffix: '-aenderungen', unit: 'Änderungen' } // Historie: Protokoll mit Namen, nur intern
       : (view.noPersonExport ? null : { label: 'Vorgangsebene', tables: vorgangExportTables(ctx.persons) });
-  actions.append(renderExportMenu({ viewId: view.id, tables: built.tables, headerLines, extra }));
+  // Eine Ansicht darf Kopfzeilen und Vorgangsebene selbst mitbringen (Bank-Report: eigene Auswahl, eigene Menge)
+  actions.append(renderExportMenu({
+    viewId: view.id, tables: built.tables,
+    headerLines: built.exportHeaderLines || headerLines,
+    extra: built.exportExtra || extra,
+  }));
   if (definitionen) actions.append(definitionen);
   container.appendChild(el('div', { class: 'print-filter', text: headerLines.join(' · ') }));
   for (const node of built.nodes) if (node) container.appendChild(node); // null = Abschnitt entfällt (z. B. Gleichstand-Satz, A2)

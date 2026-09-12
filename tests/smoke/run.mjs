@@ -294,6 +294,34 @@ try {
   check((await page.locator('#view .report-head .vertraulich').textContent()).includes('nicht zur Weitergabe'),
     'Bank-Report: Vertraulichkeitszeile im Kopf');
   check(!(await page.textContent('#view')).includes('Muster Anna'), 'Bank-Report ohne Namen');
+
+  // P7.2e – Export: die Kopfzeile trägt Auswahl, Stand und Schwelle; die Vorgangsebene rechnet auf der Menge des
+  // Reports (alle Banken), nicht auf der global gefilterten. Geprüft am echten Knöpfchen, nicht an einem Nachbau.
+  await page.locator('#view .view-actions details.export-menu summary').first().click();
+  const [aggDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#view details.menu[open] .menu-item', { hasText: /^CSV$/ }).first().click(),
+  ]);
+  const aggCsv = readFileSync(await aggDownload.path(), 'utf8').split(String.fromCharCode(13)).join('');
+  check(/Fokusbank: Testbank AG/.test(aggCsv) && /Vergleichsbanken: Musterbank/.test(aggCsv) && /Schwellenwert k: 5/.test(aggCsv) && /geladen /.test(aggCsv),
+    'Export Kopfzeile: Fokusbank, Vergleichsbanken, Schwelle und Stand (' + aggDownload.suggestedFilename() + ')');
+  check(/n = \d+ \(< 5\)/.test(aggCsv), 'Export: maskierte Zellen bleiben maskiert');
+
+  await page.locator('#view .view-actions details.export-menu summary').first().click();
+  const [vorgangDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#view details.menu[open] .menu-item', { hasText: /^CSV \(Vorgangsebene\)$/ }).first().click(),
+  ]);
+  const vorgangCsv = readFileSync(await vorgangDownload.path(), 'utf8').split(String.fromCharCode(13)).join('');
+  const vorgangZeilen = vorgangCsv.split(String.fromCharCode(10));
+  const vorgangKopf = (vorgangZeilen.find((z) => z.startsWith('Spalte im Report')) || '').split(';');
+  const vorgangSpalten = vorgangZeilen.filter((z) => /^(Fokusbank|Vergleichsbank|nur Benchmark);/.test(z)).length;
+  check(vorgangKopf[0] === 'Spalte im Report' && vorgangKopf.includes('Name') && vorgangSpalten === 13,
+    'Export Vorgangsebene: ' + vorgangSpalten + ' Vorgänge mit Namen, erste Spalte ordnet sie dem Report zu');
+  // Die synthetische Datei kennt nur zwei Banken, beide gewählt – «nur Benchmark» kommt hier nicht vor;
+  // diesen dritten Fall prüft tests/bankvergleich.test.js mit drei Banken.
+  check(/^Fokusbank;/m.test(vorgangCsv) && /^Vergleichsbank;/m.test(vorgangCsv),
+    'Export Vorgangsebene: Fokusbank und Vergleichsbank unterscheidbar – jede Zahl des Reports nachrechenbar');
   // H3: Messzeilen für den Empfänger – er kennt das Cockpit nicht und braucht den Bezug neben der Zahl. Geprüft
   // wird auch der Druck: Diese Ansicht wird gedruckt und weitergegeben, und ohne print-color-adjust verschwänden
   // Spur, Balken, Punkt und Benchmarkmarke.

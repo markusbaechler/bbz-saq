@@ -1591,3 +1591,17 @@ export function bankComparisonTable(modell) {
     note: hinweise.join('; '),
   };
 }
+
+// P7.2e – Export auf Vorgangsebene für den Bank-Report (Entscheid Auftraggeber 12.09.2026: mit Namen, bbz-intern).
+// Dieselben Spalten wie überall, davor die Zuordnung zur Spalte des Reports: damit lässt sich jede Zahl des Reports
+// nachrechnen, auch die beiden Benchmarks – deren Menge sind alle Vorgänge im Filter, nicht nur die gewählten Banken.
+export function bankReportExportTables(persons, { fokus = null, vergleich = [] } = {}) {
+  const tabellen = vorgangExportTables(persons);
+  const cases = tabellen[0];
+  const spalte = (p) => (p.employerCanon === fokus ? 'Fokusbank' : vergleich.includes(p.employerCanon) ? 'Vergleichsbank' : 'nur Benchmark');
+  return [{
+    ...cases,
+    columns: [col('reportSpalte', 'Spalte im Report', 1)].concat(cases.columns),
+    rows: cases.rows.map((r, i) => ({ reportSpalte: spalte(persons[i]), ...r })),
+  }].concat(tabellen.slice(1));
+}

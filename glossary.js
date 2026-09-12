@@ -347,6 +347,12 @@ export const GLOSSARY = [
     nenner: '–',
     grenzfaelle: 'Ohne Eintrag bleibt der Slot leer und behält seine Masse – das Layout springt nicht. Die Datei wird erst abgefragt, wenn der Pfad eingetragen ist; sonst erzeugte jeder Druck eine 404 auf eine Datei, die es im Repo nicht gibt (keine Binärassets im Repo, E15).',
   },
+  {
+    kind: 'Begriff', term: 'Export des Bank-Reports',
+    definition: 'Zwei Ebenen: die Aggregate der Ansicht (CSV/XLSX) und die Vorgangsebene mit Namen. Die Kopfzeile beider Dateien nennt zusätzlich zum Filterzustand und zum Stand die Fokusbank, die Vergleichsbanken und den Schwellenwert k.',
+    nenner: '–',
+    grenzfaelle: 'Die Vorgangsebene rechnet auf der Menge des Reports – alle Banken im Filter, nicht nur die gewählten –, damit auch die beiden Benchmarks nachrechenbar bleiben. Die erste Spalte ordnet jeden Vorgang der Spalte des Reports zu: Fokusbank, Vergleichsbank oder nur Benchmark. Die Datei enthält Namen und ist bbz-intern (Entscheid 12.09.2026).',
+  },
 ];
 
 export function glossaryTerms(kind = null) {

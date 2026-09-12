@@ -3,7 +3,8 @@
 // Delta steht nur in der Fokusspalte, bezogen auf «alle Banken ohne Fokusbank», gerechnet aus Rohwerten.
 import { test, assert, assertEqual, assertClose } from './runner.js';
 import { SMALL_N, COMPARE_MAX, bankComparison, bankPersonCounts } from '../metrics.js';
-import { bankComparisonTable, bankReportTables } from '../views/tables.js';
+import { bankComparisonTable, bankReportTables, bankReportExportTables } from '../views/tables.js';
+import { bankReportHeaderLines } from '../export.js';
 import { makePerson } from './fixtures.js';
 
 // Ein abgeschlossener Vorgang einer Bank; durchgefallen = WE1 RUN1 nicht bestanden, danach bestanden.
@@ -265,4 +266,37 @@ test('bankReportTables: der Benchmark trägt den Namen, den man ihm gibt – hie
   assert(t.byProfil.note.includes('Alle Banken ohne Bank A'), t.byProfil.note);
   const wiederholt = t.byProfil.columns.filter((c) => c.label.includes('Alle Banken ohne Bank A')).length;
   assertEqual(wiederholt, 1, 'der lange Name steht einmal im Kopf, nicht in jeder Benchmark-Spalte');
+});
+
+// ---------------------------------------------------------------------------
+// P7.2e – Export auf Vorgangsebene (Entscheid Auftraggeber 12.09.2026: mit Namen, bbz-intern)
+// ---------------------------------------------------------------------------
+
+test('bankReportExportTables: eine Zeile je Vorgang, mit Namen und mit der Spalte des Reports', () => {
+  const persons = viele('Bank A', 3).concat(viele('Bank B', 2)).concat(viele('Bank C', 2));
+  const t = bankReportExportTables(persons, { fokus: 'Bank A', vergleich: ['Bank B'] });
+  const cases = t[0];
+  assertEqual(cases.rows.length, 7, 'jeder Vorgang des Reports, auch die der Benchmarkmenge');
+  assertEqual(cases.columns[0].key, 'reportSpalte');
+  assertEqual(cases.columns[0].label, 'Spalte im Report');
+  const je = {};
+  for (const r of cases.rows) je[r.reportSpalte] = (je[r.reportSpalte] || 0) + 1;
+  assertEqual(je, { Fokusbank: 3, Vergleichsbank: 2, 'nur Benchmark': 2 });
+  assert(cases.columns.some((c) => c.key === 'name'), 'Namen im Export (bbz-intern)');
+  assert(/nur für den internen Gebrauch/.test(cases.note), cases.note);
+});
+
+test('bankReportHeaderLines: Kopfzeile nennt Fokusbank, Vergleichsbanken und die Schwelle', () => {
+  const zeilen = bankReportHeaderLines(['Datei: x.xlsx, geladen 12.09.2026 14:20', 'Zeitraum: alle'], {
+    fokus: 'Bank A', vergleich: ['Bank B', 'Bank C'], k: 5,
+  });
+  assert(zeilen[0].startsWith('Datei:'), 'der bestehende Kopf bleibt vorne');
+  assert(zeilen.includes('Fokusbank: Bank A'), zeilen.join(' | '));
+  assert(zeilen.includes('Vergleichsbanken: Bank B, Bank C'), zeilen.join(' | '));
+  assert(zeilen.includes('Schwellenwert k: 5'), zeilen.join(' | '));
+});
+
+test('bankReportHeaderLines: ohne Vergleichsbanken steht das ausdrücklich da', () => {
+  const zeilen = bankReportHeaderLines([], { fokus: 'Bank A', vergleich: [], k: 5 });
+  assert(zeilen.includes('Vergleichsbanken: keine'), zeilen.join(' | '));
 });

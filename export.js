@@ -154,3 +154,13 @@ export function downloadXlsx(filename, tables, headerLines = [], XLSX = globalTh
 export function printPage() {
   window.print();
 }
+
+// P7.2e – Kopfzeile des Bank-Report-Exports: der Filterzustand allein sagt nichts über die Auswahl des Reports
+// (der Bankfilter ist dort abgeschaltet). Stand und Datei stehen schon in filterLines().
+export function bankReportHeaderLines(headerLines = [], { fokus = null, vergleich = [], k = null } = {}) {
+  return headerLines.concat([
+    'Fokusbank: ' + (fokus || '–'),
+    'Vergleichsbanken: ' + (vergleich.length ? vergleich.join(', ') : 'keine'),
+    'Schwellenwert k: ' + (k === null ? '–' : k),
+  ]);
+}
