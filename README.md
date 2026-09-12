@@ -513,7 +513,20 @@ Gesamtergebnisse, Zertifikatsfelder; keine neuen Zeilen, keine Sheet-Änderungen
 ## Architektur
 
 Vanilla JS (ES-Module), kein Framework, kein Build-Schritt, GitHub Pages. Bibliotheken lokal unter `lib/`:
-MSAL.js 3.30.0 (MIT), SheetJS 0.20.3 (Apache-2.0), fflate 0.8.3 (MIT). Diagramme sind Inline-SVG ohne Bibliothek
+MSAL.js 3.30.0 (MIT), SheetJS 0.20.3 (Apache-2.0), fflate 0.8.3 (MIT).
+
+**Schriften (Paket OPTIK, O1):** **Public Sans** für Text und Tabellen, **Archivo** für Zahlen, Kennzahlen und
+Titel – beide lokal unter `lib/` als woff2, kein CDN, SIL OFL 1.1 mit Lizenztext daneben (`lib/*-OFL.txt`). Beide
+sind **Variable Fonts**: eine Datei je Familie deckt die ganze Gewichtsachse, deshalb zwei Dateien statt vier für
+die zwei Schnitte, die die App benutzt (400 und 600). Zusammen **61.7 KB** (Public Sans 26.8, Archivo 34.9),
+Latin-Subset. Grundgrösse bleibt `14px/1.45` – der Unterschied kommt aus den Schriftmetriken, nicht aus einer
+zweiten Änderung. `font-display: swap` und hinter jeder Familie eine echte Fallback-Kette: Fällt die Schrift aus,
+bleibt die App lesbar statt unsichtbar. Archivo sitzt auf genau den Flächen, die schon `tabular-nums` tragen –
+gemessen führen **beide** Familien Tabellenziffern (mit `tabular-nums` sind «1111» und «9999» gleich breit, ohne
+unterscheiden sie sich um 3 bzw. 12 px), Zahlenkolonnen fallen also nicht auseinander. Zwei Zeichen der App liegen
+ausserhalb des Latin-Subsets und rendern im Fallback: **σ** in der Streuungszeile und **ⓘ** am Abschnittstitel.
+Die Marke `?v=…` an den `@font-face`-URLs setzt `tools/version.js`: Die Import-Map in `index.html` erreicht
+Stylesheet-URLs nicht. Diagramme sind Inline-SVG ohne Bibliothek
 (`views/chart.js`), Farben nach validierter Palette. Dark Mode folgt der Systemeinstellung (`prefers-color-scheme`);
 der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die Gestaltung läuft über CSS-Tokens in
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
