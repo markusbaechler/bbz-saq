@@ -617,6 +617,179 @@ export function languageBreakdown(persons) {
 }
 
 // ---------------------------------------------------------------------------
+// Bankvergleich (PROMPT-3, E7–E10 – P7.2b)
+// ---------------------------------------------------------------------------
+
+// Höchstens vier manuell gewählte Vergleichsbanken (E8); mehr passen nicht auf eine A4-Seite quer.
+export const COMPARE_MAX = 4;
+
+const EMPTY_SET = new Set();
+
+// Personenschlüssel → Menge der Banken, in denen die Person Vorgänge hat. Grundlage für «bankübergreifend» (E7).
+function banksPerPerson(persons) {
+  const map = new Map();
+  for (const p of persons) {
+    if (!p.employerCanon) continue;
+    if (!map.has(p.personKey)) map.set(p.personKey, new Set());
+    map.get(p.personKey).add(p.employerCanon);
+  }
+  return map;
+}
+
+// E7 – Vorgänge und Personen je Bank. Die Bank hängt am Vorgang (employerCanon), nicht an der Person (Folge aus E2):
+// wer für zwei Banken antrat, zählt in beiden. Die Summe der Personen über die Banken ist deshalb grösser oder gleich
+// personenGesamt; die Differenz sind die bankübergreifenden Personen.
+export function bankPersonCounts(persons) {
+  const proBank = new Map();
+  for (const p of persons) {
+    if (!p.employerCanon) continue;
+    if (!proBank.has(p.employerCanon)) proBank.set(p.employerCanon, []);
+    proBank.get(p.employerCanon).push(p);
+  }
+  const banken = new Map();
+  for (const [bank, list] of proBank) banken.set(bank, { vorgaenge: list.length, personen: personCount(list) });
+  return {
+    banken,
+    personenGesamt: personCount(persons),
+    uebergreifend: [...banksPerPerson(persons).values()].filter((s) => s.size > 1).length,
+  };
+}
+
+// Alle Kennzahlen einer Spalte in einem Durchgang – je Spalte einmal gerechnet, nicht je Zeile.
+// uebergreifend zählt die Personen DIESER Spalte, die auch in einer anderen Bank vorkommen; die Bankmenge dafür
+// stammt aus der Gesamtmenge, sonst wäre die Zahl innerhalb einer einzelnen Bank immer null.
+function kennzahlen(menge, bankenJePerson) {
+  const uebergreifend = new Set(menge.filter((p) => (bankenJePerson.get(p.personKey) || EMPTY_SET).size > 1).map((p) => p.personKey));
+  return {
+    n: menge.length,
+    we: failRatesByAttempt(menge, 'we'),
+    oe: failRatesByAttempt(menge, 'oe'),
+    wePerf: { erstversuch: writtenPerformance(menge, MODE.ERSTVERSUCH), bestanden: writtenPerformance(menge, MODE.BESTANDEN) },
+    oePerf: { erstversuch: oralPerformance(menge, MODE.ERSTVERSUCH), bestanden: oralPerformance(menge, MODE.BESTANDEN) },
+    weVersuche: attemptsUntilPass(menge, 'we'),
+    oeVersuche: attemptsUntilPass(menge, 'oe'),
+    sprache: new Map(languageBreakdown(menge).map((r) => [r.sprache, r])),
+    status: statusCounts(menge, 'status'),
+    personen: personCount(menge),
+    uebergreifend: uebergreifend.size,
+  };
+}
+
+const quoteZelle = (r) => ({ art: 'quote', value: r.pct, count: r.count, n: r.n });
+const mittelZelle = (m) => ({ art: 'mittel', value: m.mean, n: m.n });
+const zahlZelle = (v) => ({ art: 'zahl', value: v, n: null });
+
+// Zeilen des Kennzahlensets nach E10. Die Sprachzeilen entstehen aus der Gesamtmenge, nicht je Bank – sonst trügen
+// die Spalten verschiedene Zeilen und liessen sich nicht nebeneinander lesen.
+// einheit: 'pp' = Abstand in Prozentpunkten, 'zahl' = Abstand in der Einheit der Kennzahl selbst. Ø Versuche sind
+// Run-Nummern; ein Abstand in Prozentpunkten wäre dort ohne Bedeutung (Abweichung vom Wortlaut von E8, bewusst).
+// richtung: 'down' = tiefer ist besser, 'up' = höher ist besser, 'neutral' = Menge ohne Wertung.
+function zeilenDefinitionen(sprachen) {
+  const zeilen = [];
+  for (const [kind, gruppe] of [['we', 'Durchfallquote schriftlich'], ['oe', 'Durchfallquote mündlich']]) {
+    for (let r = 1; r <= CONFIG[kind].runs; r++) {
+      zeilen.push({ id: kind + '.v' + r, gruppe, label: 'Versuch ' + r, art: 'quote', einheit: 'pp', richtung: 'down', wert: (b) => quoteZelle(b[kind][r - 1].quote) });
+    }
+  }
+  for (const [feld, id, gruppe] of [['wePerf', 'we.perf', 'Ø Performance schriftlich'], ['oePerf', 'oe.perf', 'Ø Performance mündlich']]) {
+    zeilen.push({ id: id + '.erstversuch', gruppe, label: 'Erstversuch', art: 'mittel', einheit: 'pp', richtung: 'up', wert: (b) => mittelZelle(b[feld].erstversuch) });
+    zeilen.push({ id: id + '.bestanden', gruppe, label: 'Bestandener Run', art: 'mittel', einheit: 'pp', richtung: 'up', wert: (b) => mittelZelle(b[feld].bestanden) });
+  }
+  zeilen.push({ id: 'we.versuche', gruppe: 'Ø Versuche bis Bestanden', label: 'Schriftlich', art: 'mittel', einheit: 'zahl', richtung: 'down', wert: (b) => mittelZelle(b.weVersuche) });
+  zeilen.push({ id: 'oe.versuche', gruppe: 'Ø Versuche bis Bestanden', label: 'Mündlich', art: 'mittel', einheit: 'zahl', richtung: 'down', wert: (b) => mittelZelle(b.oeVersuche) });
+  for (const s of sprachen) {
+    zeilen.push({
+      id: 'sprache.anteil.' + s, gruppe: 'Sprache: Verteilung', label: s, art: 'quote', einheit: 'pp', richtung: 'neutral',
+      wert: (b) => quoteZelle(b.sprache.has(s) ? b.sprache.get(s).anteil : ratio(0, b.n)),
+    });
+  }
+  for (const s of sprachen) {
+    zeilen.push({
+      id: 'sprache.we1.' + s, gruppe: 'Sprache: im 1. Versuch durchgefallen (schriftlich)', label: s, art: 'quote', einheit: 'pp', richtung: 'down',
+      wert: (b) => quoteZelle(b.sprache.has(s) ? b.sprache.get(s).we1 : ratio(0, 0)),
+    });
+  }
+  const kontext = [
+    ['kontext.vorgaenge', 'Vorgänge', (b) => b.n],
+    ['kontext.abgeschlossen', 'davon abgeschlossen', (b) => b.status.abgeschlossen],
+    ['kontext.offen', 'davon offen', (b) => b.status.offen],
+    ['kontext.personen', 'Personen', (b) => b.personen],
+    ['kontext.uebergreifend', 'davon bankübergreifend', (b) => b.uebergreifend],
+  ];
+  for (const [id, label, f] of kontext) {
+    zeilen.push({ id, gruppe: 'Kontext', label, art: 'zahl', einheit: 'zahl', richtung: 'neutral', wert: (b) => zahlZelle(f(b)) });
+  }
+  return zeilen;
+}
+
+// E9 – Maskierung je Zelle, nicht je Bank: liegt der Nenner einer einzelnen Kennzahl unter k, wird der Wert entfernt
+// und nur die Anzahl bleibt stehen. Ein Nenner von 0 ist nicht maskiert, sondern leer – es gibt nichts zu verbergen.
+// Mengen (Vorgänge, Personen) tragen keinen Nenner und werden nie maskiert.
+function maskiere(zelle, k) {
+  if (zelle.n === null || zelle.n === 0 || zelle.n >= k) return { ...zelle, maskiert: false };
+  const maskiert = { ...zelle, value: null, maskiert: true };
+  if ('count' in maskiert) maskiert.count = null;
+  return maskiert;
+}
+
+// E8 – Delta nur in der Fokusspalte, bezogen auf «alle Banken ohne Fokusbank», gerechnet aus den Rohwerten (nicht
+// aus gerundeten Anzeigewerten). Maskierte oder leere Zellen ergeben kein Delta; Mengen haben keinen Abstand.
+function deltaVon(def, fokusZelle, ohneZelle) {
+  if (def.art === 'zahl') return null;
+  if (!fokusZelle || !ohneZelle || fokusZelle.maskiert || ohneZelle.maskiert) return null;
+  if (!isNum(fokusZelle.value) || !isNum(ohneZelle.value)) return null;
+  const roh = fokusZelle.value - ohneZelle.value;
+  return { wert: def.einheit === 'pp' ? roh * 100 : roh, einheit: def.einheit, richtung: def.richtung };
+}
+
+// E8/E9 – Vergleichsmodell: Fokusbank, bis zu vier gewählte Vergleichsbanken, beide Benchmarks. Erwartet bereits
+// gefilterte Vorgänge (filterPersons). Gibt ausschliesslich Zahlen zurück, nie Vorgänge – der Rückgabewert darf
+// gedruckt und exportiert werden, ohne Personendaten mitzuführen.
+export function bankComparison(persons, { fokus = null, vergleich = [], k = SMALL_N } = {}) {
+  const proBank = new Map();
+  for (const p of persons) {
+    if (!p.employerCanon) continue;
+    if (!proBank.has(p.employerCanon)) proBank.set(p.employerCanon, []);
+    proBank.get(p.employerCanon).push(p);
+  }
+  const fehlend = [];
+  const ueberzaehlig = [];
+  if (fokus !== null && !proBank.has(fokus)) fehlend.push(fokus);
+  const vergleichsbanken = [];
+  for (const name of vergleich) {
+    if (!name || name === fokus || vergleichsbanken.includes(name) || fehlend.includes(name) || ueberzaehlig.includes(name)) continue;
+    if (!proBank.has(name)) { fehlend.push(name); continue; }
+    if (vergleichsbanken.length < COMPARE_MAX) vergleichsbanken.push(name);
+    else ueberzaehlig.push(name); // über E8 hinaus gewählt – gemeldet, nicht still übergangen
+  }
+  const spalten = [
+    { id: 'fokus', bank: fokus, label: fokus, art: 'fokus', menge: proBank.get(fokus) || [] },
+    ...vergleichsbanken.map((bank, i) => ({ id: 'v' + i, bank, label: bank, art: 'vergleich', menge: proBank.get(bank) })),
+    { id: 'alle', bank: null, label: 'Alle Banken', art: 'benchmark', menge: persons },
+    { id: 'ohneFokus', bank: null, label: 'Alle Banken ohne ' + (fokus || '–'), art: 'benchmark', menge: persons.filter((p) => p.employerCanon !== fokus) },
+  ];
+  const bankenJePerson = banksPerPerson(persons);
+  const buendel = new Map(spalten.map((s) => [s.id, kennzahlen(s.menge, bankenJePerson)]));
+  const zeilen = zeilenDefinitionen(languageBreakdown(persons).map((r) => r.sprache)).map((def) => {
+    const zellen = {};
+    for (const s of spalten) zellen[s.id] = maskiere(def.wert(buendel.get(s.id)), k);
+    return {
+      id: def.id, label: def.label, gruppe: def.gruppe, art: def.art, einheit: def.einheit, richtung: def.richtung,
+      zellen, delta: deltaVon(def, zellen.fokus, zellen.ohneFokus),
+    };
+  });
+  return {
+    fokus,
+    k,
+    spalten: spalten.map((s) => ({ id: s.id, bank: s.bank, label: s.label, art: s.art, vorgaenge: s.menge.length, personen: buendel.get(s.id).personen })),
+    zeilen,
+    personen: { fokus: buendel.get('fokus').personen, alle: buendel.get('alle').personen, uebergreifend: bankPersonCounts(persons).uebergreifend },
+    fehlend,
+    ueberzaehlig,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Streuung und Einordnung (PROMPT-2 Paket G, E14 – additiv, nicht im Snapshot)
 // ---------------------------------------------------------------------------
 

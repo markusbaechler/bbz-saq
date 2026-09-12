@@ -309,6 +309,31 @@ export const GLOSSARY = [
     nenner: 'Verteilung: alle Vorgänge im Filter. Quoten: die zu Versuch 1 angetretenen Vorgänge der Sprache.',
     grenzfaelle: 'Die Zeilen folgen den Daten, nicht einer festen Liste – neben DE, FR und IT trägt die Datei heute auch EN. Vorgänge ohne Sprachangabe bilden eine eigene Zeile. Je Bank fallen kleine Sprachgruppen regelmässig unter die Schwelle von 5.',
   },
+  // ------------------------------------------------------- Bankvergleich (PROMPT-3, E7–E9 – P7.2b)
+  {
+    kind: 'Begriff', term: 'Fokusbank und Vergleichsbanken',
+    definition: 'Der Bank-Report stellt eine Fokusbank bis zu vier manuell gewählten Vergleichsbanken gegenüber. Alle Banken erscheinen mit Klarnamen; die Spaltengruppe heisst «Vergleichsbanken».',
+    nenner: '–',
+    grenzfaelle: 'Eine gewählte Bank ohne Vorgänge im Filter erhält keine Spalte und wird gemeldet; über vier hinaus gewählte Banken ebenso. Keine Anonymisierung und kein Modusschalter (E9) – der Report trägt auf jeder Seite «bbz-intern – Vergleichswerte nicht zur Weitergabe».',
+  },
+  {
+    kind: 'Begriff', term: 'Benchmark «alle Banken» und «alle Banken ohne Fokusbank»',
+    definition: 'Zwei Vergleichswerte nebeneinander: alle Vorgänge im Filter, und dieselbe Menge ohne die Vorgänge der Fokusbank. Das Delta der Fokusbank bezieht sich immer auf den zweiten.',
+    nenner: 'Vorgänge im Filter bzw. Vorgänge im Filter ohne die Fokusbank.',
+    grenzfaelle: 'Die beiden Werte fallen umso stärker auseinander, je grösser die Fokusbank ist. Die grösste Bank der Datei stellt rund 28 Prozent aller Vorgänge; ihr Delta gegen «alle» wäre um Prozentpunkte kleiner als gegen «ohne Fokusbank» und würde den Abstand beschönigen.',
+  },
+  {
+    kind: 'Begriff', term: 'Maskierte Zelle (n < k)',
+    definition: 'Liegt der Nenner einer einzelnen Kennzahl unter der Schwelle k (Standard 5), zeigt die Zelle statt der Quote nur die Anzahl: «n = 3 (< 5)». Die Schwelle gilt je Zelle, nicht je Bank.',
+    nenner: '–',
+    grenzfaelle: 'Betrifft vor allem Sprach- und Versuchszeilen: eine Bank kann über k liegen und trotzdem maskierte Zellen tragen. Ein Nenner von 0 ist nicht maskiert, sondern leer («–») – es gibt nichts zu verbergen. Mengen wie «Vorgänge» oder «Personen» tragen keinen Nenner und werden nie maskiert. Eine maskierte Zelle liefert kein Delta.',
+  },
+  {
+    kind: 'Begriff', term: 'Bankübergreifende Person',
+    definition: 'Eine Person mit Vorgängen bei mehr als einer Bank. Die Bank hängt am Vorgang, nicht an der Person (E7): in der Bankspalte zählt sie bei jeder ihrer Banken, im Gesamtwert einmal.',
+    nenner: '–',
+    grenzfaelle: 'Die Summe der Personenzahlen über alle Banken ist deshalb grösser als die Gesamtzahl der Personen. In der heutigen Datei betrifft das 10 von 3399 Personen; der Report weist die Zahl aus und erklärt sie in einer Fussnote.',
+  },
 ];
 
 export function glossaryTerms(kind = null) {
