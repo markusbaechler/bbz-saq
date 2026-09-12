@@ -35,6 +35,11 @@ export const CONFIG = {
   features: { write: true },
   // Experten (Paket D, bestätigt 06.09.2026): ab diesem Datum sind Experten je OE-Run erfasst; früher fehlende Experten ergeben keinen Hinweis
   experts: { from: '2018-01-01' },
+  // Bank-Report (PROMPT-3, E15): Logo im Kopfband, Slot 24 mm × 12 mm. null = Slot bleibt leer, das Layout ändert sich
+  // nicht. Wer ein Logo will, legt die Datei unter assets/logo.svg ab und trägt den Pfad hier ein – erst dann fragt
+  // die Seite sie ab. Ohne diesen Schritt erzeugte jeder Druck eine 404 auf eine Datei, die es im Repo nicht gibt
+  // (keine Binärassets im Repo, E15).
+  report: { logo: null },
 };
 
 // ---------------------------------------------------------------------------

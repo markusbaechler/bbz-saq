@@ -674,7 +674,7 @@ test('tables.bankReportTables: Bank gegen alle Banken – Kennzahlen, je Profil,
   const bank = all.filter((p) => p.employerCanon === 'Testbank AG');
   const t = bankReportTables(bank, all, 'Testbank AG');
   assertEqual(t.kpis.title, 'Kennzahlen Testbank AG im Vergleich zu allen Banken');
-  assertEqual(t.kpis.columns.map((c) => c.label), ['Kennzahl', 'Testbank AG', 'n Testbank AG', 'Benchmark: Alle Banken', 'n alle Banken', 'Differenz', 'Einordnung']);
+  assertEqual(t.kpis.columns.map((c) => c.label), ['Kennzahl', 'Testbank AG', 'n Testbank AG', 'Benchmark: Alle Banken', 'n Alle Banken', 'Differenz', 'Einordnung']);
   const byLabel = Object.fromEntries(t.kpis.rows.map((r) => [r.kennzahl, r]));
   assertEqual([byLabel['Vorgänge'].auswahl, byLabel['Vorgänge'].benchmark], ['2', '4']);
   assertEqual(byLabel['Schriftlich: insgesamt bestanden'].differenz, '+25.0 pp');

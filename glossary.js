@@ -266,6 +266,93 @@ export const GLOSSARY = [
   { kind: 'Kennzahl', term: 'Personen mit mehreren Profilen', definition: 'Anzahl Personen im Filter mit Vorgängen in mehr als einem Profil; Tabelle mit Profil-Abfolge (zeitlich nach erstem Prüfungsdatum) und Anzahl Personen je Abfolge.', nenner: '–', grenzfaelle: 'Berücksichtigt alle kennzahlrelevanten Vorgänge der Person, auch ausserhalb eines aktiven Profil-Filters; zählt Menschen, nicht Vorgänge (E3).' },
   { kind: 'Kennzahl', term: 'Geplante Prüfungstermine', definition: 'Anzahl geplanter Runs (Datum in der Zukunft ohne Passed-Wert) für die Filter Profil, Sprache, Bank, VSS/VSM.', nenner: '–', grenzfaelle: 'Der Zeitraum wirkt nicht (geplant heisst immer «in der Zukunft»); der Versuchsmodus wirkt über die Vorgänge.' },
   { kind: 'Kennzahl', term: 'bbz-Award', definition: '0.5 · Ø Resultat schriftlich + 0.5 · Ø Resultat mündlich gemäss gewählter Wertung; Rangliste je Profil (Top k, k = höchstens halbe Gruppe, maximal 5).', nenner: 'Vorgänge mit bestandener mündlicher Prüfung und beiden Werten.', grenzfaelle: 'Tie-Break 1: weniger Prüfungsversuche gesamt; Tie-Break 2: früheres Referenzdatum; gilt auch für die schriftlichen und mündlichen Bestenlisten. Unter 5 Vorgängen im Profil keine Liste (Mindestgruppengrösse, E5). Begründung je Rang im Award-Dossier.' },
+  // ------------------------------------------------------- Versuchslogik (PROMPT-3, E11 – P7.2a)
+  {
+    kind: 'Begriff', term: 'Angetreten (Versuch r)',
+    definition: 'Ein Vorgang gilt als zu Versuch r angetreten, wenn mindestens eine Teilprüfung für Run r ein erfasstes Ergebnis trägt (Passed-Wert). Ein Prüfungsdatum ohne Ergebnis ist ein Termin, kein Antritt.',
+    nenner: '–',
+    grenzfaelle: 'Entscheid des Auftraggebers vom 12.09.2026. Termine ohne Ergebnis stehen als eigene Zahl neben der Quote, nie im Nenner – sonst zählte ein Vorgang als angetreten, ohne je als bestanden oder durchgefallen zählbar zu sein.',
+  },
+  {
+    kind: 'Kennzahl', term: 'Durchfallquote je Versuch (schriftlich)',
+    definition: 'Anteil Vorgänge, die nach Versuch r nicht bestanden waren: mindestens eine absolvierte Teilprüfung trägt bis und mit Run r kein «bestanden». Gemessen auf Vorgangsebene, nicht je Teilprüfung.',
+    nenner: 'Vorgänge, die zu Versuch r angetreten sind.',
+    grenzfaelle: 'Die Versuche sind untereinander nicht vergleichbar: Versuch 2 misst nur Wiederholer, eine ausgelesene Gruppe, und liegt deshalb regelmässig höher als Versuch 1. Eine Teilprüfung, die erst später begonnen wurde, lässt den Vorgang im früheren Versuch scheitern – er war dort nicht vollständig.',
+  },
+  {
+    kind: 'Kennzahl', term: 'Durchfallquote je Versuch (mündlich)',
+    definition: 'Wie schriftlich, gerechnet über die absolvierten mündlichen Teilprüfungen.',
+    nenner: 'Vorgänge, die zu Versuch r angetreten sind.',
+    grenzfaelle: 'Rechnet über alle absolvierten OE-Teile, nicht nur über OE1; in der Datei trägt heute nahezu jeder Vorgang nur OE1. Unterscheidet sich damit von «Mündlich: im 1. Versuch durchgefallen», das ausdrücklich OE1 RUN1 misst.',
+  },
+  {
+    kind: 'Kennzahl', term: 'Antritte je Versuch',
+    definition: 'Anzahl Vorgänge mit erfasstem Ergebnis in Run r; steht als Nenner neben jeder Durchfallquote je Versuch.',
+    nenner: '–',
+    grenzfaelle: 'Nimmt von Versuch zu Versuch stark ab. Liegt die Zahl unter der Schwelle von 5, wird statt der Quote nur die Anzahl ausgewiesen (E5).',
+  },
+  {
+    kind: 'Kennzahl', term: 'Termine ohne erfasstes Ergebnis',
+    definition: 'Anzahl Vorgänge mit Prüfungsdatum für Versuch r, aber ohne Passed-Wert.',
+    nenner: '–',
+    grenzfaelle: 'Zählt nie als Antritt. Trennt «nicht angetreten» von «Ergebnis fehlt»; ohne diese Zahl bliebe die Lücke unsichtbar. Der Grund je Zeile steht im Data-Quality-Log.',
+  },
+  {
+    kind: 'Kennzahl', term: 'Ø Versuche bis Bestanden',
+    definition: 'Schriftlich: je Vorgang das Mittel der benötigten Run-Nummern über die absolvierten Teilprüfungen, dann das Mittel über die Vorgänge. Mündlich ergibt dieselbe Rechnung die Run-Nummer des bestandenen Runs.',
+    nenner: 'Bestandene Vorgänge (Status nach E4), deren absolvierte Teilprüfungen alle einen bestandenen Run tragen.',
+    grenzfaelle: 'Offene und nicht bestandene Vorgänge fliessen nicht ein; ihre Anzahl steht als Fussnote bei der Kennzahl. Als bestanden erfasste Vorgänge ohne bestandenen Run sind eine Datenlücke und werden getrennt gezählt, nie als offen.',
+  },
+  {
+    kind: 'Kennzahl', term: 'Sprachvergleich (Verteilung und Erstversuch)',
+    definition: 'Je Sprache die Anzahl Vorgänge mit Anteil an allen Vorgängen und die Durchfallquote im ersten Versuch, schriftlich und mündlich.',
+    nenner: 'Verteilung: alle Vorgänge im Filter. Quoten: die zu Versuch 1 angetretenen Vorgänge der Sprache.',
+    grenzfaelle: 'Die Zeilen folgen den Daten, nicht einer festen Liste – neben DE, FR und IT trägt die Datei heute auch EN. Vorgänge ohne Sprachangabe bilden eine eigene Zeile. Je Bank fallen kleine Sprachgruppen regelmässig unter die Schwelle von 5.',
+  },
+  // ------------------------------------------------------- Bankvergleich (PROMPT-3, E7–E9 – P7.2b)
+  {
+    kind: 'Begriff', term: 'Fokusbank und Vergleichsbanken',
+    definition: 'Der Bank-Report stellt eine Fokusbank bis zu vier manuell gewählten Vergleichsbanken gegenüber. Alle Banken erscheinen mit Klarnamen; die Spaltengruppe heisst «Vergleichsbanken».',
+    nenner: '–',
+    grenzfaelle: 'Eine gewählte Bank ohne Vorgänge im Filter erhält keine Spalte und wird gemeldet; über vier hinaus gewählte Banken ebenso. Keine Anonymisierung und kein Modusschalter (E9) – der Report trägt auf jeder Seite «bbz-intern – Vergleichswerte nicht zur Weitergabe».',
+  },
+  {
+    kind: 'Begriff', term: 'Benchmark «alle Banken» und «alle Banken ohne Fokusbank»',
+    definition: 'Zwei Vergleichswerte nebeneinander: alle Vorgänge im Filter, und dieselbe Menge ohne die Vorgänge der Fokusbank. Das Delta der Fokusbank bezieht sich immer auf den zweiten.',
+    nenner: 'Vorgänge im Filter bzw. Vorgänge im Filter ohne die Fokusbank.',
+    grenzfaelle: 'Die beiden Werte fallen umso stärker auseinander, je grösser die Fokusbank ist. Die grösste Bank der Datei stellt rund 28 Prozent aller Vorgänge; ihr Delta gegen «alle» wäre um Prozentpunkte kleiner als gegen «ohne Fokusbank» und würde den Abstand beschönigen.',
+  },
+  {
+    kind: 'Begriff', term: 'Maskierte Zelle (n < k)',
+    definition: 'Liegt der Nenner einer einzelnen Kennzahl unter der Schwelle k (Standard 5), zeigt die Zelle statt der Quote nur die Anzahl: «n = 3 (< 5)». Die Schwelle gilt je Zelle, nicht je Bank.',
+    nenner: '–',
+    grenzfaelle: 'Betrifft vor allem Sprach- und Versuchszeilen: eine Bank kann über k liegen und trotzdem maskierte Zellen tragen. Ein Nenner von 0 ist nicht maskiert, sondern leer («–») – es gibt nichts zu verbergen. Mengen wie «Vorgänge» oder «Personen» tragen keinen Nenner und werden nie maskiert. Eine maskierte Zelle liefert kein Delta.',
+  },
+  {
+    kind: 'Begriff', term: 'Bankübergreifende Person',
+    definition: 'Eine Person mit Vorgängen bei mehr als einer Bank. Die Bank hängt am Vorgang, nicht an der Person (E7): in der Bankspalte zählt sie bei jeder ihrer Banken, im Gesamtwert einmal.',
+    nenner: '–',
+    grenzfaelle: 'Die Summe der Personenzahlen über alle Banken ist deshalb grösser als die Gesamtzahl der Personen. In der heutigen Datei betrifft das 10 von 3399 Personen; der Report weist die Zahl aus und erklärt sie in einer Fussnote.',
+  },
+  // ------------------------------------------------------- Druckansicht (PROMPT-3, E12–E15 – P7.2d)
+  {
+    kind: 'Begriff', term: 'Druckansicht Bank-Report',
+    definition: 'Eigener Druckbaum aus denselben Modellen wie der Bildschirm, A4 quer mit 12 mm Rand, Basisschrift 10 pt und Tabellen 9 pt. Fünf fest zugeschnittene Seiten: Leitkennzahlen und Durchfallquoten, Leistung und Kontext, Sprache und Teilprüfungen, Profile und «Nicht in den Kennzahlen», Methodik.',
+    nenner: '–',
+    grenzfaelle: 'E13 nannte höchstens vier Seiten. Gemessen an der echten Datei mit vier Vergleichsbanken brauchte die Vergleichstabelle allein 211 mm und die Detailseite 209 mm bei 186 mm Satzspiegel; der Auftraggeber hat am 12.09.2026 entschieden, auf fünf Seiten zu gehen statt Kennzahlen zu streichen oder die Schrift zu verkleinern. Die Seiten sind fest zugeschnitten statt dem Fluss überlassen – nur so trägt jede Seite ihr Kopfband und bricht keine Tabelle kopflos um.',
+  },
+  {
+    kind: 'Begriff', term: 'Logo im Bank-Report',
+    definition: 'Fester Slot im Kopfband, 24 mm × 12 mm, gespeist aus einer Datei, deren Pfad in CONFIG.report.logo steht (vorgesehen: assets/logo.svg).',
+    nenner: '–',
+    grenzfaelle: 'Ohne Eintrag bleibt der Slot leer und behält seine Masse – das Layout springt nicht. Die Datei wird erst abgefragt, wenn der Pfad eingetragen ist; sonst erzeugte jeder Druck eine 404 auf eine Datei, die es im Repo nicht gibt (keine Binärassets im Repo, E15).',
+  },
+  {
+    kind: 'Begriff', term: 'Export des Bank-Reports',
+    definition: 'Zwei Ebenen: die Aggregate der Ansicht (CSV/XLSX) und die Vorgangsebene mit Namen. Die Kopfzeile beider Dateien nennt zusätzlich zum Filterzustand und zum Stand die Fokusbank, die Vergleichsbanken und den Schwellenwert k.',
+    nenner: '–',
+    grenzfaelle: 'Die Vorgangsebene rechnet auf der Menge des Reports – alle Banken im Filter, nicht nur die gewählten –, damit auch die beiden Benchmarks nachrechenbar bleiben. Die erste Spalte ordnet jeden Vorgang der Spalte des Reports zu: Fokusbank, Vergleichsbank oder nur Benchmark. Die Datei enthält Namen und ist bbz-intern (Entscheid 12.09.2026).',
+  },
 ];
 
 export function glossaryTerms(kind = null) {

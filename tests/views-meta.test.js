@@ -87,7 +87,9 @@ test('views: die abgeschalteten Felder je Ansicht (A1, Abnahme)', () => {
   assertEqual(off(personen).join(','), 'jahr,von,bis,versuche', 'Personen: Zeitraum und Versuche ohne Wirkung');
   assertEqual(off(experten).join(','), 'versuche', 'Experten: Versuche ohne Wirkung, Zeitraum bleibt aktiv');
   assert(experten.filters.hinweis.includes('Run-Datum'), 'Experten: sichtbarer Hinweis zum Zeitraum');
-  for (const v of [overview, written, oral, vssVsm, ranking, bankReport]) assertEqual(off(v).length, 0, v.id + ': kein Feld ausdrücklich abgeschaltet');
+  for (const v of [overview, written, oral, vssVsm, ranking]) assertEqual(off(v).length, 0, v.id + ': kein Feld ausdrücklich abgeschaltet');
+  // P7.2c: Der Bank-Report wählt Fokus- und Vergleichsbanken selbst; der Bankfilter der Leiste würde die Benchmarks leeren.
+  assertEqual(off(bankReport).join(','), 'bank', 'Bank-Report: die Bankauswahl steht in der Ansicht');
   // C5: Wertung und Benchmark gelten nur, wo sie ausdrücklich als wirksam erklärt sind
   assertEqual(ranking.filters.wertung, true, 'Bestenlisten: die Wertung wirkt');
   assertEqual(overview.filters.benchmark, true, 'Übersicht: der Benchmark wirkt');

@@ -261,16 +261,67 @@ try {
     await shot(page, v);
   }
 
-  // Bank-Report: ohne Bank ein Hinweis, mit genau einer Bank die Vergleichstabellen ohne Namen
+  // Bank-Report (P7.2c): ohne Fokusbank nur Hinweis und Auswahl; mit Fokusbank und einer Vergleichsbank die
+  // Vergleichstabelle mit beiden Benchmarks, Nenner je Quote, einer Delta-Spalte – und die Auswahl in der Adresse.
   await page.goto(server.url + '#bank-report');
   await page.waitForSelector('#view h2');
-  check((await page.locator('#view p.empty').count()) === 1 && (await page.locator('#view table').count()) === 0, 'Bank-Report ohne Bank: Hinweis, keine Tabellen');
-  await filterWaehlen(page, 'bank', { label: 'Testbank AG' });
+  check((await page.locator('#view p.empty').count()) === 1 && (await page.locator('#view table').count()) === 0
+    && (await page.locator('#view select#bank-report-fokus').count()) === 1,
+    'Bank-Report ohne Fokusbank: Hinweis und Auswahl, keine Tabellen');
+  await page.selectOption('#bank-report-fokus', 'Testbank AG');
   await page.waitForSelector('#view table');
-  const bankTables = await page.$$eval('#view table caption', (c) => c.map((x) => x.textContent));
-  check(bankTables.length >= 3 && bankTables.every((t) => /Testbank AG/.test(t)), 'Bank-Report mit Bank: ' + bankTables.length + ' Tabellen (' + bankTables.join(' | ') + ')');
+  await page.locator('#view .bank-kaesten label:has-text("Musterbank") input').check();
+  await page.waitForFunction(() => /vergleichsbank=/.test(location.hash), null, { timeout: 5000 });
+  check(/fokus=Testbank\+AG/.test(page.url()) && /vergleichsbank=Musterbank/.test(page.url()),
+    'Bank-Report: Fokusbank und Vergleichsbank in der Adresse (' + hashQuery(page.url()) + ')');
+  const vergleichModell = await page.evaluate(() => {
+    const tab = [...document.querySelectorAll('#view table.data')].find((t) => /im Vergleich/.test((t.querySelector('caption') || {}).textContent || ''));
+    if (!tab) return null;
+    return {
+      kopf: [...tab.querySelectorAll('thead th')].map((x) => x.textContent.trim()),
+      zeilen: tab.querySelectorAll('tbody tr').length,
+      text: tab.textContent,
+    };
+  });
+  check(vergleichModell && vergleichModell.kopf.includes('Testbank AG') && vergleichModell.kopf.includes('Musterbank')
+    && vergleichModell.kopf.includes('Alle Banken') && vergleichModell.kopf.includes('Alle Banken ohne Testbank AG')
+    && vergleichModell.kopf.filter((t) => t.startsWith('Δ')).length === 1 && vergleichModell.zeilen >= 17,
+    'Bank-Report: Vergleichstabelle, ' + (vergleichModell ? vergleichModell.zeilen + ' Zeilen (' + vergleichModell.kopf.join(' | ') + ')' : 'fehlt'));
+  // E9: beide Darstellungen müssen vorkommen – eine Quote mit Nenner und eine maskierte Zelle. Die Fokusbank der
+  // synthetischen Datei liegt unter der Schwelle, der Benchmark darüber; genau so soll der Report aussehen.
+  check(vergleichModell && /\(n \d+\)/.test(vergleichModell.text) && /n = \d+ \(< 5\)/.test(vergleichModell.text),
+    'Bank-Report: Quoten mit Nenner und maskierte Zellen als solche erkennbar');
+  check((await page.locator('#view .report-head .vertraulich').textContent()).includes('nicht zur Weitergabe'),
+    'Bank-Report: Vertraulichkeitszeile im Kopf');
   check(!(await page.textContent('#view')).includes('Muster Anna'), 'Bank-Report ohne Namen');
-  check((await page.$$eval('#view thead th', (th) => th.map((x) => x.textContent))).includes('Einordnung') && (await page.locator('#view td.tone').count()) >= 5, 'Bank-Report: Spalte «Einordnung» mit Ton je Kennzahlzeile (' + (await page.locator('#view td.tone').count()) + ')');
+
+  // P7.2e – Export: die Kopfzeile trägt Auswahl, Stand und Schwelle; die Vorgangsebene rechnet auf der Menge des
+  // Reports (alle Banken), nicht auf der global gefilterten. Geprüft am echten Knöpfchen, nicht an einem Nachbau.
+  await page.locator('#view .view-actions details.export-menu summary').first().click();
+  const [aggDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#view details.menu[open] .menu-item', { hasText: /^CSV$/ }).first().click(),
+  ]);
+  const aggCsv = readFileSync(await aggDownload.path(), 'utf8').split(String.fromCharCode(13)).join('');
+  check(/Fokusbank: Testbank AG/.test(aggCsv) && /Vergleichsbanken: Musterbank/.test(aggCsv) && /Schwellenwert k: 5/.test(aggCsv) && /geladen /.test(aggCsv),
+    'Export Kopfzeile: Fokusbank, Vergleichsbanken, Schwelle und Stand (' + aggDownload.suggestedFilename() + ')');
+  check(/n = \d+ \(< 5\)/.test(aggCsv), 'Export: maskierte Zellen bleiben maskiert');
+
+  await page.locator('#view .view-actions details.export-menu summary').first().click();
+  const [vorgangDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#view details.menu[open] .menu-item', { hasText: /^CSV \(Vorgangsebene\)$/ }).first().click(),
+  ]);
+  const vorgangCsv = readFileSync(await vorgangDownload.path(), 'utf8').split(String.fromCharCode(13)).join('');
+  const vorgangZeilen = vorgangCsv.split(String.fromCharCode(10));
+  const vorgangKopf = (vorgangZeilen.find((z) => z.startsWith('Spalte im Report')) || '').split(';');
+  const vorgangSpalten = vorgangZeilen.filter((z) => /^(Fokusbank|Vergleichsbank|nur Benchmark);/.test(z)).length;
+  check(vorgangKopf[0] === 'Spalte im Report' && vorgangKopf.includes('Name') && vorgangSpalten === 13,
+    'Export Vorgangsebene: ' + vorgangSpalten + ' Vorgänge mit Namen, erste Spalte ordnet sie dem Report zu');
+  // Die synthetische Datei kennt nur zwei Banken, beide gewählt – «nur Benchmark» kommt hier nicht vor;
+  // diesen dritten Fall prüft tests/bankvergleich.test.js mit drei Banken.
+  check(/^Fokusbank;/m.test(vorgangCsv) && /^Vergleichsbank;/m.test(vorgangCsv),
+    'Export Vorgangsebene: Fokusbank und Vergleichsbank unterscheidbar – jede Zahl des Reports nachrechenbar');
   // H3: Messzeilen für den Empfänger – er kennt das Cockpit nicht und braucht den Bezug neben der Zahl. Geprüft
   // wird auch der Druck: Diese Ansicht wird gedruckt und weitergegeben, und ohne print-color-adjust verschwänden
   // Spur, Balken, Punkt und Benchmarkmarke.
@@ -311,8 +362,79 @@ try {
   await page.screenshot({ path: join(outDir, 'print-bank-report.png'), fullPage: true });
   await page.emulateMedia({ media: null });
   await shot(page, 'bank-report-mit-bank');
-  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
-  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
+
+  // P7.2d – Druckansicht: eigener Baum, vier Seiten, Kopfband und Vertraulichkeitszeile je Seite, keine Überbreite.
+  // window.print wird abgefangen, damit der Baum stehen bleibt und messbar ist (headless öffnet keinen Druckdialog).
+  await page.evaluate(() => { window.print = () => { window.__gedruckt = (window.__gedruckt || 0) + 1; }; });
+  await page.locator('#view .toolbar button').click();
+  await page.waitForSelector('#report-print .seite', { state: 'attached' }); // am Bildschirm ist der Baum display:none
+  await page.emulateMedia({ media: 'print' });
+  // A4 quer abzüglich der Ränder von 12 mm: 273 mm × 186 mm, bei 96 dpi 1032 × 703 px
+  await page.setViewportSize({ width: 1032, height: 703 });
+  const druckbaum = await page.evaluate(() => {
+    const MM = 96 / 25.4;
+    const seiten = [...document.querySelectorAll('#report-print .seite')];
+    const sichtbar = (sel) => [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0).length;
+    const stil = document.getElementById('report-page');
+    return {
+      gedruckt: window.__gedruckt || 0,
+      klasse: document.body.classList.contains('druck-report'),
+      seitenformat: stil ? stil.textContent.replace(/\s+/g, ' ').trim() : '',
+      seiten: seiten.length,
+      kopfbaender: seiten.map((s) => s.querySelectorAll(':scope > .kopfband').length),
+      fusszeilen: seiten.map((s) => s.querySelectorAll(':scope > .fusszeile').length),
+      letzteBricht: seiten.length ? seiten[seiten.length - 1].classList.contains('umbruch') : true,
+      hoehenMm: seiten.map((s) => Math.round(s.getBoundingClientRect().height / MM)),
+      bloeckeMm: seiten.map((s) => [...s.children].map((c) => (c.className || c.tagName) + ' ' + Math.round(c.getBoundingClientRect().height / MM)).join(', ')),
+      ueberbreite: seiten.map((s) => Math.round(s.scrollWidth - s.clientWidth)),
+      seitenUeberlauf: Math.round(document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      kopfgruppen: [...document.querySelectorAll('#report-print table thead')].map((t) => getComputedStyle(t).display),
+      logoSlots: seiten.map((s) => Math.round(s.querySelector('.logo-slot').getBoundingClientRect().width / MM)),
+      logoBilder: document.querySelectorAll('#report-print .logo-slot img').length,
+      fussnoten: [...document.querySelectorAll('#report-print .druck-fussnoten li')].map((li) => li.textContent.length),
+      vertraulich: [...document.querySelectorAll('#report-print .fusszeile')].every((p) => /bbz-intern/.test(p.textContent)),
+      // Checkliste 5: nichts aus der Bedienung im Druck
+      bedienung: sichtbar('#filterbar') + sichtbar('.views') + sichtbar('#view .toolbar') + sichtbar('.bank-auswahl') + sichtbar('.app-footer'),
+      report: sichtbar('#report-print'),
+      methodikZeilen: document.querySelectorAll('#report-print .methodik tbody tr').length,
+      tabellen: document.querySelectorAll('#report-print table.druck-tabelle').length,
+    };
+  });
+  check(druckbaum.gedruckt === 1 && druckbaum.klasse && /size: A4 landscape/.test(druckbaum.seitenformat) && /margin: 12mm/.test(druckbaum.seitenformat),
+    'Druck: eigener Baum angehängt, Seitenformat nur für diesen Druckjob (' + druckbaum.seitenformat + ')');
+  check(druckbaum.seiten === 5 && druckbaum.kopfbaender.every((n) => n === 1) && druckbaum.fusszeilen.every((n) => n === 1) && druckbaum.vertraulich,
+    'Druck Checkliste 6: ' + druckbaum.seiten + ' Seiten, je ein Kopfband und eine Vertraulichkeitszeile');
+  check(!druckbaum.letzteBricht, 'Druck Checkliste 8: die letzte Seite bricht nicht um, keine leere Seite am Schluss');
+  check(druckbaum.hoehenMm.every((h) => h <= 186), 'Druck Checkliste 9: jede Seite unter 186 mm (' + druckbaum.hoehenMm.join(' | ') + ' mm)' + (druckbaum.hoehenMm.some((h) => h > 186) ? ' – Blöcke: ' + druckbaum.bloeckeMm.join(' // ') : ''));
+  check(druckbaum.ueberbreite.every((u) => u <= 0) && druckbaum.seitenUeberlauf <= 0,
+    'Druck Checkliste 7: keine Überbreite (' + druckbaum.ueberbreite.join(' | ') + ', Seite ' + druckbaum.seitenUeberlauf + ')');
+  check(druckbaum.kopfgruppen.length >= 5 && druckbaum.kopfgruppen.every((d) => d === 'table-header-group'),
+    'Druck Checkliste 3: jeder Tabellenkopf wiederholt sich (' + druckbaum.kopfgruppen.join(', ') + ')');
+  check(druckbaum.bedienung === 0 && druckbaum.report === 1, 'Druck Checkliste 5: nichts aus der Bedienung im Druck, nur der Report');
+  check(druckbaum.fussnoten.length >= 6 && druckbaum.fussnoten.every((l) => l <= 120),
+    'Druck Checkliste 11: ' + druckbaum.fussnoten.length + ' Fussnoten, längste ' + Math.max(...druckbaum.fussnoten) + ' Zeichen');
+  check(druckbaum.logoSlots.every((w) => w === 24) && druckbaum.logoBilder === 0,
+    'Druck Checkliste 13: Logo-Slot 24 mm auf jeder Seite, ohne Datei kein Bild und kein Sprung');
+  check(druckbaum.methodikZeilen >= 12 && druckbaum.tabellen >= 6,
+    'Druck: Methodik mit ' + druckbaum.methodikZeilen + ' Zeilen, ' + druckbaum.tabellen + ' Tabellen');
+  await page.screenshot({ path: join(outDir, 'druck-bank-report.png'), fullPage: true });
+  // Checkliste 12: in Graustufen auswertbar – Struktur über Linien, keine Fläche allein
+  const graustufen = await page.evaluate(() => {
+    const flaechen = [...document.querySelectorAll('#report-print .druck-kachel, #report-print .druck-tabelle td, #report-print .druck-tabelle th')]
+      .map((e) => getComputedStyle(e).backgroundColor)
+      .filter((c) => c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent');
+    const rahmen = [...document.querySelectorAll('#report-print .druck-kachel')].every((e) => parseFloat(getComputedStyle(e).borderBottomWidth) > 0);
+    return { flaechen: flaechen.length, rahmen };
+  });
+  check(graustufen.flaechen === 0 && graustufen.rahmen,
+    'Druck Checkliste 12: Struktur über Linien, keine Flächenfarbe (' + graustufen.flaechen + ' gefärbte Zellen)');
+  // Baum wieder abräumen (afterprint), danach ist die Ansicht unverändert
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  await page.emulateMedia({ media: null });
+  await page.setViewportSize({ width: 1400, height: 1000 });
+  check((await page.locator('#report-print').count()) === 0 && !(await page.evaluate(() => document.body.classList.contains('druck-report')))
+    && (await page.locator('#report-page').count()) === 0,
+    'Druck: nach afterprint sind Baum, Klasse und Seitenformat wieder weg');
   check(views.includes('uebersicht') && views.includes('geplante-pruefungen') && views.includes('datenqualitaet'), 'Kern-Ansichten vorhanden: ' + views.join(', '));
 
   // Übersicht: Kacheln mit n
@@ -1109,7 +1231,7 @@ try {
   // Seit C5 stehen «Wertung» und «Benchmark» ebenfalls in der Leiste. Sie gelten nur, wo sie ausdrücklich erklärt sind:
   // Wertung auf «Bestenlisten», Benchmark auf «Übersicht», «Schriftlich» und «Mündlich». Überall sonst abgeschaltet.
   const OFF = {
-    uebersicht: 1, schriftlich: 1, muendlich: 1, bestenlisten: 1, 'vss-vsm': 2, 'bank-report': 2,
+    uebersicht: 1, schriftlich: 1, muendlich: 1, bestenlisten: 1, 'vss-vsm': 2, 'bank-report': 3,
     zeitverlauf: 5, 'offene-vorgaenge': 5, 'geplante-pruefungen': 5, personen: 6, experten: 3,
   };
   // Ganz ohne Leiste: Datenqualität (voller Bestand), Historie (Snapshot der ganzen Datei), Glossar (statisch)
