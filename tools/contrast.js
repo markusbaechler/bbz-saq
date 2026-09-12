@@ -42,6 +42,10 @@ export const PAIRS = [
 // und Fundstelle gemeldet (Paket A, A4): Jeder CI-Lauf zeigt sie, eine Verschlechterung fällt auf. Sie sind erlaubt, weil
 // sie nach WCAG 2.1 SC 1.4.11 rein dekorativ sind – der Inhalt ist ohne sie vollständig erkennbar und bedienbar. Sobald
 // ein Token hier ein Bedienelement abgrenzt, gehört es in PAIRS (so entstand --field-border).
+// --shadow ist das einzige Token, das der Dark-Block umsetzt und das in keinem Paar steht – bewusst: Es ist eine
+// Schattenfarbe (rgba schwarz, hell 8 %, dunkel 50 %), keine Flaeche, auf der Text oder ein Bedienelement liegt.
+// Ein Verhaeltnis dafuer waere eine Zahl ohne Aussage. Gemessen in Paket OPTIK (O3): 28 der 29 dunklen Tokens sind
+// durch Paare gedeckt.
 export const DECOR = [
   { fg: '--border', bg: '--panel', use: 'Rahmen von Tabellen, Karten, Kacheln und Kopfzeilen (styles.css: table.data, .kpi, .view, .app-header) – Struktur, keine Bedienung; Eingabefelder tragen --field-border' },
   { fg: '--viz-grid', bg: '--panel', use: 'Gitterlinien im Diagramm (views/chart.js) und Spur der Messzeile (styles.css: .mz-spur) – die Werte stehen als Text in derselben Zeile bzw. in der Zwillingstabelle' },

@@ -549,6 +549,28 @@ dunkel auf weisses Papier**, `--ok` mit 1.96:1. Der Druck-Block trägt deshalb z
 Zustand treffen und beide (0,2,0) haben: `:root[data-theme], :root:not([data-theme])`. Gleiche Spezifität und
 später in der Datei heisst: der Druck gewinnt. Geprüft im Smoke-Test in **allen drei Zuständen**.
 
+**Dunkel und Druck abgeleitet (Paket OPTIK, O3).** Beide werden nach derselben Regel gebaut wie bisher, und die
+Ableitung aus der neuen hellen Palette ergibt **gemessen keine neuen Werte**:
+
+*Dunkel.* Gemessen am Farbstich (höchster Kanal) ist die helle Palette weiter durchgehend blaustichig –
+`--th-bg` B+6, `--border` B+12, `--text` B+8, `--muted` B+18, `--field-border` B+25 –, und genau so ist der
+Dark-Block gebaut (B+5 bis B+22, dieselbe Richtung und ähnliche Beträge). **Nur `--bg` hat den Stich gewechselt**,
+von blau auf **G+2**: zwei von 255, und auf dem dunklen Grund (Helligkeit 20 von 255) ist ein Stich von +2 ein
+einziger Schritt. Eine Umfärbung des Dark-Blocks wäre also Bewegung ohne Wirkung. Die dunklen Abstände sind
+ausserdem besser gepolstert als die hellen: knappstes dunkles Paar `--field-border` auf `--panel-2` mit **3.90:1**
+gegen **3.14:1** hell. **28 der 29 Tokens**, die der Dark-Block umsetzt, sind durch Paare gedeckt; das eine
+ungedeckte ist `--shadow` – eine Schattenfarbe, kein Kontrastpaar.
+
+*Druck – der heikle Fall, weil der Bank-Report gedruckt und weitergegeben wird.* Der Grund bleibt **weiss**, nicht
+warmgrau, und das ist gemessen entschieden: `body` trägt im Druck `print-color-adjust: economy` (der Standard), der
+Browser **verwirft die Grundfläche also ohnehin** – ein warmer Wert im Druck-Block wäre ein Versprechen, das das
+Papier nicht hält. Auf einem Drucker, der Hintergründe ausdrücklich mitnimmt, wäre 93 % helles Grau über eine ganze
+A4-Seite ein Feld Toner ohne Information. Die Flächentrennung auf Papier kommt nicht vom Ton: gemessen sind die
+Blöcke in beiden Medien **transparent**, getrennt wird durch Rahmen und Tabellenlinien. Nur die Flächen der
+Messzeile tragen `print-color-adjust: exact` (Paket H3) und drucken deshalb wirklich. `darkLeftovers()` meldet
+**kein** vergessenes Token; die drei bewussten Papier-Abweichungen (`--bg`, `--panel-2`, `--bar`) stehen mit Grund
+im Smoke-Test.
+
 **Helle Palette (Paket OPTIK, O2):** Es wurden nur **Werte** getauscht, kein Token-Name geändert, keiner entfernt.
 `tools/contrast.js` hängt an den Namen und prüft die neue Palette dadurch vollständig mit. Vier Werte ändern sich
 wirklich – der Rest der Prototyp-Palette war schon der der App (`--accent #0b5fa5`, `--ok`, `--series-2`,
