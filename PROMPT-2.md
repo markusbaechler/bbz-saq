@@ -963,7 +963,7 @@ meinen, nennen deshalb den Namen; ein blosser Buchstabe meint immer Runde 1.
 | **H** | Das laufende Jahr im Zeitverlauf, Punktdiagramme in «Schriftlich»/«Mündlich», Messzeilen im Bank-Report, Deckungsprüfung | H (H1–H4, Runde 2 – nicht das Paket H aus Runde 1, das es dort nicht gibt) | #39–#42 | `343e73b` |
 | **I** | Punktdiagramme: Überschrift und Wertung, Achse folgt den Daten, Ränder wachsen mit dem Text, ein Satz je Zeile, VSS/VSM mit beiden Prüfungsteilen und sichtbaren Nennern | I (P1–P6) | #43 | `ce1e4cd` |
 | *(Hotfix)* | Cache-Busting: Fassungsmarke an jeder ausgelieferten Datei – ohne sie zeigte der Browser nach einem Deploy bis zu zehn Minuten alte Module, teils gemischt | – | #44 | `199b873` |
-| **OPTIK** | Überführung in die Gestaltung des Prototyps: Schrift, Farbe hell, dunkel und Druck, Komposition, Abgleich | O (O0–O5) | offen | – |
+| **OPTIK** | Überführung in die Gestaltung des Prototyps: Schrift, Farbe hell, dunkel und Druck, Themenschalter, Komposition, Abgleich | O (O0–O5, O3a) | offen | – |
 
 ### Paket OPTIK (Stand 12.09.2026, in Arbeit)
 
@@ -989,6 +989,36 @@ Druck-Block `@media print { :root { … } }` hat Spezifität (0,1,0) und verlier
 (0,2,0) – wer mit manuellem Dunkel druckt, bekäme `--ok #5ad07a` mit 1.96:1 auf weissem Papier; (3) das
 Konto-Menü ist der falsche Ort, es erscheint erst mit Konto – ohne Anmeldung lädt man aber sehr wohl eine lokale
 Excel-Datei.
+
+### Abgleich am Ende von Paket OPTIK (O5, Stand 12.09.2026)
+
+Das Skript aus O0 erneut gelaufen, Zeile für Zeile verglichen: **0 Rückschritte, 0 fehlende Zeilen.** Keine
+Ansicht hat eine Tabelle, eine Tabellenzeile, ein Diagramm, eine Messzeile, eine Kachel, eine sortierbare Spalte,
+einen «Alle Spalten»-Schalter, einen Aufklapper oder einen Exporteintrag verloren. Die Höhen haben sich
+geändert, wie vorgesehen – zwölf Ansichten, am stärksten der Glossar mit +346 px (Fliesstext in der neuen
+Schrift) und die Übersicht mit +93 px (Bestandsband +137, zwei Spalten −109, Schrift +5, Fussnote +60).
+
+**Zielmasse aus C und H – neu hergeleitet, keines aufgeweicht:**
+
+| Marke | Ziel | gemessen | |
+|---|---|---|---|
+| statisches Chrome | 170 px | **170 px** | hält |
+| erster Zahlenwert | ≤ 45 % der Höhe | **32 %** (y = 288) | hält |
+| Navigationsband | passt ab 1400 px | **31 px**, passt bei 1100/1280/1400/1600 | hält |
+| Ranglisten, versteckter Anteil | ≤ 10 % | **0 %** | hält |
+| D2: sechs Signale | ≤ 300 px gestapelt | **579 px Kopfbereich** zweispaltig (neu: ≤ 700) | neu hergeleitet |
+| M3: letzte Messzeile | < 900 px | **y = 531** (vorher 797) | besser |
+
+Die eine neu hergeleitete Marke ist D2. Sie hiess «sechs Signale in ≤ 300 px», als die Signale über allem
+standen und die Messzeilen darunter. Seit O4b stehen beide nebeneinander, und die Strecke bis zur ersten Zahl ist
+der **Kopfbereich als Ganzes**: 579 px mit sechs Signalen, gegen 427 px gestapelt ohne sie – die Absicht von
+Paket D ist besser erfüllt als vorher, und der Signalblock allein wächst nur, weil 470 px Spaltenbreite ihn
+umbrechen lassen. Die Prüfung unterscheidet jetzt die zwei Lagen, statt eine Zahl hochzusetzen.
+
+**Prüfungen:** 437 Tests (O0: 432), 150 Kontrastpaare (O0: 147), Smoke mit 378 Prüfungen auf fünf Viewports
+(390, 820, 1100, 1280, 1400 px), **dunkel in allen 14 Ansichten** statt in drei. Screenshot-Vergleich Übersicht,
+Schriftlich und Bank-Report, je hell und dunkel, vorher gegen nachher – die Bilder stammen aus
+`tests/smoke/bilder.mjs`, das «vorher» aus einem Arbeitsbaum auf `199b873`.
 
 ### Bestand des Funktionsumfangs (Paket OPTIK, O0, Stand 12.09.2026)
 

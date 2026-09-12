@@ -674,8 +674,12 @@ export function bestandsband(persons, today = new Date()) {
       anteil: summe > 0 ? t.anzahl / summe : 0,
       text: t.label + ': ' + t.anzahl + ' von ' + st.n + ' Vorgängen (' + formatPct(summe > 0 ? t.anzahl / summe : null, 1) + ')',
     })),
-    note: 'Breite nach Menge. Die fünf Abschnitte sind die ganze Menge der Vorgänge im Filter – zusammen '
-      + summe + ' von ' + st.n + '. Dieselben Zahlen stehen als Kacheln darunter, dort mit Definition und Abstand zum Benchmark.',
+    // Die Zahl der Abschnitte steht nicht als Wort da: Abschnitte ohne Vorgänge fallen weg, und «fünf» wäre
+    // falsch, sobald einer null ist. «Nicht erfasst» ist der häufigste Fall davon.
+    note: 'Breite nach Menge. Die Abschnitte sind die ganze Menge der Vorgänge im Filter – zusammen '
+      + summe + ' von ' + st.n + '. «Zertifizierung offen» ist hier aufgeteilt in Termin gesetzt, ohne Termin und '
+      + 'passiv; «offen», «passiv» und «nicht erfasst» stehen zusätzlich als Kachel darunter, dort mit Definition '
+      + 'und Abstand zum Benchmark.',
   };
 }
 

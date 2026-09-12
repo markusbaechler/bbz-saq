@@ -1793,7 +1793,34 @@ try {
   await page.waitForSelector('#view svg.viz-bars');
   check((await page.locator('#view svg.viz-bars rect.viz-bar').count()) >= 10, 'Dark Mode: Schriftlich mit Histogramm gerendert');
   await shot(page, 'dark-schriftlich');
+  // O5: Dunkel nicht nur in drei Ansichten. Jede der vierzehn wird dunkel gerendert – geprueft wird, dass der
+  // Grund dunkel ist, dass Inhalt entsteht und dass dabei kein Seitenfehler auftritt. Die neue Palette (O2) und
+  // die Spiegelung fuer die manuelle Wahl (O3a) betreffen jede Ansicht, nicht drei.
+  const dunkelFehler = [];
+  const vorher = errors.length;
+  const dunkelAnsichten = [];
+  for (const v of views) {
+    await page.goto(server.url + '#uebersicht');
+    await page.waitForTimeout(60);
+    await page.goto(server.url + '#' + v);
+    await page.waitForFunction((x) => location.hash.replace(/^#/, '').split('?')[0] === x && !!document.querySelector('#view h2'), v, { timeout: 8000 });
+    await page.waitForTimeout(120);
+    const d = await page.evaluate(() => ({
+      grund: getComputedStyle(document.body).backgroundColor,
+      tinte: getComputedStyle(document.querySelector('#view h2')).color,
+      inhalt: document.querySelector('#view').children.length,
+    }));
+    dunkelAnsichten.push(v + ':' + d.inhalt);
+    if (d.grund !== 'rgb(20, 22, 26)' || d.inhalt === 0) dunkelFehler.push(v + ' Grund ' + d.grund + ', ' + d.inhalt + ' Bloecke');
+  }
+  check(dunkelFehler.length === 0 && errors.length === vorher,
+    'O5 Dunkel in allen ' + views.length + ' Ansichten: dunkler Grund, Inhalt vorhanden, keine neuen Seitenfehler ('
+      + dunkelAnsichten.join(' · ') + ')' + (dunkelFehler.length ? ' – FALSCH: ' + dunkelFehler.join('; ') : ''));
   await page.emulateMedia({ colorScheme: 'light' });
+  // Die Druckpruefung darunter setzt die Uebersicht voraus (td.pct, Legende) – der Rundgang endet auf «Glossar»,
+  // also zurueck. Ohne das prueft sie die falsche Ansicht und wird rot, ohne dass etwas kaputt ist.
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
 
   // Druck (A.8): Legende geöffnet, Datenbalken hell und grau, Kopf-Aktionen ausgeblendet
   await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));

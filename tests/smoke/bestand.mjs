@@ -98,6 +98,11 @@ async function messen() {
           sortierbar: z('th.sortable'),
           alleSpalten: z('button.all-columns'),
           aufklappbar: z('details.block, tr.expandable'),
+          // Seit Paket OPTIK (O4) mitgezählt: Abschnitte des Bestandsbands und Flächen, die einen Mouseover
+          // tragen. Die Messlatte aus O0 kennt die zwei Felder nicht – der Vergleich übergeht, was in der alten
+          // Zeile fehlt, und ab jetzt sind auch diese zwei gegen Rückschritte geschützt.
+          bandteile: z('.bb-teil'),
+          hover: z('[title]:not(.info)'),
           export: [...view.querySelectorAll('.view-actions .menu-item')].map((b) => b.textContent.trim()).join('/'),
           hoehe: Math.round(view.getBoundingClientRect().height),
         };
@@ -132,12 +137,14 @@ function bericht({ global, ansichten, fehler, umgebung }) {
   const summe = (k) => ansichten.reduce((a, x) => a + x[k], 0);
   zeilen.push('summe tabellen=' + summe('tabellen') + ' zeilen=' + summe('zeilen') + ' diagramme=' + summe('diagramme')
     + ' messzeilen=' + summe('messzeilen') + ' kacheln=' + summe('kacheln') + ' sortierbar=' + summe('sortierbar')
-    + ' alleSpalten=' + summe('alleSpalten') + ' aufklappbar=' + summe('aufklappbar'));
+    + ' alleSpalten=' + summe('alleSpalten') + ' aufklappbar=' + summe('aufklappbar')
+    + ' bandteile=' + summe('bandteile') + ' hover=' + summe('hover'));
   zeilen.push('');
   for (const a of ansichten) {
     zeilen.push('ansicht ' + a.id + ' tabellen=' + a.tabellen + ' zeilen=' + a.zeilen + ' diagramme=' + a.diagramme
       + ' messzeilen=' + a.messzeilen + ' kacheln=' + a.kacheln + ' sortierbar=' + a.sortierbar
-      + ' alleSpalten=' + a.alleSpalten + ' aufklappbar=' + a.aufklappbar + ' hoehe=' + a.hoehe
+      + ' alleSpalten=' + a.alleSpalten + ' aufklappbar=' + a.aufklappbar
+      + ' bandteile=' + a.bandteile + ' hover=' + a.hover + ' hoehe=' + a.hoehe
       + ' export=' + (a.export || '–'));
   }
   if (fehler.length) { zeilen.push(''); zeilen.push('# SEITENFEHLER: ' + fehler.join(' | ')); }
