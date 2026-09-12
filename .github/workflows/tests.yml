@@ -44,6 +44,9 @@ jobs:
       - name: Projektregeln deckungsgleich (CLAUDE.md = AGENTS.md ab Zeile 2)
         run: node tools/regeln-abgleich.js
 
+      - name: Manuelle Dunkelfassung aktuell (aus der Media-Abfrage erzeugt)
+        run: node tools/theme.js
+
       - name: Fassungsmarke aktuell (Cache-Busting, aus dem Inhalt der Dateien erzeugt)
         run: |
           node tools/version.js --write

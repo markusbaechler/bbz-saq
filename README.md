@@ -513,7 +513,91 @@ Gesamtergebnisse, Zertifikatsfelder; keine neuen Zeilen, keine Sheet-Änderungen
 ## Architektur
 
 Vanilla JS (ES-Module), kein Framework, kein Build-Schritt, GitHub Pages. Bibliotheken lokal unter `lib/`:
-MSAL.js 3.30.0 (MIT), SheetJS 0.20.3 (Apache-2.0), fflate 0.8.3 (MIT). Diagramme sind Inline-SVG ohne Bibliothek
+MSAL.js 3.30.0 (MIT), SheetJS 0.20.3 (Apache-2.0), fflate 0.8.3 (MIT).
+
+**Schriften (Paket OPTIK, O1):** **Public Sans** für Text und Tabellen, **Archivo** für Zahlen, Kennzahlen und
+Titel – beide lokal unter `lib/` als woff2, kein CDN, SIL OFL 1.1 mit Lizenztext daneben (`lib/*-OFL.txt`). Beide
+sind **Variable Fonts**: eine Datei je Familie deckt die ganze Gewichtsachse, deshalb zwei Dateien statt vier für
+die zwei Schnitte, die die App benutzt (400 und 600). Zusammen **61.7 KB** (Public Sans 26.8, Archivo 34.9),
+Latin-Subset. Grundgrösse bleibt `14px/1.45` – der Unterschied kommt aus den Schriftmetriken, nicht aus einer
+zweiten Änderung. `font-display: swap` und hinter jeder Familie eine echte Fallback-Kette: Fällt die Schrift aus,
+bleibt die App lesbar statt unsichtbar. Archivo sitzt auf genau den Flächen, die schon `tabular-nums` tragen –
+gemessen führen **beide** Familien Tabellenziffern (mit `tabular-nums` sind «1111» und «9999» gleich breit, ohne
+unterscheiden sie sich um 3 bzw. 12 px), Zahlenkolonnen fallen also nicht auseinander. Zwei Zeichen der App liegen
+ausserhalb des Latin-Subsets und rendern im Fallback: **σ** in der Streuungszeile und **ⓘ** am Abschnittstitel.
+Die Marke `?v=…` an den `@font-face`-URLs setzt `tools/version.js`: Die Import-Map in `index.html` erreicht
+Stylesheet-URLs nicht.
+
+**Themenschalter ohne Gedächtnis (Paket OPTIK, O3a):** Drei Zustände – **System · Hell · Dunkel**, Standard
+System – als Radiogruppe im Kopf (nicht im Konto-Menü: das erscheint erst mit Konto, und ohne Anmeldung lädt man
+sehr wohl eine lokale Excel-Datei). Drei und nicht zwei, weil es ohne «System» innerhalb einer Sitzung keinen Weg
+zurück zur Systemeinstellung gäbe. Er merkt sich **nichts**: kein localStorage, kein sessionStorage, kein Cookie,
+keine URL – nach dem Neuladen steht er wieder auf System. Native Radios mit `legend`: Tastaturbedienung, Rolle und
+der sichtbare Zustand kommen vom Browser, der aktive Zustand ist nicht nur durch Farbe erkennbar. Gemessen: der
+Schalter ist 184 px breit, das statische Chrome bleibt bei **130 px** (Ziel 170).
+
+Die dunkle Palette steht dafür **einmal** in der Media-Abfrage; `tools/theme.js --write` erzeugt daraus den Block
+`:root[data-theme="dark"]` für die manuelle Wahl, und `tools/contrast.js` vergleicht beide Blöcke Deklaration für
+Deklaration. Von Hand verdoppelt wären es 30 Werte zweimal – genau dort entsteht Drift, und O3 schreibt die dunkle
+Palette gleich neu. Die Media-Abfrage trägt den Wächter `:root:not([data-theme="light"])`: Wer bei dunklem System
+ausdrücklich «Hell» wählt, muss Hell bekommen.
+
+**Der Druck war der heikle Teil, und zwar eine Stufe tiefer als erwartet.** Der Block der manuellen Wahl hat
+Spezifität (0,2,0) – aber der Wächter hebt auch die **Media-Abfrage** auf (0,2,0). Ein blosses `:root` im
+Druck-Block (0,1,0) verliert damit gegen beide: gemessen druckte eine dunkle Systemeinstellung **alle 29 Tokens
+dunkel auf weisses Papier**, `--ok` mit 1.96:1. Der Druck-Block trägt deshalb zwei Selektoren, die zusammen jeden
+Zustand treffen und beide (0,2,0) haben: `:root[data-theme], :root:not([data-theme])`. Gleiche Spezifität und
+später in der Datei heisst: der Druck gewinnt. Geprüft im Smoke-Test in **allen drei Zuständen**.
+
+**Dunkel und Druck abgeleitet (Paket OPTIK, O3).** Beide werden nach derselben Regel gebaut wie bisher, und die
+Ableitung aus der neuen hellen Palette ergibt **gemessen keine neuen Werte**:
+
+*Dunkel.* Gemessen am Farbstich (höchster Kanal) ist die helle Palette weiter durchgehend blaustichig –
+`--th-bg` B+6, `--border` B+12, `--text` B+8, `--muted` B+18, `--field-border` B+25 –, und genau so ist der
+Dark-Block gebaut (B+5 bis B+22, dieselbe Richtung und ähnliche Beträge). **Nur `--bg` hat den Stich gewechselt**,
+von blau auf **G+2**: zwei von 255, und auf dem dunklen Grund (Helligkeit 20 von 255) ist ein Stich von +2 ein
+einziger Schritt. Eine Umfärbung des Dark-Blocks wäre also Bewegung ohne Wirkung. Die dunklen Abstände sind
+ausserdem besser gepolstert als die hellen: knappstes dunkles Paar `--field-border` auf `--panel-2` mit **3.90:1**
+gegen **3.14:1** hell. **28 der 29 Tokens**, die der Dark-Block umsetzt, sind durch Paare gedeckt; das eine
+ungedeckte ist `--shadow` – eine Schattenfarbe, kein Kontrastpaar.
+
+*Druck – der heikle Fall, weil der Bank-Report gedruckt und weitergegeben wird.* Der Grund bleibt **weiss**, nicht
+warmgrau, und das ist gemessen entschieden: `body` trägt im Druck `print-color-adjust: economy` (der Standard), der
+Browser **verwirft die Grundfläche also ohnehin** – ein warmer Wert im Druck-Block wäre ein Versprechen, das das
+Papier nicht hält. Auf einem Drucker, der Hintergründe ausdrücklich mitnimmt, wäre 93 % helles Grau über eine ganze
+A4-Seite ein Feld Toner ohne Information. Die Flächentrennung auf Papier kommt nicht vom Ton: gemessen sind die
+Blöcke in beiden Medien **transparent**, getrennt wird durch Rahmen und Tabellenlinien. Nur die Flächen der
+Messzeile tragen `print-color-adjust: exact` (Paket H3) und drucken deshalb wirklich. `darkLeftovers()` meldet
+**kein** vergessenes Token; die drei bewussten Papier-Abweichungen (`--bg`, `--panel-2`, `--bar`) stehen mit Grund
+im Smoke-Test.
+
+**Helle Palette (Paket OPTIK, O2):** Es wurden nur **Werte** getauscht, kein Token-Name geändert, keiner entfernt.
+`tools/contrast.js` hängt an den Namen und prüft die neue Palette dadurch vollständig mit. Vier Werte ändern sich
+wirklich – der Rest der Prototyp-Palette war schon der der App (`--accent #0b5fa5`, `--ok`, `--series-2`,
+`--series-3`):
+
+| Token | vorher | nachher |
+|---|---|---|
+| `--bg` | `#f5f6f8` (blaugrau) | **`#eef0ee`** (warmgrau) |
+| `--panel-2` | `#fafbfc` | **`#f7f8f7`** |
+| `--text` | `#1f2933` | **`#12161a`** |
+| `--muted` | `#5f6b7a` | **`#59626b`** |
+| `--ok` | `#1a7f37` | **`#187033`** (dunkler, siehe unten) |
+
+**Drei Werte des Prototyps werden nicht übernommen.** `line #b9c0c6` als Feldrahmen erreicht auf dem Grund nur
+1.61:1 statt der verlangten 3:1 – das ist Befund B-22, den `--field-border #7d8896` behoben hat; der Prototyp ist
+hier hinter der App. `faint #97a1ac` wird nicht gebraucht. Und die Reihenfarben bleiben, weil sie nie auf dem Grund
+liegen: **gemessen über alle 14 Ansichten sitzt keine einzige Fundstelle von `--ok`, `--series-2` oder
+`--series-3` direkt auf `--bg`** – jede liegt auf `--panel` (Diagramme tragen `background: var(--panel)`) oder auf
+`--panel-2` (Badge). `--series-2` auf dem Grund wäre schon mit der alten Palette 2.96:1 gewesen; das Paar existiert
+einfach nicht.
+
+Dabei fand sich eine **Lücke in der Prüfliste**: `--ok` trägt Text im Status-Badge, und das Badge sitzt auf
+`--panel-2` – geprüft wurde es nur auf `--panel`, also auf der Fläche, auf der es nicht steht. Das Paar ist ergänzt
+(**150/150** statt 147/147), und `--ok` ist auf `#187033` nachgedunkelt: nicht weil das Paar heute durchfiele
+(5.79:1 auf `--panel-2`), sondern weil O4 die Komposition ändert und eine Farbe, die nur wegen ihrer heutigen Lage
+besteht, eine Falle für später ist. Das knappste helle Paar ist jetzt `--field-border` auf `--bg` mit **3.14:1**
+(vorher 3.33:1, Minimum 3): Auf dem wärmeren, dunkleren Grund hat das Grau weniger Luft. Diagramme sind Inline-SVG ohne Bibliothek
 (`views/chart.js`), Farben nach validierter Palette. Dark Mode folgt der Systemeinstellung (`prefers-color-scheme`);
 der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die Gestaltung läuft über CSS-Tokens in
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast

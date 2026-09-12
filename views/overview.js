@@ -1,7 +1,7 @@
 // views/overview.js – View 1 «Übersicht»: KPIs gesamt für den aktiven Filter, Kennzahlen je Profil.
 
-import { overviewModel, plannedTables, comparisonTable, messzeilenEingaben, kennzahlenExportTable } from './tables.js';
-import { renderKpis, renderTable, section, hinted, el, signalBlock, messzeileModell, messzeilenBlock } from './common.js';
+import { overviewModel, plannedTables, comparisonTable, messzeilenEingaben, kennzahlenExportTable, bestandsband as bestandsbandModell } from './tables.js';
+import { renderKpis, renderTable, section, hinted, el, signalBlock, messzeileModell, messzeilenBlock, bestandsband } from './common.js';
 import { punktDiagramm } from './chart.js';
 import { BENCHMARKS, benchmarkFilter, DEFAULT_FILTER } from '../metrics.js';
 
@@ -99,14 +99,24 @@ export function build(ctx) {
     ctx.focusFilter ? el('button', { type: 'button', class: 'linklike', text: 'Bank wählen', onclick: () => ctx.focusFilter('bank') }) : null,
   ]);
   const kpiTable = kennzahlenExportTable(kpis);
+  // O4a: Das Bestandsband zeigt die AUFTEILUNG der Vorgänge; die Kacheln zeigen Mengen mit Definition und Abstand
+  // zum Benchmark. Zwei verschiedene Fragen, deshalb steht beides da – und von den zehn Mengen-Kacheln kommen
+  // ohnehin nur vier im Band vor (offen, passiv, nicht erfasst und die Gesamtzahl).
+  const band = bestandsbandModell(ctx.persons);
   return {
     nodes: [
-      // D2: Signale zuerst – sie beantworten «worauf schaue ich heute», und das gehört nicht unter zwölf Kacheln
-      signalBlock(ctx.signale, { onWeg: ctx.onSignalWeg, filterKurz: ctx.filterKurz }),
+      // O4b: Zwei Spalten ab 1100 px – Signale links, Messung rechts. Unter 1100 px bleibt es einspaltig.
+      // Die DOM-Folge IST die Lesefolge: Signale, dann Messzeilen. Tastatur und Screenreader bekommen damit
+      // dieselbe Reihenfolge wie das Auge; das Nebeneinander macht allein das Raster, nicht eine Umsortierung.
+      // D2: Signale zuerst – sie beantworten «worauf schaue ich heute», und das gehört nicht unter zwölf Kacheln.
+      el('div', { class: 'ue-oben' }, [
+        signalBlock(ctx.signale, { onWeg: ctx.onSignalWeg, filterKurz: ctx.filterKurz }),
+        // M3: Die sechs Quoten stehen als Messzeilen auf einer gemeinsamen Skala; die Kacheln bleiben für die
+        // Mengen und für die vier Ø-Kennzahlen, die ihre Streuungszeile tragen.
+        quotenBlock ? el('div', { class: 'kpi-groups' }, [quotenBlock]) : null,
+      ].filter(Boolean)),
       benchmarkBar,
-      // M3: Die sechs Quoten der Blöcke «Schriftlich» und «Mündlich» stehen als Messzeilen auf einer gemeinsamen
-      // Skala; die Kacheln bleiben für die Mengen und für die vier Ø-Kennzahlen, die ihre Streuungszeile tragen.
-      quotenBlock ? el('div', { class: 'kpi-groups' }, [quotenBlock]) : null,
+      bestandsband(band),
       renderKpis(kachelKpis, { glossaryHref: ctx.glossaryHref, gruppen: ['Mengen', 'Ø Resultat'] }),
       // Phone (B.4): Benchmark-Tabelle und Mehrfachprofile eingeklappt, Kennzahlen je Profil offen
       gleichstand, // steht sichtbar vor der eingeklappten Tabelle – im Aufklapper würde die Begründung niemand lesen

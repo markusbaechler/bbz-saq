@@ -611,9 +611,24 @@ export function messzeileModell({ label = '', glossar = null, hint = null, count
       return { pp: modell.referenz.abstand, zeichen: d.symbol, text: d.symbol + ' ' + d.text, ton: d.tone, label: modell.referenz.label };
     })()
     : null;
+  // Der Satz für den Mouseover auf der GANZEN Zeile (Paket OPTIK, O4). Vorher trugen nur der Intervallbalken und
+  // die Referenzmarke ein title – zwei Ziele von wenigen Pixeln in einer Zeile von 30 px. Dieselbe Ablesung wie
+  // der Satz je Zeile im Punktdiagramm (Paket I, P4): Wert, Zähler MIT Nenner, Intervall von–bis, Jahreswert.
+  modell.titel = [
+    label,
+    modell.wert.text,
+    modell.anzahl,
+    modell.intervall ? '95-%-Intervall ' + formatPct(modell.intervall.low) + ' bis ' + formatPct(modell.intervall.high) : null,
+    modell.referenz ? modell.referenz.label + ' ' + modell.referenz.text : null,
+    modell.letztesJahr ? modell.letztesJahr.year + ': ' + modell.letztesJahr.text : null,
+    modell.klein ? 'kleine Gruppe (n < ' + SMALL_N + ')' : null,
+  ].filter(Boolean).join(' · ');
   modell.ariaLabel = [
     label + ': ' + mzWorte(wertPct),
-    'n gleich ' + (n || 0) + (modell.klein ? ', kleine Gruppe' : ''),
+    // «n gleich 977» nannte nur den Nenner – dieselbe Doppeldeutigkeit, die die Spalte «Anzahl» längst behoben hat.
+    // Der Auftraggeber liest n als Grundgesamtheit; ohne Zähler ist das an JEDER Stelle ein Mangel. Gesprochen
+    // wird ausgeschrieben: «2 von 13», und ohne Zähler «n gleich 13» – ein «=» liest nicht jedes Hilfsmittel vor.
+    (mzNum(count) ? count + ' von ' + (n || 0) : 'n gleich ' + (n || 0)) + (modell.klein ? ', kleine Gruppe' : ''),
     modell.intervall ? '95-Prozent-Intervall ' + mzWorte(modell.intervall.low) + ' bis ' + mzWorte(modell.intervall.high) : 'kein Intervall',
     modell.skala.anschlagText ? modell.skala.anschlagText + ', am Anschlag der Spur' : null,
     modell.referenz ? modell.referenz.label + ' ' + mzWorte(modell.referenz.pct) + (modell.referenz.abstand === null ? '' : ', Abstand ' + (modell.referenz.abstand > 0 ? 'plus ' : modell.referenz.abstand < 0 ? 'minus ' : '') + Math.abs(modell.referenz.abstand).toFixed(1) + ' Prozentpunkte') : null,
@@ -697,7 +712,12 @@ function mzSkala(m) {
 
 export function messzeile(m) {
   const wert = el('span', { class: 'mz-wert' }, [m.wert.text, m.klein ? el('span', { class: 'mz-klein', title: SMALL_NOTE, text: ' ' + SMALL_MARK }) : null]);
+  // Die ganze Zeile ist die Trefferfläche, nicht der 2-px-Balken darin – aber der title hängt NICHT am <li>:
+  // Dort wäre er die «description» neben dem aria-label, und beide sagen dasselbe in anderen Worten (gemessen im
+  // Accessibility-Baum). Stattdessen eine eigene, durchsichtige Fläche über der Zeile, für Hilfsmittel versteckt –
+  // dieselbe Lösung wie beim Punktdiagramm in Paket I (P4).
   return el('li', { class: 'messzeile', role: 'listitem', 'aria-label': m.ariaLabel }, [
+    el('span', { class: 'mz-treffer', title: m.titel, 'aria-hidden': 'true' }),
     el('span', { class: 'mz-label' }, [m.label, m.hint ? infoIcon(m.hint, 'Definition: ') : null]),
     mzSkala(m),
     wert,
@@ -706,6 +726,30 @@ export function messzeile(m) {
     el('span', { class: 'mz-vorjahr', text: m.letztesJahr ? m.letztesJahr.year + ': ' + m.letztesJahr.text : '' }),
     el('span', { class: 'mz-delta ton-' + (m.delta ? m.delta.ton : 'neutral'), text: m.delta ? m.delta.text : '' }),
     el('span', { class: 'mz-bench ton-' + (m.benchmark ? m.benchmark.ton : 'neutral'), text: m.benchmark ? m.benchmark.text : '', title: m.benchmark ? 'Abstand zum ' + m.benchmark.label : null }),
+  ]);
+}
+
+// Bestandsband (Paket OPTIK, O4a): ein Band über die Vorgänge, Breite nach Menge. Rollenstruktur wie beim
+// Punktdiagramm in Paket I (P4): eine Liste mit einem Eintrag je Abschnitt, der title je Eintrag ist der
+// Mouseover-Text UND der Name im Accessibility-Baum – einmal geschrieben, nicht zweimal. Die Legende nennt jeden
+// Abschnitt zusätzlich in Worten, damit die Aussage nicht nur an der Farbe hängt.
+export function bestandsband(modell) {
+  if (!modell || !modell.abschnitte.length) return null;
+  const band = el('div', { class: 'bb-band', role: 'list', 'aria-label': modell.titel + ', ' + modell.abschnitte.length + ' Abschnitte' },
+    modell.abschnitte.map((a) => el('span', {
+      class: 'bb-teil bb-' + a.key, role: 'listitem', title: a.text,
+      style: 'flex-grow:' + Math.max(a.anteil, 0.0001),
+    })));
+  const legende = el('div', { class: 'bb-legende' }, modell.abschnitte.map((a) => el('span', { class: 'bb-legende-item' }, [
+    el('span', { class: 'bb-key bb-' + a.key }),
+    a.label + ' ' + a.anzahl,
+    infoIcon(a.hint, 'Definition: '),
+  ])));
+  return el('section', { class: 'bb block' }, [
+    el('h3', { text: modell.titel }),
+    band,
+    legende,
+    el('p', { class: 'bb-note', text: modell.note }),
   ]);
 }
 

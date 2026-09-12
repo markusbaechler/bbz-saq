@@ -21,6 +21,9 @@ Vollständige Spezifikation: `PROMPT.md`. Bei Widerspruch gilt diese Datei.
 
 ## Architektur
 - Vanilla JS ES-Module, kein Framework, kein Build-Step, GitHub Pages. Bibliotheken lokal (kein CDN).
+  Die dunkle Palette steht EINMAL in `@media (prefers-color-scheme: dark)`; den Block `:root[data-theme="dark"]`
+  für die manuelle Wahl erzeugt `node tools/theme.js --write`. Nie von Hand hineinschreiben – `tools/contrast.js`
+  vergleicht beide Blöcke und wird rot, sobald sie auseinanderlaufen.
   Jede ausgelieferte Datei trägt eine Fassungsmarke (`?v=…`) aus einer erzeugten Import-Map in `index.html`;
   erzeugt von `tools/version.js --write`, mitversioniert wie das README-Glossar. Nach jeder Änderung an einer
   ausgelieferten Datei ausführen und mitcommitten – sonst zeigt der Browser nach dem Deploy alte Module.

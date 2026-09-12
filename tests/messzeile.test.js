@@ -48,7 +48,11 @@ test('messzeile: n = 0 – kein Wert, kein Intervall, kein Punkt auf der Skala, 
   assertEqual(m.letztesJahr, null);
   assertEqual(m.delta, null);
   assertEqual(m.klein, false); // ohne Vorgänge ist die Gruppe nicht «klein», sondern leer
-  assert(/kein Wert/.test(m.ariaLabel) && /n gleich 0/.test(m.ariaLabel), m.ariaLabel);
+  // Seit Paket OPTIK (O4) nennt auch das gesprochene Label Zähler UND Nenner – wie die sichtbare Spalte
+  // «Anzahl». Vorher stand dort «n gleich 0», also nur der Nenner; genau die Doppeldeutigkeit, die an jeder
+  // anderen Stelle schon behoben war.
+  assert(/kein Wert/.test(m.ariaLabel) && /0 von 0/.test(m.ariaLabel), m.ariaLabel);
+  assertEqual(m.anzahl, '0 von 0', 'sichtbare Spalte und gesprochenes Label sagen dasselbe');
 });
 
 test('messzeile: ein einziges Jahr – keine Sparkline, kein Delta, aber der Wert bleibt', () => {

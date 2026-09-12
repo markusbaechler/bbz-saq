@@ -12,6 +12,7 @@ import { startServer } from './server.mjs';
 import { writeSynthWorkbook } from './synth.mjs';
 import { SECHS_SIGNALE } from './signale-sechs.mjs';
 import { versionAusModul } from '../../tools/version.js';
+import { parseThemes } from '../../tools/contrast.js';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -105,6 +106,66 @@ try {
     && navAufbau.zweiteLeiste === 0 && navAufbau.beschriftungen === 0,
     'E Navigation: ' + navAufbau.band.length + ' Primärziele im Band (' + navAufbau.band.join(' · ') + '), '
       + navAufbau.optionen + ' Ansichten im Auswahlfeld (' + navAufbau.optgroups.join(' · ') + '), keine zweite Leiste, keine Gruppenbeschriftung');
+  // O3a Themenschalter: drei Zustaende, ohne Gedaechtnis. Geprueft wird der Fall, den ein ungeguardeter
+  // Media-Block verliert (manuell Hell bei dunklem System), und dass nach dem Neuladen wieder System gilt.
+  const themeStand = async (p) => p.evaluate(() => ({
+    attribut: document.documentElement.getAttribute('data-theme'),
+    gewaehlt: (document.querySelector('#theme-switch input:checked') || {}).value,
+    grund: getComputedStyle(document.body).backgroundColor,
+    schema: getComputedStyle(document.documentElement).colorScheme,
+  }));
+  const dunkelGrund = 'rgb(20, 22, 26)';
+  const hellGrund = 'rgb(238, 240, 238)';
+  check((await page.locator('#theme-switch input[type="radio"]').count()) === 3
+    && (await page.locator('#theme-switch legend').count()) === 1
+    && (await themeStand(page)).gewaehlt === 'system' && (await themeStand(page)).attribut === null,
+    'O3a Schalter: drei Zustaende als Radiogruppe mit Beschriftung, Standard System, kein Attribut gesetzt');
+  // Bei HELLEM System: manuell Dunkel muss dunkel rendern – das kann eine Media-Abfrage allein nicht
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.locator('#theme-switch input[value="dark"]').check();
+  const hellSystemDunkel = await themeStand(page);
+  await page.locator('#theme-switch input[value="system"]').check();
+  const hellSystemSystem = await themeStand(page);
+  // Bei DUNKLEM System: manuell Hell muss hell rendern – genau der Fall, den ein ungeguardeter Block verliert
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const dunkelSystem = await themeStand(page);
+  await page.locator('#theme-switch input[value="light"]').check();
+  const dunkelSystemHell = await themeStand(page);
+  check(hellSystemDunkel.grund === dunkelGrund && hellSystemDunkel.schema === 'dark'
+    && hellSystemSystem.grund === hellGrund
+    && dunkelSystem.grund === dunkelGrund && dunkelSystemHell.grund === hellGrund,
+    'O3a beide Richtungen: helles System + Dunkel = ' + hellSystemDunkel.grund + ', zurueck auf System = '
+      + hellSystemSystem.grund + ' | dunkles System = ' + dunkelSystem.grund + ', + Hell = ' + dunkelSystemHell.grund);
+  // Druck in allen drei Zustaenden hell – der manuelle Block hat hoehere Spezifitaet als @media print { :root }
+  const druckGrund = [];
+  for (const wahl of ['system', 'light', 'dark']) {
+    await page.emulateMedia({ media: null, colorScheme: 'dark' });
+    await page.locator('#theme-switch input[value="' + wahl + '"]').check();
+    await page.emulateMedia({ media: 'print', colorScheme: 'dark' });
+    druckGrund.push(wahl + '=' + (await page.evaluate(() => getComputedStyle(document.body).backgroundColor)));
+  }
+  await page.emulateMedia({ media: null, colorScheme: 'light' });
+  check(druckGrund.every((x) => x.endsWith('rgb(255, 255, 255)')),
+    'O3a Druck bleibt hell in allen drei Zustaenden: ' + druckGrund.join(' · '));
+  // Ohne Gedaechtnis: nach dem Neuladen wieder System, und nichts im Speicher
+  await page.locator('#theme-switch input[value="dark"]').check();
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(300);
+  const nachNeuladen = await themeStand(page);
+  const speicher = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
+  check(nachNeuladen.attribut === null && nachNeuladen.gewaehlt === 'system' && speicher.local.length === 0,
+    'O3a ohne Gedaechtnis: nach dem Neuladen wieder System (Attribut ' + nachNeuladen.attribut + '), localStorage leer');
+  // Der Kopf hat ein gemessenes Budget – der Schalter darf es nicht sprengen
+  const kopfMitSchalter = await page.evaluate(() => {
+    const h = (s) => { const e = document.querySelector(s); return e && e.getClientRects().length ? Math.round(e.getBoundingClientRect().height) : 0; };
+    const sw = document.getElementById('theme-switch').getBoundingClientRect();
+    return { chrome: h('.app-header') + h('#databar') + h('.views') + h('#filterbar'),
+      kopf: h('.app-header'), schalterBreite: Math.round(sw.width), imKopf: !!document.querySelector('.app-header #theme-switch') };
+  });
+  check(kopfMitSchalter.chrome <= 175 && kopfMitSchalter.imKopf,
+    'O3a Kopfbudget haelt: statisches Chrome ' + kopfMitSchalter.chrome + ' px (Ziel 170), Kopf '
+      + kopfMitSchalter.kopf + ' px, Schalter ' + kopfMitSchalter.schalterBreite + ' px breit, im Kopf statt im Konto-Menue');
+
   // Cache-Busting: Nach einem Deploy holte der Browser bis zu zehn Minuten alte Module aus dem Cache, teils
   // gemischt mit neuen – die App zeigte den Stand von vorher, ohne es zu sagen. Jede Modul-URL, jede Bibliothek
   // und das Stylesheet tragen deshalb eine Fassungsmarke aus dem Inhalt der Dateien.
@@ -320,6 +381,72 @@ try {
 
   // Höhenbudget: gemessen mit dem vollen Fall (sechs Signale), nicht mit dem leeren. Offen bleiben die drei schwersten;
   // die übrigen Detailzeilen sind über «Alle Details zeigen» erreichbar, gehen also nicht verloren.
+  // O4a Bestandsband: die Vorgaenge als ein Band, Breite nach Menge. Die Abschnitte MUESSEN die ganze Menge sein –
+  // ein proportionales Band, das das nicht ist, behauptet eine falsche Aufteilung. Fuenf Abschnitte statt der vier
+  // aus dem Auftrag, weil «nicht erfasst» sonst fehlte.
+  const band = await page.evaluate(() => {
+    const bb = document.querySelector('#view .bb');
+    if (!bb) return null;
+    const teile = [...bb.querySelectorAll('.bb-teil')];
+    const zahl = (t) => { const m = /: (\d+) von (\d+) Vorg/.exec(t); return m ? [Number(m[1]), Number(m[2])] : null; };
+    const werte = teile.map((t) => zahl(t.title)).filter(Boolean);
+    return {
+      abschnitte: teile.length,
+      summe: werte.reduce((a, x) => a + x[0], 0),
+      n: werte.length ? werte[0][1] : 0,
+      mitAnteil: teile.filter((t) => /\(\d+\.\d %\)/.test(t.title)).length,
+      rollen: bb.querySelectorAll('[role="list"]').length + '/' + bb.querySelectorAll('[role="listitem"]').length,
+      legende: [...bb.querySelectorAll('.bb-legende-item')].map((e) => e.textContent.replace(/ⓘ/g, '').trim()),
+      breiten: teile.map((t) => Math.round(t.getBoundingClientRect().width)),
+      druckfest: teile.every((t) => getComputedStyle(t).printColorAdjust === 'exact'),
+    };
+  });
+  check(!!band && band.summe === band.n && band.abschnitte >= 4 && band.mitAnteil === band.abschnitte
+    && band.rollen === '1/' + band.abschnitte && band.legende.length === band.abschnitte
+    && band.breiten.every((b) => b >= 3) && band.druckfest,
+    'O4a Bestandsband: ' + (band ? band.abschnitte + ' Abschnitte, zusammen ' + band.summe + ' von ' + band.n
+      + ' Vorgaengen, Legende «' + band.legende.join(' · ') + '», Breiten ' + band.breiten.join('/') + ' px, druckfest' : 'fehlt'));
+
+  // O4b Zwei Spalten ab 1100 px. Die DOM-Folge bleibt die Lesefolge – Tastatur und Screenreader bekommen
+  // dieselbe Reihenfolge wie das Auge; nebeneinander stellt allein das Raster.
+  const spalten = [];
+  for (const breite of [1400, 1100, 1099]) {
+    await page.setViewportSize({ width: breite, height: 1000 });
+    await page.waitForTimeout(200);
+    spalten.push(await page.evaluate((b) => {
+      const oben = document.querySelector('#view .ue-oben');
+      const spur = getComputedStyle(oben).gridTemplateColumns.split(' ').length;
+      const folge = [...oben.children].map((k) => (k.querySelector('h3, h2') || { textContent: '?' }).textContent.trim().split(' ')[0]);
+      return b + 'px:' + spur + 'spaltig(' + folge.join('→') + ')';
+    }, breite));
+  }
+  await page.setViewportSize({ width: 1400, height: 1000 });
+  await page.waitForTimeout(200);
+  check(spalten[0].includes('2spaltig') && spalten[1].includes('2spaltig') && spalten[2].includes('1spaltig')
+    && spalten.every((x) => x.includes('Signale→Durchfallquoten')),
+    'O4b Zwei Spalten: ' + spalten.join(' · ') + ' – DOM-Folge in jeder Breite gleich');
+
+  // O4c Hover auf der ganzen Messzeile. Vorher trugen nur Intervallbalken und Referenzmarke ein title.
+  const mzHover = await page.evaluate(() => {
+    const zeilen = [...document.querySelectorAll('#view .messzeile')];
+    const fl = (e) => { const b = e.getBoundingClientRect(); return b.width * b.height; };
+    return {
+      zeilen: zeilen.length,
+      mitTreffer: zeilen.filter((z) => z.querySelector('.mz-treffer')).length,
+      mitZaehler: zeilen.filter((z) => / von \d+ /.test((z.querySelector('.mz-treffer') || {}).title || '')).length,
+      deckung: Math.round(fl(zeilen[0].querySelector('.mz-treffer')) / fl(zeilen[0]) * 100),
+      faktor: Math.round(fl(zeilen[0].querySelector('.mz-treffer')) / fl(zeilen[0].querySelector('.mz-intervall'))),
+      // Das aria-label bleibt der Name; der Mouseover-Satz darf NICHT als zweite Beschreibung daneben stehen
+      titelAufLi: zeilen.filter((z) => z.getAttribute('title')).length,
+      ariaMitZaehler: zeilen.filter((z) => / von \d+,/.test(z.getAttribute('aria-label') || '')).length,
+    };
+  });
+  check(mzHover.zeilen > 0 && mzHover.mitTreffer === mzHover.zeilen && mzHover.mitZaehler === mzHover.zeilen
+    && mzHover.deckung >= 99 && mzHover.titelAufLi === 0 && mzHover.ariaMitZaehler === mzHover.zeilen,
+    'O4c Messzeile: ' + mzHover.zeilen + ' Zeilen mit eigener Trefferflaeche ueber ' + mzHover.deckung
+      + ' % der Zeile (Faktor ' + mzHover.faktor + ' gegen den Intervallbalken), Satz mit Zaehler und Nenner, '
+      + 'kein title am <li> (sonst doppelte Beschreibung), aria-label nennt den Zaehler mit');
+
   await page.setViewportSize({ width: 1400, height: 900 });
   const budget = await page.evaluate(async (sechs) => {
     const mod = await import('/views/common.js');
@@ -339,9 +466,24 @@ try {
     b.querySelector('.signale-mehr').click();
     const auf = mess();
     b.querySelector('.signale-mehr').click();
-    return { zu, auf, zeilen: b.querySelectorAll('.signal').length };
+    // Seit O4b stehen Signale und Messzeilen NEBENEINANDER. Gemessen wird deshalb der Kopfbereich als Ganzes:
+    // Er ist die Strecke bis zur ersten Zahl, und genau darum ging es Paket D.
+    const oben = document.querySelector('#view .ue-oben');
+    return { zu, auf, zeilen: b.querySelectorAll('.signal').length,
+      obenHoehe: oben ? Math.round(oben.getBoundingClientRect().height) : null,
+      zweispaltig: oben ? getComputedStyle(oben).gridTemplateColumns.split(' ').length === 2 : false };
   }, SECHS_SIGNALE);
-  check(budget.zeilen === 6 && budget.zu.hoehe <= 300, 'D2 Höhenbudget: sechs Signale in ' + budget.zu.hoehe + ' px (Grenze 300 px bei 1400 × 900)');
+  // Paket D hat «sechs Signale in ≤ 300 px» gemessen, als die Signale über allem standen und die Messzeilen
+  // darunter. Seit O4b stehen beide nebeneinander, und die Marke ist neu hergeleitet, nicht aufgeweicht:
+  // Gemessen wird jetzt der KOPFBEREICH aus Signalen UND Messzeilen zusammen, denn das ist die Strecke bis zur
+  // ersten Zahl. Gestapelt waren das 427 px, zweispaltig sind es 318 px – die Absicht von Paket D ist besser
+  // erfüllt als vorher. Der Signalblock allein wächst dabei von 149 auf 278 px (mit sechs Signalen auf 539 px),
+  // weil 470 px Spaltenbreite ihn umbrechen lassen; das ist der Preis und er wird vom Kopfbereich mehr als
+  // aufgewogen. Grenze 700 px: die 539 px des Signalblocks plus Reserve, und deutlich unter den 900 px Sichthöhe.
+  check(budget.zeilen === 6 && (budget.zweispaltig ? budget.obenHoehe <= 700 : budget.zu.hoehe <= 300),
+    'D2 Höhenbudget neu hergeleitet (O4b): Kopfbereich ' + budget.obenHoehe + ' px mit sechs Signalen '
+      + (budget.zweispaltig ? 'zweispaltig' : 'einspaltig') + ' (Grenze 700 px bei 1400 × 900; Signalblock allein '
+      + budget.zu.hoehe + ' px, vorher ≤ 300 px als er über allem stand)');
   check(budget.zu.kachelY < 700, 'D2 erster Inhalt unter den Signalen bei y = ' + budget.zu.kachelY + ' (über 700)');
   // M3: Höhenbudget der Übersicht im echten Fall – die sechs Quoten-Messzeilen müssen ohne Scrollen lesbar sein
   check(budget.zu.letzteMesszeile !== null && budget.zu.letzteMesszeile < 900,
@@ -1651,7 +1793,34 @@ try {
   await page.waitForSelector('#view svg.viz-bars');
   check((await page.locator('#view svg.viz-bars rect.viz-bar').count()) >= 10, 'Dark Mode: Schriftlich mit Histogramm gerendert');
   await shot(page, 'dark-schriftlich');
+  // O5: Dunkel nicht nur in drei Ansichten. Jede der vierzehn wird dunkel gerendert – geprueft wird, dass der
+  // Grund dunkel ist, dass Inhalt entsteht und dass dabei kein Seitenfehler auftritt. Die neue Palette (O2) und
+  // die Spiegelung fuer die manuelle Wahl (O3a) betreffen jede Ansicht, nicht drei.
+  const dunkelFehler = [];
+  const vorher = errors.length;
+  const dunkelAnsichten = [];
+  for (const v of views) {
+    await page.goto(server.url + '#uebersicht');
+    await page.waitForTimeout(60);
+    await page.goto(server.url + '#' + v);
+    await page.waitForFunction((x) => location.hash.replace(/^#/, '').split('?')[0] === x && !!document.querySelector('#view h2'), v, { timeout: 8000 });
+    await page.waitForTimeout(120);
+    const d = await page.evaluate(() => ({
+      grund: getComputedStyle(document.body).backgroundColor,
+      tinte: getComputedStyle(document.querySelector('#view h2')).color,
+      inhalt: document.querySelector('#view').children.length,
+    }));
+    dunkelAnsichten.push(v + ':' + d.inhalt);
+    if (d.grund !== 'rgb(20, 22, 26)' || d.inhalt === 0) dunkelFehler.push(v + ' Grund ' + d.grund + ', ' + d.inhalt + ' Bloecke');
+  }
+  check(dunkelFehler.length === 0 && errors.length === vorher,
+    'O5 Dunkel in allen ' + views.length + ' Ansichten: dunkler Grund, Inhalt vorhanden, keine neuen Seitenfehler ('
+      + dunkelAnsichten.join(' · ') + ')' + (dunkelFehler.length ? ' – FALSCH: ' + dunkelFehler.join('; ') : ''));
   await page.emulateMedia({ colorScheme: 'light' });
+  // Die Druckpruefung darunter setzt die Uebersicht voraus (td.pct, Legende) – der Rundgang endet auf «Glossar»,
+  // also zurueck. Ohne das prueft sie die falsche Ansicht und wird rot, ohne dass etwas kaputt ist.
+  await page.goto(server.url + '#uebersicht');
+  await page.waitForSelector('#view .kpi');
 
   // Druck (A.8): Legende geöffnet, Datenbalken hell und grau, Kopf-Aktionen ausgeblendet
   await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
@@ -1664,21 +1833,43 @@ try {
   // A4: Druck bei dunkler Systemeinstellung – im Browser gilt dann die Kaskade hell → dunkel → Druck. Jedes Token, das der
   // Dark-Block setzt, muss der Druck-Block zurücksetzen, sonst landen dunkle Farben auf weissem Papier (--ok mit 1.96:1).
   await page.emulateMedia({ media: 'print', colorScheme: 'dark' });
-  const TOKENS = { '--ok': 'rgb(26, 127, 55)', '--status-geplant': 'rgb(91, 75, 196)', '--hover': 'rgb(238, 244, 250)', '--danger-bg': 'rgb(253, 236, 234)', '--danger-border': 'rgb(241, 184, 179)', '--warn-bg': 'rgb(255, 244, 224)', '--status-bestanden-bg': 'rgb(237, 248, 240)', '--status-offen-bg': 'rgb(230, 240, 250)', '--status-geplant-bg': 'rgb(238, 235, 251)', '--text': 'rgb(31, 41, 51)', '--field-border': 'rgb(125, 136, 150)' };
+  // Die Erwartung kommt aus dem HELLEN :root von styles.css, nicht aus einer Liste von Hex-Werten. Vorher standen
+  // die Farben hier abgeschrieben, und der erste Palettentausch (Paket OPTIK, O2) liess die Pruefung rot werden,
+  // obwohl der Druck genau das tat, was sie verlangt. Geprueft wird die AUSSAGE – im Druck gelten die hellen Werte,
+  // nicht die dunklen –, und die haelt jede Palette aus. Dieselbe Lehre wie 5bca619 bei den Schriftmassen.
+  const lichtWerte = parseThemes(readFileSync(join(root, 'styles.css'), 'utf8')).light;
+  const dunkelWerte = parseThemes(readFileSync(join(root, 'styles.css'), 'utf8')).dark;
+  // Drei Tokens weichen im Druck ABSICHTLICH von der hellen Palette ab – Papier ist weiss, und Flaechen kosten
+  // Toner. Sie stehen hier mit Grund, damit die Pruefung sie nicht als Fehler meldet und niemand sie stillschweigend
+  // aendert. Alles andere muss im Druck den hellen Wert tragen.
+  const PAPIER = {
+    '--bg': '#ffffff',      // Grund: Papier ist weiss, nicht warmgrau – eine Vollflaeche waere Toner ohne Aussage
+    '--panel-2': '#ffffff', // dito fuer die zweite Flaeche; auf Papier trennt der Rahmen, nicht der Ton
+    '--bar': 'rgba(0, 0, 0, .12)', // Datenbalken grau statt in Akzentfarbe (eigene Pruefung «Datenbalken grau»)
+  };
+  // Nur Tokens, die der Dark-Block ueberhaupt umsetzt: Bei den uebrigen gibt es nichts zurueckzusetzen.
+  const TOKENS = Object.fromEntries(Object.keys(lichtWerte)
+    .filter((t) => /^--/.test(t) && dunkelWerte[t] !== lichtWerte[t])
+    .map((t) => [t, PAPIER[t] || lichtWerte[t]]));
   const printDark = await page.evaluate((tokens) => {
     const probe = document.createElement('div');
     document.body.appendChild(probe);
     const out = { body: getComputedStyle(document.body).backgroundColor, falsch: [] };
+    // Vergleich in DERSELBEN Einheit: Der erwartete Wert wird durch den Browser geschickt, statt eine
+    // rgb()-Schreibweise zu erraten.
+    const alsRgb = (wert) => { probe.style.color = '#000'; probe.style.color = wert; return getComputedStyle(probe).color; };
     for (const [token, erwartet] of Object.entries(tokens)) {
+      const soll = alsRgb(erwartet);
       probe.style.color = 'var(' + token + ')';
       const ist = getComputedStyle(probe).color;
-      if (ist !== erwartet) out.falsch.push(token + ' = ' + ist + ' statt ' + erwartet);
+      if (ist !== soll) out.falsch.push(token + ' = ' + ist + ' statt ' + soll + ' (' + erwartet + ')');
     }
     probe.remove();
     return out;
   }, TOKENS);
   check(printDark.body === 'rgb(255, 255, 255)' && printDark.falsch.length === 0,
-    'A4 Druck bei dunkler Systemeinstellung: weisses Papier, alle ' + Object.keys(TOKENS).length + ' geprüften Tokens hell' + (printDark.falsch.length ? ' – ' + printDark.falsch.join('; ') : ''));
+    'A4 Druck bei dunkler Systemeinstellung: weisses Papier, alle ' + Object.keys(TOKENS).length
+      + ' geprüften Tokens hell (' + Object.keys(PAPIER).length + ' davon bewusst auf Papierwerten)' + (printDark.falsch.length ? ' – ' + printDark.falsch.join('; ') : ''));
   await shot(page, 'print-dark-uebersicht');
   await page.emulateMedia({ media: null, colorScheme: 'light' });
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));

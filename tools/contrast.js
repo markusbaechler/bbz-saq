@@ -16,6 +16,9 @@ export const PAIRS = [
   { fg: '--warn', bg: '--warn-bg', min: 4.5 },
   { fg: '--warn', bg: '--panel', min: 4.5 },
   { fg: '--ok', bg: '--panel', min: 4.5 },
+  // Gemessen in Paket OPTIK (O2): --ok traegt Text im Status-Badge, und das Badge sitzt auf --panel-2, nicht auf
+  // --panel. Das Paar fehlte – geprueft wurde nur die Flaeche, auf der die Farbe NICHT steht.
+  { fg: '--ok', bg: '--panel-2', min: 4.5 },
   ...['bestanden', 'nicht', 'offen', 'passiv', 'geplant'].flatMap((s) => [
     { fg: '--status-' + s, bg: '--status-' + s + '-bg', min: 4.5 },
     { fg: '--status-' + s, bg: '--panel', min: 4.5 },
@@ -39,6 +42,10 @@ export const PAIRS = [
 // und Fundstelle gemeldet (Paket A, A4): Jeder CI-Lauf zeigt sie, eine Verschlechterung fällt auf. Sie sind erlaubt, weil
 // sie nach WCAG 2.1 SC 1.4.11 rein dekorativ sind – der Inhalt ist ohne sie vollständig erkennbar und bedienbar. Sobald
 // ein Token hier ein Bedienelement abgrenzt, gehört es in PAIRS (so entstand --field-border).
+// --shadow ist das einzige Token, das der Dark-Block umsetzt und das in keinem Paar steht – bewusst: Es ist eine
+// Schattenfarbe (rgba schwarz, hell 8 %, dunkel 50 %), keine Flaeche, auf der Text oder ein Bedienelement liegt.
+// Ein Verhaeltnis dafuer waere eine Zahl ohne Aussage. Gemessen in Paket OPTIK (O3): 28 der 29 dunklen Tokens sind
+// durch Paare gedeckt.
 export const DECOR = [
   { fg: '--border', bg: '--panel', use: 'Rahmen von Tabellen, Karten, Kacheln und Kopfzeilen (styles.css: table.data, .kpi, .view, .app-header) – Struktur, keine Bedienung; Eingabefelder tragen --field-border' },
   { fg: '--viz-grid', bg: '--panel', use: 'Gitterlinien im Diagramm (views/chart.js) und Spur der Messzeile (styles.css: .mz-spur) – die Werte stehen als Text in derselben Zeile bzw. in der Zwillingstabelle' },
@@ -106,6 +113,19 @@ function rootBlock(text) {
 // möglicherweise einen, der lange nach dem Block stand. Ein einzelnes :root zwischen zwei Medienabfragen liess sie
 // dreissig Tokens als «fehlt im Druck-Block» melden, die alle dastanden; umgekehrt hätte sie einen wirklich
 // fehlenden Token still übersehen, sobald der erste Block der Abfrage kein :root trägt (gefunden in Paket I).
+// Inhalt der ERSTEN Medienabfrage dieser Art – für den Vergleich mit der manuellen Fassung gebraucht
+function fromMedia(text, query) {
+  const von = text.indexOf(query);
+  if (von < 0) return '';
+  const auf = text.indexOf('{', von);
+  let tiefe = 0;
+  for (let i = auf; i < text.length; i++) {
+    if (text[i] === '{') tiefe++;
+    if (text[i] === '}' && --tiefe === 0) return text.slice(auf + 1, i);
+  }
+  return '';
+}
+
 function mediaDeclarations(text, query) {
   const out = {};
   for (let von = text.indexOf(query); von >= 0; von = text.indexOf(query, von + query.length)) {
@@ -140,6 +160,22 @@ export function darkLeftovers(cssText) {
   const darkOnly = mediaDeclarations(clean, '@media (prefers-color-scheme: dark)');
   const printOnly = mediaDeclarations(clean, '@media print');
   return Object.keys(darkOnly).filter((k) => !(k in printOnly));
+}
+
+// Die manuelle Dunkelfassung (:root[data-theme="dark"], Paket OPTIK, O3a) muss Deklaration für Deklaration der
+// Media-Abfrage entsprechen. parseThemes() liest nur die Media-Abfrage – ein abweichender zweiter Block bliebe
+// sonst ungeprüft: 150/150 grün, während der manuelle Dunkelmodus danebenläuft. tools/theme.js erzeugt den Block;
+// diese Prüfung fängt, wer den Generator überspringt oder von Hand hineinschreibt.
+export function dunkelAbweichungen(cssText) {
+  const clean = cssText.replace(/\/\*[\s\S]*?\*\//g, '');
+  const media = declarations(rootBlock(fromMedia(clean, '@media (prefers-color-scheme: dark)')));
+  const manuell = declarations(rootBlock(clean.slice(clean.indexOf(':root[data-theme="dark"]'))));
+  if (!Object.keys(manuell).length) return ['der Block :root[data-theme="dark"] fehlt ganz'];
+  const out = [];
+  for (const k of new Set([...Object.keys(media), ...Object.keys(manuell)])) {
+    if (media[k] !== manuell[k]) out.push(k + ': Media «' + (media[k] || '–') + '» gegen manuell «' + (manuell[k] || '–') + '»');
+  }
+  return out;
 }
 
 // Wert → #rrggbb (var()-Ketten aufgelöst); color-mix, transparente und unbekannte Werte → null (nicht prüfbar)
@@ -194,9 +230,13 @@ if (isMain) {
   console.log('');
   // Der Druck-Block muss jedes Token zurücksetzen, das der Dark-Block setzt – sonst druckt eine dunkle Systemeinstellung
   // dunkle Farben auf weisses Papier. Die Paare oben finden das nur, wo ein Token in einem geprüften Paar vorkommt.
+  const abweichungen = dunkelAbweichungen(css);
+  console.log((abweichungen.length ? '  FAIL ' : '  ok   ') + 'manuelle Dunkelfassung deckungsgleich mit der Media-Abfrage'
+    + (abweichungen.length ? ': ' + abweichungen.join('; ') + ' – «node tools/theme.js --write» ausführen'
+      : ' (' + Object.keys(declarations(rootBlock(css.slice(css.indexOf(':root[data-theme="dark"]'))))).length + ' Deklarationen)'));
   const leftovers = darkLeftovers(css);
   console.log((leftovers.length ? '  FAIL ' : '  ok   ') + 'print  setzt jedes Token des Dark-Blocks zurück'
     + (leftovers.length ? ': ' + leftovers.join(', ') + ' fehlen im Druck-Block' : ''));
   console.log('\n' + (results.length - failures.length) + '/' + results.length + ' Paare erfüllen das Minimum.');
-  process.exit(failures.length || leftovers.length ? 1 : 0);
+  process.exit(failures.length || leftovers.length || abweichungen.length ? 1 : 0);
 }

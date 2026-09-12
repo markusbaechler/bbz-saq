@@ -1,0 +1,22 @@
+# Bestand des Funktionsumfangs – Messlatte für Paket OPTIK (O0/O5)
+# Bedingungen: 1400 px · synth.xlsx · Schreibpfad aus · Commit 199b873
+# Umgebung: Chromium 151.0.7922.34 auf win32 (Hoehen sind schriftabhaengig, nur gleiche Umgebung vergleichbar)
+# Erzeugt von tests/smoke/bestand.mjs. Anzahlen dürfen nicht sinken; die Höhe darf sich ändern.
+
+global ansichten=14 primaerziele=9 filter=12
+summe tabellen=69 zeilen=390 diagramme=15 messzeilen=10 kacheln=33 sortierbar=560 alleSpalten=68 aufklappbar=8
+
+ansicht uebersicht tabellen=3 zeilen=25 diagramme=1 messzeilen=5 kacheln=13 sortierbar=19 alleSpalten=3 aufklappbar=1 hoehe=1820 export=CSV/XLSX/Druckansicht/CSV (Vorgangsebene)/XLSX (Vorgangsebene)
+ansicht schriftlich tabellen=8 zeilen=40 diagramme=5 messzeilen=0 kacheln=0 sortierbar=86 alleSpalten=8 aufklappbar=0 hoehe=3736 export=CSV/XLSX/Druckansicht/CSV (Vorgangsebene)/XLSX (Vorgangsebene)
+ansicht muendlich tabellen=8 zeilen=36 diagramme=4 messzeilen=0 kacheln=0 sortierbar=89 alleSpalten=8 aufklappbar=0 hoehe=3361 export=CSV/XLSX/Druckansicht/CSV (Vorgangsebene)/XLSX (Vorgangsebene)
+ansicht vss-vsm tabellen=1 zeilen=11 diagramme=2 messzeilen=0 kacheln=0 sortierbar=11 alleSpalten=1 aufklappbar=0 hoehe=1192 export=CSV/XLSX/Druckansicht/CSV (Vorgangsebene)/XLSX (Vorgangsebene)
+ansicht zeitverlauf tabellen=7 zeilen=52 diagramme=2 messzeilen=0 kacheln=0 sortierbar=77 alleSpalten=7 aufklappbar=0 hoehe=3733 export=CSV/XLSX/Druckansicht/CSV (Vorgangsebene)/XLSX (Vorgangsebene)
+ansicht bank-report tabellen=3 zeilen=26 diagramme=0 messzeilen=5 kacheln=0 sortierbar=30 alleSpalten=3 aufklappbar=0 hoehe=1968 export=CSV/XLSX/Druckansicht
+ansicht offene-vorgaenge tabellen=4 zeilen=20 diagramme=0 messzeilen=0 kacheln=5 sortierbar=39 alleSpalten=4 aufklappbar=0 hoehe=1725 export=CSV/XLSX/Druckansicht/CSV (Vorgangsebene)/XLSX (Vorgangsebene)
+ansicht geplante-pruefungen tabellen=7 zeilen=21 diagramme=0 messzeilen=0 kacheln=5 sortierbar=49 alleSpalten=7 aufklappbar=3 hoehe=757 export=CSV/XLSX/Druckansicht/CSV (Vorgangsebene)/XLSX (Vorgangsebene)
+ansicht personen tabellen=6 zeilen=18 diagramme=0 messzeilen=0 kacheln=0 sortierbar=33 alleSpalten=6 aufklappbar=1 hoehe=1385 export=CSV/XLSX/Druckansicht/CSV/XLSX/Druckansicht
+ansicht bestenlisten tabellen=4 zeilen=12 diagramme=0 messzeilen=0 kacheln=0 sortierbar=33 alleSpalten=4 aufklappbar=0 hoehe=1385 export=CSV/XLSX/Druckansicht/CSV (Vorgangsebene)/XLSX (Vorgangsebene)
+ansicht experten tabellen=14 zeilen=46 diagramme=1 messzeilen=0 kacheln=6 sortierbar=70 alleSpalten=14 aufklappbar=3 hoehe=989 export=CSV/XLSX/Druckansicht/CSV (Einsatzebene)/XLSX (Einsatzebene)
+ansicht historie tabellen=0 zeilen=0 diagramme=0 messzeilen=0 kacheln=4 sortierbar=0 alleSpalten=0 aufklappbar=0 hoehe=855 export=CSV/XLSX/Druckansicht
+ansicht datenqualitaet tabellen=2 zeilen=7 diagramme=0 messzeilen=0 kacheln=0 sortierbar=16 alleSpalten=1 aufklappbar=0 hoehe=2507 export=–
+ansicht glossar tabellen=2 zeilen=76 diagramme=0 messzeilen=0 kacheln=0 sortierbar=8 alleSpalten=2 aufklappbar=0 hoehe=6441 export=CSV/XLSX/Druckansicht
