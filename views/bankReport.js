@@ -13,7 +13,8 @@
 import { bankComparison, COMPARE_MAX } from '../metrics.js';
 import { bankComparisonTable, bankReportTables } from './tables.js';
 import { renderTable, section, el, messzeileModell, messzeilenBlock } from './common.js';
-import { printPage } from '../export.js';
+import { bankReportPrintModel, druckeBankReport } from './print.js';
+import { CONFIG } from '../config.js';
 
 export const id = 'bank-report';
 export const label = 'Bank-Report';
@@ -84,7 +85,16 @@ export function build(ctx) {
     nodes: [
       auswahl,
       el('div', { class: 'toolbar' }, [
-        el('button', { type: 'button', text: 'Bank-Report drucken / als PDF speichern', onclick: () => printPage() }),
+        el('button', {
+          type: 'button', text: 'Bank-Report drucken / als PDF speichern',
+          // E12: eigener Druckbaum aus denselben Modellen; das Screen-DOM wird nicht umgestylt.
+          onclick: () => druckeBankReport(bankReportPrintModel({
+            fokus: r.fokus, vergleich: r.vergleichsbanken, persons: r.persons, alleZeilen: ctx.allRows || [],
+            dq: ctx.dq || [], k: r.k, stand: r.stand || null,
+            // E13: Das Kopfband trägt höchstens drei Zeilen – Zeitraum und Filter in Kurzform, nicht die ganze Kopfliste.
+            kopfzeilen: [(ctx.headerLines || [])[1] || 'Zeitraum: alle', ctx.filterKurz || 'kein Filter'],
+          }), { logoQuelle: CONFIG.report.logo }),
+        }),
       ]),
       el('div', { class: 'report-head' }, [
         el('h3', { text: 'bbz Zertifizierungs-Cockpit – Bank-Report ' + r.fokus }),

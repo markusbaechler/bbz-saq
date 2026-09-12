@@ -334,6 +334,79 @@ try {
   await page.screenshot({ path: join(outDir, 'print-bank-report.png'), fullPage: true });
   await page.emulateMedia({ media: null });
   await shot(page, 'bank-report-mit-bank');
+
+  // P7.2d – Druckansicht: eigener Baum, vier Seiten, Kopfband und Vertraulichkeitszeile je Seite, keine Überbreite.
+  // window.print wird abgefangen, damit der Baum stehen bleibt und messbar ist (headless öffnet keinen Druckdialog).
+  await page.evaluate(() => { window.print = () => { window.__gedruckt = (window.__gedruckt || 0) + 1; }; });
+  await page.locator('#view .toolbar button').click();
+  await page.waitForSelector('#report-print .seite', { state: 'attached' }); // am Bildschirm ist der Baum display:none
+  await page.emulateMedia({ media: 'print' });
+  // A4 quer abzüglich der Ränder von 12 mm: 273 mm × 186 mm, bei 96 dpi 1032 × 703 px
+  await page.setViewportSize({ width: 1032, height: 703 });
+  const druckbaum = await page.evaluate(() => {
+    const MM = 96 / 25.4;
+    const seiten = [...document.querySelectorAll('#report-print .seite')];
+    const sichtbar = (sel) => [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0).length;
+    const stil = document.getElementById('report-page');
+    return {
+      gedruckt: window.__gedruckt || 0,
+      klasse: document.body.classList.contains('druck-report'),
+      seitenformat: stil ? stil.textContent.replace(/\s+/g, ' ').trim() : '',
+      seiten: seiten.length,
+      kopfbaender: seiten.map((s) => s.querySelectorAll(':scope > .kopfband').length),
+      fusszeilen: seiten.map((s) => s.querySelectorAll(':scope > .fusszeile').length),
+      letzteBricht: seiten.length ? seiten[seiten.length - 1].classList.contains('umbruch') : true,
+      hoehenMm: seiten.map((s) => Math.round(s.getBoundingClientRect().height / MM)),
+      bloeckeMm: seiten.map((s) => [...s.children].map((c) => (c.className || c.tagName) + ' ' + Math.round(c.getBoundingClientRect().height / MM)).join(', ')),
+      ueberbreite: seiten.map((s) => Math.round(s.scrollWidth - s.clientWidth)),
+      seitenUeberlauf: Math.round(document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      kopfgruppen: [...document.querySelectorAll('#report-print table thead')].map((t) => getComputedStyle(t).display),
+      logoSlots: seiten.map((s) => Math.round(s.querySelector('.logo-slot').getBoundingClientRect().width / MM)),
+      logoBilder: document.querySelectorAll('#report-print .logo-slot img').length,
+      fussnoten: [...document.querySelectorAll('#report-print .druck-fussnoten li')].map((li) => li.textContent.length),
+      vertraulich: [...document.querySelectorAll('#report-print .fusszeile')].every((p) => /bbz-intern/.test(p.textContent)),
+      // Checkliste 5: nichts aus der Bedienung im Druck
+      bedienung: sichtbar('#filterbar') + sichtbar('.views') + sichtbar('#view .toolbar') + sichtbar('.bank-auswahl') + sichtbar('.app-footer'),
+      report: sichtbar('#report-print'),
+      methodikZeilen: document.querySelectorAll('#report-print .methodik tbody tr').length,
+      tabellen: document.querySelectorAll('#report-print table.druck-tabelle').length,
+    };
+  });
+  check(druckbaum.gedruckt === 1 && druckbaum.klasse && /size: A4 landscape/.test(druckbaum.seitenformat) && /margin: 12mm/.test(druckbaum.seitenformat),
+    'Druck: eigener Baum angehängt, Seitenformat nur für diesen Druckjob (' + druckbaum.seitenformat + ')');
+  check(druckbaum.seiten === 5 && druckbaum.kopfbaender.every((n) => n === 1) && druckbaum.fusszeilen.every((n) => n === 1) && druckbaum.vertraulich,
+    'Druck Checkliste 6: ' + druckbaum.seiten + ' Seiten, je ein Kopfband und eine Vertraulichkeitszeile');
+  check(!druckbaum.letzteBricht, 'Druck Checkliste 8: die letzte Seite bricht nicht um, keine leere Seite am Schluss');
+  check(druckbaum.hoehenMm.every((h) => h <= 186), 'Druck Checkliste 9: jede Seite unter 186 mm (' + druckbaum.hoehenMm.join(' | ') + ' mm)' + (druckbaum.hoehenMm.some((h) => h > 186) ? ' – Blöcke: ' + druckbaum.bloeckeMm.join(' // ') : ''));
+  check(druckbaum.ueberbreite.every((u) => u <= 0) && druckbaum.seitenUeberlauf <= 0,
+    'Druck Checkliste 7: keine Überbreite (' + druckbaum.ueberbreite.join(' | ') + ', Seite ' + druckbaum.seitenUeberlauf + ')');
+  check(druckbaum.kopfgruppen.length >= 5 && druckbaum.kopfgruppen.every((d) => d === 'table-header-group'),
+    'Druck Checkliste 3: jeder Tabellenkopf wiederholt sich (' + druckbaum.kopfgruppen.join(', ') + ')');
+  check(druckbaum.bedienung === 0 && druckbaum.report === 1, 'Druck Checkliste 5: nichts aus der Bedienung im Druck, nur der Report');
+  check(druckbaum.fussnoten.length >= 6 && druckbaum.fussnoten.every((l) => l <= 120),
+    'Druck Checkliste 11: ' + druckbaum.fussnoten.length + ' Fussnoten, längste ' + Math.max(...druckbaum.fussnoten) + ' Zeichen');
+  check(druckbaum.logoSlots.every((w) => w === 24) && druckbaum.logoBilder === 0,
+    'Druck Checkliste 13: Logo-Slot 24 mm auf jeder Seite, ohne Datei kein Bild und kein Sprung');
+  check(druckbaum.methodikZeilen >= 12 && druckbaum.tabellen >= 6,
+    'Druck: Methodik mit ' + druckbaum.methodikZeilen + ' Zeilen, ' + druckbaum.tabellen + ' Tabellen');
+  await page.screenshot({ path: join(outDir, 'druck-bank-report.png'), fullPage: true });
+  // Checkliste 12: in Graustufen auswertbar – Struktur über Linien, keine Fläche allein
+  const graustufen = await page.evaluate(() => {
+    const flaechen = [...document.querySelectorAll('#report-print .druck-kachel, #report-print .druck-tabelle td, #report-print .druck-tabelle th')]
+      .map((e) => getComputedStyle(e).backgroundColor)
+      .filter((c) => c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent');
+    const rahmen = [...document.querySelectorAll('#report-print .druck-kachel')].every((e) => parseFloat(getComputedStyle(e).borderBottomWidth) > 0);
+    return { flaechen: flaechen.length, rahmen };
+  });
+  check(graustufen.flaechen === 0 && graustufen.rahmen,
+    'Druck Checkliste 12: Struktur über Linien, keine Flächenfarbe (' + graustufen.flaechen + ' gefärbte Zellen)');
+  // Baum wieder abräumen (afterprint), danach ist die Ansicht unverändert
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  await page.emulateMedia({ media: null });
+  await page.setViewportSize({ width: 1400, height: 1000 });
+  check((await page.locator('#report-print').count()) === 0 && !(await page.evaluate(() => document.body.classList.contains('druck-report')))
+    && (await page.locator('#report-page').count()) === 0,
+    'Druck: nach afterprint sind Baum, Klasse und Seitenformat wieder weg');
   check(views.includes('uebersicht') && views.includes('geplante-pruefungen') && views.includes('datenqualitaet'), 'Kern-Ansichten vorhanden: ' + views.join(', '));
 
   // Übersicht: Kacheln mit n

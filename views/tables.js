@@ -1538,7 +1538,7 @@ export function runFieldTarget(field) {
 
 // Reine Formatierung: jede Zahl stammt aus dem Modell, hier wird nur Text daraus.
 // Maskiert (E9) → «n = 3 (< 5)»; ohne Wert → «–»; Quoten und Ø-Werte immer mit Nenner; Mengen blank.
-function vergleichZelle(zelle, einheit, k) {
+export function vergleichZellText(zelle, einheit, k) {
   if (zelle.maskiert) return 'n = ' + zelle.n + ' (< ' + k + ')';
   if (!isNum(zelle.value)) return '–';
   if (zelle.art === 'zahl') return String(zelle.value);
@@ -1569,8 +1569,10 @@ export function bankComparisonTable(modell) {
     }
   }
   const rows = modell.zeilen.map((z) => {
-    const row = { id: z.id, kennzahl: z.gruppe + ' – ' + z.label, small: z.zellen.fokus.maskiert };
-    for (const s of modell.spalten) row[s.id] = vergleichZelle(z.zellen[s.id], z.einheit, modell.k);
+    // «kennzahl» trägt beides, damit die Tabelle am Bildschirm auch sortiert lesbar bleibt; «gruppe» und
+    // «bezeichnung» stehen daneben, weil der Druck die Gruppe als Zwischenzeile setzt (E14, keine Wiederholung).
+    const row = { id: z.id, kennzahl: z.gruppe + ' – ' + z.label, gruppe: z.gruppe, bezeichnung: z.label, small: z.zellen.fokus.maskiert };
+    for (const s of modell.spalten) row[s.id] = vergleichZellText(z.zellen[s.id], z.einheit, modell.k);
     row.delta = z.delta === null ? '–' : (z.delta.einheit === 'pp' ? formatPp(z.delta.wert) : formatAbstand(z.delta.wert));
     return row;
   });

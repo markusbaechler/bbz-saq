@@ -691,7 +691,7 @@ function zeilenDefinitionen(sprachen) {
       zeilen.push({ id: kind + '.v' + r, gruppe, label: 'Versuch ' + r, art: 'quote', einheit: 'pp', richtung: 'down', wert: (b) => quoteZelle(b[kind][r - 1].quote) });
     }
   }
-  for (const [feld, id, gruppe] of [['wePerf', 'we.perf', 'Ø Performance schriftlich'], ['oePerf', 'oe.perf', 'Ø Performance mündlich']]) {
+  for (const [feld, id, gruppe] of [['wePerf', 'we.perf', 'Ø Resultat schriftlich'], ['oePerf', 'oe.perf', 'Ø Resultat mündlich']]) {
     zeilen.push({ id: id + '.erstversuch', gruppe, label: 'Erstversuch', art: 'mittel', einheit: 'pp', richtung: 'up', wert: (b) => mittelZelle(b[feld].erstversuch) });
     zeilen.push({ id: id + '.bestanden', gruppe, label: 'Bestandener Run', art: 'mittel', einheit: 'pp', richtung: 'up', wert: (b) => mittelZelle(b[feld].bestanden) });
   }

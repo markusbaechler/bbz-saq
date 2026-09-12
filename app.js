@@ -633,6 +633,7 @@ function renderView() {
       fokus: state.ui.fokus || null,
       vergleichsbanken: state.ui.vergleichsbanken || [],
       k: SMALL_N,
+      stand: state.meta && state.meta.loadedAt ? fmtDateTime(state.meta.loadedAt) : null,
       onChange: ({ fokus, vergleichsbanken }) => store.setUi({ fokus, vergleichsbanken }),
     },
     today: new Date(),

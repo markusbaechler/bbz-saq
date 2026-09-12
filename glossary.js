@@ -334,6 +334,19 @@ export const GLOSSARY = [
     nenner: '–',
     grenzfaelle: 'Die Summe der Personenzahlen über alle Banken ist deshalb grösser als die Gesamtzahl der Personen. In der heutigen Datei betrifft das 10 von 3399 Personen; der Report weist die Zahl aus und erklärt sie in einer Fussnote.',
   },
+  // ------------------------------------------------------- Druckansicht (PROMPT-3, E12–E15 – P7.2d)
+  {
+    kind: 'Begriff', term: 'Druckansicht Bank-Report',
+    definition: 'Eigener Druckbaum aus denselben Modellen wie der Bildschirm, A4 quer mit 12 mm Rand, Basisschrift 10 pt und Tabellen 9 pt. Fünf fest zugeschnittene Seiten: Leitkennzahlen und Durchfallquoten, Leistung und Kontext, Sprache und Teilprüfungen, Profile und «Nicht in den Kennzahlen», Methodik.',
+    nenner: '–',
+    grenzfaelle: 'E13 nannte höchstens vier Seiten. Gemessen an der echten Datei mit vier Vergleichsbanken brauchte die Vergleichstabelle allein 211 mm und die Detailseite 209 mm bei 186 mm Satzspiegel; der Auftraggeber hat am 12.09.2026 entschieden, auf fünf Seiten zu gehen statt Kennzahlen zu streichen oder die Schrift zu verkleinern. Die Seiten sind fest zugeschnitten statt dem Fluss überlassen – nur so trägt jede Seite ihr Kopfband und bricht keine Tabelle kopflos um.',
+  },
+  {
+    kind: 'Begriff', term: 'Logo im Bank-Report',
+    definition: 'Fester Slot im Kopfband, 24 mm × 12 mm, gespeist aus einer Datei, deren Pfad in CONFIG.report.logo steht (vorgesehen: assets/logo.svg).',
+    nenner: '–',
+    grenzfaelle: 'Ohne Eintrag bleibt der Slot leer und behält seine Masse – das Layout springt nicht. Die Datei wird erst abgefragt, wenn der Pfad eingetragen ist; sonst erzeugte jeder Druck eine 404 auf eine Datei, die es im Repo nicht gibt (keine Binärassets im Repo, E15).',
+  },
 ];
 
 export function glossaryTerms(kind = null) {

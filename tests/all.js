@@ -27,6 +27,7 @@ import './common.test.js';
 import './messzeile.test.js';
 import './versuche.test.js';
 import './bankvergleich.test.js';
+import './druck.test.js';
 import './headers.test.js';
 import './workbookApi.test.js';
 import './workbookAdapter.test.js';
