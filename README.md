@@ -519,6 +519,27 @@ der Druck bleibt hell. Zahlenspalten sind rechtsbündig mit Tabellenziffern. Die
 `styles.css` (Abstände, Schriftgrade, Status-, Delta- und Datenbalken-Farben); `node tools/contrast.js` prüft den Kontrast
 aller Token-Paare in Light, Dark und Druck (Text ≥ 4.5:1, Bedienelemente und Linien ≥ 3:1) und läuft in der CI.
 
+### Fassungsmarke gegen alte Dateien aus dem Cache
+
+GitHub Pages liefert jede Datei mit `Cache-Control: max-age=600` aus, und die Modulverweise trugen keine Version.
+Nach einem Deploy holte der Browser bis zu zehn Minuten alte Dateien aus dem Cache – und zwar **gemischt**: manche
+Module neu, manche alt. Das sah aus wie ein Fehler in der App (eine gemergte Änderung stand da, der Schirm zeigte
+den Stand davor) und kann bei unpassenden Modulen auch echte Abstürze machen.
+
+**Ohne Build-Schritt gelöst:** `tools/version.js --write` bildet einen **Fingerabdruck** über den Inhalt aller
+ausgelieferten Dateien (Module, Bibliotheken, `styles.css`) und schreibt ihn an zwei Stellen – nach `version.js`
+und als `?v=…` in einen **erzeugten Bereich** in `index.html`. Dort steht eine **Import-Map**: Sie bildet auch
+*aufgelöste* URLs ab, erreicht damit jedes der 35 Module und die drei Bibliotheken, und **kein einziger
+`import`-Aufruf muss angefasst werden**. Erzeugt und mitversioniert wie das README-Glossar; die CI prüft, dass
+nichts veraltet ist. Gemessen: 40 geladene js/css-Dateien, **keine ohne Marke**.
+
+**Was die Marke nicht kann:** `index.html` selbst kommt weiterhin mit `max-age=600`. Bis zu zehn Minuten nach einem
+Deploy kann ein Browser die alte Datei benutzen – dann läuft die App aber **einheitlich** auf dem alten Stand statt
+gemischt. Genau dieser Rest ist der Grund für die zweite Hälfte: Nach dem Start holt die App `version.js` einmal
+**ohne Cache** und vergleicht. Weicht die veröffentlichte Fassung ab, steht oben auf der Seite «Diese Seite zeigt
+eine alte Fassung» mit beiden Fassungen und einem Knopf «Neu laden». Lieber ein Hinweis als alte Zahlen, die wie
+aktuelle aussehen. Die laufende Fassung steht im Datenstand und in der Fusszeile.
+
 **Überschrift und Wertung (Paket I):** Ein Abschnitt, der ein Diagramm mit Durchfallquoten und eine Tabelle mit
 Bestehensquoten trägt, heisst «Bestehen und Durchfallen» – eine Überschrift, die nur eine Seite nennt, widerspricht
 dem, was darunter steht. Die Direktbeschriftung nennt bei einem **gesicherten** Abstand zusätzlich die Wertung als

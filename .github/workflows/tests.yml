@@ -44,6 +44,15 @@ jobs:
       - name: Projektregeln deckungsgleich (CLAUDE.md = AGENTS.md ab Zeile 2)
         run: node tools/regeln-abgleich.js
 
+      - name: Fassungsmarke aktuell (Cache-Busting, aus dem Inhalt der Dateien erzeugt)
+        run: |
+          node tools/version.js --write
+          if ! git diff --quiet -- version.js index.html; then
+            echo '::error::Fassungsmarke veraltet – lokal «node tools/version.js --write» ausführen und committen'
+            git --no-pager diff -- version.js index.html
+            exit 1
+          fi
+
       - name: README-Glossar aktuell (aus glossary.js erzeugt)
         run: |
           node tools/glossar-readme.js --write

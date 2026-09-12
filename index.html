@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>bbz Zertifizierungs-Cockpit – Reporting KUBA</title>
-  <link rel="stylesheet" href="styles.css">
+
 </head>
 <body>
   <header class="app-header">
@@ -44,6 +44,9 @@
   </section>
 
   <div id="error" class="error" role="alert" hidden></div>
+  <!-- Meldet, wenn der Browser eine alte Fassung aus dem Cache zeigt (siehe tools/version.js). Steht oben und
+       nicht in der Fusszeile: Wer alte Zahlen liest, soll es sehen, bevor er sie liest. -->
+  <div id="version-hinweis" class="version-hinweis" role="status" hidden></div>
 
   <nav id="nav" class="views" aria-label="Ansichten"></nav>
   <section id="filterbar" class="filterbar" hidden></section>
@@ -53,10 +56,56 @@
     <span>Datenquelle: Reporting_KUBA.xlsx (SharePoint bbz-Zertifizierung). Daten werden nur im Browser-Speicher gehalten.</span>
   </footer>
 
-  <!-- Bibliotheken lokal (kein CDN), vor den Modulen -->
-  <script src="lib/msal-browser.min.js"></script>
-  <script src="lib/xlsx.full.min.js"></script>
-  <script src="lib/fflate.umd.js"></script>
-  <script type="module" src="app.js"></script>
+  <!-- Stylesheet, Bibliotheken (lokal, kein CDN) und Module – alle mit Fassungsmarke gegen alte Dateien aus dem
+       Cache. Die Import-Map bildet auch aufgeloeste URLs ab und erreicht damit jedes Modul, ohne dass ein einziger
+       import-Aufruf angefasst wird. Erzeugt von tools/version.js, die CI prueft den Stand. -->
+<!-- erzeugt von tools/version.js – nicht von Hand ändern -->
+  <link rel="stylesheet" href="styles.css?v=acfec633zr1x">
+  <script type="importmap">
+    {
+      "imports": {
+        "./app.js": "./app.js?v=acfec633zr1x",
+        "./auth.js": "./auth.js?v=acfec633zr1x",
+        "./config.js": "./config.js?v=acfec633zr1x",
+        "./datasource/fileAdapter.js": "./datasource/fileAdapter.js?v=acfec633zr1x",
+        "./datasource/index.js": "./datasource/index.js?v=acfec633zr1x",
+        "./datasource/threadedComments.js": "./datasource/threadedComments.js?v=acfec633zr1x",
+        "./datasource/workbookAdapter.js": "./datasource/workbookAdapter.js?v=acfec633zr1x",
+        "./datasource/workbookApi.js": "./datasource/workbookApi.js?v=acfec633zr1x",
+        "./export.js": "./export.js?v=acfec633zr1x",
+        "./filterChips.js": "./filterChips.js?v=acfec633zr1x",
+        "./glossary.js": "./glossary.js?v=acfec633zr1x",
+        "./graph.js": "./graph.js?v=acfec633zr1x",
+        "./metrics.js": "./metrics.js?v=acfec633zr1x",
+        "./snapshot.js": "./snapshot.js?v=acfec633zr1x",
+        "./store.js": "./store.js?v=acfec633zr1x",
+        "./urlState.js": "./urlState.js?v=acfec633zr1x",
+        "./version.js": "./version.js?v=acfec633zr1x",
+        "./views/bankReport.js": "./views/bankReport.js?v=acfec633zr1x",
+        "./views/chart.js": "./views/chart.js?v=acfec633zr1x",
+        "./views/common.js": "./views/common.js?v=acfec633zr1x",
+        "./views/dataQuality.js": "./views/dataQuality.js?v=acfec633zr1x",
+        "./views/editDialog.js": "./views/editDialog.js?v=acfec633zr1x",
+        "./views/experten.js": "./views/experten.js?v=acfec633zr1x",
+        "./views/glossar.js": "./views/glossar.js?v=acfec633zr1x",
+        "./views/historie.js": "./views/historie.js?v=acfec633zr1x",
+        "./views/offen.js": "./views/offen.js?v=acfec633zr1x",
+        "./views/oral.js": "./views/oral.js?v=acfec633zr1x",
+        "./views/overview.js": "./views/overview.js?v=acfec633zr1x",
+        "./views/personen.js": "./views/personen.js?v=acfec633zr1x",
+        "./views/planned.js": "./views/planned.js?v=acfec633zr1x",
+        "./views/ranking.js": "./views/ranking.js?v=acfec633zr1x",
+        "./views/tables.js": "./views/tables.js?v=acfec633zr1x",
+        "./views/vssVsm.js": "./views/vssVsm.js?v=acfec633zr1x",
+        "./views/written.js": "./views/written.js?v=acfec633zr1x",
+        "./views/zeitverlauf.js": "./views/zeitverlauf.js?v=acfec633zr1x"
+      }
+    }
+  </script>
+  <script src="lib/fflate.umd.js?v=acfec633zr1x"></script>
+  <script src="lib/msal-browser.min.js?v=acfec633zr1x"></script>
+  <script src="lib/xlsx.full.min.js?v=acfec633zr1x"></script>
+  <script type="module" src="app.js?v=acfec633zr1x"></script>
+  <!-- /erzeugt -->
 </body>
 </html>

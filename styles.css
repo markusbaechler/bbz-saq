@@ -789,6 +789,15 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 }
 
 /* Druckansicht: nur Inhalt, immer hell (auch bei dunklem System) */
+/* Hinweis auf eine alte Fassung aus dem Cache (tools/version.js). Warnfarben wie bei den übrigen Hinweisen;
+   der Knopf sitzt in derselben Zeile, weil die Meldung ohne ihn nur ärgert. */
+.version-hinweis { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2);
+  margin: var(--space-3) var(--space-4) 0; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--warn); border-radius: var(--radius); background: var(--warn-bg); color: var(--warn); }
+.version-hinweis strong { font-weight: 600; }
+.app-version { color: var(--muted); font-variant-numeric: tabular-nums; }
+@media print { .version-hinweis { display: none !important; } }
+
 @media print {
   :root {
     color-scheme: light;
