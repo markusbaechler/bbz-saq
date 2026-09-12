@@ -261,16 +261,39 @@ try {
     await shot(page, v);
   }
 
-  // Bank-Report: ohne Bank ein Hinweis, mit genau einer Bank die Vergleichstabellen ohne Namen
+  // Bank-Report (P7.2c): ohne Fokusbank nur Hinweis und Auswahl; mit Fokusbank und einer Vergleichsbank die
+  // Vergleichstabelle mit beiden Benchmarks, Nenner je Quote, einer Delta-Spalte – und die Auswahl in der Adresse.
   await page.goto(server.url + '#bank-report');
   await page.waitForSelector('#view h2');
-  check((await page.locator('#view p.empty').count()) === 1 && (await page.locator('#view table').count()) === 0, 'Bank-Report ohne Bank: Hinweis, keine Tabellen');
-  await filterWaehlen(page, 'bank', { label: 'Testbank AG' });
+  check((await page.locator('#view p.empty').count()) === 1 && (await page.locator('#view table').count()) === 0
+    && (await page.locator('#view select#bank-report-fokus').count()) === 1,
+    'Bank-Report ohne Fokusbank: Hinweis und Auswahl, keine Tabellen');
+  await page.selectOption('#bank-report-fokus', 'Testbank AG');
   await page.waitForSelector('#view table');
-  const bankTables = await page.$$eval('#view table caption', (c) => c.map((x) => x.textContent));
-  check(bankTables.length >= 3 && bankTables.every((t) => /Testbank AG/.test(t)), 'Bank-Report mit Bank: ' + bankTables.length + ' Tabellen (' + bankTables.join(' | ') + ')');
+  await page.locator('#view .bank-kaesten label:has-text("Musterbank") input').check();
+  await page.waitForFunction(() => /vergleichsbank=/.test(location.hash), null, { timeout: 5000 });
+  check(/fokus=Testbank\+AG/.test(page.url()) && /vergleichsbank=Musterbank/.test(page.url()),
+    'Bank-Report: Fokusbank und Vergleichsbank in der Adresse (' + hashQuery(page.url()) + ')');
+  const vergleichModell = await page.evaluate(() => {
+    const tab = [...document.querySelectorAll('#view table.data')].find((t) => /im Vergleich/.test((t.querySelector('caption') || {}).textContent || ''));
+    if (!tab) return null;
+    return {
+      kopf: [...tab.querySelectorAll('thead th')].map((x) => x.textContent.trim()),
+      zeilen: tab.querySelectorAll('tbody tr').length,
+      text: tab.textContent,
+    };
+  });
+  check(vergleichModell && vergleichModell.kopf.includes('Testbank AG') && vergleichModell.kopf.includes('Musterbank')
+    && vergleichModell.kopf.includes('Alle Banken') && vergleichModell.kopf.includes('Alle Banken ohne Testbank AG')
+    && vergleichModell.kopf.filter((t) => t.startsWith('Δ')).length === 1 && vergleichModell.zeilen >= 17,
+    'Bank-Report: Vergleichstabelle, ' + (vergleichModell ? vergleichModell.zeilen + ' Zeilen (' + vergleichModell.kopf.join(' | ') + ')' : 'fehlt'));
+  // E9: beide Darstellungen müssen vorkommen – eine Quote mit Nenner und eine maskierte Zelle. Die Fokusbank der
+  // synthetischen Datei liegt unter der Schwelle, der Benchmark darüber; genau so soll der Report aussehen.
+  check(vergleichModell && /\(n \d+\)/.test(vergleichModell.text) && /n = \d+ \(< 5\)/.test(vergleichModell.text),
+    'Bank-Report: Quoten mit Nenner und maskierte Zellen als solche erkennbar');
+  check((await page.locator('#view .report-head .vertraulich').textContent()).includes('nicht zur Weitergabe'),
+    'Bank-Report: Vertraulichkeitszeile im Kopf');
   check(!(await page.textContent('#view')).includes('Muster Anna'), 'Bank-Report ohne Namen');
-  check((await page.$$eval('#view thead th', (th) => th.map((x) => x.textContent))).includes('Einordnung') && (await page.locator('#view td.tone').count()) >= 5, 'Bank-Report: Spalte «Einordnung» mit Ton je Kennzahlzeile (' + (await page.locator('#view td.tone').count()) + ')');
   // H3: Messzeilen für den Empfänger – er kennt das Cockpit nicht und braucht den Bezug neben der Zahl. Geprüft
   // wird auch der Druck: Diese Ansicht wird gedruckt und weitergegeben, und ohne print-color-adjust verschwänden
   // Spur, Balken, Punkt und Benchmarkmarke.
@@ -311,8 +334,6 @@ try {
   await page.screenshot({ path: join(outDir, 'print-bank-report.png'), fullPage: true });
   await page.emulateMedia({ media: null });
   await shot(page, 'bank-report-mit-bank');
-  await page.locator('#filterbar button:has-text("Filter zurücksetzen")').click();
-  await page.waitForFunction(() => document.querySelectorAll('#filterbar .chip').length === 0, null, { timeout: 5000 });
   check(views.includes('uebersicht') && views.includes('geplante-pruefungen') && views.includes('datenqualitaet'), 'Kern-Ansichten vorhanden: ' + views.join(', '));
 
   // Übersicht: Kacheln mit n
@@ -1109,7 +1130,7 @@ try {
   // Seit C5 stehen «Wertung» und «Benchmark» ebenfalls in der Leiste. Sie gelten nur, wo sie ausdrücklich erklärt sind:
   // Wertung auf «Bestenlisten», Benchmark auf «Übersicht», «Schriftlich» und «Mündlich». Überall sonst abgeschaltet.
   const OFF = {
-    uebersicht: 1, schriftlich: 1, muendlich: 1, bestenlisten: 1, 'vss-vsm': 2, 'bank-report': 2,
+    uebersicht: 1, schriftlich: 1, muendlich: 1, bestenlisten: 1, 'vss-vsm': 2, 'bank-report': 3,
     zeitverlauf: 5, 'offene-vorgaenge': 5, 'geplante-pruefungen': 5, personen: 6, experten: 3,
   };
   // Ganz ohne Leiste: Datenqualität (voller Bestand), Historie (Snapshot der ganzen Datei), Glossar (statisch)

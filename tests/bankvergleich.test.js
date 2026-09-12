@@ -3,6 +3,7 @@
 // Delta steht nur in der Fokusspalte, bezogen auf «alle Banken ohne Fokusbank», gerechnet aus Rohwerten.
 import { test, assert, assertEqual, assertClose } from './runner.js';
 import { SMALL_N, COMPARE_MAX, bankComparison, bankPersonCounts } from '../metrics.js';
+import { bankComparisonTable, bankReportTables } from '../views/tables.js';
 import { makePerson } from './fixtures.js';
 
 // Ein abgeschlossener Vorgang einer Bank; durchgefallen = WE1 RUN1 nicht bestanden, danach bestanden.
@@ -183,4 +184,85 @@ test('bankComparison: Kontextzahlen der Fokusbank zählen Vorgänge, nicht Quote
   assertEqual(zeile(m, 'kontext.vorgaenge').zellen.fokus.value, 7);
   assertEqual(zeile(m, 'kontext.offen').zellen.fokus.value, 1);
   assertEqual(zeile(m, 'kontext.vorgaenge').zellen.fokus.maskiert, false, 'Mengen werden nicht maskiert');
+});
+
+// ---------------------------------------------------------------------------
+// P7.2c – Tabellenmodell der Bildschirmsicht
+// ---------------------------------------------------------------------------
+
+test('bankComparisonTable: jede Quote trägt ihren Nenner, Mengen stehen blank', () => {
+  const persons = viele('Bank A', 8, { durchgefallen: 4 }).concat(viele('Bank B', 6));
+  const t = bankComparisonTable(bankComparison(persons, { fokus: 'Bank A', vergleich: ['Bank B'] }));
+  const z = t.rows.find((r) => r.id === 'we.v1');
+  assertEqual(z.fokus, '50.0 % (n 8)');
+  assertEqual(z.alle, '28.6 % (n 14)');
+  assertEqual(t.rows.find((r) => r.id === 'kontext.vorgaenge').fokus, '8', 'eine Menge ohne n');
+});
+
+test('bankComparisonTable: eine maskierte Zelle nennt die Anzahl und die Schwelle', () => {
+  const persons = viele('Bank A', 6).concat(viele('Bank A', 3, { sprache: 'FR' })).concat(viele('Bank B', 6));
+  const t = bankComparisonTable(bankComparison(persons, { fokus: 'Bank A', vergleich: ['Bank B'] }));
+  assertEqual(t.rows.find((r) => r.id === 'sprache.we1.FR').fokus, 'n = 3 (< 5)');
+});
+
+test('bankComparisonTable: eine Zelle ohne Wert bleibt ein Strich, keine Null', () => {
+  const offen = Array.from({ length: 6 }, () => makePerson({
+    employerCanon: 'Bank A', weAllPassed: null, oeAllPassed: null,
+    we: { 1: [{ passed: false, date: '2024-03-01', result: 0.5 }] },
+  }));
+  const t = bankComparisonTable(bankComparison(offen, { fokus: 'Bank A', vergleich: [] }));
+  assertEqual(t.rows.find((r) => r.id === 'we.versuche').fokus, '–');
+});
+
+test('bankComparisonTable: das Delta steht in einer eigenen Spalte, nur für die Fokusbank', () => {
+  const persons = viele('Bank A', 8, { durchgefallen: 4 }).concat(viele('Bank B', 6));
+  const t = bankComparisonTable(bankComparison(persons, { fokus: 'Bank A', vergleich: ['Bank B'] }));
+  const delta = t.columns.find((c) => c.key === 'delta');
+  assert(delta, 'Spalte «delta» vorhanden');
+  assert(delta.label.includes('Bank A'), 'der Kopf nennt den Bezug: ' + delta.label);
+  assertEqual(delta.label, 'Δ zu «alle ohne Bank A»', 'kurz – die Fokusspalte steht daneben');
+  assertEqual(t.rows.find((r) => r.id === 'we.v1').delta, '+50.0 pp');
+  assertEqual(t.rows.find((r) => r.id === 'kontext.vorgaenge').delta, '–', 'Mengen haben keinen Abstand');
+  assertEqual(t.columns.filter((c) => c.key.startsWith('delta')).length, 1, 'nur eine Delta-Spalte');
+});
+
+test('bankComparisonTable: Ø Versuche bis Bestanden rechnet in Run-Nummern, nicht in Prozentpunkten', () => {
+  // Fokus: alle im ersten Versuch bestanden (1.00). Übrige: alle erst im zweiten (2.00).
+  const fokus = viele('Bank A', 6);
+  const andere = Array.from({ length: 6 }, () => makePerson({
+    employerCanon: 'Bank B', weAllPassed: true, oeAllPassed: true,
+    we: { 1: [{ passed: false, date: '2024-03-01', result: 0.5 }, { passed: true, date: '2024-06-01', result: 0.8 }] },
+    oe: { 1: [{ passed: true, date: '2024-09-01', result: 0.9 }] },
+  }));
+  const t = bankComparisonTable(bankComparison(fokus.concat(andere), { fokus: 'Bank A', vergleich: ['Bank B'] }));
+  const z = t.rows.find((r) => r.id === 'we.versuche');
+  assertEqual(z.fokus, '1.00 (n 6)');
+  assertEqual(z.delta, '−1.00', 'ohne Einheit pp');
+});
+
+test('bankComparisonTable: die Spaltenköpfe nennen Banknamen und beide Benchmarks', () => {
+  const persons = viele('Bank A', 6).concat(viele('Bank B', 6));
+  const t = bankComparisonTable(bankComparison(persons, { fokus: 'Bank A', vergleich: ['Bank B'] }));
+  const labels = t.columns.map((c) => c.label);
+  assert(labels.includes('Bank A'), 'Fokusbank mit Klarnamen');
+  assert(labels.includes('Bank B'), 'Vergleichsbank mit Klarnamen');
+  assert(labels.includes('Alle Banken'), 'Benchmark über alle');
+  assert(labels.includes('Alle Banken ohne Bank A'), 'Benchmark ohne Fokusbank');
+});
+
+test('bankComparisonTable: die Kennzahlspalte nennt Bereich und Zeile, damit sortiert lesbar bleibt', () => {
+  const t = bankComparisonTable(bankComparison(viele('Bank A', 6), { fokus: 'Bank A', vergleich: [] }));
+  assertEqual(t.rows.find((r) => r.id === 'we.v1').kennzahl, 'Durchfallquote schriftlich – Versuch 1');
+});
+
+test('bankReportTables: der Benchmark trägt den Namen, den man ihm gibt – hier «ohne Fokusbank»', () => {
+  const persons = viele('Bank A', 6).concat(viele('Bank B', 6));
+  const fokus = persons.filter((p) => p.employerCanon === 'Bank A');
+  const rest = persons.filter((p) => p.employerCanon !== 'Bank A');
+  const t = bankReportTables(fokus, rest, 'Bank A', 'Alle Banken ohne Bank A');
+  assert(t.byProfil.columns.some((c) => c.label === 'n Alle Banken ohne Bank A'), t.byProfil.columns.map((c) => c.label).join(' | '));
+  assertEqual(t.messzeilen[0].eingabe.referenz.label, 'Benchmark: Alle Banken ohne Bank A');
+  assert(t.byProfil.note.includes('Alle Banken ohne Bank A'), t.byProfil.note);
+  const wiederholt = t.byProfil.columns.filter((c) => c.label.includes('Alle Banken ohne Bank A')).length;
+  assertEqual(wiederholt, 1, 'der lange Name steht einmal im Kopf, nicht in jeder Benchmark-Spalte');
 });

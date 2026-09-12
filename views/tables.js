@@ -1183,30 +1183,30 @@ export function throughputTables(persons) {
 
 // Bank-Report (b2): eigene Zahlen einer Bank gegen den anonymen Benchmark «alle Banken» (gleicher Zeitraum, gleiche
 // übrigen Filter). Keine Namen, keine anderen Banken einzeln.
-export function bankReportTables(bankPersons, benchmarkPersons, bankLabel) {
+export function bankReportTables(bankPersons, benchmarkPersons, bankLabel, benchmarkLabel = 'Alle Banken') {
   const own = overviewModel(bankPersons, bankPersons);
   const bench = overviewModel(benchmarkPersons, benchmarkPersons);
-  const kpis = comparisonTable(own.kpis, bench.kpis, 'Alle Banken');
+  const kpis = comparisonTable(own.kpis, bench.kpis, benchmarkLabel);
   kpis.title = 'Kennzahlen ' + bankLabel + ' im Vergleich zu allen Banken';
-  kpis.columns = kpis.columns.map((c) => (c.key === 'auswahl' ? col('auswahl', bankLabel, c.prio) : c.key === 'n' ? col('n', 'n ' + bankLabel, c.prio) : c.key === 'n2' ? col('n2', 'n alle Banken', c.prio) : c));
+  kpis.columns = kpis.columns.map((c) => (c.key === 'auswahl' ? col('auswahl', bankLabel, c.prio) : c.key === 'n' ? col('n', 'n ' + bankLabel, c.prio) : c.key === 'n2' ? col('n2', 'n ' + benchmarkLabel, c.prio) : c));
   kpis.rows = kpis.rows.filter((r) => r.kennzahl !== 'Personen mit mehreren Profilen');
   const benchByProfil = new Map(bench.byProfil.rows.map((r) => [r.gruppe.replace(/ \*$/, ''), r]));
   const byProfil = {
-    title: 'Je Profil: ' + bankLabel + ' und alle Banken',
+    title: 'Je Profil: ' + bankLabel + ' und ' + benchmarkLabel,
     columns: [
       col('profil', 'Profil', 1), col('n', 'n ' + bankLabel, 1), col('erstversuch', 'Schriftlich 1. Versuch bestanden', 1), col('gesamt', 'Schriftlich insgesamt bestanden', 2), col('muendlich', 'Mündlich bestanden', 1),
-      col('n2', 'n alle Banken', 2), col('erstversuch2', 'Schriftlich 1. Versuch bestanden (alle)', 3), col('gesamt2', 'Schriftlich insgesamt bestanden (alle)', 3), col('muendlich2', 'Mündlich bestanden (alle)', 3),
+      col('n2', 'n ' + benchmarkLabel, 2), col('erstversuch2', 'Schriftlich 1. Versuch bestanden (Benchmark)', 3), col('gesamt2', 'Schriftlich insgesamt bestanden (Benchmark)', 3), col('muendlich2', 'Mündlich bestanden (Benchmark)', 3),
     ],
     rows: own.byProfil.rows.map((r) => {
       const key = r.gruppe.replace(/ \*$/, '');
       const b = benchByProfil.get(key) || {};
       return { profil: r.gruppe, small: r.small, n: r.n, erstversuch: r.erstversuch, gesamt: r.gesamt, muendlich: r.muendlich, n2: b.n === undefined ? '' : b.n, erstversuch2: b.erstversuch || '–', gesamt2: b.gesamt || '–', muendlich2: b.muendlich || '–' };
     }),
-    note: SMALL_NOTE + '; Benchmark = alle Banken mit denselben übrigen Filtern und demselben Zeitraum',
+    note: SMALL_NOTE + '; Benchmark = ' + benchmarkLabel + ' mit denselben übrigen Filtern und demselben Zeitraum',
   };
   // H3: Messzeilen für den Empfänger des Reports. Er kennt das Cockpit nicht – «79.2 %» kann er nur einordnen,
   // wenn der Benchmark daneben steht. Dieselben Zeilen wie in der Übersicht, mit «alle Banken» als Referenzmarke.
-  const messzeilen = messzeilenEingaben(bankPersons, { benchmarkPersons, benchmarkLabel: 'Alle Banken' });
+  const messzeilen = messzeilenEingaben(bankPersons, { benchmarkPersons, benchmarkLabel });
   const verlauf = timeSeriesTable(bankPersons);
   verlauf.title = 'Kennzahlen je Jahr: ' + bankLabel;
   return { kpis, byProfil, verlauf, messzeilen };
@@ -1530,4 +1530,62 @@ export function runFieldTarget(field) {
   if (!m) return null;
   if (m[1] === 'we' && m[4].startsWith('expert')) return null;
   return { kind: m[1], part: Number(m[2]), run: Number(m[3]), what: m[4] };
+}
+
+// ---------------------------------------------------------------------------
+// Bankvergleich (PROMPT-3, P7.2c) – Bildschirmsicht des Modells aus metrics.bankComparison()
+// ---------------------------------------------------------------------------
+
+// Reine Formatierung: jede Zahl stammt aus dem Modell, hier wird nur Text daraus.
+// Maskiert (E9) → «n = 3 (< 5)»; ohne Wert → «–»; Quoten und Ø-Werte immer mit Nenner; Mengen blank.
+function vergleichZelle(zelle, einheit, k) {
+  if (zelle.maskiert) return 'n = ' + zelle.n + ' (< ' + k + ')';
+  if (!isNum(zelle.value)) return '–';
+  if (zelle.art === 'zahl') return String(zelle.value);
+  if (einheit === 'zahl') return zelle.value.toFixed(2) + ' (n ' + zelle.n + ')';
+  return formatPct(zelle.value) + ' (n ' + zelle.n + ')';
+}
+
+// Abstand ohne Einheit: «+0.08», «−1.00», «0.00». Für Ø Versuche bis Bestanden – das sind Run-Nummern,
+// Prozentpunkte hätten dort keine Bedeutung (Abweichung vom Wortlaut von E8, bewusst).
+export function formatAbstand(wert) {
+  const gerundet = Math.round(Math.abs(wert) * 100 + 1e-9) / 100;
+  const sign = gerundet === 0 ? '' : (wert > 0 ? '+' : '−');
+  return sign + gerundet.toFixed(2);
+}
+
+// Vergleichstabelle: Kennzahlen als Zeilen, Banken als Spalten (E8). Das Delta steht in einer eigenen Spalte
+// unmittelbar nach der Fokusbank – nur dort, und immer gegen «alle Banken ohne Fokusbank».
+// Die Kennzahlspalte nennt Bereich und Zeile, damit die Tabelle auch nach einer Spalte sortiert lesbar bleibt.
+export function bankComparisonTable(modell) {
+  const fokusLabel = modell.fokus || '–';
+  const columns = [col('kennzahl', 'Kennzahl', 1)];
+  for (const s of modell.spalten) {
+    if (s.id === 'fokus') {
+      columns.push(col('fokus', s.label, 1));
+      columns.push(col('delta', 'Δ zu «alle ohne ' + fokusLabel + '»', 1));
+    } else {
+      columns.push(col(s.id, s.label, s.art === 'benchmark' ? 2 : 1));
+    }
+  }
+  const rows = modell.zeilen.map((z) => {
+    const row = { id: z.id, kennzahl: z.gruppe + ' – ' + z.label, small: z.zellen.fokus.maskiert };
+    for (const s of modell.spalten) row[s.id] = vergleichZelle(z.zellen[s.id], z.einheit, modell.k);
+    row.delta = z.delta === null ? '–' : (z.delta.einheit === 'pp' ? formatPp(z.delta.wert) : formatAbstand(z.delta.wert));
+    return row;
+  });
+  const hinweise = [
+    'Δ in Prozentpunkten gegen «alle Banken ohne ' + fokusLabel + '», gerechnet aus Rohwerten',
+    'Nenner unter ' + modell.k + ' zeigen statt der Quote nur die Anzahl',
+    'Versuch 2 und 3 messen nur Wiederholer – eine ausgelesene Gruppe, nicht mit Versuch 1 vergleichbar',
+    'Personen zählen je Bank einmal; wer für zwei Banken antrat, steht in beiden (' + modell.personen.uebergreifend + ' Personen)',
+  ];
+  if (modell.fehlend.length) hinweise.push('ohne Vorgänge im Filter und deshalb ohne Spalte: ' + modell.fehlend.join(', '));
+  if (modell.ueberzaehlig.length) hinweise.push('über vier Vergleichsbanken hinaus gewählt und nicht gezeigt: ' + modell.ueberzaehlig.join(', '));
+  return {
+    title: 'Kennzahlen ' + fokusLabel + ' im Vergleich',
+    columns,
+    rows,
+    note: hinweise.join('; '),
+  };
 }

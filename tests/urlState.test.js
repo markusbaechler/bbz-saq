@@ -114,3 +114,34 @@ test('urlState.isAuthResponseHash: MSAL-Antwort im Hash erkennen (Hotfix Anmeldu
   assertEqual(isAuthResponseHash(''), false);
   assertEqual(isAuthResponseHash(null), false);
 });
+
+// P7.2c – Fokusbank und Vergleichsbanken (E8). Banknamen sind keine Personendaten und dürfen in die URL.
+test('urlState: Fokusbank und Vergleichsbanken stehen in der URL und kommen zurück', () => {
+  const ui = { ...DEFAULT_UI, fokus: 'Berner Kantonalbank AG', vergleichsbanken: ['Raiffeisen', 'SGKB'] };
+  const q = serializeState(DEFAULT_FILTER, ui);
+  assert(q.includes('fokus=Berner+Kantonalbank+AG'), q);
+  assertEqual((q.match(/vergleichsbank=/g) || []).length, 2, q);
+  const zurueck = parseHash('#bank-report?' + q).ui;
+  assertEqual(zurueck.fokus, 'Berner Kantonalbank AG');
+  assertEqual(zurueck.vergleichsbanken, ['Raiffeisen', 'SGKB']);
+});
+
+test('urlState: höchstens vier Vergleichsbanken aus der URL, leere Werte fallen weg', () => {
+  const ui = parseHash('#bank-report?vergleichsbank=A&vergleichsbank=&vergleichsbank=B&vergleichsbank=C&vergleichsbank=D&vergleichsbank=E').ui;
+  assertEqual(ui.vergleichsbanken, ['A', 'B', 'C', 'D']);
+});
+
+test('urlState: ohne Fokusbank bleibt die URL leer', () => {
+  assertEqual(serializeState(DEFAULT_FILTER, DEFAULT_UI), '');
+  assertEqual(parseHash('#bank-report').ui.fokus, null);
+  assertEqual(parseHash('#bank-report').ui.vergleichsbanken, []);
+});
+
+// Die Auswahl gehört zum Bank-Report, nicht zur App: ein Link aus einer anderen Ansicht darf sie nicht mitschleppen
+// (dieselbe Regel wie beim Sortierzustand, der ebenfalls je Ansicht gilt).
+test('urlState: Fokusbank und Vergleichsbanken stehen nur im Hash des Bank-Reports', () => {
+  const ui = { ...DEFAULT_UI, fokus: 'Testbank AG', vergleichsbanken: ['Musterbank'] };
+  assertEqual(buildHash('personen', DEFAULT_FILTER, ui), '#personen');
+  assert(buildHash('bank-report', DEFAULT_FILTER, ui).includes('fokus=Testbank+AG'), buildHash('bank-report', DEFAULT_FILTER, ui));
+  assert(serializeState(DEFAULT_FILTER, ui).includes('fokus='), 'ohne Ansichtsbezug bleibt die Auswahl erhalten');
+});

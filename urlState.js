@@ -5,7 +5,7 @@
 //         &zertifikate=1&wertung=bestanden&benchmark=profil&sort=experten.einsaetze.desc
 // Nur vom Standard abweichende Werte werden geschrieben; unbekannte oder ungültige Werte werden ignoriert.
 
-import { DEFAULT_FILTER, MODE, BENCHMARKS, dayKey } from './metrics.js';
+import { DEFAULT_FILTER, MODE, BENCHMARKS, COMPARE_MAX, dayKey } from './metrics.js';
 
 // compare: zwei Jahre für den Zeitraumvergleich (a6), null = automatisch die zwei jüngsten Jahre mit Daten
 // snapshots / snapshotErrors (Historie, b7): nur im Memory, nie in der URL (Aggregate, aber Datei-Inhalte gehören nicht in Links)
@@ -13,11 +13,15 @@ import { DEFAULT_FILTER, MODE, BENCHMARKS, dayKey } from './metrics.js';
 // sort: Sortierung der Ansicht (Paket B, B4) – { view, table, key, dir }. Steht in der URL, weil ein geteilter Link
 // sonst etwas anderes zeigt als der Absender sieht. Ein Zustand je Ansicht; «table» ist der Titel-Slug der Tabelle,
 // damit klar ist, welche der Tabellen einer Ansicht gemeint ist. Enthält nie Personendaten (Spaltenschlüssel).
-export const DEFAULT_UI = Object.freeze({ benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null, sort: null, editMode: false });
+export const DEFAULT_UI = Object.freeze({ benchmark: 'bank', dq: null, compare: null, snapshots: [], snapshotErrors: [], personen: null, sort: null, editMode: false, fokus: null, vergleichsbanken: [] });
 // editMode: Bearbeitungsmodus des Schreibpfads (Paket E) – Schalter im Kopf, Standard aus, nur im Memory
 
 // sort=<tabelle>.<spalte>.<asc|desc>: Tabelle = Titel-Slug (a–z, 0–9, Bindestrich), Spalte = Schlüssel des Modells
 const SORT_PARAM = /^([a-z0-9-]+)\.([A-Za-z0-9_]+)\.(asc|desc)$/;
+
+// Die Bankauswahl gehört zum Bank-Report, nicht zur App: sie steht nur im Hash dieser Ansicht. Ohne Ansichtsbezug
+// (view === null) bleibt sie erhalten – gleiche Regel wie beim Sortierzustand.
+const BANK_REPORT_VIEW = 'bank-report';
 
 const VSS_VALUES = ['alle', 'vss', 'vsm', 'ohne'];
 const VERSUCHE_VALUES = ['alle', 'erstversuch', 'mehrere'];
@@ -54,6 +58,11 @@ export function serializeState(filter = DEFAULT_FILTER, ui = DEFAULT_UI, view = 
   if (f.onlyIssued) p.set('zertifikate', '1');
   if (f.mode !== DEFAULT_FILTER.mode) p.set('wertung', f.mode);
   if (u.benchmark !== DEFAULT_UI.benchmark) p.set('benchmark', u.benchmark);
+  // Bank-Report (P7.2c): Fokusbank und bis zu vier Vergleichsbanken. Banknamen sind keine Personendaten (CLAUDE.md).
+  if (view === null || view === BANK_REPORT_VIEW) {
+    if (u.fokus) p.set('fokus', u.fokus);
+    for (const v of (u.vergleichsbanken || []).slice(0, COMPARE_MAX)) if (v) p.append('vergleichsbank', v);
+  }
   if (u.compare && Number.isInteger(u.compare.a) && Number.isInteger(u.compare.b)) p.set('vergleich', u.compare.a + '-' + u.compare.b);
   const st = u.sort;
   if (st && st.table && st.key && (view === null || st.view === view)) p.set('sort', st.table + '.' + st.key + '.' + (st.dir === 'desc' ? 'desc' : 'asc'));
@@ -90,6 +99,9 @@ export function parseHash(hash) {
   if (mode) filter.mode = mode;
   const benchmark = oneOf('benchmark', BENCHMARK_VALUES);
   if (benchmark) ui.benchmark = benchmark;
+  // Bank-Report (P7.2c): Fokusbank und bis zu vier Vergleichsbanken; unbekannte oder leere Werte fallen weg.
+  ui.fokus = p.get('fokus') || null;
+  ui.vergleichsbanken = p.getAll('vergleichsbank').filter((v) => v).slice(0, COMPARE_MAX);
   const cmp = /^(\d{4})-(\d{4})$/.exec(p.get('vergleich') || '');
   if (cmp) ui.compare = { a: Number(cmp[1]), b: Number(cmp[2]) };
   const st = SORT_PARAM.exec(p.get('sort') || '');

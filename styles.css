@@ -11,7 +11,7 @@
    --------------------------------------------------------------------------- */
 @font-face {
   font-family: 'Public Sans';
-  src: url(lib/public-sans-latin.woff2?v=a92de41711shj) format('woff2');
+  src: url(lib/public-sans-latin.woff2?v=b6edbdbe11zwo) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -19,7 +19,7 @@
 }
 @font-face {
   font-family: 'Archivo';
-  src: url(lib/archivo-latin.woff2?v=a92de41711shj) format('woff2');
+  src: url(lib/archivo-latin.woff2?v=b6edbdbe11zwo) format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -780,6 +780,20 @@ tr.impact-keine td.col-impact { color: var(--muted); font-weight: 400; }
 
 .report-head { border-top: 3px solid var(--accent); padding-top: .5rem; margin: .5rem 0 1rem; }
 .report-head h3 { margin-bottom: .25rem; }
+/* P7.2c: Vertraulichkeitszeile des Bank-Reports – am Bildschirm ein Hinweis, im Druck auf jeder Seite (P7.2d). */
+.report-head .vertraulich { color: var(--warn); font-weight: 600; margin-top: .25rem; }
+
+/* Auswahl im Bank-Report (P7.2c): Fokusbank als Liste, Vergleichsbanken als Kästchen. Die Kästchen liegen in einem
+   eigenen Block mit Höhenbegrenzung – 67 Banken würden die Ansicht sonst nach unten schieben, bevor eine Zahl kommt. */
+.bank-auswahl { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; margin-bottom: var(--space-4); }
+.bank-auswahl .feld { display: flex; flex-direction: column; gap: var(--space-1); }
+.bank-auswahl fieldset.feld { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-2) var(--space-3); min-width: min(100%, 32rem); }
+.bank-auswahl legend { font-size: var(--fs-sm); color: var(--muted); padding: 0 var(--space-1); }
+.bank-kaesten { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: var(--space-1) var(--space-3); max-height: 11rem; overflow-y: auto; }
+.bank-wahl { display: flex; align-items: baseline; gap: var(--space-1); font-size: var(--fs-sm); }
+.bank-wahl.gewaehlt { font-weight: 600; }
+.bank-wahl input:disabled + span { color: var(--muted); }
+@media print { .bank-auswahl { display: none !important; } }
 
 .app-footer { padding: .6rem 1.25rem; color: var(--muted); font-size: .8rem; }
 .print-filter { display: none; color: var(--muted); font-size: .8rem; margin-bottom: .5rem; }

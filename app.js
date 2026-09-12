@@ -5,7 +5,7 @@ import { GraphError, AuthExpiredError } from './graph.js';
 import { load, loadFromFile, loadAudit, write } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
-import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, MODE, personCount, isVorgang, expertRuns, signals, DEFAULT_FILTER } from './metrics.js';
+import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, MODE, personCount, isVorgang, expertRuns, signals, DEFAULT_FILTER, bankPersonCounts, SMALL_N } from './metrics.js';
 import { CONFIG, headerCandidates, runKey } from './config.js';
 import { filterLines, fmtDateTime, fmtTime, MODE_LABELS } from './export.js';
 import { parseHash, buildHash, sameFilter, parseDay, formatDay, isAuthResponseHash } from './urlState.js';
@@ -615,12 +615,26 @@ function renderView() {
 
   const filter = state.filter;
   const headerLines = filterLines(filter, state.meta);
+  const alleBanken = filterPersons(state.persons, benchmarkFilter(filter, 'bank')); // Bank-Report: alle Banken, übrige Filter
   const ctx = {
     persons: store.getFilteredPersons(),
     allPersons: eligible(state.persons), // kennzahlrelevante Vorgänge ohne Filter (Personen mit mehreren Profilen)
     plannedPersons: filterPersons(state.persons, filter, { eligibleOnly: false, period: false }),
     timePersons: filterPersons(state.persons, filter, { period: false }), // kennzahlrelevant, alle Jahre (Zeitverlauf)
-    bankBenchmarkPersons: filterPersons(state.persons, benchmarkFilter(filter, 'bank')), // Bank-Report: alle Banken
+    bankBenchmarkPersons: alleBanken,
+    // Bank-Report (P7.2c): eigene Auswahl statt Bankfilter. Die Menge trägt alle Banken mit den übrigen Filtern –
+    // die Benchmarks «alle Banken» und «alle ohne Fokusbank» gäbe es sonst nicht. Die Bankliste nennt die
+    // Vorgangszahl, damit vor der Wahl sichtbar ist, welche Bank unter der Schwelle liegt (E9).
+    bankReport: {
+      persons: alleBanken,
+      banken: [...bankPersonCounts(alleBanken).banken]
+        .map(([bank, z]) => ({ bank, vorgaenge: z.vorgaenge, personen: z.personen }))
+        .sort((x, y) => y.vorgaenge - x.vorgaenge || x.bank.localeCompare(y.bank, 'de-CH')),
+      fokus: state.ui.fokus || null,
+      vergleichsbanken: state.ui.vergleichsbanken || [],
+      k: SMALL_N,
+      onChange: ({ fokus, vergleichsbanken }) => store.setUi({ fokus, vergleichsbanken }),
+    },
     today: new Date(),
     allVorgaenge: state.persons.filter(isVorgang), // Personen (C.4): das Detail zeigt immer alle Vorgänge der Person
     personVorgaenge: filterPersons(state.persons, { ...filter, versuche: 'alle' }, { eligibleOnly: false, period: false }), // Trefferliste: Profil, Sprache, Bank, VSS/VSM, Zertifikate
