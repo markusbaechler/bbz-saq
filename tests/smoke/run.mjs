@@ -13,6 +13,8 @@ import { writeSynthWorkbook } from './synth.mjs';
 import { SECHS_SIGNALE } from './signale-sechs.mjs';
 import { versionAusModul } from '../../tools/version.js';
 import { parseThemes } from '../../tools/contrast.js';
+import { parseWorkbook } from '../../datasource/fileAdapter.js';
+import { erpRowsFromSheets } from '../erpExport.js';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -2412,6 +2414,59 @@ try {
   const redirectState = await redirectPage.evaluate(() => ({ hash: location.hash, error: !document.getElementById('error').hidden, nav: document.querySelectorAll('#nav a').length }));
   check(!/code=|state=/.test(redirectState.hash) && !redirectState.error && redirectState.nav >= 8, 'Anmeldung: Seite mit MSAL-Antwort ohne Opener → Hash bereinigt, kein Fehlerpanel, App gerendert (' + JSON.stringify(redirectState) + ')');
   await redirectPage.close();
+
+  // Datenquelle bbz-ERP (CONFIG.datasource = 'erp'): dieselbe synthetische Datei im Format von GET /saq/export/kuba
+  // (tests/erpExport.js) über den erpAdapter. MSAL ist eine Attrappe mit angemeldetem Konto, der ERP-Endpunkt eine Route –
+  // kein Tenant, kein ERP. Erwartet: dieselben Zähler wie mit der Excel-Datei oben, Quelle «bbz-ERP», kein Bearbeiten.
+  const erpPage = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+  erpPage.on('pageerror', (e) => errors.push('erp pageerror: ' + e.message));
+  erpPage.on('console', (m) => { if (m.type() === 'error') errors.push('erp console: ' + m.text()); });
+  const erpBase = 'https://erp.smoke.test';
+  await erpPage.route('**/config.js*', (route) => route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8',
+    body: configText.replace(/datasource: '[a-z]+'/, "datasource: 'erp'").replace(/baseUrl: '[^']*'/, "baseUrl: '" + erpBase + "'")
+      .replace(/ {4}scopes: \[\],/, "    scopes: ['api://erp-smoke/access_as_user'],") }));
+  await erpPage.route('**/lib/msal-browser.min.js*', (route) => route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: `
+    window.msal = {
+      InteractionRequiredAuthError: class extends Error {},
+      PublicClientApplication: class {
+        async initialize() {}
+        async handleRedirectPromise() { return null; }
+        getAllAccounts() { return [{ username: 'smoke@example.test', name: 'Smoke Test' }]; }
+        setActiveAccount() {}
+        async acquireTokenSilent(req) { window.erpScopes = req.scopes; return { accessToken: 'tok-smoke' }; }
+      },
+    };` }));
+  const erpRows = erpRowsFromSheets(parseWorkbook(new Uint8Array(readFileSync(xlsx)), { XLSX: require('../../lib/xlsx.full.min.js'), fflate: require('../../lib/fflate.umd.js') }).sheets);
+  let erpAuth = null;
+  await erpPage.route(erpBase + '/saq/export/kuba', (route) => {
+    const cors = { 'access-control-allow-origin': server.url.replace(/\/$/, ''), 'access-control-allow-headers': 'authorization, accept', 'access-control-allow-methods': 'GET' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    erpAuth = route.request().headers().authorization;
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(erpRows) });
+  });
+  await erpPage.goto(server.url, { waitUntil: 'networkidle' });
+  const erpStart = await erpPage.evaluate(() => ({ button: document.getElementById('btn-load').textContent, disabled: document.getElementById('btn-load').disabled, fuss: document.querySelector('.app-footer span').textContent }));
+  check(erpStart.button === 'Daten aus dem bbz-ERP laden' && !erpStart.disabled && erpStart.fuss.startsWith('Datenquelle: bbz-ERP'),
+    'ERP-Quelle: Laden-Schaltfläche und Fusszeile benennen das bbz-ERP (' + JSON.stringify(erpStart) + ')');
+  await erpPage.click('#btn-load');
+  await erpPage.waitForFunction(() => /Vorgänge/.test(document.getElementById('status').textContent) || !document.getElementById('error').hidden, null, { timeout: 15000 });
+  const erpStatus = (await erpPage.textContent('#status')).replace(/\s+/g, ' ').trim();
+  const zaehlerTeil = (s) => (/ Zeilen \([^)]*\) · (.*)$/.exec(s) || [])[1] || '';
+  const erpStand = await erpPage.evaluate(() => ({
+    quelle: ([...document.querySelectorAll('#datastand dt')].find((dt) => dt.textContent === 'Quelle') || { nextElementSibling: null }).nextElementSibling?.textContent,
+    fehler: document.getElementById('error').hidden ? '' : document.getElementById('error').textContent,
+    bearbeiten: !document.getElementById('btn-edit-mode').hidden,
+    kacheln: document.querySelectorAll('#view .kpi-label').length,
+    scopes: window.erpScopes,
+  }));
+  check(erpAuth === 'Bearer tok-smoke' && JSON.stringify(erpStand.scopes) === '["api://erp-smoke/access_as_user"]' && !erpStand.fehler,
+    'ERP-Quelle: GET /saq/export/kuba mit Bearer-Token für CONFIG.erp.scopes, kein Fehler' + (erpStand.fehler ? ' – ' + erpStand.fehler : ''));
+  check(zaehlerTeil(status) !== '' && zaehlerTeil(erpStatus) === zaehlerTeil(status) && erpStatus.startsWith('SAQ-Export (bbz-ERP)') && / Zeilen \(\d+ ohne Zertifikat, \d+ mit Zertifikat\)/.test(erpStatus),
+    'ERP-Quelle: dieselben Zähler wie mit der Excel-Datei (' + zaehlerTeil(erpStatus).slice(0, 120) + ' …)');
+  check(erpStand.quelle === 'bbz-ERP' && !erpStand.bearbeiten && erpStand.kacheln > 0,
+    'ERP-Quelle: Datenstand «Quelle bbz-ERP», Übersicht gerendert (' + erpStand.kacheln + ' Kacheln), kein Bearbeiten trotz Schreib-Flag');
+  await shot(erpPage, 'erp-quelle');
+  await erpPage.close();
 
   // Keine Persistenz von Daten im Browser (Regel 4): localStorage leer, sessionStorage höchstens MSAL
   const storage = await page.evaluate(() => ({ local: Object.keys(localStorage), session: Object.keys(sessionStorage) }));
