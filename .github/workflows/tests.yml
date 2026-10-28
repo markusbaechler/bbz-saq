@@ -38,6 +38,11 @@ jobs:
       - name: Tests (tests/run-node.js)
         run: node tests/run-node.js
 
+      - name: ERP-Quelle liefert dieselben Zahlen wie die Excel-Datei (synthetische Datei, tools/snapshot-synth.js)
+        run: |
+          node tools/snapshot-synth.js "$RUNNER_TEMP/snapshot-excel.json"
+          node tools/snapshot-synth.js --quelle erp --vergleich "$RUNNER_TEMP/snapshot-excel.json"
+
       - name: Kontrast der Farb-Tokens (Light, Dark, Druck)
         run: node tools/contrast.js
 
