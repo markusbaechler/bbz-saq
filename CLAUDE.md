@@ -1,6 +1,7 @@
 # CLAUDE.md – Projektregeln bbz-saq
 
-Dashboard-SPA für bbz-Zertifizierungskennzahlen. Datenquelle: Reporting_KUBA.xlsx auf SharePoint.
+Dashboard-SPA für bbz-Zertifizierungskennzahlen. Datenquelle: Reporting_KUBA.xlsx auf SharePoint; alternativ der SAQ-Export
+des bbz-ERP (`CONFIG.datasource = 'erp'`).
 Vollständige Spezifikation: `PROMPT.md`. Bei Widerspruch gilt diese Datei.
 
 ## Unverhandelbar
@@ -31,6 +32,9 @@ Vollständige Spezifikation: `PROMPT.md`. Bei Widerspruch gilt diese Datei.
   (reine Funktionen, kein DOM, kein Graph) → `views/` (Rendering).
 - `datasource/index.js` ist das einzige Interface nach aussen. Phase 1 = fileAdapter (Download + Parse).
   Phase 2 = workbookAdapter (Schreiben). Views/Metrics dürfen nie direkt auf Graph zugreifen.
+  Zweite Quelle = erpAdapter (`GET /saq/export/kuba` des bbz-ERP): liefert store.js denselben Vertrag `{ sheets, comments, meta }`
+  wie der fileAdapter und dekodiert nur das Transportformat; Normalisierung und Data-Quality-Log bleiben in store.js.
+  Der Schreibpfad gilt nur für die Excel-Datei.
 - Neue Kennzahl = Funktion in `metrics.js` + Test in `tests.html` + Definition in README.
 
 ## Konventionen
@@ -49,6 +53,7 @@ Vollständige Spezifikation: `PROMPT.md`. Bei Widerspruch gilt diese Datei.
 - CI: `.github/workflows/tests.yml` führt bei Push auf `main` und bei Pull Requests aus: Syntaxprüfung, Tests,
   Kontrastprüfung der Farb-Tokens (`node tools/contrast.js`; Light, Dark und Druck – Text 4.5:1, Bedienelemente und
   Linien 3:1), README-Glossar-Abgleich (`node tools/glossar-readme.js --write` muss keine Änderung ergeben),
-  Abgleich von `CLAUDE.md` und `AGENTS.md` (`node tools/regeln-abgleich.js`) und den Browser-Smoke-Test
+  Abgleich von `CLAUDE.md` und `AGENTS.md` (`node tools/regeln-abgleich.js`), Snapshot-Abgleich Excel ↔ ERP-Quelle
+  (`node tools/snapshot-synth.js --quelle erp --vergleich …`) und den Browser-Smoke-Test
   `node tests/smoke/run.mjs` (Playwright/Chromium; `tests/smoke` ist das einzige npm-Paket, nur Tests).
   Neue Ansicht oder Interaktion = Prüfung im Smoke-Test ergänzen.

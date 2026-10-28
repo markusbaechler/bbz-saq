@@ -96,3 +96,53 @@ lässt er sich abschalten:
    alt → neu, verlangt einen Grund, schreibt genau eine Zelle und lädt die Datei neu.
 4. Änderungsprotokoll: `General/07_KUBA/Reporting_KUBA.changes.json` neben der Datei (JSON-Array, ein Eintrag je Änderung).
 5. Abschalten: `features: { write: false }` – die Bearbeiten-Elemente verschwinden, die Datei bleibt unverändert.
+
+## Datenquelle bbz-ERP
+
+Mit `CONFIG.datasource = 'erp'` liest das Cockpit die Vorgänge aus dem bbz-ERP statt aus `Reporting_KUBA.xlsx`
+(`datasource/erpAdapter.js`). Das ERP liefert unter `GET /saq/export/kuba` je Vorgang ein Objekt mit den logischen
+Feldschlüsseln aus `HEADER_FIELDS` und `erpFallId`. Der Adapter baut daraus denselben Eingabevertrag für `store.js` wie
+der fileAdapter. Normalisierung, Duplikate, Status und Data-Quality-Log laufen unverändert. Fundstelle im Log:
+Sheet «bbz-ERP», Zeile = Position des Vorgangs im Export. Der Schreibpfad und das Änderungsprotokoll gehören zur
+Excel-Datei; mit der ERP-Quelle gibt es kein «Bearbeiten». «Lokale Excel-Datei prüfen» bleibt möglich.
+
+Einrichtung:
+
+1. ERP: `AUTH_MODE=entra` mit `ENTRA_TENANT_ID` und `ENTRA_AUDIENCE` (App-Registrierung der ERP-API). Die ERP-API stellt
+   einen delegierten Scope bereit (z. B. `access_as_user`).
+2. App-Registrierung «bbz-saq-SPA»: API-Berechtigung auf diesen Scope ergänzen und die Zustimmung erteilen.
+3. Wer lädt, braucht im ERP ein freigeschaltetes Konto (Mitarbeitende) mit Admin-Rolle: `mitarbeitende.rolle = admin`
+   oder App-Rolle `bbz.admin` (`ENTRA_ADMIN_ROLE`).
+4. ERP: CORS für den Ursprung des Cockpits (`https://markusbaechler.github.io`, lokal `http://localhost:3000`) auf
+   `/saq/export/kuba`, inklusive Preflight (`OPTIONS`, Header `authorization`).
+5. `config.js`: `datasource: 'erp'`, `erp.baseUrl` (ohne Pfad), `erp.scopes` (z. B. `['api://<Client-ID>/access_as_user']`).
+   Kennungen sind öffentlich, keine Secrets.
+6. Abgleich: die synthetische Datei (`node tests/smoke/synth.mjs synth.xlsx`) mit `npm run kuba:import -- --datei synth.xlsx
+   --ausfuehren --stichtag 2026-09-06` in eine Test-Instanz des ERP importieren (Banken «Testbank AG» und «Musterbank» vorher als
+   Organisation anlegen), den Export als `export.json` sichern (Test-Instanz mit `AUTH_MODE=dev`:
+   `curl -H 'x-user-role: admin' <ERP-URL>/saq/export/kuba > export.json`), dann
+   `node tools/snapshot-synth.js basis.json` und `node tools/snapshot-synth.js --erp export.json --nur-kennzahlen --vergleich basis.json`.
+
+Bekannte Abweichungen des ERP-Exports (Stand 28.10.2026, ERP-Branch `claude/admiring-archimedes-2segqh`, geprüft mit der
+synthetischen Datei über Import und Export):
+
+| Thema | Excel | ERP-Export | Wirkung im Cockpit |
+|---|---|---|---|
+| WE All / OE All | erfasster Wert | aus den Runs neu berechnet: `yes` erst, wenn alle Pflichtteile bestanden sind; `no` erst nach drei nicht bestandenen Runs eines Teils. Der Fallstatus (`saq_fall.status`, beim Import aus WE All/OE All übernommen) fliesst nicht ein | **Kennzahlen weichen ab** (Status, offen, passiv, Quoten). Mit der synthetischen Datei: 23 Abweichungen. Leitet das ERP die Werte aus dem Fallstatus ab, sind alle Kennzahlen gleich (Prototyp geprüft). |
+| CORS | – | `/saq/export/kuba` sendet keine CORS-Header (nur `/public/*`) | Der Browser blockiert den Abruf von GitHub Pages aus. |
+| VSS/VSM | Threaded Comment auf B{Zeile} | `saq_fall.kennzeichnung` wird nicht exportiert | Ansicht, Kachel und Filter VSS/VSM führen alle Vorgänge als «ohne». |
+| Uhrzeit | Datum mit Uhrzeit | nur Datum (`date`) | Geplante Prüfungen ohne Uhrzeit. |
+| Employer | Rohwert, Alias-Map | Name der CRM-Organisation; beim Import nicht zugeordnete Banken fehlen | Bankgruppen können abweichen oder leer sein. |
+| Datenqualität | Zellen wie erfasst | Import führt Duplikate zusammen, bereinigt Werte, übernimmt Runs nur mit Datum und Zeilen nur mit Namen | Datei-Zähler und Data-Quality-Log sind kleiner. Das ist erwartet. |
+| Certificate End Date | leer möglich | ohne Wert: Start + 3 Jahre | Gültigkeit erscheint, wo die Datei keine hatte. |
+| Sprache | leer möglich | nie leer (Standard DE) | Gruppe «ohne Sprache» entfällt. |
+
+Fehlerbilder der ERP-Quelle:
+
+| Meldung | Ursache und Massnahme |
+|---|---|
+| «ERP-Konfiguration fehlt» | `CONFIG.erp.baseUrl` oder `CONFIG.erp.scopes` leer. In `config.js` eintragen. |
+| «bbz-ERP nicht erreichbar» | Netzwerk, falsche Basis-URL oder fehlende CORS-Freigabe des ERP (Konsole: «blocked by CORS policy»). |
+| «Anmeldung am bbz-ERP abgelehnt (HTTP 401)» | Token passt nicht zur Audience des ERP. Scope in `CONFIG.erp.scopes` und `ENTRA_AUDIENCE` prüfen. |
+| «Kein Zugriff auf den ERP-Export (HTTP 403)» | Kein freigeschaltetes ERP-Konto oder keine Admin-Rolle. |
+| «ERP-Export weicht vom Feldschema ab» | Ein Pflichtfeld aus `HEADER_FIELDS` fehlt im Export, oder die Antwort ist kein JSON-Array. Nichts wird verarbeitet. |

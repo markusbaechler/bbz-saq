@@ -5,16 +5,18 @@
 Read-only Dashboard (Single-Page-App ohne Build-Schritt) für die Prüfungskennzahlen der bbz-Zertifizierung.
 Datenquelle ist die Excel-Datei `Reporting_KUBA.xlsx` auf der SharePoint-Site bbz-Zertifizierung; gelesen werden
 ausschliesslich die Sheets «First Certification» und «Ausgestellte Zertifikate». Die Datei wird nie verändert.
+Zweite Datenquelle (`CONFIG.datasource = 'erp'`): die Vorgänge aus dem bbz-ERP (`GET /saq/export/kuba`, gleiches Feldschema);
+Einrichtung und bekannte Abweichungen in [DEPLOY.md](DEPLOY.md#datenquelle-bbz-erp).
 
 - Live: https://markusbaechler.github.io/bbz-saq/ (Anmeldung mit M365-Konto, Zugriff gemäss SharePoint-Rechten)
 - Lokal: `python -m http.server 3000` → http://localhost:3000
 - Tests: `node tests/run-node.js` oder `tests.html` im Browser (synthetische Daten, keine Personendaten)
 - Browser-Smoke-Test (Playwright, Chromium): `cd tests/smoke && npm ci && npx playwright install chromium && node run.mjs`. Erzeugt eine synthetische Excel im Temp-Verzeichnis, lädt sie in die App, rendert jede Ansicht, prüft Filter, Chips, Export-Menü, Glossar-Sprung, Kacheln, Tabellen-Encoding, aufklappbare Ereignisse, DQ-Suche, Tastaturbedienung, Druck, Dark Mode und den leeren Browser-Speicher; Screenshots unter `tests/smoke/output/`. Playwright ist die einzige npm-Abhängigkeit im Repo und reines Test-Tooling. Ohne Browser-Download lässt sich ein vorhandener Chromium über `SMOKE_CHROMIUM=<Pfad zur Headless-Shell>` verwenden.
-- CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Job «tests» (Syntaxprüfung aller Module, `node tests/run-node.js`, Kontrastprüfung der Farb-Tokens `node tools/contrast.js`, README-Glossar-Abgleich) und Job «smoke» (Browser-Smoke-Test, Screenshots als Artefakt bei Fehlern)
+- CI: GitHub Action «Tests» (`.github/workflows/tests.yml`) bei Push auf `main` und bei Pull Requests: Job «tests» (Syntaxprüfung aller Module, `node tests/run-node.js`, Kontrastprüfung der Farb-Tokens `node tools/contrast.js`, README-Glossar-Abgleich, Snapshot-Abgleich Excel ↔ ERP-Quelle) und Job «smoke» (Browser-Smoke-Test, Screenshots als Artefakt bei Fehlern)
 - Modellbericht auf einer lokalen Kopie der Datei (nur Zähler und Quoten): `node tools/modellbericht.js <Datei.xlsx>`
 - Header-Übersicht beider Sheets ohne Zellwerte (Spalte, Header, gefüllte Zellen, unterschiedliche Werte, Experten-Markierung), vor jedem Mapping: `node tools/headers.js <Datei.xlsx>`
 - Spike Schreibpfad (Paket E): Bericht `docs/SPIKE-mutation.md`; die lokale Testseite `spike/mutation.html` wurde mit Paket F entfernt (07.09.2026), der Ablauf ist durch `datasource/workbookAdapter.js` und die Tests mit Graph-Mock abgedeckt
-- Snapshot der synthetischen Testdatei als Regressionsschutz bei Umbauten ohne fachliche Änderung: `node tools/snapshot-synth.js basis.json`, später `node tools/snapshot-synth.js --vergleich basis.json` (identisch = keine Zahl hat sich geändert)
+- Snapshot der synthetischen Testdatei als Regressionsschutz bei Umbauten ohne fachliche Änderung: `node tools/snapshot-synth.js basis.json`, später `node tools/snapshot-synth.js --vergleich basis.json` (identisch = keine Zahl hat sich geändert). Dieselbe Datei über die ERP-Quelle: `--quelle erp` (Transportformat des ERP-Exports, muss identisch sein); einen echten ERP-Export der Datei prüft `--erp export.json --nur-kennzahlen` (ohne Datei-Zähler)
 - Betrieb und Einrichtung: [DEPLOY.md](DEPLOY.md)
 - Auftragsdokumente: `PROMPT.md` (Phase 1), `PROMPT-2.md` (Ausbau). **Ein Paket mit Buchstaben** (A–G) stammt aus
   `PROMPT-2.md`, **ein Paket mit Namen** (BEFUNDE, DIAGRAMME, KOPFBEREICH, SIGNALE, NAVIGATION, MESSZEILE) aus der
@@ -830,8 +832,9 @@ glossary.js / snapshot.js          Begriffe und Kennzahl-Definitionen; Snapshots
 tools/                             contrast.js, glossar-readme.js, modellbericht.js, snapshot-synth.js (Node)
 auth.js                            MSAL (Popup, Redirect-Fallback, Silent-Token)
 graph.js                           Graph-HTTP mit Retry (429/503), Token-Erneuerung bei 401
-datasource/index.js                load() / loadFromFile() / write() (Schreibpfad, Phase 2)
+datasource/index.js                load() (Excel oder bbz-ERP, CONFIG.datasource) / loadFromFile() / write() (Schreibpfad, Phase 2)
 datasource/fileAdapter.js          Site → Drive → Item, Download, SheetJS-Parse (nur zwei Sheets)
+datasource/erpAdapter.js           Datenquelle bbz-ERP: GET /saq/export/kuba → derselbe Vertrag { sheets, comments, meta } für store.js
 datasource/threadedComments.js     VSS/VSM aus xl/threadedComments/*.xml
 datasource/workbookApi.js          Reine Helfer des Schreibpfads (Range, Session-Ablauf, Schreibweise, Konflikt, Audit)
 datasource/workbookAdapter.js      Schreibpfad über die Graph-Workbook-API (Phase 2, nur mit Flag)
