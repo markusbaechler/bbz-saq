@@ -1,5 +1,6 @@
 // datasource/index.js – einziges Interface der Datenschicht nach aussen.
-//   load()            → { sheets, comments, meta }   Phase 1: fileAdapter (Download via Graph + Parse)
+//   load()            → { sheets, comments, meta }   CONFIG.datasource 'excel': fileAdapter (Download via Graph + Parse),
+//                                                    'erp': erpAdapter (GET /saq/export/kuba des bbz-ERP) – gleicher Vertrag
 //   loadFromFile(file)→ { sheets, comments, meta }   gleiche Parse-Logik für eine lokal gewählte Datei (nur Browser-Memory)
 //   write(change)     → { ok, written, conflict, itemVersion, audit }   Phase 2: workbookAdapter (Workbook-API), nur mit CONFIG.features.write
 // Views und Metrics greifen nie direkt auf Graph zu.
@@ -8,6 +9,7 @@ import { getAuth } from '../auth.js';
 import { createGraphClient } from '../graph.js';
 import { createFileAdapter, parseWorkbook, NotImplementedError } from './fileAdapter.js';
 import { createWorkbookAdapter, WriteConflictError, WriteForbiddenError, WriteHeaderError } from './workbookAdapter.js';
+import { createErpAdapter } from './erpAdapter.js';
 import { CONFIG } from '../config.js';
 
 export { NotImplementedError, WriteConflictError, WriteForbiddenError, WriteHeaderError };
@@ -21,13 +23,24 @@ function libs() {
   return { XLSX, fflate };
 }
 
+// Datenquelle aus CONFIG.datasource: 'excel' (Standard) oder 'erp'; jeder andere Wert ist ein Konfigurationsfehler
+export function datasourceKind(config = CONFIG) {
+  const kind = config.datasource === undefined ? 'excel' : config.datasource;
+  if (kind !== 'excel' && kind !== 'erp') throw new Error('CONFIG.datasource muss «excel» oder «erp» sein (ist «' + kind + '»).');
+  return kind;
+}
+
 let adapter = null;
 
 function getAdapter() {
   if (!adapter) {
     const auth = getAuth();
-    const graph = createGraphClient({ getToken: (options) => auth.getToken(options) });
-    adapter = createFileAdapter({ graph, ...libs() });
+    if (datasourceKind() === 'erp') {
+      adapter = createErpAdapter({ getToken: (options) => auth.getToken(options) });
+    } else {
+      const graph = createGraphClient({ getToken: (options) => auth.getToken(options) });
+      adapter = createFileAdapter({ graph, ...libs() });
+    }
   }
   return adapter;
 }
@@ -36,7 +49,7 @@ export async function load() {
   return getAdapter().load();
 }
 
-// Änderungsprotokoll (Historie der App-Änderungen) neben der Datei; [] wenn keines vorhanden
+// Änderungsprotokoll (Historie der App-Änderungen) neben der Datei; [] wenn keines vorhanden oder bei der ERP-Quelle
 export async function loadAudit() {
   return getAdapter().loadAudit();
 }

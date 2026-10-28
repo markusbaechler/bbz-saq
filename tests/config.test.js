@@ -22,6 +22,13 @@ test('config: Datei-Referenz ohne hardcodierte Item-IDs', () => {
   assertEqual(CONFIG.auth.scopes, ['Files.Read.All']);
 });
 
+test('config: Datenquelle Standard «excel»; ERP-Anbindung (Basis-URL, Pfad, Scope) ohne Secrets', () => {
+  assertEqual(CONFIG.datasource, 'excel');
+  assertEqual(Object.keys(CONFIG.erp).sort(), ['baseUrl', 'exportPath', 'scopes']);
+  assertEqual(CONFIG.erp.exportPath, '/saq/export/kuba');
+  assert(typeof CONFIG.erp.baseUrl === 'string' && Array.isArray(CONFIG.erp.scopes), 'Basis-URL Text, Scopes Liste');
+});
+
 test('config: Whitelists der Normalisierungstabelle', () => {
   assertEqual(PROFILES, ['PK', 'IK', 'CWMA', 'KMU', 'AFFL', 'CCoB']);
   assertEqual(PROFILE_ALIASES, { CCOB: 'CCoB', Affluent: 'AFFL', Affl: 'AFFL', AFF: 'AFFL', AF: 'AFFL', 'PK FRZ': 'PK' });

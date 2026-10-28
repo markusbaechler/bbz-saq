@@ -82,7 +82,7 @@ function listOrAll(list) {
 
 export function filterLines(filter, meta = {}) {
   const f = { ...DEFAULT_FILTER, ...filter };
-  const source = meta.source === 'file' ? 'lokale Datei' : 'SharePoint';
+  const source = meta.source === 'file' ? 'lokale Datei' : meta.source === 'erp' ? 'bbz-ERP' : 'SharePoint';
   let file = 'Datei: ' + (meta.fileName || '–') + ' (' + source + ')';
   if (validDate(meta.lastModified)) file += ', geändert ' + fmtDateTime(meta.lastModified);
   if (validDate(meta.loadedAt)) file += ', geladen ' + fmtDateTime(meta.loadedAt);

@@ -4,6 +4,7 @@ import { getAuth, AuthConfigError } from './auth.js';
 import { GraphError, AuthExpiredError } from './graph.js';
 import { load, loadFromFile, loadAudit, write } from './datasource/index.js';
 import { FileNotFoundError, SheetMissingError } from './datasource/fileAdapter.js';
+import { ErpError, ErpConfigError, ErpSchemaError } from './datasource/erpAdapter.js';
 import { createStore, MissingHeaderError, DuplicateHeaderError } from './store.js';
 import { filterPersons, eligible, benchmarkFilter, BENCHMARKS, MODE, personCount, isVorgang, expertRuns, signals, DEFAULT_FILTER, bankPersonCounts, SMALL_N } from './metrics.js';
 import { CONFIG, headerCandidates, runKey } from './config.js';
@@ -98,6 +99,19 @@ function $(id) {
 function hasData() {
   const { meta } = store.getState();
   return !!(meta && meta.fileName);
+}
+
+// Quelle der geladenen Daten in Worten (Statuszeile, Datenstand)
+function sourceLabel(meta) {
+  if (meta.source === 'file') return 'lokale Datei (nur im Browser)';
+  return meta.source === 'erp' ? 'bbz-ERP' : 'SharePoint';
+}
+
+// Zeilen je Sheet; die ERP-Quelle ordnet Vorgänge mit Zertifikat dem Sheet 'issued' zu (datasource/erpAdapter.js)
+function sheetCountsText(meta, sep) {
+  const c = meta.counts || {};
+  if (meta.source === 'erp') return (c.first || 0) + ' ohne Zertifikat' + sep + (c.issued || 0) + ' mit Zertifikat';
+  return (c.first || 0) + ' First Certification' + sep + (c.issued || 0) + ' Ausgestellte Zertifikate';
 }
 
 function viewFromHash() {
@@ -197,11 +211,11 @@ function renderStatus(text) {
     renderDatastand(false);
     return;
   }
-  const source = meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint';
+  const source = sourceLabel(meta);
   const counts = meta.counts || {};
   const keyNote = counts.schluesselOhneGeburtsdatum ? ' · ' + counts.schluesselOhneGeburtsdatum + ' Vorgänge ohne Geburtsdatum (Schlüssel nur aus Namen)' : '';
   ui.status.textContent = meta.fileName + ' (' + source + ') · geändert ' + (fmtDateTime(meta.lastModified) || '–') + ' · geladen ' + (fmtTime(meta.loadedAt) || '–')
-    + ' · ' + (counts.zeilen || persons.length) + ' Zeilen (' + (counts.first || 0) + ' First Certification, ' + (counts.issued || 0) + ' Ausgestellte Zertifikate)'
+    + ' · ' + (counts.zeilen || persons.length) + ' Zeilen (' + sheetCountsText(meta, ', ') + ')'
     + ' · ' + (counts.vorgaenge || 0) + ' Vorgänge, ' + (counts.personen || 0) + ' Personen, ' + (counts.duplikate || 0) + ' Duplikate'
     + ' · kennzahlrelevant ' + eligible(persons).length + ' · offen ' + (counts.offen || 0) + ' · nicht erfasst ' + (counts.nichtErfasst || 0)
     + ' · Data-Quality-Log: ' + (counts.fehler || 0) + ' Fehler, ' + (counts.hinweise || 0) + ' Hinweise, ' + (counts.nichtAusgewertet || 0) + ' nicht ausgewertet'
@@ -237,8 +251,8 @@ function renderDatastand(visible) {
   ]);
   const rows = [
     ['Fassung der App', VERSION],
-    ['Quelle', meta.source === 'file' ? 'lokale Datei (nur im Browser)' : 'SharePoint'],
-    ['Zeilen je Sheet', (c.first || 0) + ' First Certification · ' + (c.issued || 0) + ' Ausgestellte Zertifikate'],
+    ['Quelle', sourceLabel(meta)],
+    ['Zeilen je Sheet', sheetCountsText(meta, ' · ')],
     ['Vorgänge / Personen / Duplikate', (c.vorgaenge || 0) + ' / ' + (c.personen || 0) + ' / ' + (c.duplikate || 0)],
     ['Kennzahlrelevant', String(eligible(persons).length)],
     ['Offen / nicht erfasst', (c.offen || 0) + ' / ' + (c.nichtErfasst || 0)],
@@ -709,7 +723,8 @@ function toggleEditMode() {
 
 function renderEditMode() {
   const on = !!store.getState().ui.editMode;
-  const show = !!(CONFIG.features && CONFIG.features.write) && hasData();
+  // Der Schreibpfad schreibt in die Excel-Datei – mit der ERP-Quelle gibt es nichts zu bearbeiten
+  const show = !!(CONFIG.features && CONFIG.features.write) && CONFIG.datasource !== 'erp' && hasData();
   ui.editMode.hidden = !show;
   ui.editMode.setAttribute('aria-pressed', String(on));
   ui.editMode.textContent = on ? 'Bearbeiten: an' : 'Bearbeiten';
@@ -784,6 +799,9 @@ function describeError(e) {
     return { title: 'Excel-Struktur weicht ab: Header mehrdeutig', message: e.message, hint: 'Ein Header darf in Zeile 10 nur einmal vorkommen.' };
   }
   if (e instanceof SheetMissingError) return { title: 'Sheet fehlt', message: e.message };
+  if (e instanceof ErpConfigError) return { title: 'ERP-Konfiguration fehlt', message: e.message, hint: 'Eine lokale Excel-Datei kann trotzdem geprüft werden.' };
+  if (e instanceof ErpSchemaError) return { title: 'ERP-Export weicht vom Feldschema ab', message: e.message, hint: 'Die Daten werden nicht verarbeitet, bis das Feldschema stimmt.' };
+  if (e instanceof ErpError) return { title: 'Fehler beim Zugriff auf das bbz-ERP', message: e.message, retry: !e.status || e.status >= 500, signIn: e.status === 401 };
   if (e instanceof FileNotFoundError) return { title: 'Datei nicht gefunden', message: e.message };
   if (e instanceof AuthExpiredError) return { title: 'Anmeldung abgelaufen', message: e.message, hint: 'Bitte erneut anmelden und den Ladevorgang wiederholen.', signIn: true };
   if (e instanceof GraphError) {
@@ -851,7 +869,7 @@ async function signOut() {
 }
 
 async function loadGraph() {
-  renderStatus('Lade Reporting_KUBA.xlsx von SharePoint …');
+  renderStatus(CONFIG.datasource === 'erp' ? 'Lade Vorgänge aus dem bbz-ERP …' : 'Lade Reporting_KUBA.xlsx von SharePoint …');
   const data = await load();
   let audit = [];
   try {
@@ -866,7 +884,7 @@ async function loadGraph() {
 // Schreibpfad (Paket E, E.3): eine Zelle über den Adapter schreiben, danach die Datei neu laden – kein optimistisches Update im Memory
 async function writeChange(change) {
   const { meta } = store.getState();
-  if (!meta || meta.source !== 'graph') throw new Error('Schreiben ist nur möglich, wenn die Datei von SharePoint geladen wurde – nicht bei einer lokalen Datei.');
+  if (!meta || meta.source !== 'graph') throw new Error('Schreiben ist nur möglich, wenn die Datei von SharePoint geladen wurde – nicht bei einer lokalen Datei oder Daten aus dem bbz-ERP.');
   const result = await write({ ...change, expectedItem: { eTag: meta.eTag || null, lastModified: meta.lastModified instanceof Date ? meta.lastModified.toISOString() : null } });
   await loadGraph();
   return result;
@@ -892,6 +910,11 @@ async function init() {
   ui.signin = $('btn-signin');
   ui.signout = $('btn-signout');
   ui.load = $('btn-load');
+  if (CONFIG.datasource === 'erp') {
+    ui.load.textContent = 'Daten aus dem bbz-ERP laden';
+    const quelle = document.querySelector('.app-footer span');
+    if (quelle) quelle.textContent = 'Datenquelle: bbz-ERP (SAQ-Export). Daten werden nur im Browser-Speicher gehalten.';
+  }
   ui.file = $('file-input');
   ui.status = $('status');
   ui.datastand = $('datastand');

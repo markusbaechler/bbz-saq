@@ -33,6 +33,17 @@ export const CONFIG = {
   // Phase 2 (PROMPT-2 Paket E): Schreibpfad nur mit Flag; false = keine Bearbeiten-Elemente, kein Schreibzugriff.
   // Produktiv freigeschaltet am 06.09.2026 durch den Auftraggeber (Test auf der Kopie bestanden); Abschalten über false.
   features: { write: true },
+  // Datenquelle: 'excel' = Reporting_KUBA.xlsx von SharePoint (fileAdapter), 'erp' = Vorgänge aus dem bbz-ERP (erpAdapter,
+  // GET {erp.baseUrl}{erp.exportPath}, Admin-Rolle im ERP). Der Schreibpfad (features.write) schreibt in die Excel-Datei
+  // und gilt nur für 'excel'; «Lokale Datei» liest in beiden Fällen eine Excel-Datei.
+  datasource: 'excel',
+  erp: {
+    baseUrl: '', // Basis-URL der ERP-API ohne Pfad, z. B. https://erp.example.ch; leer = nicht konfiguriert
+    exportPath: '/saq/export/kuba',
+    // Delegierter Scope der ERP-API-App-Registrierung (Audience = ENTRA_AUDIENCE des ERP), z. B. api://<Client-ID>/<Scope>.
+    // Öffentliche Kennung, kein Secret. Leer = nicht konfiguriert.
+    scopes: [],
+  },
   // Experten (Paket D, bestätigt 06.09.2026): ab diesem Datum sind Experten je OE-Run erfasst; früher fehlende Experten ergeben keinen Hinweis
   experts: { from: '2018-01-01' },
   // Bank-Report (PROMPT-3, E15): Logo im Kopfband, Slot 24 mm × 12 mm. null = Slot bleibt leer, das Layout ändert sich
