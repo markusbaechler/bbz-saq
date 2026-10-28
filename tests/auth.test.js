@@ -224,6 +224,16 @@ test('auth.getToken({ scopes }): Token für zusätzliche Scopes (inkrementelle Z
   assertEqual(calls.filter((c) => c[0] === 'acquireTokenSilent').pop()[1].scopes, ['https://graph.microsoft.com/Files.Read.All']);
 });
 
+test('auth.getToken({ scopes }): vollständige Scopes anderer APIs (api://… der ERP-API, https://…) bleiben unverändert', async () => {
+  const { msal, calls } = fakeMsal({ accounts: [{ username: 'a@example.org' }] });
+  const auth = createAuth({ msal, authConfig: CONFIGURED, location: LOCATION });
+  await auth.init();
+  await auth.getToken({ scopes: ['api://erp-test/access_as_user'] });
+  assertEqual(calls.filter((c) => c[0] === 'acquireTokenSilent').pop()[1].scopes, ['api://erp-test/access_as_user']);
+  await auth.getToken({ scopes: ['https://erp.example.test/.default'] });
+  assertEqual(calls.filter((c) => c[0] === 'acquireTokenSilent').pop()[1].scopes, ['https://erp.example.test/.default']);
+});
+
 test('auth.getToken({ scopes }): bei InteractionRequired Popup mit denselben Scopes', async () => {
   const { msal, calls } = fakeMsal({ accounts: [{ username: 'a@example.org' }], silentError: 'interaction_required' });
   const auth = createAuth({ msal, authConfig: CONFIGURED, location: LOCATION });

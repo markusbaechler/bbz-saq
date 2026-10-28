@@ -6,8 +6,9 @@ import { CONFIG } from './config.js';
 
 const GRAPH_RESOURCE = 'https://graph.microsoft.com/';
 
+// Kurzform (Files.Read.All) → Graph-Scope; vollständige Scopes anderer APIs (https://…, api://… der ERP-API) bleiben unverändert
 function qualify(scope) {
-  return /^https?:\/\//i.test(scope) ? scope : GRAPH_RESOURCE + scope;
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(scope) ? scope : GRAPH_RESOURCE + scope;
 }
 
 export const SCOPES = CONFIG.auth.scopes.map(qualify);
